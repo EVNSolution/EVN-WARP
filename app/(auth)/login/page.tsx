@@ -1,0 +1,83 @@
+'use client'
+
+import { useActionState } from 'react'
+import { loginAction } from '@/app/actions/auth'
+
+export default function LoginPage() {
+  const [error, formAction, isPending] = useActionState(loginAction, undefined)
+
+  return (
+    <div className="w-full max-w-sm">
+      {/* 로고 */}
+      <div className="text-center mb-10">
+        <div className="text-3xl font-black text-white tracking-tight mb-1">
+          W<span style={{ color: '#C5D42A' }}>A</span>RP
+        </div>
+        <div className="text-sm" style={{ color: '#888' }}>
+          EV<span style={{ color: '#C5D42A' }}>&</span>Solution 목표관리 플랫폼
+        </div>
+        <div className="text-xs mt-1 italic" style={{ color: '#C5D42A' }}>
+          green &amp; reliable
+        </div>
+      </div>
+
+      {/* 로그인 카드 */}
+      <form action={formAction} className="rounded-2xl p-8 space-y-5" style={{ backgroundColor: '#1a1a1a', border: '1px solid rgba(255,255,255,0.08)' }}>
+        <h2 className="text-lg font-bold text-white mb-6">로그인</h2>
+
+        <div className="space-y-1">
+          <label className="text-xs font-medium" style={{ color: '#aaa' }}>이메일</label>
+          <input
+            name="email"
+            type="email"
+            required
+            autoComplete="email"
+            placeholder="example@evnsolution.com"
+            className="w-full px-4 py-3 rounded-lg text-sm text-white placeholder:text-slate-600 outline-none transition-all"
+            style={{
+              backgroundColor: '#2a2a2a',
+              border: '1px solid rgba(255,255,255,0.1)',
+            }}
+            onFocus={e => (e.target.style.borderColor = '#C5D42A')}
+            onBlur={e  => (e.target.style.borderColor = 'rgba(255,255,255,0.1)')}
+          />
+        </div>
+
+        <div className="space-y-1">
+          <label className="text-xs font-medium" style={{ color: '#aaa' }}>비밀번호</label>
+          <input
+            name="password"
+            type="password"
+            required
+            autoComplete="current-password"
+            placeholder="비밀번호 입력"
+            className="w-full px-4 py-3 rounded-lg text-sm text-white placeholder:text-slate-600 outline-none transition-all"
+            style={{
+              backgroundColor: '#2a2a2a',
+              border: '1px solid rgba(255,255,255,0.1)',
+            }}
+            onFocus={e => (e.target.style.borderColor = '#C5D42A')}
+            onBlur={e  => (e.target.style.borderColor = 'rgba(255,255,255,0.1)')}
+          />
+        </div>
+
+        {error && (
+          <p className="text-xs text-red-400 bg-red-950/40 px-3 py-2 rounded-lg">{error}</p>
+        )}
+
+        <button
+          type="submit"
+          disabled={isPending}
+          className="w-full py-3 rounded-lg text-sm font-bold text-black transition-opacity disabled:opacity-50"
+          style={{ backgroundColor: '#C5D42A' }}
+        >
+          {isPending ? '로그인 중…' : '로그인'}
+        </button>
+      </form>
+
+      <p className="text-center text-xs mt-6" style={{ color: '#555' }}>
+        계정 문의: 시스템 관리자에게 연락하세요
+      </p>
+    </div>
+  )
+}

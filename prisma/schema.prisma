@@ -1,0 +1,580 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../app/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model Team {
+  id             String          @id @default(cuid())
+  name           String
+  strategyTasks  StrategyTask[]
+  weeklyUpdates  WeeklyUpdate[]
+  workActivities WorkActivity[]
+  users          User[]
+  createdAt      DateTime        @default(now())
+}
+
+model User {
+  id        String   @id @default(cuid())
+  name      String
+  email     String   @unique
+  password  String
+  role      String   @default("user")  // "admin" | "user"
+  teamId    String?
+  team      Team?    @relation(fields: [teamId], references: [id])
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model StrategyTask {
+  id               String           @id @default(cuid())
+  code             String           @unique
+  teamSeq          Int              // 팀 내 순번 (1,2,3...)
+  subSeq           Int?             // 하부과제 순번 (null이면 최상위 과제)
+  strategy         String           // "A" or "B"
+  title            String
+  teamId           String
+  team             Team             @relation(fields: [teamId], references: [id])
+  owner            String
+  startDate        DateTime
+  endDate          DateTime
+  status           String           @default("진행중")
+  confirmed        Boolean          @default(false)
+  problemStatement String?
+  goalStatement    String?
+
+  // 부모-자식 관계
+  parentId         String?
+  parent           StrategyTask?    @relation("SubTasks", fields: [parentId], references: [id])
+  subTasks         StrategyTask[]   @relation("SubTasks")
+
+  kpiItems         KpiItem[]
+  monthlyTargets   MonthlyTarget[]
+  countermeasures  Countermeasure[]
+  weeklyUpdates    WeeklyUpdate[]
+  kpiActuals       KpiActual[]
+  workActivities   WorkActivity[]
+
+  suspended        Boolean          @default(false)
+  suspendedAt      DateTime?
+  suspendReason    String?
+
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+}
+
+model MonthlyTarget {
+  id            String       @id @default(cuid())
+  taskId        String
+  task          StrategyTask @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  month         Int
+  year          Int
+  revenueTarget   Float?   // 매출목표 (만원)
+  budget          Float?   // 예산 합계 (만원)
+  budgetPersonnel Float?   // 인건비 (만원)
+  budgetOutsource Float?   // 외주·용역비 (만원)
+  budgetEquipment Float?   // 설비·라이선스 (만원)
+  budgetTravel    Float?   // 출장·교통비 (만원)
+  budgetOther     Float?   // 기타비용 (만원)
+  personnel       Int?     // 필요인력 (명)
+}
+
+model Countermeasure {
+  id             String         @id @default(cuid())
+  taskId         String
+  task           StrategyTask   @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  index          Int
+  description    String
+  startDate      String?        // 간트 시작일 "YYYY-MM-DD"
+  endDate        String?        // 간트 완료일 "YYYY-MM-DD"
+  workActivities WorkActivity[]
+}
+
+model KpiItem {
+  id             String         @id @default(cuid())
+  taskId         String
+  task           StrategyTask   @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  index          Int
+  type           String         // "정량" | "정성"
+  subType        String?        // "금액" | "일자" | "인원수" | "건수" | "비율" | "기타"
+  label          String
+  target         String
+  targetNum      Float?
+  unit           String?        // "만원" | "억원" | "명" | "건" | "%" 등
+  kpiActuals     KpiActual[]
+  workActivities WorkActivity[]
+}
+
+model KpiActual {
+  id        String       @id @default(cuid())
+  kpiItemId String
+  kpiItem   KpiItem      @relation(fields: [kpiItemId], references: [id], onDelete: Cascade)
+  taskId    String
+  task      StrategyTask @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  week      String       // "2026-W24"
+  actual    String
+  actualNum Float?
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+
+  @@unique([kpiItemId, week])
+}
+
+// 전사 KPI 관리
+model CompanyKpi {
+  id           String            @id @default(cuid())
+  year         Int               // 2026
+  label        String            // "연간 매출액"
+  unit         String?           // "억원" | "대" | "건" | "%"
+  category     String            // "재무" | "영업" | "운영"
+  index        Int               @default(0)
+  annualTarget Float?            // 연간 목표
+  entries      CompanyKpiEntry[]
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+}
+
+model CompanyKpiEntry {
+  id           String     @id @default(cuid())
+  companyKpiId String
+  companyKpi   CompanyKpi @relation(fields: [companyKpiId], references: [id], onDelete: Cascade)
+  year         Int
+  month        Int        // 1-12
+  target       Float?     // 월별 목표
+  actual       Float?     // 월별 실적
+  memo         String?
+  updatedAt    DateTime   @updatedAt
+
+  @@unique([companyKpiId, year, month])
+}
+
+// 업무 활동 (4페이지 협업 허브에서 입력)
+model WorkActivity {
+  id        String        @id @default(cuid())
+  taskId    String?       // 독립 활동 시 null
+  task      StrategyTask? @relation(fields: [taskId], references: [id], onDelete: SetNull)
+  teamId    String
+  team      Team          @relation(fields: [teamId], references: [id])
+  userId    String?      // 등록한 사용자 ID
+  userName  String?      // 등록한 사용자 이름
+  date      String       // "YYYY-MM-DD" (시작일)
+  endDate   String?      // "YYYY-MM-DD" (종료일 — 출장 등 다일 활동)
+  week      String       // "2026-W25"
+  type      String       // 활동 유형 (7개 카테고리 체계)
+  title     String
+  content   String?
+  mentions  String?      // @멘션 대상 (콤마 구분)
+  referenceUrl     String?        // 이메일 등 참고 URL (아웃룩 링크 등)
+  planStatus       String         @default("계획")  // "계획" | "완료"
+  kpiItemId        String?        // 실적추가 시 연결된 KPI 항목
+  kpiItem          KpiItem?       @relation(fields: [kpiItemId], references: [id])
+  kpiWeek          String?        // 실적추가 기준 주 (예: "2026-W24")
+  countermeasureId String?        // 연계된 간트 실행안
+  countermeasure   Countermeasure? @relation(fields: [countermeasureId], references: [id], onDelete: SetNull)
+
+  // 비용정산 (해외출장 제외 모든 활동유형)
+  expenseTransport        Float?   // 교통비 (원)
+  expenseAccomm           Float?   // 숙박비 (원)
+  expenseMeal             Float?   // 식비 (원)
+  expenseOther            Float?   // 기타비용 (원)
+  expenseNote             String?  // 비용 메모
+  expenseTransportReceipt String?  // 교통비 영수증 URL (| 구분 다중)
+  expenseAccommReceipt    String?  // 숙박비 영수증 URL
+  expenseMealReceipt      String?  // 식비 영수증 URL
+  expenseOtherReceipt     String?  // 기타비용 영수증 URL
+
+  // 비용 결재 (향후 결재 프로세스 연결용)
+  expenseStatus       String?   // null | '신청' | '승인' | '반려'
+  expenseApproverId   String?   // 결재자 userId
+  expenseApproverName String?   // 결재자 이름
+  expenseApprovedAt   DateTime? // 결재 처리일
+  expenseApproverNote String?   // 결재 의견
+
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+}
+
+// ── 고객 마스터 ──────────────────────────────────────────────────────────
+model Customer {
+  id              String   @id @default(cuid())
+
+  // 기본정보
+  name            String
+  phone           String?
+  email           String?
+  customerSegment String?   // "B2C" | "B2B"
+  customerCategory String?
+
+  // 고객 분류
+  status          String   @default("잠재고객")
+  // "잠재고객" | "활성" | "완료" | "이탈"
+  grade           String?   // null | "브론즈" | "실버" | "골드"
+  tags            String?   // JSON: ["VIP","재구매", ...]
+
+  // 유입 정보
+  source          String?
+  collectedAt     DateTime?
+  referrer        String?
+  leadType        String?
+  assignee        String?
+  memo            String?
+
+  // 인적사항 (B2C)
+  birthYear       Int?
+  regionCity      String?
+  regionDist      String?
+  gender          String?
+  birthInfo       String?
+  maritalStatus   String?
+  childrenCount   Int?
+  addressDetail   String?
+  isSoleProprietor Boolean?
+  soleBusinessName String?
+  soleBusinessNo   String?
+  soleBusinessType String?
+
+  // 법인정보 (B2B)
+  b2bCategory     String?
+  companyName     String?
+  businessRegNo   String?
+  contactTitle    String?
+  industry        String?
+  companyAddress  String?
+  companyPhone    String?
+
+  // 차량정보
+  hasVehicle      Boolean?
+  vehicleMaker    String?
+  vehicleName     String?
+  vehicleYear     String?
+  totalMileage    Int?
+  truckType1      String?
+  truckType2      String?
+  truckType3      String?
+  truckType4      String?
+
+  // 화주·물류정보
+  shipperName     String?
+  cargoType       String?
+  deliveryCity    String?
+  deliveryDist    String?
+  deliveryFreq    String?
+  workShift       String?
+  monthlyIncome   String?
+  cargoNote       String?
+
+  leads           SalesDeal[]
+  activities      CustomerActivity[]
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model CustomerActivity {
+  id          String   @id @default(cuid())
+  customerId  String
+  customer    Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  type        String    // "전화" | "문자" | "방문" | "이메일" | "이벤트" | "기타"
+  date        DateTime
+  content     String?
+  result      String?
+  nextAction  String?
+  assignee    String?
+
+  createdAt   DateTime @default(now())
+}
+
+model LeadMeeting {
+  id          String    @id @default(cuid())
+  dealId      String
+  deal        SalesDeal @relation(fields: [dealId], references: [id], onDelete: Cascade)
+
+  type        String    // "통화" | "방문" | "화상" | "기타"
+  meetingAt   DateTime
+  duration    Int?      // 분 단위
+  content     String?   // 내용 / 요약
+  result      String?   // 결과
+  nextAction  String?   // 다음 액션
+  assignee    String?
+
+  filesJson   String?   // JSON: [{name,path,size,mime}]
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+model SalesDeal {
+  id          String   @id @default(cuid())
+
+  // 고객 마스터 연결 (신규)
+  customerId  String?
+  customer    Customer? @relation(fields: [customerId], references: [id], onDelete: SetNull)
+
+  meetings    LeadMeeting[]
+
+  // 구 퍼널 단계 (하위호환)
+  stage       String   @default("리드")
+
+  // 신 파이프라인 단계 코드: "1-1" ~ "4-1" | "이탈" | "완료"
+  stageCode     String?   // null이면 getStageCode(stage)로 계산
+  checklistJson String?   // JSON: {"1-1-0": true, "1-2-1": false, ...}
+  salesStatus   String?   // "진행중" | "이탈" | "완료"
+
+  // 기본 고객 정보
+  name        String
+  phone       String?
+  birthYear   Int?     // 출생연도
+  regionCity  String?  // 지역(도)
+  regionDist  String?  // 지역(시군구)
+
+  // 리드 정보
+  leadType    String?  // 리드유형 (직접발굴/소개/온라인/전시회 등)
+  source      String?  // 유입경로
+  collectedAt DateTime? // 수집날짜
+  referrer    String?  // 추천인
+
+  // 전화상담
+  phoneConsultedAt DateTime?
+  currentVehicle   String?   // 기존차량
+  tradeIn          String?   // 기존보유차량 매입여부 (Y/N/협의)
+  switchReason     String?   // 교체사유
+  purchaseTiming   String?   // 차량구매시기
+
+  // 대면상담
+  faceConsultedAt  DateTime?
+  customerType     String?   // 고객유형 (개인/법인)
+  purchaseMethod   String?   // 구매방식 (캐피탈/현금/리스)
+
+  // 캐피탈 심사
+  capitalCheckedAt DateTime?  // 조회 의뢰일
+  capitalResult    String?    // 대기중/승인/불가
+
+  // 계약·출고
+  contractedAt     DateTime?  // 매매계약일
+  vehicleModel     String?    // 차종
+  vehicleCount     Int?       // 차량대수
+  bodyType         String?    // 특장
+  tempType         String?    // 상온/냉동
+  bodyOptions      String?    // 옵션(특장)
+  vehiclePrice     Int?       // 차량가격 (만원)
+  subsidyAmount    Int?       // 보조금 금액
+  totalPrice       Int?       // 총가격 (만원)
+  downPayment      Int?       // 선수금 (만원)
+  monthlyPayment   Int?       // 월납액 (만원)
+  loanMonths       Int?       // 개월수
+  deliveredAt      DateTime?  // 차량출고일
+
+  // 공통
+  assignee         String?
+  memo             String?    // 상담메모
+  purchaseGoal     String?    // 구매목적
+  keyFactors       String?    // 중요요소
+  lostReason       String?
+
+  // CRM 고객 세그먼트
+  customerSegment  String?   // "B2C" | "B2B"
+  customerCategory String?   // "자차지입" | "임대지입" | "용차" | "월급기사"
+
+  // CRM 기본정보 (B2C)
+  email            String?
+  gender           String?   // "남" | "여"
+  birthInfo        String?   // 생일: "1985-03-15" | "1985" | "30대" 등 자유 입력
+  maritalStatus    String?   // "미혼" | "기혼" | "이혼"
+  childrenCount    Int?
+  addressDetail    String?
+  // B2C 개인사업자
+  isSoleProprietor Boolean?  // 개인사업자 여부
+  soleBusinessName String?   // 상호명
+  soleBusinessNo   String?   // 사업자등록번호
+  soleBusinessType String?   // 업종
+
+  // CRM 법인정보 (B2B)
+  b2bCategory      String?   // "화주" | "운송사" | "기타"
+  companyName      String?
+  businessRegNo    String?
+  contactTitle     String?   // 담당자 직책
+  industry         String?   // 업종/사업분야
+  companyAddress   String?   // 회사 주소
+  companyPhone     String?   // 회사 대표 전화
+
+  // CRM 차량정보
+  hasVehicle       Boolean?  // 차량 보유 여부
+  vehicleMaker     String?   // 제작사
+  vehicleName      String?   // 차량명
+  vehicleYear      String?   // 연식
+  totalMileage     Int?      // 총 주행거리 (km)
+  truckType1       String?   // 특장 구분1: 탑/벤
+  truckType2       String?   // 특장 구분2: 경유/가스/전기
+  truckType3       String?   // 특장 구분3: 건탑/냉동/냉장
+  truckType4       String?   // 특장 구분4: 저상/표준/하이탑
+
+  // CRM 화주정보
+  shipperName      String?   // 화주명 (컬리/쿠팡/CJ/이마트/네이버/직접입력)
+  cargoType        String?   // "냉동" | "냉장" | "상온" | "기타"
+  deliveryRegion   String?   // (구버전, 미사용)
+  deliveryCity     String?   // 배송 지역 시/도
+  deliveryDist     String?   // 배송 지역 구/군
+  deliveryFreq     String?   // 배송 빈도 (주1일~주7일)
+  workShift        String?   // 근무시간: "주간" | "야간"
+  monthlyLogCost   String?   // (구버전, 미사용)
+  monthlyIncome    String?   // 월 수익 규모
+  currentTransport String?   // (구버전, 미사용)
+  logisticsPartner String?   // (구버전, 미사용)
+  cargoNote        String?   // 화물 특이사항
+
+  documents        DealDocument[]
+
+  createdAt        DateTime   @default(now())
+  updatedAt        DateTime   @updatedAt
+}
+
+model DealDocument {
+  id           String    @id @default(cuid())
+  dealId       String
+  deal         SalesDeal @relation(fields: [dealId], references: [id], onDelete: Cascade)
+
+  stageCode    String    // "2-1", "2-2", ...
+  docKey       String    // pipeline.ts의 document.key
+  docLabel     String    // 표시 이름
+
+  fileName     String    // 원본 파일명
+  storedName   String    // 저장된 파일명 (UUID 기반)
+  filePath     String    // 서버 내 경로
+  fileSize     Int
+  mimeType     String
+
+  uploadedAt   DateTime  @default(now())
+}
+
+model TripReport {
+  id          String    @id @default(cuid())
+  type        String    // '국내출장' | '해외출장'
+  title       String
+
+  // 출장자
+  userId      String?
+  userName    String
+  teamName    String?
+
+  // 출장 정보
+  destination String
+  purpose     String
+  visitTarget String?
+  companions  String?
+  startDate   String    // YYYY-MM-DD
+  endDate     String    // YYYY-MM-DD
+  transport   String?
+  accommodation String?
+
+  // 예산 (만원)
+  budgetTransport Int?
+  budgetAccomm    Int?
+  budgetMeal      Int?
+  budgetOther     Int?
+
+  // 실비 (만원)
+  actualTransport Int?
+  actualAccomm    Int?
+  actualMeal      Int?
+  actualOther     Int?
+
+  // 출장 전 계획
+  schedule    String?
+
+  // 출장 후 결과
+  result      String?
+  nextAction  String?
+
+  // 사전품의 (선택)
+  preApprovalStatus    String?   // null | '요청' | '승인' | '반려'
+  preApprovalComment   String?
+  preApprovedAt        DateTime?
+  preApprovalRequestedAt DateTime?
+  preApproverId        String?
+  preApproverName      String?
+
+  // 최종 승인
+  status          String    @default("초안")  // '초안'|'승인요청'|'승인'|'반려'
+  approverId      String?
+  approverName    String?
+  approvalComment String?
+  approvedAt      DateTime?
+  submittedAt     DateTime?
+
+  // 다중 승인자 (JSON: [{userId,userName,order,status,comment,approvedAt}])
+  approversJson String?
+
+  expenses    TripExpense[]
+  dayRecords  TripDayRecord[]
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+model TripDayRecord {
+  id            String     @id @default(cuid())
+  tripReportId  String
+  tripReport    TripReport @relation(fields: [tripReportId], references: [id], onDelete: Cascade)
+
+  date          String     // YYYY-MM-DD
+  city          String?    // 도시
+  company       String?    // 업체명
+  activity      String?    // 주요활동 (자유입력 또는 향후 회의록 연계)
+  meetingNoteId String?    // 향후 회의록 연계용 (reserved)
+
+  transportCost        Float?
+  transportReceipt     String?  // URL
+  accommodationCost    Float?
+  accommodationReceipt String?
+  mealCost             Float?
+  mealReceipt          String?
+  otherCost            Float?
+  otherReceipt         String?
+
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+}
+
+model TripExpense {
+  id           String      @id @default(cuid())
+  tripReportId String
+  tripReport   TripReport  @relation(fields: [tripReportId], references: [id], onDelete: Cascade)
+
+  date         String      // YYYY-MM-DD
+  category     String      // 통행료|택시|버스|고속철|항공|주유비|호텔|식비|통신비|비자|기타
+  detail       String?     // 세부정보 (장소·내용)
+
+  currency     String      @default("KRW")  // KRW|CNY|USD|EUR|JPY|GBP
+  amountForeign Float?     // 외화 금액
+  exchangeRate  Float?     // 환율 (1 외화 = N 원)
+  amountKrw    Float       // 원화 금액
+
+  receiptUrl   String?     // 영수증 파일 경로
+  receiptName  String?     // 원본 파일명
+
+  memo         String?     // 비고
+
+  sortOrder    Int         @default(0)
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+}
+
+model WeeklyUpdate {
+  id        String       @id @default(cuid())
+  taskId    String
+  task      StrategyTask @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  teamId    String
+  team      Team         @relation(fields: [teamId], references: [id])
+  week      String
+  weekStart DateTime
+  status    String       @default("정상")
+  completed String?
+  planned   String?
+  mentions  String?
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+}
