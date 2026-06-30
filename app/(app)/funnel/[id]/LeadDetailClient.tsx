@@ -4,7 +4,6 @@ import { useState, useTransition, useEffect, useRef, type ChangeEvent } from 're
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { PIPELINE } from '@/lib/pipeline'
-import CrmCardModal from '@/components/CrmCardModal'
 import DealDocuments from '@/components/DealDocuments'
 
 /* ── 선택 옵션 ── */
@@ -242,7 +241,6 @@ export default function LeadDetailClient({ deal, customer = null }: { deal: Deal
   const [saving,      setSaving]      = useState(false)
   const [saved,       setSaved]       = useState(true)
   const [msg,         setMsg]         = useState('')
-  const [crmOpen,     setCrmOpen]     = useState(false)
   const [expanded,    setExpanded]    = useState<Set<string>>(new Set())
 
   /* ── 미팅 기록 ── */
@@ -474,7 +472,7 @@ export default function LeadDetailClient({ deal, customer = null }: { deal: Deal
           <div key={fd.key} className={`${spanCls} rounded-xl border border-emerald-200 bg-emerald-50/40 overflow-hidden`}>
             <div className="flex items-center justify-between px-3 py-2 bg-emerald-100/60 border-b border-emerald-200">
               <p className="text-[10px] font-bold text-emerald-800 uppercase tracking-widest">고객 마스터 연동 · 차량 &amp; 화주 정보</p>
-              <Link href={`/customers/${customer.id}`}
+              <Link href={`/customers/${customer.id}?returnTo=/funnel/${deal.id}`}
                 className="text-[10px] font-bold text-emerald-700 hover:text-emerald-900 underline underline-offset-2 transition">
                 고객 정보에서 수정 →
               </Link>
@@ -517,22 +515,17 @@ export default function LeadDetailClient({ deal, customer = null }: { deal: Deal
         )
       }
 
-      /* ─ 연결된 고객 없음: 기존 CRM 카드 ─ */
-      const hasShipper = deal.shipperName || deal.deliveryCity
+      /* ─ 연결된 고객 없음 ─ */
       return (
-        <div key={fd.key} className={`${spanCls} flex items-center justify-between p-3 rounded-xl border border-blue-100 bg-blue-50`}>
+        <div key={fd.key} className={`${spanCls} flex items-center justify-between p-3 rounded-xl border border-amber-100 bg-amber-50`}>
           <div>
-            <p className="text-[10px] font-bold text-blue-600 uppercase tracking-widest mb-0.5">화주/운송 정보</p>
-            <p className="text-xs text-slate-500">
-              {hasShipper
-                ? [deal.shipperName, [deal.deliveryCity, deal.deliveryDist].filter(Boolean).join(' ')].filter(Boolean).join(' · ')
-                : 'CRM 고객카드에서 입력하세요'}
-            </p>
+            <p className="text-[10px] font-bold text-amber-700 uppercase tracking-widest mb-0.5">고객 정보 미연결</p>
+            <p className="text-xs text-slate-500">고객관리 페이지에서 고객을 등록하거나 연결해 주세요</p>
           </div>
-          <button onClick={() => setCrmOpen(true)}
-            className="shrink-0 ml-3 text-xs font-bold text-blue-700 hover:text-blue-900 px-3 py-1.5 rounded-lg border border-blue-200 bg-white transition">
-            카드 열기 →
-          </button>
+          <Link href="/customers"
+            className="shrink-0 ml-3 text-xs font-bold text-amber-700 hover:text-amber-900 px-3 py-1.5 rounded-lg border border-amber-200 bg-white transition">
+            고객관리 →
+          </Link>
         </div>
       )
     }
@@ -748,14 +741,14 @@ export default function LeadDetailClient({ deal, customer = null }: { deal: Deal
                           {checked && summary && (
                             <span className="text-xs text-green-700 font-medium">{summary}</span>
                           )}
-                          <button onClick={() => setCrmOpen(true)}
+                          <Link href={customer ? `/customers/${customer.id}?returnTo=/funnel/${deal.id}` : '/customers'}
                             className={`text-[10px] font-semibold px-2 py-0.5 rounded transition-colors whitespace-nowrap shrink-0 ${
                               checked
                                 ? 'bg-green-100 text-green-700 hover:bg-green-200'
                                 : 'bg-amber-100 text-amber-700 hover:bg-amber-200'
                             }`}>
                             {checked ? '수정' : '입력 →'}
-                          </button>
+                          </Link>
                         </div>
                       </div>
                     </div>
@@ -1099,58 +1092,6 @@ export default function LeadDetailClient({ deal, customer = null }: { deal: Deal
         )}
       </div>
 
-      {/* CRM 모달 */}
-      {crmOpen && (
-        <CrmCardModal
-          customerId={customer?.id ?? null}
-          dealId={deal.id}
-          name={deal.name}
-          phone={deal.phone}
-          stageCode={stageCode}
-          crm={{
-            customerSegment:  customer?.customerSegment  ?? null,
-            customerCategory: customer?.customerCategory ?? null,
-            source:           customer?.source           ?? null,
-            regionCity:       customer?.regionCity       ?? null,
-            regionDist:       customer?.regionDist       ?? null,
-            email:            customer?.email            ?? null,
-            gender:           customer?.gender           ?? null,
-            birthInfo:        customer?.birthInfo        ?? null,
-            maritalStatus:    customer?.maritalStatus    ?? null,
-            childrenCount:    customer?.childrenCount    ?? null,
-            addressDetail:    customer?.addressDetail    ?? null,
-            isSoleProprietor: customer?.isSoleProprietor ?? null,
-            soleBusinessName: customer?.soleBusinessName ?? null,
-            soleBusinessNo:   customer?.soleBusinessNo   ?? null,
-            soleBusinessType: customer?.soleBusinessType ?? null,
-            b2bCategory:      customer?.b2bCategory      ?? null,
-            companyName:      customer?.companyName      ?? null,
-            businessRegNo:    customer?.businessRegNo    ?? null,
-            contactTitle:     customer?.contactTitle     ?? null,
-            industry:         customer?.industry         ?? null,
-            companyAddress:   customer?.companyAddress   ?? null,
-            companyPhone:     customer?.companyPhone     ?? null,
-            vehicleMaker:     customer?.vehicleMaker     ?? null,
-            vehicleName:      customer?.vehicleName      ?? null,
-            vehicleYear:      customer?.vehicleYear      ?? null,
-            totalMileage:     customer?.totalMileage     ?? null,
-            truckType1:       customer?.truckType1       ?? null,
-            truckType2:       customer?.truckType2       ?? null,
-            truckType3:       customer?.truckType3       ?? null,
-            truckType4:       customer?.truckType4       ?? null,
-            shipperName:      customer?.shipperName      ?? null,
-            cargoType:        customer?.cargoType        ?? null,
-            deliveryCity:     customer?.deliveryCity     ?? null,
-            deliveryDist:     customer?.deliveryDist     ?? null,
-            workShift:        customer?.workShift        ?? null,
-            monthlyIncome:    customer?.monthlyIncome    ?? null,
-            cargoNote:        customer?.cargoNote        ?? null,
-            currentVehicle:   deal.currentVehicle,
-          }}
-          onClose={() => setCrmOpen(false)}
-          onSaved={() => { setCrmOpen(false); startTransition(() => router.refresh()) }}
-        />
-      )}
     </div>
   )
 }
