@@ -8,46 +8,32 @@ DEPLOY_REF="${DEPLOY_REF:-main}"
 PM2_APP_NAME="${PM2_APP_NAME:-evn-warp}"
 PORT="${PORT:-3000}"
 SERVER_NAME="${SERVER_NAME:-warp.cleversystem.ai}"
-RUN_SETUP="${RUN_SETUP:-false}"
-RUN_DB_PUSH="${RUN_DB_PUSH:-true}"
 SSM_APP_ENV_PARAM="${SSM_APP_ENV_PARAM:-/evn-warp/app-env}"
-SSM_GITHUB_TOKEN_PARAM="${SSM_GITHUB_TOKEN_PARAM:-/evn-warp/github-token}"
 
-if [ "$RUN_SETUP" = "true" ]; then
-  /tmp/evn-setup.sh
-fi
+/tmp/evn-setup.sh
 
-need_cmd() { command -v "$1" >/dev/null 2>&1; }
 get_param() {
-  local name="$1"
-  if need_cmd aws; then
-    aws ssm get-parameter --name "$name" --with-decryption --query 'Parameter.Value' --output text 2>/dev/null || true
-  fi
+  aws ssm get-parameter --name "$1" --with-decryption --query 'Parameter.Value' --output text 2>/dev/null || true
 }
 
-github_token="$(get_param "$SSM_GITHUB_TOKEN_PARAM")"
-extra_header=()
-if [ -n "$github_token" ] && [ "$github_token" != "None" ]; then
-  basic="$(printf 'x-access-token:%s' "$github_token" | base64 | tr -d '\n')"
-  extra_header=(-c "http.extraHeader=AUTHORIZATION: basic $basic")
+mkdir -p "$BACKUP_DIR"
+ts="$(date +%Y%m%d-%H%M%S)"
+if [ -f "$APP_DIR/dev.db" ]; then
+  cp "$APP_DIR/dev.db" "$BACKUP_DIR/dev-${ts}-preclone.db"
 fi
-
-mkdir -p "$APP_DIR" "$BACKUP_DIR"
 
 if [ ! -d "$APP_DIR/.git" ]; then
   rm -rf "$APP_DIR"
-  git "${extra_header[@]}" clone "$REPO_URL" "$APP_DIR"
-  git -C "$APP_DIR" remote set-url origin "$REPO_URL"
+  git clone "$REPO_URL" "$APP_DIR"
 fi
 
 cd "$APP_DIR"
 old_commit="$(git rev-parse --short HEAD 2>/dev/null || true)"
-git "${extra_header[@]}" fetch --prune origin "$DEPLOY_REF"
+git fetch --prune origin "$DEPLOY_REF"
 git checkout -B deploy-target FETCH_HEAD
 git reset --hard FETCH_HEAD
 new_commit="$(git rev-parse --short HEAD)"
 
-ts="$(date +%Y%m%d-%H%M%S)"
 if [ -f dev.db ]; then
   cp dev.db "$BACKUP_DIR/dev-${ts}-${old_commit:-unknown}.db"
 fi
@@ -61,13 +47,13 @@ umask 077
 if [ -n "$app_env" ] && [ "$app_env" != "None" ]; then
   printf '%s\n' "$app_env" > .env
 elif [ ! -f .env ]; then
-  cat > .env <<EOF
+  cat > .env <<EOF_ENV
 DATABASE_URL="file:./dev.db"
 NEXTAUTH_URL="https://${SERVER_NAME}"
 AUTH_URL="https://${SERVER_NAME}"
 AUTH_TRUST_HOST="true"
 AUTH_SECRET="$(openssl rand -base64 32)"
-EOF
+EOF_ENV
 fi
 
 grep -q '^DATABASE_URL=' .env || printf '\nDATABASE_URL="file:./dev.db"\n' >> .env
@@ -84,9 +70,7 @@ fi
 
 npm ci
 npx prisma generate
-if [ "$RUN_DB_PUSH" = "true" ]; then
-  npx prisma db push
-fi
+npx prisma db push
 
 admin_email="$(node -e "const fs=require('fs');const dotenv=require('dotenv');const e=dotenv.parse(fs.readFileSync('.env'));process.stdout.write(e.ADMIN_EMAIL||'')")"
 admin_password="$(node -e "const fs=require('fs');const dotenv=require('dotenv');const e=dotenv.parse(fs.readFileSync('.env'));process.stdout.write(e.ADMIN_PASSWORD||'')")"

@@ -2,30 +2,6 @@ name: Deploy EC2 via SSM
 
 on:
   workflow_dispatch:
-    inputs:
-      ref:
-        description: 'Git ref to deploy'
-        required: true
-        default: 'main'
-      run_setup:
-        description: 'Install/repair EC2 prerequisites before deploy'
-        type: boolean
-        required: true
-        default: true
-      run_db_push:
-        description: 'Run prisma db push on EC2'
-        type: boolean
-        required: true
-        default: true
-      issue_cert:
-        description: 'Run certbot for SERVER_NAME when DNS is ready'
-        type: boolean
-        required: true
-        default: false
-      server_name:
-        description: 'Nginx/Certbot server name'
-        required: true
-        default: 'warp.cleversystem.ai'
 
 concurrency:
   group: deploy-ec2-ssm
@@ -38,18 +14,15 @@ permissions:
 env:
   AWS_REGION: ${{ secrets.AWS_REGION }}
   AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
-  AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-  AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
   EC2_INSTANCE_ID: ${{ secrets.EC2_INSTANCE_ID }}
   APP_ENV: ${{ secrets.APP_ENV }}
-  DEPLOY_GITHUB_TOKEN: ${{ secrets.DEPLOY_GITHUB_TOKEN }}
   CERTBOT_EMAIL: ${{ secrets.CERTBOT_EMAIL }}
   SSM_APP_ENV_PARAM: /evn-warp/app-env
-  SSM_GITHUB_TOKEN_PARAM: /evn-warp/github-token
   APP_DIR: /opt/evn-warp
   REPO_URL: https://github.com/EVNSolution/EVN-WARP.git
   PM2_APP_NAME: evn-warp
   PORT: '3000'
+  SERVER_NAME: warp.cleversystem.ai
 
 jobs:
   deploy:
@@ -58,35 +31,21 @@ jobs:
     steps:
       - name: Checkout deploy scripts
         uses: actions/checkout@v4
-        with:
-          ref: ${{ github.ref }}
-
-      - name: Configure AWS credentials with OIDC
-        if: ${{ env.AWS_ROLE_ARN != '' }}
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: ${{ env.AWS_ROLE_ARN }}
-          aws-region: ${{ env.AWS_REGION }}
-
-      - name: Configure AWS credentials with access keys
-        if: ${{ env.AWS_ROLE_ARN == '' }}
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-access-key-id: ${{ env.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ env.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ env.AWS_REGION }}
 
       - name: Validate required secrets
         run: |
           set -euo pipefail
           test -n "$AWS_REGION" || { echo 'Missing secret: AWS_REGION'; exit 1; }
+          test -n "$AWS_ROLE_ARN" || { echo 'Missing secret: AWS_ROLE_ARN'; exit 1; }
           test -n "$EC2_INSTANCE_ID" || { echo 'Missing secret: EC2_INSTANCE_ID'; exit 1; }
-          if [ -z "$AWS_ROLE_ARN" ] && { [ -z "$AWS_ACCESS_KEY_ID" ] || [ -z "$AWS_SECRET_ACCESS_KEY" ]; }; then
-            echo 'Set AWS_ROLE_ARN, or both AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY.'
-            exit 1
-          fi
 
-      - name: Sync optional secure parameters
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ env.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Sync app environment
         run: |
           set -euo pipefail
           if [ -n "$APP_ENV" ]; then
@@ -96,36 +55,20 @@ jobs:
               --value "$APP_ENV" \
               --overwrite >/dev/null
           fi
-          if [ -n "$DEPLOY_GITHUB_TOKEN" ]; then
-            aws ssm put-parameter \
-              --name "$SSM_GITHUB_TOKEN_PARAM" \
-              --type SecureString \
-              --value "$DEPLOY_GITHUB_TOKEN" \
-              --overwrite >/dev/null
-          fi
 
       - name: Send SSM deploy command
         id: ssm
         env:
-          DEPLOY_REF: ${{ inputs.ref }}
-          RUN_SETUP: ${{ inputs.run_setup }}
-          RUN_DB_PUSH: ${{ inputs.run_db_push }}
-          ISSUE_CERT: ${{ inputs.issue_cert }}
-          SERVER_NAME: ${{ inputs.server_name }}
+          DEPLOY_REF: ${{ github.ref_name }}
         run: |
           set -euo pipefail
           remote_b64="$(base64 -w 0 deploy/remote-deploy.sh)"
           setup_b64="$(base64 -w 0 deploy/setup-ec2.sh)"
           export remote_b64 setup_b64
 
-          python3 - <<PY > /tmp/evn-ssm-commands.json
+          python3 - <<'PY' > /tmp/evn-ssm-commands.json
           import json, os, shlex
-          remote_b64 = os.environ['remote_b64']
-          setup_b64 = os.environ['setup_b64']
           remote_env = {
-              'RUN_SETUP': os.environ['RUN_SETUP'],
-              'RUN_DB_PUSH': os.environ['RUN_DB_PUSH'],
-              'ISSUE_CERT': os.environ['ISSUE_CERT'],
               'SERVER_NAME': os.environ['SERVER_NAME'],
               'CERTBOT_EMAIL': os.environ.get('CERTBOT_EMAIL', ''),
               'DEPLOY_REF': os.environ['DEPLOY_REF'],
@@ -134,13 +77,12 @@ jobs:
               'PM2_APP_NAME': os.environ['PM2_APP_NAME'],
               'PORT': os.environ['PORT'],
               'SSM_APP_ENV_PARAM': os.environ['SSM_APP_ENV_PARAM'],
-              'SSM_GITHUB_TOKEN_PARAM': os.environ['SSM_GITHUB_TOKEN_PARAM'],
           }
           run_remote = ' '.join(f'{k}={shlex.quote(v)}' for k, v in remote_env.items()) + ' /tmp/evn-remote-deploy.sh'
           commands = [
               'set -euo pipefail',
-              "cat >/tmp/evn-setup.b64 <<'EOF'\n" + setup_b64 + "\nEOF",
-              "cat >/tmp/evn-remote-deploy.b64 <<'EOF'\n" + remote_b64 + "\nEOF",
+              "cat >/tmp/evn-setup.b64 <<'EOF'\n" + os.environ['setup_b64'] + "\nEOF",
+              "cat >/tmp/evn-remote-deploy.b64 <<'EOF'\n" + os.environ['remote_b64'] + "\nEOF",
               'base64 -d /tmp/evn-setup.b64 >/tmp/evn-setup.sh',
               'base64 -d /tmp/evn-remote-deploy.b64 >/tmp/evn-remote-deploy.sh',
               'chmod +x /tmp/evn-setup.sh /tmp/evn-remote-deploy.sh',
