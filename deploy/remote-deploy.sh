@@ -84,7 +84,7 @@ const q = v => `'${String(v).replace(/'/g, "''")}'`
 const id = `user-${crypto.randomUUID()}`
 console.log(`INSERT INTO "User" ("id","name","email","password","role","createdAt","updatedAt") VALUES (${q(id)},${q(process.env.ADMIN_NAME)},${q(process.env.ADMIN_EMAIL)},${q(process.env.ADMIN_HASH)},${q(process.env.ADMIN_ROLE)},CURRENT_TIMESTAMP,CURRENT_TIMESTAMP) ON CONFLICT("email") DO UPDATE SET "name"=excluded."name", "password"=excluded."password", "role"=excluded."role", "updatedAt"=CURRENT_TIMESTAMP;`)
 NODE
-  npx prisma db execute --schema prisma/schema.prisma --stdin < /tmp/evn-admin.sql
+  npx prisma db execute --stdin < /tmp/evn-admin.sql
   echo "Admin user ensured: $admin_email"
 fi
 
