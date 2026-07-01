@@ -18,6 +18,14 @@ apt-get update
 apt-get install -y ca-certificates curl git nginx openssl unzip certbot python3-certbot-nginx
 
 
+if ! swapon --show=NAME | grep -qx '/swapfile'; then
+  fallocate -l 2G /swapfile
+  chmod 600 /swapfile
+  mkswap /swapfile
+  swapon /swapfile
+  grep -q '^/swapfile ' /etc/fstab || echo '/swapfile none swap sw 0 0' >> /etc/fstab
+fi
+
 if ! need_cmd aws; then
   arch="$(uname -m)"
   case "$arch" in

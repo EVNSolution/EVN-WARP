@@ -5,8 +5,8 @@ PEM/SSH 없이 GitHub Actions 버튼으로 EC2에 배포한다.
 ## 현재 값
 
 - Host: `warp.cleversystem.ai`
-- EC2: `i-08ceeda82720b8c37` (`CHEONHA`), SSM Online
-- DNS: `warp.cleversystem.ai` → `43.201.160.163`
+- EC2: `i-0c79be3e4d80b5eb5` (`WARP`, `t3.micro`), SSM Online
+- DNS: `warp.cleversystem.ai` → `3.34.253.235`
 - Secrets set: `AWS_REGION`, `AWS_ROLE_ARN`, `EC2_INSTANCE_ID`, `APP_ENV`, `CERTBOT_EMAIL`
 
 ## 실행
