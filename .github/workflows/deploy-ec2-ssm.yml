@@ -80,7 +80,7 @@ jobs:
           }
           run_remote = ' '.join(f'{k}={shlex.quote(v)}' for k, v in remote_env.items()) + ' /tmp/evn-remote-deploy.sh'
           commands = [
-              'set -euo pipefail',
+              'set -eu',
               "cat >/tmp/evn-setup.b64 <<'EOF'\n" + os.environ['setup_b64'] + "\nEOF",
               "cat >/tmp/evn-remote-deploy.b64 <<'EOF'\n" + os.environ['remote_b64'] + "\nEOF",
               'base64 -d /tmp/evn-setup.b64 >/tmp/evn-setup.sh',
