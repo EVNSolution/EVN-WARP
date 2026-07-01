@@ -120,7 +120,7 @@ export default function NewDealModal({ onClose, onCreated }: Props) {
       })
       if (!res.ok) { const j = await res.json(); setError(j.error ?? '등록 실패'); setSaving(false); return }
       const c = await res.json()
-      setCustomer({ id: c.id, name: c.name, phone: c.phone, companyName: c.companyName ?? null, customerSegment: c.customerSegment, status: c.status })
+      setCustomer({ id: c.id, name: c.name, phone: c.phone, companyName: c.companyName ?? null, soleBusinessName: c.soleBusinessName ?? null, customerSegment: c.customerSegment, status: c.status })
       setStep('lead')
     } catch {
       setError('네트워크 오류')
