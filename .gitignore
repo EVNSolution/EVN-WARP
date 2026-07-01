@@ -51,3 +51,9 @@ dev.db
 dev.db-journal
 *.db-shm
 *.db-wal
+
+# Excel files
+*.xlsx
+*.xls
+*.xlsm
+*.xlsb
