@@ -433,23 +433,16 @@ export default function CustomerDetailClient({ customer, returnTo }: { customer:
 
       <div className="space-y-4">
 
-          {/* 고객 유형 — 등록 시 결정, 변경 불가 */}
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-semibold text-slate-500">고객 유형</span>
-            <span className={`text-xs font-bold px-3 py-1 rounded-full ${f.customerSegment === 'B2B' ? 'bg-violet-100 text-violet-700' : 'bg-sky-100 text-sky-700'}`}>
-              {f.customerSegment === 'B2B' ? 'B2B 법인' : 'B2C 개인'}
-            </span>
-          </div>
-
           {/* ── B2C 통합 박스 ── */}
           {f.customerSegment !== 'B2B' && (
             <div className="bg-white rounded-xl border border-slate-200 p-5 space-y-6">
 
               {/* 기본 정보 */}
               <div>
-                <div className="flex items-center gap-3 mb-4">
-                  <span className="text-xs font-semibold text-slate-600 whitespace-nowrap">기본 정보</span>
-                  <div className="flex-1 h-px bg-slate-100" />
+                <div className="flex items-center gap-2 mb-4">
+                  <div className="w-0.5 h-4 rounded-full bg-blue-400 shrink-0" />
+                  <span className="text-[13px] font-bold text-blue-600 uppercase tracking-widest whitespace-nowrap">기본 정보</span>
+                  <div className="flex-1 h-px bg-blue-100" />
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div>{label('고객명 *')}{input('name', '고객 이름')}</div>
@@ -469,9 +462,10 @@ export default function CustomerDetailClient({ customer, returnTo }: { customer:
 
               {/* 개인 정보 */}
               <div className="border-t border-slate-100 pt-5">
-                <div className="flex items-center gap-3 mb-4">
-                  <span className="text-xs font-semibold text-slate-600 whitespace-nowrap">개인 정보</span>
-                  <div className="flex-1 h-px bg-slate-100" />
+                <div className="flex items-center gap-2 mb-4">
+                  <div className="w-0.5 h-4 rounded-full bg-indigo-400 shrink-0" />
+                  <span className="text-[13px] font-bold text-indigo-600 uppercase tracking-widest whitespace-nowrap">개인 정보</span>
+                  <div className="flex-1 h-px bg-indigo-100" />
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div>{label('성별')}{chips('gender', ['남', '여'], true)}</div>
@@ -536,9 +530,10 @@ export default function CustomerDetailClient({ customer, returnTo }: { customer:
 
               {/* 차량 정보 */}
               <div className="border-t border-slate-100 pt-5">
-                <div className="flex items-center gap-3 mb-4">
-                  <span className="text-xs font-semibold text-slate-600 whitespace-nowrap">차량 정보</span>
-                  <div className="flex-1 h-px bg-slate-100" />
+                <div className="flex items-center gap-2 mb-4">
+                  <div className="w-0.5 h-4 rounded-full bg-amber-400 shrink-0" />
+                  <span className="text-[13px] font-bold text-amber-600 uppercase tracking-widest whitespace-nowrap">차량 정보</span>
+                  <div className="flex-1 h-px bg-amber-100" />
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
@@ -577,9 +572,10 @@ export default function CustomerDetailClient({ customer, returnTo }: { customer:
 
               {/* 화주 정보 */}
               <div className="border-t border-slate-100 pt-5">
-                <div className="flex items-center gap-3 mb-4">
-                  <span className="text-xs font-semibold text-slate-600 whitespace-nowrap">화주 정보</span>
-                  <div className="flex-1 h-px bg-slate-100" />
+                <div className="flex items-center gap-2 mb-4">
+                  <div className="w-0.5 h-4 rounded-full bg-emerald-400 shrink-0" />
+                  <span className="text-[13px] font-bold text-emerald-600 uppercase tracking-widest whitespace-nowrap">화주 정보</span>
+                  <div className="flex-1 h-px bg-emerald-100" />
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="col-span-2">
@@ -648,9 +644,10 @@ export default function CustomerDetailClient({ customer, returnTo }: { customer:
 
               {/* 기본 정보 */}
               <div>
-                <div className="flex items-center gap-3 mb-4">
-                  <span className="text-xs font-semibold text-slate-600 whitespace-nowrap">기본 정보</span>
-                  <div className="flex-1 h-px bg-slate-100" />
+                <div className="flex items-center gap-2 mb-4">
+                  <div className="w-0.5 h-4 rounded-full bg-violet-400 shrink-0" />
+                  <span className="text-[13px] font-bold text-violet-600 uppercase tracking-widest whitespace-nowrap">기본 정보</span>
+                  <div className="flex-1 h-px bg-violet-100" />
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div>{label('담당자명 *')}{input('name', '담당자 이름')}</div>
@@ -683,8 +680,9 @@ export default function CustomerDetailClient({ customer, returnTo }: { customer:
                 {/* 보유 차량 정보 */}
                 <div>
                   <div className="flex items-center gap-2 mb-3">
-                    <span className="text-xs font-semibold text-slate-600 whitespace-nowrap">보유 차량 정보</span>
-                    <div className="flex-1 h-px bg-slate-100" />
+                    <div className="w-0.5 h-3.5 rounded-full bg-amber-400 shrink-0" />
+                    <span className="text-[13px] font-bold text-amber-600 uppercase tracking-widest whitespace-nowrap">보유 차량 정보</span>
+                    <div className="flex-1 h-px bg-amber-100" />
                   </div>
                   <div className="grid gap-2 mb-1" style={{ gridTemplateColumns: '1fr 56px 24px' }}>
                     <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">차량명</span>
@@ -733,8 +731,9 @@ export default function CustomerDetailClient({ customer, returnTo }: { customer:
                 {/* 법인 매출 */}
                 <div>
                   <div className="flex items-center gap-2 mb-3">
-                    <span className="text-xs font-semibold text-slate-600 whitespace-nowrap">법인 매출</span>
-                    <div className="flex-1 h-px bg-slate-100" />
+                    <div className="w-0.5 h-3.5 rounded-full bg-emerald-400 shrink-0" />
+                    <span className="text-[13px] font-bold text-emerald-600 uppercase tracking-widest whitespace-nowrap">법인 매출</span>
+                    <div className="flex-1 h-px bg-emerald-100" />
                   </div>
                   <div className="space-y-2">
                     {([
@@ -763,7 +762,11 @@ export default function CustomerDetailClient({ customer, returnTo }: { customer:
           {/* B2B 첨부 서류 */}
           {f.customerSegment === 'B2B' && (
             <div className="bg-white rounded-xl border border-slate-200 p-5">
-              <h3 className="text-xs font-semibold text-slate-600 mb-4">첨부 서류</h3>
+              <div className="flex items-center gap-2 mb-4">
+                <div className="w-0.5 h-4 rounded-full bg-slate-400 shrink-0" />
+                <span className="text-[13px] font-bold text-slate-500 uppercase tracking-widest whitespace-nowrap">첨부 서류</span>
+                <div className="flex-1 h-px bg-slate-100" />
+              </div>
               <div className="space-y-3">
                 {(['사업자등록증', '계좌정보'] as const).map(docType => {
                   const doc = docs.find(d => d.type === docType)
@@ -806,7 +809,11 @@ export default function CustomerDetailClient({ customer, returnTo }: { customer:
 
           {/* 메모 (공통) */}
           <div className="bg-white rounded-xl border border-slate-200 p-5">
-            <h3 className="text-xs font-semibold text-slate-600 mb-4">메모</h3>
+            <div className="flex items-center gap-2 mb-4">
+              <div className="w-0.5 h-4 rounded-full bg-slate-400 shrink-0" />
+              <span className="text-[13px] font-bold text-slate-500 uppercase tracking-widest whitespace-nowrap">메모</span>
+              <div className="flex-1 h-px bg-slate-100" />
+            </div>
             <textarea value={f.memo} rows={4} onChange={e => setFv('memo', e.target.value)}
               placeholder="고객 특이사항, 니즈 등..."
               className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 resize-none focus:outline-none focus:ring-1 focus:ring-slate-300" />
@@ -815,9 +822,12 @@ export default function CustomerDetailClient({ customer, returnTo }: { customer:
         {/* 연결된 리드 목록 */}
         {customer.leads.length > 0 && (
           <div className="bg-white rounded-xl border border-slate-200 p-5">
-            <h3 className="text-sm font-semibold text-slate-600 mb-3">
-              연결된 리드 ({customer.leads.length})
-            </h3>
+            <div className="flex items-center gap-2 mb-3">
+              <div className="w-0.5 h-4 rounded-full bg-blue-400 shrink-0" />
+              <span className="text-[13px] font-bold text-blue-600 uppercase tracking-widest whitespace-nowrap">연결된 리드</span>
+              <span className="text-[13px] font-bold text-blue-300">({customer.leads.length})</span>
+              <div className="flex-1 h-px bg-blue-100" />
+            </div>
             <div className="space-y-2">
               {customer.leads.map(lead => (
                 <Link key={lead.id} href={`/funnel/${lead.id}`}
@@ -843,7 +853,10 @@ export default function CustomerDetailClient({ customer, returnTo }: { customer:
       {/* 활동 이력 */}
       <div className="mt-6">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-sm font-bold text-slate-700">영업 활동 이력</h2>
+          <div className="flex items-center gap-2">
+            <div className="w-0.5 h-4 rounded-full bg-teal-400 shrink-0" />
+            <h2 className="text-[13px] font-bold text-teal-600 uppercase tracking-widest">영업 활동 이력</h2>
+          </div>
           <button onClick={() => setShowActForm(v => !v)}
             className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition
               ${showActForm ? 'bg-slate-200 text-slate-600' : 'bg-slate-800 text-white hover:bg-slate-700'}`}>
