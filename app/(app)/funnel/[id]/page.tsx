@@ -44,6 +44,9 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
     industry:         customer.industry         ?? null,
     companyAddress:   customer.companyAddress   ?? null,
     companyPhone:     customer.companyPhone     ?? null,
+    b2bRevenue1:      customer.b2bRevenue1      ?? null,
+    b2bRevenue2:      customer.b2bRevenue2      ?? null,
+    b2bRevenue3:      customer.b2bRevenue3      ?? null,
     // 차량
     hasVehicle:       customer.hasVehicle       ?? null,
     vehicleMaker:     customer.vehicleMaker     ?? null,

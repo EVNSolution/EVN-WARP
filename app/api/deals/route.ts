@@ -11,54 +11,74 @@ export async function POST(req: NextRequest) {
     const body = await req.json()
     if (!body.name?.trim()) return NextResponse.json({ error: '고객명은 필수입니다.' }, { status: 400 })
 
-    // Customer CRM 레코드 생성 (단일 소스 원칙)
-    const customer = await prisma.customer.create({
-      data: {
-        name:             body.name.trim(),
-        phone:            body.phone            || null,
-        customerSegment:  body.customerSegment  || 'B2C',
-        customerCategory: body.customerCategory || null,
-        source:           body.source           || null,
-        assignee:         body.assignee         || null,
-        memo:             body.memo             || null,
-        regionCity:       body.regionCity       || null,
-        regionDist:       body.regionDist       || null,
-        collectedAt:      body.collectedAt ? new Date(body.collectedAt) : null,
-        email:            body.email            || null,
-        gender:           body.gender           || null,
-        birthInfo:        body.birthInfo        || null,
-        maritalStatus:    body.maritalStatus    || null,
-        childrenCount:    body.childrenCount    ?? null,
-        addressDetail:    body.addressDetail    || null,
-        isSoleProprietor: body.isSoleProprietor ?? null,
-        soleBusinessName: body.soleBusinessName || null,
-        soleBusinessNo:   body.soleBusinessNo   || null,
-        soleBusinessType: body.soleBusinessType || null,
-        b2bCategory:      body.b2bCategory      || null,
-        companyName:      body.companyName      || null,
-        businessRegNo:    body.businessRegNo    || null,
-        contactTitle:     body.contactTitle     || null,
-        industry:         body.industry         || null,
-        companyAddress:   body.companyAddress   || null,
-        companyPhone:     body.companyPhone     || null,
-        vehicleMaker:     body.vehicleMaker     || null,
-        vehicleName:      body.vehicleName      || null,
-        vehicleYear:      body.vehicleYear      || null,
-        totalMileage:     body.totalMileage     ?? null,
-        truckType1:       body.truckType1       || null,
-        truckType2:       body.truckType2       || null,
-        truckType3:       body.truckType3       || null,
-        truckType4:       body.truckType4       || null,
-        shipperName:      body.shipperName      || null,
-        cargoType:        body.cargoType        || null,
-        deliveryCity:     body.deliveryCity     || null,
-        deliveryDist:     body.deliveryDist     || null,
-        deliveryFreq:     body.deliveryFreq     || null,
-        workShift:        body.workShift        || null,
-        monthlyIncome:    body.monthlyIncome    || null,
-        cargoNote:        body.cargoNote        || null,
+    // Customer CRM 레코드: 전화번호가 같은 기존 고객이 있으면 연결, 없으면 신규 생성
+    const customerData = {
+      name:             body.name.trim(),
+      phone:            body.phone            || null,
+      customerSegment:  body.customerSegment  || 'B2C',
+      customerCategory: body.customerCategory || null,
+      source:           body.source           || null,
+      assignee:         body.assignee         || null,
+      memo:             body.memo             || null,
+      regionCity:       body.regionCity       || null,
+      regionDist:       body.regionDist       || null,
+      collectedAt:      body.collectedAt ? new Date(body.collectedAt) : null,
+      email:            body.email            || null,
+      gender:           body.gender           || null,
+      birthInfo:        body.birthInfo        || null,
+      maritalStatus:    body.maritalStatus    || null,
+      childrenCount:    body.childrenCount    ?? null,
+      addressDetail:    body.addressDetail    || null,
+      isSoleProprietor: body.isSoleProprietor ?? null,
+      soleBusinessName: body.soleBusinessName || null,
+      soleBusinessNo:   body.soleBusinessNo   || null,
+      soleBusinessType: body.soleBusinessType || null,
+      b2bCategory:      body.b2bCategory      || null,
+      companyName:      body.companyName      || null,
+      businessRegNo:    body.businessRegNo    || null,
+      contactTitle:     body.contactTitle     || null,
+      industry:         body.industry         || null,
+      companyAddress:   body.companyAddress   || null,
+      companyPhone:     body.companyPhone     || null,
+      vehicleMaker:     body.vehicleMaker     || null,
+      vehicleName:      body.vehicleName      || null,
+      vehicleYear:      body.vehicleYear      || null,
+      totalMileage:     body.totalMileage     ?? null,
+      truckType1:       body.truckType1       || null,
+      truckType2:       body.truckType2       || null,
+      truckType3:       body.truckType3       || null,
+      truckType4:       body.truckType4       || null,
+      shipperName:      body.shipperName      || null,
+      cargoType:        body.cargoType        || null,
+      deliveryCity:     body.deliveryCity     || null,
+      deliveryDist:     body.deliveryDist     || null,
+      deliveryFreq:     body.deliveryFreq     || null,
+      workShift:        body.workShift        || null,
+      monthlyIncome:    body.monthlyIncome    || null,
+      cargoNote:        body.cargoNote        || null,
+    }
+
+    const phone = body.phone?.trim() || null
+    let customer
+    if (phone) {
+      const existing = await prisma.customer.findFirst({ where: { phone } })
+      if (existing) {
+        // 기존 고객에 새 정보 병합 (기존값 우선, 새 값으로 덮어쓰지 않음)
+        customer = await prisma.customer.update({
+          where: { id: existing.id },
+          data: {
+            customerSegment:  existing.customerSegment  ?? customerData.customerSegment,
+            customerCategory: existing.customerCategory ?? customerData.customerCategory,
+            assignee:         existing.assignee         ?? customerData.assignee,
+            companyName:      existing.companyName      ?? customerData.companyName,
+          },
+        })
+      } else {
+        customer = await prisma.customer.create({ data: customerData })
       }
-    })
+    } else {
+      customer = await prisma.customer.create({ data: customerData })
+    }
 
     const deal = await prisma.salesDeal.create({
       data: {

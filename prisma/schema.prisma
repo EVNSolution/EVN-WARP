@@ -244,6 +244,7 @@ model Customer {
   industry        String?
   companyAddress  String?
   companyPhone    String?
+  employeeCount   Int?
 
   // 차량정보
   hasVehicle      Boolean?
@@ -255,6 +256,14 @@ model Customer {
   truckType2      String?
   truckType3      String?
   truckType4      String?
+  vehicleCount    Int?      // B2B single-row legacy
+  vehicleListJson String?   // B2B [{name,count}[]] JSON
+  documentsJson   String?   // [{type,name,path,size,uploadedAt}[]] JSON
+
+  // B2B 법인 매출 (최근 3개년, 단위 자유입력)
+  b2bRevenue1     String?   // 1년 전 매출
+  b2bRevenue2     String?   // 2년 전 매출
+  b2bRevenue3     String?   // 3년 전 매출
 
   // 화주·물류정보
   shipperName     String?

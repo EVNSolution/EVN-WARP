@@ -508,7 +508,7 @@ export default function PipelineView({ deals }: Props) {
                           onClick={() => setSelectedCode(isSel ? null : proc.code)}
                           className={`w-full text-left rounded-md border overflow-hidden transition-all
                             ${isSel ? PHASE_NODE_SELECTED[phase.phase] : `bg-white ${PHASE_NODE_BORDER[phase.phase]}`}`}>
-                          <div className="flex items-stretch min-h-[32px]">
+                          <div className="flex items-stretch min-h-[34px]">
                             <div className="w-10 shrink-0 flex items-center justify-center"
                               style={{ backgroundColor: STATUS_BG_HEX[status] }}>
                               <span className={`text-[10px] font-black tabular-nums ${STATUS_NUM_COLOR[status]}`}>
@@ -528,7 +528,7 @@ export default function PipelineView({ deals }: Props) {
                         </button>
                         {/* 단계 내 화살표: 작은 채운 삼각형 */}
                         {idx < phase.processes.length - 1 && (
-                          <div className="flex justify-center py-px">
+                          <div className="flex justify-center items-center h-5">
                             <svg width="10" height="5" viewBox="0 0 10 5">
                               <path d="M0 0 L10 0 L5 5 Z" fill="#cbd5e1"/>
                             </svg>
@@ -542,9 +542,9 @@ export default function PipelineView({ deals }: Props) {
 
               {/* 페이즈 간 화살표 */}
               {pi < PIPELINE.length - 1 && (
-                <div className="flex gap-1.5 my-1">
+                <div className="flex gap-1.5">
                   <div className="w-16 shrink-0" />
-                  <div className="flex-1 flex justify-center">
+                  <div className="flex-1 flex justify-center items-center h-6">
                     <svg width="14" height="7" viewBox="0 0 14 7">
                       <path d="M0 0 L14 0 L7 7 Z" fill="#94a3b8"/>
                     </svg>
@@ -555,22 +555,6 @@ export default function PipelineView({ deals }: Props) {
           )
         })}
 
-        <div className="pt-1.5 mt-0.5 border-t border-slate-200 flex flex-col gap-1">
-          <button
-            onClick={() => { setSelectedCode('이탈'); setShowLost(true); setCrmView(false) }}
-            className={`w-full flex items-center justify-between px-3 py-2 rounded-lg border text-xs transition-all
-              ${selectedCode === '이탈' && !crmView ? 'border-red-400 bg-red-50 ring-1 ring-red-200' : 'bg-white border-slate-200 hover:border-red-300'}`}>
-            <span className="text-slate-500 font-medium">이탈</span>
-            <span className="text-red-500 font-bold tabular-nums">{lostDeals.length}</span>
-          </button>
-          <button
-            onClick={() => { setCrmView(v => !v); setSelectedCode(null) }}
-            className={`w-full flex items-center justify-between px-3 py-2 rounded-lg border text-xs font-semibold transition-all
-              ${crmView ? 'bg-slate-800 text-white border-slate-800' : 'bg-white border-slate-300 text-slate-600 hover:border-slate-500 hover:bg-slate-50'}`}>
-            <span>CRM 고객정보</span>
-            <span className={crmView ? 'text-white/60' : 'text-slate-400'}>{localDeals.length}명</span>
-          </button>
-        </div>
       </div>
 
       {/* ── 우측: 리드/CRM 테이블 ── */}

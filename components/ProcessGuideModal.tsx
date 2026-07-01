@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { X, ChevronDown, ChevronUp, CheckCircle2, FileText, Pencil, Plus, Trash2, Save, Loader2 } from 'lucide-react'
+import { X, ChevronDown, ChevronUp, CheckCircle2, FileText, Pencil, Plus, Trash2, Save, Loader2, Printer } from 'lucide-react'
 import { PIPELINE } from '@/lib/pipeline'
 
 type ItemDef  = { key: string; label: string; field?: string }
@@ -106,7 +106,7 @@ export default function ProcessGuideModal({ onClose }: { onClose: () => void }) 
   }
 
   /* ── 공통: 추가 입력 행 ── */
-  const AddRow = ({ code, value, onChange, onAdd, placeholder }: {
+  const AddRow = ({ code: _code, value, onChange, onAdd, placeholder }: {
     code: string; value: string; onChange: (v: string) => void; onAdd: () => void; placeholder: string
   }) => (
     <div className="flex items-center gap-1.5 mt-2">
@@ -128,8 +128,22 @@ export default function ProcessGuideModal({ onClose }: { onClose: () => void }) 
   )
 
   return (
+    <>
+    <style>{`
+      @media print {
+        body > * { visibility: hidden; }
+        .guide-print-area, .guide-print-area * { visibility: visible; }
+        .guide-print-area {
+          position: absolute; left: 0; top: 0;
+          width: 100%; max-height: none !important;
+          box-shadow: none !important; border-radius: 0 !important;
+        }
+        .guide-print-area .overflow-y-auto { overflow: visible !important; max-height: none !important; }
+        .guide-no-print { display: none !important; }
+      }
+    `}</style>
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col">
+      <div className="guide-print-area bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col">
 
         {/* 헤더 */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 shrink-0">
@@ -137,12 +151,18 @@ export default function ProcessGuideModal({ onClose }: { onClose: () => void }) 
             <h2 className="text-base font-bold text-slate-800">영업 프로세스 가이드</h2>
             <p className="text-xs text-slate-400 mt-0.5">각 단계별 체크사항과 필요 서류 안내</p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 guide-no-print">
             <button
               onClick={allOpen ? collapseAll : expandAll}
               className="text-xs text-slate-500 hover:text-slate-700 px-2 py-1 rounded border border-slate-200 hover:border-slate-300 transition-colors"
             >
               {allOpen ? '전체 접기' : '전체 펼치기'}
+            </button>
+            <button
+              onClick={() => { expandAll(); setTimeout(() => window.print(), 100) }}
+              className="flex items-center gap-1 text-xs px-2.5 py-1 rounded border border-slate-200 text-slate-500 hover:border-slate-400 hover:text-slate-700 transition-colors"
+            >
+              <Printer size={11} /> 인쇄
             </button>
             <button
               onClick={() => setEditMode(v => !v)}
@@ -177,7 +197,7 @@ export default function ProcessGuideModal({ onClose }: { onClose: () => void }) 
 
         {/* 편집 모드 안내 */}
         {editMode && (
-          <div className="px-6 py-2.5 bg-amber-50 border-b border-amber-100 text-xs text-amber-700 font-medium">
+          <div className="guide-no-print px-6 py-2.5 bg-amber-50 border-b border-amber-100 text-xs text-amber-700 font-medium">
             편집 모드: 체크리스트와 필요 서류를 수정한 후 [저장]을 누르세요. 리드 상세 페이지에도 즉시 반영됩니다.
           </div>
         )}
@@ -329,5 +349,6 @@ export default function ProcessGuideModal({ onClose }: { onClose: () => void }) 
         </div>
       </div>
     </div>
+    </>
   )
 }

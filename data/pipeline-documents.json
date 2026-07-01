@@ -1,44 +1,51 @@
 {
-  "1-1": [],
+  "1-1": [
+    { "key": "freight_permit", "label": "화물자동차 운송사업 영업소허가증" },
+    { "key": "company_intro",  "label": "회사소개자료" }
+  ],
   "1-2": [],
   "1-3": [
-    { "key": "quotation", "label": "견적서" }
+    { "key": "id_card",           "label": "운전면허증" },
+    { "key": "vehicle_reg",       "label": "차량 등록증 (기존 차량)" },
+    { "key": "freight_license",   "label": "화물운송종사자격증" },
+    { "key": "business_reg_1_3",  "label": "사업자등록증" },
+    { "key": "quotation",         "label": "견적서" },
+    { "key": "special_contract",  "label": "특장계약서" }
   ],
   "2-1": [
-    { "key": "id_card", "label": "신분증" },
-    { "key": "vehicle_reg", "label": "차량 등록증 (기존 차량)" },
-    { "key": "special_contract", "label": "특장 계약서" }
+    { "key": "evn_deposit_slip",  "label": "EV& 계약금 송금 내역" },
+    { "key": "kia_dealer_mail",   "label": "KIA 대리점 발송 메일" },
+    { "key": "kia_deposit_slip",  "label": "KIA 계약금 송금 내역" },
+    { "key": "kia_quotation",     "label": "KIA 견적서" },
+    { "key": "subsidy_selection", "label": "보조금지급대상자선정 서류" }
   ],
   "2-2": [
-    { "key": "business_reg", "label": "사업자등록증" },
-    { "key": "income_proof", "label": "소득 증빙 서류" },
-    { "key": "seal_cert", "label": "인감증명서" },
-    { "key": "capital_approval", "label": "캐피탈 승인서" }
+    { "key": "seal_cert",         "label": "인감증명서" },
+    { "key": "capital_approval",  "label": "캐피탈 승인서" }
   ],
   "2-3": [
-    { "key": "contract_copy", "label": "계약서 사본" },
-    { "key": "temp_plate", "label": "임시번호판 발급 확인서" },
-    { "key": "delivery_receipt", "label": "탁송 인수증" }
+    { "key": "temp_plate",        "label": "임시번호판 발급 확인서" },
+    { "key": "delivery_receipt",  "label": "탁송 인수증" }
   ],
   "3-1": [
-    { "key": "factory_receipt", "label": "특장공장 탁송 인수증" },
-    { "key": "kia_admin_docs", "label": "KIA 제작 행정서류" },
-    { "key": "tuning_approval", "label": "튜닝승인서" },
+    { "key": "factory_receipt",   "label": "특장공장 탁송 인수증" },
+    { "key": "kia_admin_docs",    "label": "KIA 제작 행정서류" },
+    { "key": "tuning_approval",   "label": "튜닝승인서" },
     { "key": "safety_inspection", "label": "구조변경 안전검사서" }
   ],
   "3-2": [
-    { "key": "pdi_report", "label": "PDI 품질 보증 검사서" }
+    { "key": "pdi_report",        "label": "PDI 품질 보증 검사서" }
   ],
   "3-3": [
-    { "key": "delivery_confirm", "label": "고객 인도 확인서" }
+    { "key": "delivery_confirm",  "label": "고객 인도 확인서" }
   ],
   "4-1": [
     { "key": "plate_application", "label": "영업용 번호판 신청서" },
-    { "key": "plate_receipt", "label": "번호판 수령 확인서" }
+    { "key": "plate_receipt",     "label": "번호판 수령 확인서" }
   ],
   "4-2": [
-    { "key": "insurance_cert", "label": "자동차 보험증권" },
-    { "key": "acquisition_tax", "label": "취득세 납부 확인서" },
+    { "key": "insurance_cert",    "label": "자동차 보험증권" },
+    { "key": "acquisition_tax",   "label": "취득세 납부 확인서" },
     { "key": "registration_cert", "label": "차량 등록증" }
   ]
 }

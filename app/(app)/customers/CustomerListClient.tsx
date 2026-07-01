@@ -25,7 +25,6 @@ type Customer = {
   createdAt: string
 }
 
-type Tab = 'all' | '잠재고객' | '활성' | '완료' | '이탈'
 type Seg = 'all' | 'B2C' | 'B2B'
 
 
@@ -40,14 +39,12 @@ interface Props { customers: Customer[] }
 export default function CustomerListClient({ customers: initial }: Props) {
   const router = useRouter()
   const [customers, setCustomers] = useState<Customer[]>(initial)
-  const [tab,     setTab]     = useState<Tab>('all')
   const [seg,     setSeg]     = useState<Seg>('all')
   const [search,  setSearch]  = useState('')
   const [showNew, setShowNew] = useState(false)
 
   const filtered = useMemo(() => {
     return customers.filter(c => {
-      if (tab !== 'all' && c.status !== tab) return false
       if (seg !== 'all' && (c.customerSegment ?? 'B2C') !== seg) return false
       if (search) {
         const q = search.toLowerCase()
@@ -57,37 +54,12 @@ export default function CustomerListClient({ customers: initial }: Props) {
       }
       return true
     })
-  }, [customers, tab, seg, search])
-
-
-  const TABS: { key: Tab; label: string }[] = [
-    { key: 'all',    label: '전체' },
-    { key: '잠재고객', label: '잠재고객' },
-    { key: '활성',   label: '활성' },
-    { key: '완료',   label: '완료' },
-    { key: '이탈',   label: '이탈' },
-  ]
+  }, [customers, seg, search])
 
   return (
     <div className="flex flex-col flex-1 min-h-0 bg-white">
       {/* 툴바 */}
       <div className="flex items-center gap-3 px-5 py-2.5 border-b border-slate-100 shrink-0 flex-wrap">
-        {/* 상태 탭 */}
-        <div className="flex gap-1">
-          {TABS.map(t => (
-            <button key={t.key} onClick={() => setTab(t.key)}
-              className={`px-3 py-1 rounded-full text-[11px] font-bold transition
-                ${tab === t.key ? 'bg-slate-800 text-white' : 'text-slate-400 hover:bg-slate-100'}`}>
-              {t.label}
-              <span className="ml-1 opacity-60">
-                {t.key === 'all' ? customers.length : customers.filter(c => c.status === t.key).length}
-              </span>
-            </button>
-          ))}
-        </div>
-
-        <div className="w-px h-5 bg-slate-200" />
-
         {/* B2C/B2B 필터 */}
         <div className="flex gap-1">
           {(['all', 'B2C', 'B2B'] as Seg[]).map(s => (

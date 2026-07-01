@@ -45,3 +45,9 @@ next-env.d.ts
 # local dev
 dev.log
 *.log
+
+# SQLite local database (contains real user data — never commit)
+dev.db
+dev.db-journal
+*.db-shm
+*.db-wal

@@ -4,7 +4,6 @@ import { useState, useTransition, useEffect, useRef, type ChangeEvent } from 're
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { PIPELINE } from '@/lib/pipeline'
-import DealDocuments from '@/components/DealDocuments'
 
 /* ── 선택 옵션 ── */
 const SOURCES        = ['소개', '온라인', '전시장/이벤트', '직접방문', '기타']
@@ -28,50 +27,9 @@ interface FDef {
   full?: boolean
 }
 
-const STAGE_FIELDS: Record<string, FDef[]> = {
-  '1-1': [
-    { key: 'name',     label: '고객명',   type: 'text',  required: true, ph: '고객 이름' },
-    { key: 'phone',    label: '연락처',   type: 'text',  ph: '010-0000-0000' },
-    { key: 'source',   label: '유입경로', type: 'chips', opts: SOURCES, full: true },
-    { key: 'assignee', label: '담당자',   type: 'text',  ph: '영업사원 이름' },
-  ],
-  '1-2': [],
-  '1-3': [
-    { key: 'faceConsultedAt',  label: '대면상담 완료일',    type: 'date',  required: true },
-    { key: 'vehicleModel',     label: '차량 모델',          type: 'chips', opts: VEHICLE_MODELS, full: true },
-    { key: 'bodyType',         label: '특장 (냉탑/건탑)',   type: 'chips', opts: BODY_TYPES },
-    { key: 'tempType',         label: '높이',               type: 'chips', opts: TEMP_TYPES },
-    { key: 'bodyOptions',      label: '추가 옵션',          type: 'text',  ph: '예: 2단 걸이, LED', full: true },
-    { key: 'purchaseMethod',   label: '자금조달방안',       type: 'chips', opts: FUND_METHODS, required: true, full: true },
-    { key: 'customerType',     label: '구매 방식',          type: 'chips', opts: BUY_TYPES },
-    { key: 'capitalCheckedAt', label: '캐피탈 한도 조회일', type: 'date' },
-  ],
-  '2-1': [
-    { key: 'contractedAt',  label: '계약일',           type: 'date',   required: true },
-    { key: 'vehiclePrice',  label: '차량 금액 (원)',    type: 'number', ph: '55,000,000' },
-    { key: 'subsidyAmount', label: '보조금 금액 (원)',  type: 'number', ph: '10,000,000' },
-    { key: 'downPayment',   label: '계약금 (원)',       type: 'number', ph: '500,000' },
-    { key: 'totalPrice',    label: '총 계약금액 (원)',  type: 'number' },
-  ],
-  '2-2': [
-    { key: 'capitalResult',  label: '캐피탈 승인 결과', type: 'text',   required: true, ph: '승인 / 부결 / 조건부승인', full: true },
-    { key: 'monthlyPayment', label: '월 납입금 (원)',   type: 'number', ph: '800,000' },
-    { key: 'loanMonths',     label: '할부 기간 (개월)', type: 'number', ph: '60' },
-  ],
-  '2-3': [
-    { key: 'deliveredAt',  label: '출고 예정일', type: 'date',   required: true },
-    { key: 'vehicleCount', label: '차량 대수',   type: 'number', ph: '1' },
-  ],
-}
+const STAGE_FIELDS: Record<string, FDef[]> = {}
 
-const STAGE_REQUIRED: Record<string, string[]> = {
-  '1-1': ['name'],
-  '1-2': [],
-  '1-3': ['faceConsultedAt', 'purchaseMethod'],
-  '2-1': ['contractedAt'],
-  '2-2': ['capitalResult'],
-  '2-3': ['deliveredAt'],
-}
+const STAGE_REQUIRED: Record<string, string[]> = {}
 
 const PHASE_COL: Record<number, { text: string; activeBorder: string }> = {
   1: { text: 'text-blue-700',   activeBorder: 'border-blue-500' },
@@ -178,6 +136,7 @@ export type CustomerSnap = {
   b2bCategory: string | null; companyName: string | null; businessRegNo: string | null
   contactTitle: string | null; industry: string | null
   companyAddress: string | null; companyPhone: string | null
+  b2bRevenue1: string | null; b2bRevenue2: string | null; b2bRevenue3: string | null
   // 차량
   hasVehicle: boolean | null; vehicleMaker: string | null; vehicleName: string | null
   vehicleYear: string | null; totalMileage: number | null
@@ -235,7 +194,7 @@ export default function LeadDetailClient({ deal, customer = null }: { deal: Deal
     catch { return {} }
   })
   // 커스텀 체크리스트 항목 (pipeline-checklists.json 기반)
-  const [checksMap, setChecksMap] = useState<Record<string, { key: string; label: string; field?: string; opts?: string[] }[]>>({})
+  const [checksMap, setChecksMap] = useState<Record<string, import('@/lib/pipeline').PipelineCheck[]>>({})
   const [stageCode,   setStageCode]   = useState(deal.stageCode)
   const [salesStatus, setSalesStatus] = useState(deal.salesStatus)
   const [saving,      setSaving]      = useState(false)
@@ -253,26 +212,78 @@ export default function LeadDetailClient({ deal, customer = null }: { deal: Deal
   const [mtgFiles,    setMtgFiles]    = useState<MFile[]>([])
   const [uploading,   setUploading]   = useState(false)
   const [savingMtg,   setSavingMtg]   = useState(false)
-  const fileRef = useRef<HTMLInputElement>(null)
+  const fileRef      = useRef<HTMLInputElement>(null)
+  const mtgSectionRef = useRef<HTMLDivElement>(null)
+
+  const scrollToMeetings = () => {
+    setShowMtgForm(true)
+    setTimeout(() => mtgSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50)
+  }
 
   useEffect(() => {
     fetch(`/api/deals/${deal.id}/meetings`).then(r => r.json()).then(setMeetings).catch(() => {})
   }, [deal.id])
 
+  /* ── 인라인 딜 문서 ── */
+  type DealDoc = { id: string; docKey: string; docLabel: string; fileName: string; filePath: string; fileSize: number; uploadedAt: string }
+  const [dealDocs,     setDealDocs]     = useState<DealDoc[]>([])
+  const [uploadingDoc, setUploadingDoc] = useState<string | null>(null)
+  const docFileRef = useRef<HTMLInputElement>(null)
+  const pendingDocRef = useRef<{ docKey: string; docLabel: string; stageCode: string } | null>(null)
+
   useEffect(() => {
-    fetch('/api/pipeline-checklists').then(r => r.json()).then((data: Record<string, { key: string; label: string; field?: string; opts?: string[] }[]>) => {
-      const merged: Record<string, { key: string; label: string; field?: string; opts?: string[] }[]> = {}
+    fetch(`/api/deals/${deal.id}/documents`).then(r => r.json()).then(setDealDocs).catch(() => {})
+  }, [deal.id])
+
+  const handleDocUploadClick = (docKey: string, docLabel: string, sc: string) => {
+    pendingDocRef.current = { docKey, docLabel, stageCode: sc }
+    docFileRef.current?.click()
+  }
+
+  const handleDocFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    const pending = pendingDocRef.current
+    if (!file || !pending) return
+    setUploadingDoc(pending.docKey)
+    try {
+      const fd = new FormData()
+      fd.append('file', file)
+      fd.append('stageCode', pending.stageCode)
+      fd.append('docKey', pending.docKey)
+      fd.append('docLabel', pending.docLabel)
+      const res = await fetch(`/api/deals/${deal.id}/documents`, { method: 'POST', body: fd })
+      const doc = await res.json()
+      setDealDocs(prev => [...prev, doc])
+    } finally {
+      setUploadingDoc(null)
+      pendingDocRef.current = null
+      if (docFileRef.current) docFileRef.current.value = ''
+    }
+  }
+
+  const handleDocDelete = async (docId: string, docKey: string) => {
+    if (!confirm('이 파일을 삭제할까요?')) return
+    await fetch(`/api/deals/${deal.id}/documents/${docId}`, { method: 'DELETE' })
+    setDealDocs(prev => prev.filter(d => d.id !== docId))
+  }
+
+  useEffect(() => {
+    fetch('/api/pipeline-checklists').then(r => r.json()).then((data: Record<string, { key: string; label: string }[]>) => {
+      const isB2B = (customer?.customerSegment ?? deal.customerSegment) === 'B2B'
+      const merged: typeof checksMap = {}
       for (const ph of PIPELINE) {
         for (const proc of ph.processes) {
-          const apiChecks = data[proc.code]
-          if (apiChecks) {
-            // API 데이터와 pipeline.ts를 머지 — opts/field는 pipeline.ts가 권위
-            merged[proc.code] = proc.checks.map(p => {
+          // B2B 전용 체크리스트가 있고 현재 고객이 B2B면 우선 사용
+          const baseChecks = (isB2B && proc.checksB2B) ? proc.checksB2B : proc.checks
+          const apiChecks  = data[proc.code]
+          if (apiChecks && !isB2B) {
+            // label만 JSON에서 덮어씀 (B2B 전용 항목은 JSON 오버라이드 미적용)
+            merged[proc.code] = baseChecks.map(p => {
               const a = apiChecks.find(c => c.key === p.key)
-              return a ? { ...p, ...a, opts: p.opts, field: p.field } : p
+              return a ? { ...p, label: a.label } : p
             })
           } else {
-            merged[proc.code] = proc.checks
+            merged[proc.code] = baseChecks
           }
         }
       }
@@ -329,8 +340,24 @@ export default function LeadDetailClient({ deal, customer = null }: { deal: Deal
 
   /* ── 체크리스트 토글 ── */
   const toggleCheck = (key: string) => {
-    setChecks(prev => ({ ...prev, [key]: !prev[key] }))
+    setChecks(prev => {
+      if (prev[key]) {
+        const next = { ...prev }
+        delete next[key]
+        return next
+      }
+      return { ...prev, [key]: new Date().toISOString() }
+    })
     setSaved(false)
+  }
+
+  /* ── 날짜 포맷 (MM.DD) ── */
+  const fmtDate = (v: unknown): string => {
+    if (!v || typeof v !== 'string' || !v.match(/^\d{4}/)) return ''
+    try {
+      const d = new Date(v)
+      return `${String(d.getMonth() + 1).padStart(2, '0')}.${String(d.getDate()).padStart(2, '0')}`
+    } catch { return '' }
   }
 
   /* ── 고객 데이터 연동 필드 자동 확인 ── */
@@ -341,25 +368,51 @@ export default function LeadDetailClient({ deal, customer = null }: { deal: Deal
     if (field === 'shipper') {
       return !!(customer?.shipperName || customer?.cargoType || deal.shipperName || deal.cargoType)
     }
+    if (field === 'b2bRevenue') {
+      return !!(customer?.b2bRevenue1 || customer?.b2bRevenue2 || customer?.b2bRevenue3)
+    }
+    if (field === 'purchaseTiming') {
+      const v = String(checks['1-2-2'] ?? '')
+      return !!v && v !== '미정'
+    }
     return false
   }
 
-  const getVehicleSummary = (): string => {
+  const getVehiclePieces = (): string[] => {
     const maker  = customer?.vehicleMaker || deal.vehicleMaker || ''
     const name   = customer?.vehicleName  || deal.vehicleName  || ''
     const year   = customer?.vehicleYear  || deal.vehicleYear  || ''
-    const t1     = customer?.truckType1   || deal.truckType1   || ''
-    const t2     = customer?.truckType2   || deal.truckType2   || ''
-    const t3     = customer?.truckType3   || deal.truckType3   || ''
-    const t4     = customer?.truckType4   || deal.truckType4   || ''
-    return [maker, name, year ? `${year}` : '', [t1, t2, t3, t4].filter(Boolean).join('/')].filter(Boolean).join(' · ')
+    const types  = [
+      customer?.truckType1 || deal.truckType1 || '',
+      customer?.truckType2 || deal.truckType2 || '',
+      customer?.truckType3 || deal.truckType3 || '',
+      customer?.truckType4 || deal.truckType4 || '',
+    ].filter(Boolean).join('/')
+    return [maker, name, year, types].filter(Boolean)
   }
 
-  const getShipperSummary = (): string => {
-    const name  = customer?.shipperName || deal.shipperName || ''
-    const cargo = customer?.cargoType   || deal.cargoType   || ''
-    const city  = customer?.deliveryCity|| deal.deliveryCity|| ''
-    return [name, cargo, city].filter(Boolean).join(' · ')
+  const getShipperPieces = (): string[] => {
+    const name  = customer?.shipperName  || deal.shipperName  || ''
+    const cargo = customer?.cargoType    || deal.cargoType    || ''
+    const city  = customer?.deliveryCity || deal.deliveryCity || ''
+    const dist  = customer?.deliveryDist || deal.deliveryDist || ''
+    const area  = [city, dist].filter(Boolean).join(' ')
+    return [name, cargo, area].filter(Boolean)
+  }
+
+  const getVehicleSummary = (): string => getVehiclePieces().join(' · ')
+  const getShipperSummary = (): string => getShipperPieces().join(' · ')
+
+  const getB2bRevenueSummary = (): string => {
+    const curYear = new Date().getFullYear()
+    const entries: [number, string][] = [
+      [curYear - 1, customer?.b2bRevenue1 ?? ''],
+      [curYear - 2, customer?.b2bRevenue2 ?? ''],
+      [curYear - 3, customer?.b2bRevenue3 ?? ''],
+    ]
+    const latest = entries.find(([, v]) => !!v)
+    if (!latest) return ''
+    return `${latest[0]}년 ${latest[1]}억`
   }
 
   /* ── 단계 필수 항목 충족 여부 ── */
@@ -369,13 +422,14 @@ export default function LeadDetailClient({ deal, customer = null }: { deal: Deal
   /* ── 다음 단계로 이동 ── */
   const advanceStage = () => {
     const idx = allCodes.indexOf(stageCode)
-    if (idx >= 0 && idx < allCodes.length - 1) {
-      const next = allCodes[idx + 1]
-      setStageCode(next)
-      setSaved(false)
-      setMsg(`[${stageCode}] 완료 → [${next}] 단계로 이동했습니다`)
-      setTimeout(() => setMsg(''), 4000)
-    }
+    if (idx < 0 || idx >= allCodes.length - 1) return
+    const next = allCodes[idx + 1]
+    const nextName = PIPELINE.flatMap(ph => ph.processes).find(p => p.code === next)?.name ?? next
+    if (!confirm(`[${stageCode}] 단계를 완료하고 [${next}] ${nextName} 단계로 이동할까요?`)) return
+    setStageCode(next)
+    setSaved(false)
+    setMsg(`[${stageCode}] 완료 → [${next}] 단계로 이동했습니다`)
+    setTimeout(() => setMsg(''), 4000)
   }
 
   /* ── 저장 ── */
@@ -429,8 +483,7 @@ export default function LeadDetailClient({ deal, customer = null }: { deal: Deal
       if (f.source)   parts.push(f.source)
       if (f.assignee) parts.push(`담당: ${f.assignee}`)
     } else if (code === '1-3') {
-      if (f.vehicleModel)   parts.push(f.vehicleModel)
-      if (f.purchaseMethod) parts.push(f.purchaseMethod)
+      if (f.faceConsultedAt) parts.push(`대면 ${f.faceConsultedAt}`)
     } else if (code === '2-1') {
       if (f.contractedAt) parts.push(`계약 ${f.contractedAt}`)
       if (f.vehiclePrice) parts.push(`${Number(f.vehiclePrice).toLocaleString()}원`)
@@ -580,7 +633,7 @@ export default function LeadDetailClient({ deal, customer = null }: { deal: Deal
 
   /* ── 단계 카드 렌더링 ── */
   const renderStageCard = (
-    proc: { code: string; name: string; checks: { key: string; label: string }[] },
+    proc: { code: string; name: string; checks: { key: string; label: string }[]; documents: { key: string; label: string }[] },
     phase: number
   ) => {
     const col       = PHASE_COL[phase]
@@ -724,9 +777,20 @@ export default function LeadDetailClient({ deal, customer = null }: { deal: Deal
                   checked ? 'bg-green-50 border-green-200' : 'bg-white border-slate-200'
                 }`
 
-                /* ── 고객 데이터 연동 항목 (차량정보, 화주정보) ── */
+                /* ── 고객 데이터 연동 항목 (차량정보, 화주정보, 구매예상시점) ── */
                 if (c.field) {
-                  const summary = c.field === 'vehicle' ? getVehicleSummary() : getShipperSummary()
+                  let pieces: string[]
+                  if (c.field === 'vehicle') pieces = getVehiclePieces()
+                  else if (c.field === 'shipper') pieces = getShipperPieces()
+                  else if (c.field === 'b2bRevenue') {
+                    const s = getB2bRevenueSummary()
+                    pieces = s ? [s] : []
+                  }
+                  else if (c.field === 'purchaseTiming') {
+                    const v = String(checks['1-2-2'] ?? '')
+                    pieces = v && v !== '미정' ? [v] : []
+                  } else pieces = []
+
                   return (
                     <div key={c.key} className={containerCls}>
                       <div className="flex items-center gap-2 flex-wrap">
@@ -737,29 +801,41 @@ export default function LeadDetailClient({ deal, customer = null }: { deal: Deal
                           {c.label}
                         </span>
                         <div className="flex-1" />
-                        <div className="flex items-center gap-1.5">
-                          {checked && summary && (
-                            <span className="text-xs text-green-700 font-medium">{summary}</span>
+                        <div className="flex gap-1 flex-wrap items-center justify-end">
+                          {checked && pieces.map((piece, i) => (
+                            <span key={i}
+                              className="px-2 py-0.5 rounded text-[11px] font-semibold bg-green-100 text-green-700 border border-green-200 whitespace-nowrap">
+                              {piece}
+                            </span>
+                          ))}
+                          {c.field !== 'purchaseTiming' && (
+                            <Link href={customer ? `/customers/${customer.id}?returnTo=/funnel/${deal.id}` : '/customers'}
+                              className={`text-[10px] font-semibold px-2 py-0.5 rounded transition-colors whitespace-nowrap shrink-0 ${
+                                checked
+                                  ? 'bg-green-100 text-green-700 hover:bg-green-200'
+                                  : 'bg-amber-100 text-amber-700 hover:bg-amber-200'
+                              }`}>
+                              {checked ? '수정' : '입력 →'}
+                            </Link>
                           )}
-                          <Link href={customer ? `/customers/${customer.id}?returnTo=/funnel/${deal.id}` : '/customers'}
-                            className={`text-[10px] font-semibold px-2 py-0.5 rounded transition-colors whitespace-nowrap shrink-0 ${
-                              checked
-                                ? 'bg-green-100 text-green-700 hover:bg-green-200'
-                                : 'bg-amber-100 text-amber-700 hover:bg-amber-200'
-                            }`}>
-                            {checked ? '수정' : '입력 →'}
-                          </Link>
+                          {c.field === 'purchaseTiming' && !checked && (
+                            <span className="text-[10px] text-amber-600 font-semibold">1-2 잠재리드에서 수정</span>
+                          )}
                         </div>
                       </div>
                     </div>
                   )
                 }
 
-                /* ── 칩 선택형 항목 (구매예상시점) — 칩은 오른쪽에 표시 ── */
+                /* ── 칩 선택형 항목 (구매예상시점, 자금조달 등) ── */
                 if (c.opts) {
-                  const selectedVal = String(checks[c.key] ?? '')
+                  const selectedVal  = String(checks[c.key] ?? '')
+                  const atKey        = `${c.key}-at`
+                  const noteKey      = `${c.key}-note`
+                  const needsNote    = selectedVal === '직접입력'
+                  const optDate      = fmtDate(checks[atKey])
                   return (
-                    <div key={c.key} className={containerCls}>
+                    <div key={c.key} className={`${containerCls} space-y-2`}>
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className={`text-sm shrink-0 ${checked ? 'text-green-500' : 'text-slate-300'}`}>
                           {checked ? '✓' : '○'}
@@ -767,12 +843,22 @@ export default function LeadDetailClient({ deal, customer = null }: { deal: Deal
                         <span className={`text-xs font-medium ${checked ? 'text-green-700' : 'text-slate-600'}`}>
                           {c.label}
                         </span>
+                        {optDate && (
+                          <span className="text-[10px] text-slate-400 font-medium">{optDate}</span>
+                        )}
                         <div className="flex-1" />
                         <div className="flex gap-1 flex-wrap">
                           {c.opts.map(opt => (
                             <button key={opt} type="button"
                               onClick={() => {
-                                setChecks(prev => ({ ...prev, [c.key]: prev[c.key] === opt ? '' : opt }))
+                                setChecks(prev => {
+                                  const selecting = prev[c.key] !== opt
+                                  return {
+                                    ...prev,
+                                    [c.key]: selecting ? opt : '',
+                                    [atKey]: selecting ? new Date().toISOString() : '',
+                                  }
+                                })
                                 setSaved(false)
                               }}
                               className={`px-2 py-0.5 rounded text-[11px] font-semibold border transition-all ${
@@ -785,13 +871,97 @@ export default function LeadDetailClient({ deal, customer = null }: { deal: Deal
                           ))}
                         </div>
                       </div>
+                      {needsNote && (
+                        <input
+                          value={String(checks[noteKey] ?? '')}
+                          onChange={e => { setChecks(prev => ({ ...prev, [noteKey]: e.target.value })); setSaved(false) }}
+                          placeholder="자금 방법 직접 입력..."
+                          className="ml-6 w-[calc(100%-1.5rem)] text-xs border border-slate-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-blue-300 text-slate-600 placeholder:text-slate-300"
+                        />
+                      )}
+                    </div>
+                  )
+                }
+
+                /* ── 외부 시스템 연계 버튼 (Build-up EV 등) ── */
+                if (c.extLink) {
+                  return (
+                    <div key={c.key} className={containerCls}>
+                      <div className="flex items-center gap-2.5">
+                        <button type="button" onClick={() => { toggleCheck(c.key); setSaved(false) }}
+                          className="flex items-center gap-2.5 flex-1 min-w-0 text-left">
+                          <span className={`text-sm shrink-0 ${checked ? 'text-green-500' : 'text-slate-300'}`}>
+                            {checked ? '✓' : '○'}
+                          </span>
+                          <span className={`text-xs font-medium ${checked ? 'text-green-700 line-through' : 'text-slate-600'}`}>
+                            {c.label}
+                          </span>
+                        </button>
+                        <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-violet-50 text-violet-600 border border-violet-200 whitespace-nowrap cursor-not-allowed opacity-60"
+                          title="향후 시스템 연계 예정">
+                          Build-up EV →
+                        </span>
+                      </div>
+                    </div>
+                  )
+                }
+
+                /* ── 인라인 파일 업로드 항목 ── */
+                if (c.upload) {
+                  const uploaded = dealDocs.filter(d => d.docKey === c.upload)
+                  const isUploading = uploadingDoc === c.upload
+                  const hasFile = uploaded.length > 0
+                  const docChecked = hasFile
+                  const cls = `rounded-lg border px-3 py-2.5 transition-colors ${
+                    docChecked ? 'bg-green-50 border-green-200' : 'bg-white border-slate-200'
+                  }`
+                  const uploadDate = fmtDate(uploaded[0]?.uploadedAt)
+                  return (
+                    <div key={c.key} className={cls}>
+                      <div className="flex items-center gap-2.5 flex-wrap">
+                        <span className={`text-sm shrink-0 ${docChecked ? 'text-green-500' : 'text-slate-300'}`}>
+                          {docChecked ? '✓' : '○'}
+                        </span>
+                        <span className={`text-xs font-medium shrink-0 ${docChecked ? 'text-green-700' : 'text-slate-600'}`}>
+                          {c.label}
+                        </span>
+                        {uploadDate && (
+                          <span className="text-[10px] text-slate-400 font-medium">{uploadDate}</span>
+                        )}
+                        <div className="flex-1" />
+                        <div className="flex items-center gap-1.5 flex-wrap justify-end">
+                          {uploaded.map(doc => (
+                            <div key={doc.id} className="flex items-center gap-1">
+                              <a href={doc.filePath} target="_blank" rel="noreferrer"
+                                className="text-[10px] text-blue-600 hover:underline max-w-[120px] truncate font-medium">
+                                {doc.fileName}
+                              </a>
+                              <button type="button" onClick={() => handleDocDelete(doc.id, c.upload!)}
+                                className="text-[10px] text-red-300 hover:text-red-500 transition">✕</button>
+                            </div>
+                          ))}
+                          <button type="button"
+                            onClick={() => handleDocUploadClick(c.upload!, c.uploadLabel ?? c.label, proc.code)}
+                            disabled={isUploading}
+                            className={`text-[10px] font-semibold px-2 py-0.5 rounded border transition whitespace-nowrap ${
+                              isUploading
+                                ? 'opacity-50 cursor-not-allowed border-slate-200 text-slate-400'
+                                : hasFile
+                                  ? 'bg-green-100 text-green-700 border-green-200 hover:bg-green-200'
+                                  : 'bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100'
+                            }`}>
+                            {isUploading ? '업로드 중...' : hasFile ? '재업로드' : '업로드 →'}
+                          </button>
+                        </div>
+                      </div>
                     </div>
                   )
                 }
 
                 /* ── 일반 수동 체크 항목 ── */
                 const noteKey = `${c.key}-note`
-                const hasNote = c.key === '1-1-0'
+                const hasNote = !!c.noteLabel
+
                 return (
                   <div key={c.key} className="flex flex-col gap-1.5">
                     <button type="button" onClick={() => { toggleCheck(c.key); setSaved(false) }}
@@ -802,17 +972,25 @@ export default function LeadDetailClient({ deal, customer = null }: { deal: Deal
                       <span className={`text-xs font-medium ${checked ? 'text-green-700 line-through' : 'text-slate-600'}`}>
                         {c.label}
                       </span>
+                      {fmtDate(checks[c.key]) && (
+                        <span className="ml-auto text-[10px] text-slate-400 font-medium pr-1">
+                          {fmtDate(checks[c.key])}
+                        </span>
+                      )}
                     </button>
                     {hasNote && checked && (
-                      <input
-                        value={String(checks[noteKey] ?? '')}
-                        onChange={e => {
-                          setChecks(prev => ({ ...prev, [noteKey]: e.target.value }))
-                          setSaved(false)
-                        }}
-                        placeholder="확인 방법 입력 (예: 전화 통화, 대면 상담 등)"
-                        className="ml-7 text-xs border border-slate-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-blue-300 text-slate-600 placeholder:text-slate-300"
-                      />
+                      <div className="ml-7 flex items-center gap-2">
+                        <span className="text-[10px] font-semibold text-slate-400 whitespace-nowrap">{c.noteLabel}</span>
+                        <input
+                          value={String(checks[noteKey] ?? '')}
+                          onChange={e => {
+                            setChecks(prev => ({ ...prev, [noteKey]: e.target.value }))
+                            setSaved(false)
+                          }}
+                          placeholder={`${c.noteLabel} 입력...`}
+                          className="flex-1 text-xs border border-slate-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-blue-300 text-slate-600 placeholder:text-slate-300"
+                        />
+                      </div>
                     )}
                   </div>
                 )
@@ -821,21 +999,86 @@ export default function LeadDetailClient({ deal, customer = null }: { deal: Deal
           </div>
         )}
 
-        {/* 다음 단계 버튼 */}
-        {isCurrent && procIdx < allCodes.length - 1 && (
-          <div className="px-4 py-3 bg-slate-50 border-t border-slate-100 flex items-center justify-between">
-            <span className={`text-xs ${canAdvance(proc.code) ? 'text-green-600 font-medium' : 'text-slate-400'}`}>
-              {canAdvance(proc.code)
-                ? '필수 항목 입력 완료 — 다음 단계로 이동할 수 있습니다'
-                : `필수: ${req.map(k => fDefs.find(fd => fd.key === k)?.label ?? k).join(', ')}`}
+        {/* 증빙서류 */}
+        {isOpen && proc.documents.length > 0 && (
+          <div className="px-4 py-3 border-t border-slate-100 bg-white">
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">증빙서류</p>
+            <div className="space-y-1.5">
+              {proc.documents.map(doc => {
+                const uploaded   = dealDocs.filter(d => d.docKey === doc.key)
+                const hasFile    = uploaded.length > 0
+                const isUploading = uploadingDoc === doc.key
+                const uploadDate = fmtDate(uploaded[0]?.uploadedAt)
+                return (
+                  <div key={doc.key}
+                    className={`flex items-center gap-2 px-3 py-2 rounded-lg border ${hasFile ? 'bg-green-50 border-green-200' : 'bg-white border-slate-200'}`}>
+                    <span className={`text-sm shrink-0 ${hasFile ? 'text-green-500' : 'text-slate-300'}`}>
+                      {hasFile ? '✓' : '○'}
+                    </span>
+                    <span className={`text-xs font-medium flex-1 ${hasFile ? 'text-green-700' : 'text-slate-600'}`}>
+                      {doc.label}
+                    </span>
+                    {uploadDate && (
+                      <span className="text-[10px] text-slate-400 font-medium">{uploadDate}</span>
+                    )}
+                    <div className="flex items-center gap-1.5">
+                      {uploaded.map(u => (
+                        <div key={u.id} className="flex items-center gap-1">
+                          <a href={u.filePath} target="_blank" rel="noreferrer"
+                            className="text-[10px] text-blue-600 hover:underline max-w-[100px] truncate font-medium">
+                            {u.fileName}
+                          </a>
+                          <button type="button" onClick={() => handleDocDelete(u.id, doc.key)}
+                            className="text-[10px] text-red-300 hover:text-red-500 transition">✕</button>
+                        </div>
+                      ))}
+                      <button type="button"
+                        onClick={() => handleDocUploadClick(doc.key, doc.label, proc.code)}
+                        disabled={isUploading}
+                        className={`text-[10px] font-semibold px-2 py-0.5 rounded border transition whitespace-nowrap ${
+                          isUploading
+                            ? 'opacity-50 cursor-not-allowed border-slate-200 text-slate-400'
+                            : hasFile
+                              ? 'bg-green-100 text-green-700 border-green-200 hover:bg-green-200'
+                              : 'bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100'
+                        }`}>
+                        {isUploading ? '업로드 중...' : hasFile ? '재업로드' : '업로드 →'}
+                      </button>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* 하단 액션바 — 열린 카드 전체 표시 */}
+        {isOpen && (
+          <div className="px-4 py-3 bg-slate-50 border-t border-slate-100 flex items-center justify-between gap-2">
+            <span className="text-xs text-slate-400 min-w-0 truncate">
+              {isCurrent && procIdx < allCodes.length - 1
+                ? canAdvance(proc.code)
+                  ? '필수 항목 입력 완료 — 다음 단계로 이동할 수 있습니다'
+                  : req.length > 0
+                    ? `필수: ${req.map(k => fDefs.find(fd => fd.key === k)?.label ?? k).join(', ')}`
+                    : ''
+                : ''}
             </span>
-            <button disabled={!canAdvance(proc.code)} onClick={advanceStage}
-              className={`px-4 py-1.5 rounded-lg text-xs font-bold transition
-                ${canAdvance(proc.code)
-                  ? 'bg-slate-800 text-white hover:bg-slate-700'
-                  : 'bg-slate-200 text-slate-400 cursor-not-allowed'}`}>
-              다음 단계로 →
-            </button>
+            <div className="flex items-center gap-2 shrink-0">
+              <button onClick={scrollToMeetings}
+                className="px-3 py-1.5 text-xs font-semibold rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-100 transition">
+                미팅 / 상담 기록
+              </button>
+              {isCurrent && procIdx < allCodes.length - 1 && (
+                <button disabled={!canAdvance(proc.code)} onClick={advanceStage}
+                  className={`px-4 py-1.5 rounded-lg text-xs font-bold transition
+                    ${canAdvance(proc.code)
+                      ? 'bg-slate-800 text-white hover:bg-slate-700'
+                      : 'bg-slate-200 text-slate-400 cursor-not-allowed'}`}>
+                  다음 단계로 →
+                </button>
+              )}
+            </div>
           </div>
         )}
       </div>
@@ -864,9 +1107,25 @@ export default function LeadDetailClient({ deal, customer = null }: { deal: Deal
         <div className="flex items-center gap-3">
           <Link href="/funnel" className="text-slate-400 hover:text-slate-600 text-sm transition">← 목록</Link>
           <div>
-            <h1 className="text-2xl font-bold text-slate-800">{f.name || deal.name}</h1>
+            <h1 className="text-2xl font-bold text-slate-800">
+              {f.name || deal.name}
+              {(() => {
+                const seg = customer?.customerSegment ?? deal.customerSegment
+                const company = customer?.companyName ?? deal.companyName
+                return seg === 'B2B' && company ? ` (${company})` : null
+              })()}
+              {customer?.customerCategory && (
+                <span className="ml-2 text-sm font-semibold text-slate-400">{customer.customerCategory}</span>
+              )}
+            </h1>
             <div className="flex items-center gap-2 mt-0.5">
               <span className="text-sm text-slate-500">{f.phone || deal.phone}</span>
+              {(() => {
+                const seg = customer?.customerSegment ?? deal.customerSegment
+                return seg
+                  ? <span className={`text-xs font-bold px-2 py-0.5 rounded-full text-white ${seg === 'B2B' ? 'bg-violet-700' : 'bg-sky-600'}`}>{seg}</span>
+                  : null
+              })()}
               <span className="text-xs font-bold px-2 py-0.5 rounded-full text-white bg-slate-600">{stageCode}</span>
               {f.assignee && <span className="text-xs text-slate-400">담당: {f.assignee}</span>}
             </div>
@@ -919,13 +1178,8 @@ export default function LeadDetailClient({ deal, customer = null }: { deal: Deal
         ))}
       </div>
 
-      {/* 증빙 서류 */}
-      <div className="mt-6">
-        <DealDocuments dealId={deal.id} stageCode={stageCode} />
-      </div>
-
       {/* ── 미팅 기록 ── */}
-      <div className="mt-8">
+      <div ref={mtgSectionRef} className="mt-8">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-sm font-bold text-slate-700">고객 미팅 기록</h2>
           <button onClick={() => setShowMtgForm(v => !v)}
@@ -996,6 +1250,10 @@ export default function LeadDetailClient({ deal, customer = null }: { deal: Deal
                   <input ref={fileRef} type="file" multiple
                     accept=".mp3,.m4a,.wav,.pdf,.docx,.xlsx,.txt,.png,.jpg"
                     onChange={handleFileUpload}
+                    className="hidden" />
+                  <input ref={docFileRef} type="file"
+                    accept=".pdf,.jpg,.jpeg,.png,.xlsx,.docx"
+                    onChange={handleDocFileChange}
                     className="hidden" />
                   <button onClick={() => fileRef.current?.click()} disabled={uploading}
                     className="px-3 py-1.5 text-xs rounded-lg border border-slate-300 text-slate-600 hover:bg-slate-100 transition disabled:opacity-40">

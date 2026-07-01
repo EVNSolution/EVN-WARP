@@ -14,6 +14,7 @@ type CustomerHit = {
   name: string
   phone: string | null
   companyName: string | null
+  soleBusinessName: string | null
   customerSegment: string | null
   status: string
 }
@@ -31,7 +32,7 @@ export default function NewDealModal({ onClose, onCreated }: Props) {
 
   /* ── Step 1: 고객 검색 ── */
   const [query,        setQuery]        = useState('')
-  const [searchMode,   setSearchMode]   = useState<'name' | 'phone'>('name')
+  const [searchMode,   setSearchMode]   = useState<'name' | 'phone' | 'company'>('name')
   const [searchResult, setSearchResult] = useState<CustomerHit[]>([])
   const [searching,    setSearching]    = useState(false)
   const [didSearch,    setDidSearch]    = useState(false)
@@ -80,7 +81,7 @@ export default function NewDealModal({ onClose, onCreated }: Props) {
     setStep('lead')
   }
 
-  const switchMode = (mode: 'name' | 'phone') => {
+  const switchMode = (mode: 'name' | 'phone' | 'company') => {
     setSearchMode(mode)
     setQuery('')
     setSearchResult([])
@@ -226,11 +227,11 @@ export default function NewDealModal({ onClose, onCreated }: Props) {
 
             {/* 검색 모드 탭 */}
             <div className="flex border border-slate-200 rounded-xl overflow-hidden">
-              {(['name', 'phone'] as const).map(m => (
+              {(['name', 'phone', 'company'] as const).map(m => (
                 <button key={m} onClick={() => switchMode(m)}
                   className={`flex-1 py-2.5 text-xs font-bold transition-colors
                     ${searchMode === m ? 'bg-slate-800 text-white' : 'text-slate-400 hover:text-slate-600'}`}>
-                  {m === 'name' ? '이름으로 검색' : '전화번호로 검색'}
+                  {m === 'name' ? '이름' : m === 'phone' ? '전화번호' : '법인명'}
                 </button>
               ))}
             </div>
@@ -241,7 +242,7 @@ export default function NewDealModal({ onClose, onCreated }: Props) {
                 autoFocus
                 value={query}
                 onChange={e => setQuery(e.target.value)}
-                placeholder={searchMode === 'phone' ? '뒷자리 4자리 이상 (숫자만)' : '고객 이름 입력...'}
+                placeholder={searchMode === 'phone' ? '뒷자리 4자리 이상 (숫자만)' : searchMode === 'company' ? '법인명 입력...' : '고객 이름 입력...'}
                 inputMode={searchMode === 'phone' ? 'numeric' : 'text'}
                 className="w-full text-sm border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-slate-300"
               />
@@ -264,7 +265,12 @@ export default function NewDealModal({ onClose, onCreated }: Props) {
                       <p className="text-xs text-slate-400 truncate">
                         {searchMode === 'phone'
                           ? highlightPhone(c.phone, query)
-                          : (c.phone ?? c.companyName ?? '연락처 없음')}
+                          : searchMode === 'company'
+                            ? (c.phone ?? '연락처 없음')
+                            : (() => {
+                                const bizName = c.companyName ?? c.soleBusinessName
+                                return (bizName ? `${bizName} · ` : '') + (c.phone ?? '연락처 없음')
+                              })()}
                       </p>
                     </div>
                     <span className="text-xs font-semibold text-blue-600 shrink-0">선택 →</span>

@@ -57,6 +57,12 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
         ...(b.industry         !== undefined && { industry:         n(b.industry) }),
         ...(b.companyAddress   !== undefined && { companyAddress:   n(b.companyAddress) }),
         ...(b.companyPhone     !== undefined && { companyPhone:     n(b.companyPhone) }),
+        ...(b.employeeCount    !== undefined && { employeeCount:    b.employeeCount ?? null }),
+
+        /* ── B2B 법인 매출 ── */
+        ...(b.b2bRevenue1      !== undefined && { b2bRevenue1:      n(b.b2bRevenue1) }),
+        ...(b.b2bRevenue2      !== undefined && { b2bRevenue2:      n(b.b2bRevenue2) }),
+        ...(b.b2bRevenue3      !== undefined && { b2bRevenue3:      n(b.b2bRevenue3) }),
 
         /* ── 차량 정보 ── */
         ...(b.hasVehicle       !== undefined && { hasVehicle:       b.hasVehicle ?? null }),
@@ -64,6 +70,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
         ...(b.vehicleName      !== undefined && { vehicleName:      n(b.vehicleName) }),
         ...(b.vehicleYear      !== undefined && { vehicleYear:      n(b.vehicleYear) }),
         ...(b.totalMileage     !== undefined && { totalMileage:     b.totalMileage ?? null }),
+        ...(b.vehicleListJson  !== undefined && { vehicleListJson:  n(b.vehicleListJson) }),
         ...(b.truckType1       !== undefined && { truckType1:       n(b.truckType1) }),
         ...(b.truckType2       !== undefined && { truckType2:       n(b.truckType2) }),
         ...(b.truckType3       !== undefined && { truckType3:       n(b.truckType3) }),

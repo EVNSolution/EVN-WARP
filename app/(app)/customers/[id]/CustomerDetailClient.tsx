@@ -63,10 +63,13 @@ type Customer = {
   /* B2B */
   b2bCategory: string | null; companyName: string | null; businessRegNo: string | null
   contactTitle: string | null; industry: string | null
-  companyAddress: string | null; companyPhone: string | null
+  companyAddress: string | null; companyPhone: string | null; employeeCount: number | null
   /* 차량 */
   hasVehicle: boolean | null; vehicleMaker: string | null; vehicleName: string | null
-  vehicleYear: string | null; totalMileage: number | null
+  vehicleYear: string | null; totalMileage: number | null; vehicleCount: number | null
+  vehicleListJson: string | null
+  documentsJson: string | null
+  b2bRevenue1: string | null; b2bRevenue2: string | null; b2bRevenue3: string | null
   truckType1: string | null; truckType2: string | null; truckType3: string | null; truckType4: string | null
   /* 화주 */
   shipperName: string | null; cargoType: string | null
@@ -112,11 +115,16 @@ export default function CustomerDetailClient({ customer, returnTo }: { customer:
     industry:         customer.industry         ?? '',
     companyAddress:   customer.companyAddress   ?? '',
     companyPhone:     customer.companyPhone     ?? '',
+    employeeCount:    customer.employeeCount != null ? String(customer.employeeCount) : '',
+    b2bRevenue1:      customer.b2bRevenue1      ?? '',
+    b2bRevenue2:      customer.b2bRevenue2      ?? '',
+    b2bRevenue3:      customer.b2bRevenue3      ?? '',
     /* 차량 */
     vehicleMaker:     customer.vehicleMaker     ?? '',
     vehicleName:      customer.vehicleName      ?? '',
     vehicleYear:      customer.vehicleYear      ?? '',
     totalMileage:     customer.totalMileage != null ? customer.totalMileage.toLocaleString() : '',
+    vehicleCount:     customer.vehicleCount != null ? String(customer.vehicleCount) : '',
     truckType1:       customer.truckType1       ?? '',
     truckType2:       customer.truckType2       ?? '',
     truckType3:       customer.truckType3       ?? '',
@@ -140,6 +148,46 @@ export default function CustomerDetailClient({ customer, returnTo }: { customer:
   const [showActForm, setShowActForm] = useState(false)
   const [act, setAct] = useState({ type: '통화', date: new Date().toISOString().slice(0, 16), content: '', result: '', nextAction: '', assignee: '' })
   const [savingAct, setSavingAct] = useState(false)
+
+  /* B2B 첨부파일 */
+  type DocMeta = { type: string; name: string; path: string; size: number; uploadedAt: string }
+  const [docs, setDocs] = useState<DocMeta[]>(() => {
+    if (!customer.documentsJson) return []
+    try { return JSON.parse(customer.documentsJson) } catch { return [] }
+  })
+  const [uploading, setUploading] = useState<string | null>(null)
+
+  const handleDocUpload = async (docType: string, file: File) => {
+    setUploading(docType)
+    try {
+      const fd = new FormData()
+      fd.append('file', file)
+      fd.append('type', docType)
+      const res = await fetch(`/api/customers/${customer.id}/documents`, { method: 'POST', body: fd })
+      const data = await res.json()
+      setDocs(prev => [...prev.filter(d => d.type !== docType), data.doc])
+    } finally { setUploading(null) }
+  }
+
+  const handleDocDelete = async (docType: string) => {
+    if (!confirm(`"${docType}" 파일을 삭제할까요?`)) return
+    await fetch(`/api/customers/${customer.id}/documents?type=${encodeURIComponent(docType)}`, { method: 'DELETE' })
+    setDocs(prev => prev.filter(d => d.type !== docType))
+  }
+
+  /* B2B 보유차량 목록 */
+  const [vehicleList, setVehicleList] = useState<{ name: string; count: string }[]>(() => {
+    if (customer.vehicleListJson) {
+      try {
+        const parsed = JSON.parse(customer.vehicleListJson)
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed
+      } catch { /* fall through */ }
+    }
+    if (customer.vehicleName || customer.vehicleCount != null) {
+      return [{ name: customer.vehicleName ?? '', count: customer.vehicleCount != null ? String(customer.vehicleCount) : '' }]
+    }
+    return [{ name: '', count: '' }]
+  })
 
   /* 리드 전환 */
   const [converting, setConverting] = useState(false)
@@ -210,9 +258,16 @@ export default function CustomerDetailClient({ customer, returnTo }: { customer:
           industry:         f.industry         || null,
           companyAddress:   f.companyAddress   || null,
           companyPhone:     f.companyPhone     || null,
+          employeeCount:    f.employeeCount ? parseInt(f.employeeCount.replace(/,/g, ''), 10) : null,
+          b2bRevenue1:      f.b2bRevenue1      || null,
+          b2bRevenue2:      f.b2bRevenue2      || null,
+          b2bRevenue3:      f.b2bRevenue3      || null,
           customerCategory: f.customerCategory || null,
           // 차량
-          totalMileage: f.totalMileage ? parseInt(f.totalMileage.replace(/,/g, ''), 10) : null,
+          totalMileage:   f.totalMileage  ? parseInt(f.totalMileage.replace(/,/g, ''), 10) : null,
+          vehicleListJson: f.customerSegment === 'B2B'
+            ? JSON.stringify(vehicleList.filter(r => r.name || r.count))
+            : null,
           vehicleMaker: (makerChip  === '직접입력' ? makerCustom  : makerChip)  || null,
           vehicleName:  f.vehicleName   || null,
           vehicleYear:  f.vehicleYear   || null,
@@ -321,7 +376,11 @@ export default function CustomerDetailClient({ customer, returnTo }: { customer:
       {/* 리드 복귀 배너 */}
       {returnTo && (
         <div className="mb-4 flex items-center gap-3 px-4 py-2.5 bg-blue-50 border border-blue-200 rounded-xl">
-          <span className="text-xs text-blue-600 flex-1">영업 리드 페이지에서 이동했습니다. 차량/화주 정보 입력 후 돌아가세요.</span>
+          <span className="text-xs text-blue-600 flex-1">
+            {f.customerSegment === 'B2B'
+              ? '영업 리드 페이지에서 이동했습니다. 법인 정보 입력 후 돌아가세요.'
+              : '영업 리드 페이지에서 이동했습니다. 차량/화주 정보 입력 후 돌아가세요.'}
+          </span>
           <button
             onClick={() => router.push(returnTo)}
             className="text-xs font-semibold px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors whitespace-nowrap">
@@ -344,10 +403,17 @@ export default function CustomerDetailClient({ customer, returnTo }: { customer:
                   : 'bg-sky-100 text-sky-700'}`}>
                 {f.customerSegment === 'B2B' ? 'B2B 법인' : 'B2C 개인'}
               </span>
+              <span className="text-[10px] text-slate-400">
+                등록 {new Date(customer.createdAt).toLocaleDateString('ko-KR')}
+              </span>
             </div>
           </div>
         </div>
         <div className="flex items-center gap-2">
+          <button onClick={handleConvertToLead} disabled={converting}
+            className="px-3 py-2 text-sm font-bold rounded-xl border border-blue-200 text-blue-600 hover:bg-blue-50 transition disabled:opacity-50">
+            {converting ? '전환 중...' : '+ 새 리드로 전환'}
+          </button>
           <button
             onClick={async () => {
               if (!confirm(`"${customer.name}" 고객을 삭제할까요? 이 작업은 되돌릴 수 없습니다.`)) return
@@ -365,388 +431,417 @@ export default function CustomerDetailClient({ customer, returnTo }: { customer:
         </div>
       </div>
 
-      <div className="grid grid-cols-3 gap-6">
-        {/* 좌측: 정보 편집 */}
-        <div className="col-span-2 space-y-5">
-          <div className="bg-white rounded-xl border border-slate-200 p-5">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">기본 정보</h3>
-              <div className="flex rounded-lg border border-slate-200 overflow-hidden">
-                {(['B2C', 'B2B'] as const).map(seg => (
-                  <button key={seg} type="button"
-                    onClick={() => { setF(p => ({ ...p, customerSegment: seg })); setSaved(false) }}
-                    className={`px-3 py-1 text-xs font-bold transition ${f.customerSegment === seg ? 'bg-slate-800 text-white' : 'bg-white text-slate-500 hover:bg-slate-50'}`}>
-                    {seg === 'B2C' ? 'B2C 개인' : 'B2B 법인'}
-                  </button>
-                ))}
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                {label('고객명 *')}
-                {input('name', '고객 이름')}
-              </div>
-              <div>
-                {label('연락처')}
-                {input('phone', '010-0000-0000')}
-              </div>
-              <div>
-                {label('이메일')}
-                {input('email', 'example@email.com')}
-              </div>
-              <div>
-                {label('담당자')}
-                {input('assignee', '영업사원 이름')}
-              </div>
-              <div className="col-span-2">
-                {label('고객 분류')}
-                {chips('customerCategory', ['자차지입', '임대지입', '용차', '월급기사'], true)}
-              </div>
-              <div className="col-span-2">
-                {label('유입 경로')}
-                {chips('source', SOURCES, true)}
-              </div>
-              <div>
-                {label('거주 지역 (시/도)')}
-                <select value={f.regionCity}
-                  onChange={e => { setFv('regionCity', e.target.value); setFv('regionDist', '') }}
-                  className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-1 focus:ring-slate-300">
-                  <option value="">시 / 도 선택</option>
-                  {CITIES.map(c => <option key={c} value={c}>{c}</option>)}
-                </select>
-              </div>
-              <div>
-                {label('거주 지역 (시/군/구)')}
-                <select value={f.regionDist}
-                  onChange={e => setFv('regionDist', e.target.value)}
-                  disabled={!f.regionCity}
-                  className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-1 focus:ring-slate-300 disabled:bg-slate-50 disabled:text-slate-400">
-                  <option value="">{f.regionCity ? '구 / 군 선택' : '시/도 먼저'}</option>
-                  {(REGIONS[f.regionCity] ?? []).map(d => <option key={d} value={d}>{d}</option>)}
-                </select>
-              </div>
-            </div>
+      <div className="space-y-4">
+
+          {/* 고객 유형 — 등록 시 결정, 변경 불가 */}
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-semibold text-slate-500">고객 유형</span>
+            <span className={`text-xs font-bold px-3 py-1 rounded-full ${f.customerSegment === 'B2B' ? 'bg-violet-100 text-violet-700' : 'bg-sky-100 text-sky-700'}`}>
+              {f.customerSegment === 'B2B' ? 'B2B 법인' : 'B2C 개인'}
+            </span>
           </div>
 
-          {/* B2C 개인 기본정보 */}
+          {/* ── B2C 통합 박스 ── */}
           {f.customerSegment !== 'B2B' && (
-            <div className="bg-white rounded-xl border border-slate-200 p-5">
-              <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-4">개인 기본정보 (B2C)</h3>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  {label('성별')}
-                  {chips('gender', ['남', '여'], true)}
+            <div className="bg-white rounded-xl border border-slate-200 p-5 space-y-6">
+
+              {/* 기본 정보 */}
+              <div>
+                <div className="flex items-center gap-3 mb-4">
+                  <span className="text-xs font-semibold text-slate-600 whitespace-nowrap">기본 정보</span>
+                  <div className="flex-1 h-px bg-slate-100" />
                 </div>
-                <div>
-                  {label('결혼여부')}
-                  {chips('maritalStatus', ['미혼', '기혼', '이혼'], true)}
-                </div>
-                <div>
-                  {label('생일 / 연령대')}
-                  <input value={f.birthInfo}
-                    onChange={e => setFv('birthInfo', e.target.value)}
-                    placeholder="예: 1985-03-15 또는 1985 또는 30대"
-                    className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-slate-300 mb-1.5" />
-                  <div className="flex flex-wrap gap-1">
-                    {['10대', '20대', '30대', '40대', '50대', '60대+'].map(age => (
-                      <button key={age} type="button"
-                        onClick={() => setFv('birthInfo', f.birthInfo === age ? '' : age)}
-                        className={`px-2 py-0.5 rounded text-xs font-semibold border transition ${f.birthInfo === age ? 'bg-slate-800 text-white border-slate-800' : 'bg-white border-slate-200 text-slate-500 hover:border-slate-400'}`}>
-                        {age}
-                      </button>
-                    ))}
+                <div className="grid grid-cols-2 gap-4">
+                  <div>{label('고객명 *')}{input('name', '고객 이름')}</div>
+                  <div>{label('연락처')}{input('phone', '010-0000-0000')}</div>
+                  <div>{label('이메일')}{input('email', 'example@email.com')}</div>
+                  <div>{label('담당자')}{input('assignee', '영업사원 이름')}</div>
+                  <div className="col-span-2">
+                    {label('고객 분류')}
+                    {chips('customerCategory', ['자차지입', '임대지입', '용차', '월급기사'], true)}
+                  </div>
+                  <div className="col-span-2">
+                    {label('유입 경로')}
+                    {chips('source', SOURCES, true)}
                   </div>
                 </div>
-                <div>
-                  {label('자녀 수')}
-                  <input value={f.childrenCount}
-                    onChange={e => setFv('childrenCount', e.target.value.replace(/[^0-9]/g, ''))}
-                    placeholder="0"
-                    className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-slate-300" />
+              </div>
+
+              {/* 개인 정보 */}
+              <div className="border-t border-slate-100 pt-5">
+                <div className="flex items-center gap-3 mb-4">
+                  <span className="text-xs font-semibold text-slate-600 whitespace-nowrap">개인 정보</span>
+                  <div className="flex-1 h-px bg-slate-100" />
                 </div>
-                <div className="col-span-2">
-                  {label('주소')}
-                  {input('addressDetail', '상세 주소')}
-                </div>
-                <div className="col-span-2">
-                  {label('개인사업자 여부')}
-                  <div className="flex gap-2 mb-3">
-                    {([true, false] as const).map(v => (
-                      <button key={String(v)} type="button"
-                        onClick={() => { setF(p => ({ ...p, isSoleProprietor: p.isSoleProprietor === v ? null : v })); setSaved(false) }}
-                        className={`px-3 py-1 rounded-lg text-xs font-semibold border transition ${f.isSoleProprietor === v ? 'bg-slate-800 text-white border-slate-800' : 'bg-white border-slate-200 text-slate-500 hover:border-slate-400'}`}>
-                        {v ? '있음' : '없음'}
-                      </button>
-                    ))}
-                  </div>
-                  {f.isSoleProprietor && (
-                    <div className="grid grid-cols-2 gap-3 p-3 bg-slate-50 rounded-lg border border-slate-100">
-                      <div>
-                        {label('상호명')}
-                        {input('soleBusinessName', '상호명')}
-                      </div>
-                      <div>
-                        {label('사업자등록번호')}
-                        {input('soleBusinessNo', '000-00-00000')}
-                      </div>
-                      <div className="col-span-2">
-                        {label('업종')}
-                        {input('soleBusinessType', '예: 화물운송업')}
-                      </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>{label('성별')}{chips('gender', ['남', '여'], true)}</div>
+                  <div>{label('결혼여부')}{chips('maritalStatus', ['미혼', '기혼', '이혼'], true)}</div>
+                  <div>
+                    {label('생일 / 연령대')}
+                    <input value={f.birthInfo} onChange={e => setFv('birthInfo', e.target.value)}
+                      placeholder="예: 1985-03-15 또는 30대"
+                      className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-slate-300 mb-1.5" />
+                    <div className="flex flex-wrap gap-1">
+                      {['10대', '20대', '30대', '40대', '50대', '60대+'].map(age => (
+                        <button key={age} type="button" onClick={() => setFv('birthInfo', f.birthInfo === age ? '' : age)}
+                          className={`px-2 py-0.5 rounded text-xs font-semibold border transition ${f.birthInfo === age ? 'bg-slate-800 text-white border-slate-800' : 'bg-white border-slate-200 text-slate-500 hover:border-slate-400'}`}>
+                          {age}
+                        </button>
+                      ))}
                     </div>
-                  )}
+                  </div>
+                  <div>
+                    {label('자녀 수')}
+                    <input value={f.childrenCount} onChange={e => setFv('childrenCount', e.target.value.replace(/[^0-9]/g, ''))}
+                      placeholder="0" className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-slate-300" />
+                  </div>
+                  <div>
+                    {label('거주 지역 (시/도)')}
+                    <select value={f.regionCity} onChange={e => { setFv('regionCity', e.target.value); setFv('regionDist', '') }}
+                      className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-1 focus:ring-slate-300">
+                      <option value="">시 / 도 선택</option>
+                      {CITIES.map(c => <option key={c} value={c}>{c}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    {label('거주 지역 (시/군/구)')}
+                    <select value={f.regionDist} onChange={e => setFv('regionDist', e.target.value)} disabled={!f.regionCity}
+                      className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-1 focus:ring-slate-300 disabled:bg-slate-50 disabled:text-slate-400">
+                      <option value="">{f.regionCity ? '구 / 군 선택' : '시/도 먼저'}</option>
+                      {(REGIONS[f.regionCity] ?? []).map(d => <option key={d} value={d}>{d}</option>)}
+                    </select>
+                  </div>
+                  <div className="col-span-2">{label('주소')}{input('addressDetail', '상세 주소')}</div>
+                  <div className="col-span-2">
+                    {label('개인사업자 여부')}
+                    <div className="flex gap-2 mb-3">
+                      {([true, false] as const).map(v => (
+                        <button key={String(v)} type="button"
+                          onClick={() => { setF(p => ({ ...p, isSoleProprietor: p.isSoleProprietor === v ? null : v })); setSaved(false) }}
+                          className={`px-3 py-1 rounded-lg text-xs font-semibold border transition ${f.isSoleProprietor === v ? 'bg-slate-800 text-white border-slate-800' : 'bg-white border-slate-200 text-slate-500 hover:border-slate-400'}`}>
+                          {v ? '있음' : '없음'}
+                        </button>
+                      ))}
+                    </div>
+                    {f.isSoleProprietor && (
+                      <div className="grid grid-cols-2 gap-3 p-3 bg-slate-50 rounded-lg border border-slate-100">
+                        <div>{label('상호명')}{input('soleBusinessName', '상호명')}</div>
+                        <div>{label('사업자등록번호')}{input('soleBusinessNo', '000-00-00000')}</div>
+                        <div className="col-span-2">{label('업종')}{input('soleBusinessType', '예: 화물운송업')}</div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* 차량 정보 */}
+              <div className="border-t border-slate-100 pt-5">
+                <div className="flex items-center gap-3 mb-4">
+                  <span className="text-xs font-semibold text-slate-600 whitespace-nowrap">차량 정보</span>
+                  <div className="flex-1 h-px bg-slate-100" />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    {label('제조사')}
+                    <div className="flex flex-wrap gap-1.5 mb-1.5">
+                      {[...MAKER_PRESETS, '직접입력'].map(opt => (
+                        <button key={opt} type="button" onClick={() => { setMakerChip(makerChip === opt ? '' : opt); setSaved(false) }}
+                          className={`px-3 py-1 rounded-lg text-xs font-semibold border transition ${makerChip === opt ? 'bg-slate-800 text-white border-slate-800' : 'bg-white border-slate-200 text-slate-500 hover:border-slate-400'}`}>
+                          {opt}
+                        </button>
+                      ))}
+                    </div>
+                    {makerChip === '직접입력' && (
+                      <input value={makerCustom} onChange={e => { setMakerCustom(e.target.value); setSaved(false) }}
+                        placeholder="제조사 직접 입력" className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-slate-300" />
+                    )}
+                  </div>
+                  <div>{label('차량명')}{input('vehicleName', '예: 메가트럭, 파비스')}</div>
+                  <div>{label('연식')}{input('vehicleYear', '예: 2020')}</div>
+                  <div>
+                    {label('주행거리 (km)')}
+                    <input value={f.totalMileage} onChange={e => { const n = e.target.value.replace(/[^0-9]/g, ''); setF(p => ({ ...p, totalMileage: n ? Number(n).toLocaleString() : '' })); setSaved(false) }}
+                      placeholder="예: 150,000" className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-slate-300" />
+                  </div>
+                  <div className="col-span-2">
+                    {label('차종 분류')}
+                    <div className="grid grid-cols-2 gap-3">
+                      <div><p className="text-[10px] text-slate-400 mb-1">구분1 · 형태</p>{chips('truckType1', ['탑', '벤'], true)}</div>
+                      <div><p className="text-[10px] text-slate-400 mb-1">구분2 · 연료</p>{chips('truckType2', ['경유', '가스', '전기'], true)}</div>
+                      <div><p className="text-[10px] text-slate-400 mb-1">구분3 · 적재함</p>{chips('truckType3', ['건탑', '냉동', '냉장'], true)}</div>
+                      <div><p className="text-[10px] text-slate-400 mb-1">구분4 · 높이</p>{chips('truckType4', ['저상', '표준', '하이탑'], true)}</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* 화주 정보 */}
+              <div className="border-t border-slate-100 pt-5">
+                <div className="flex items-center gap-3 mb-4">
+                  <span className="text-xs font-semibold text-slate-600 whitespace-nowrap">화주 정보</span>
+                  <div className="flex-1 h-px bg-slate-100" />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="col-span-2">
+                    {label('화주명')}
+                    <div className="flex flex-wrap gap-1.5 mb-1.5">
+                      {[...SHIPPER_PRESETS, '직접입력'].map(opt => (
+                        <button key={opt} type="button" onClick={() => { setShipperChip(opt); setSaved(false) }}
+                          className={`px-3 py-1 rounded-lg text-xs font-semibold border transition ${shipperChip === opt ? 'bg-slate-800 text-white border-slate-800' : 'bg-white border-slate-200 text-slate-500 hover:border-slate-400'}`}>
+                          {opt}
+                        </button>
+                      ))}
+                    </div>
+                    {shipperChip === '직접입력' && (
+                      <input value={shipperCustom} onChange={e => { setShipperCustom(e.target.value); setSaved(false) }}
+                        placeholder="화주명 직접 입력" className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-slate-300" />
+                    )}
+                  </div>
+                  <div>{label('화물 유형')}{input('cargoType', '예: 냉동식품, 공산품')}</div>
+                  <div />
+                  <div>
+                    {label('배송 지역 (시/도)')}
+                    <select value={f.deliveryCity} onChange={e => { setFv('deliveryCity', e.target.value); setFv('deliveryDist', '') }}
+                      className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-1 focus:ring-slate-300">
+                      <option value="">시 / 도 선택</option>
+                      {CITIES.map(c => <option key={c} value={c}>{c}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    {label('배송 지역 (시/군/구)')}
+                    <select value={f.deliveryDist} onChange={e => setFv('deliveryDist', e.target.value)} disabled={!f.deliveryCity}
+                      className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-1 focus:ring-slate-300 disabled:bg-slate-50 disabled:text-slate-400">
+                      <option value="">{f.deliveryCity ? '구 / 군 선택' : '시/도 먼저'}</option>
+                      {(REGIONS[f.deliveryCity] ?? []).map(d => <option key={d} value={d}>{d}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    {label('근무 패턴')}
+                    <div className="flex flex-wrap gap-1.5 mb-1.5">
+                      {[...SHIFT_PRESETS, '직접입력'].map(opt => (
+                        <button key={opt} type="button" onClick={() => { setShiftChip(shiftChip === opt ? '' : opt); setSaved(false) }}
+                          className={`px-3 py-1 rounded-lg text-xs font-semibold border transition ${shiftChip === opt ? 'bg-slate-800 text-white border-slate-800' : 'bg-white border-slate-200 text-slate-500 hover:border-slate-400'}`}>
+                          {opt}
+                        </button>
+                      ))}
+                    </div>
+                    {shiftChip === '직접입력' && (
+                      <input value={shiftCustom} onChange={e => { setShiftCustom(e.target.value); setSaved(false) }}
+                        placeholder="예: 새벽배송" className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-slate-300" />
+                    )}
+                  </div>
+                  <div>{label('월 수입 (만원)')}{input('monthlyIncome', '예: 350')}</div>
+                  <div className="col-span-2">
+                    {label('화물 특이사항')}
+                    <textarea value={f.cargoNote} rows={2} onChange={e => setFv('cargoNote', e.target.value)}
+                      placeholder="온도 조건, 하역 방식, 특수 요구사항 등..."
+                      className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 resize-none focus:outline-none focus:ring-1 focus:ring-slate-300" />
+                  </div>
                 </div>
               </div>
             </div>
           )}
 
-          {/* B2B 법인 정보 */}
+          {/* ── B2B 통합 박스 ── */}
+          {f.customerSegment === 'B2B' && (
+            <div className="bg-white rounded-xl border border-slate-200 p-5 space-y-6">
+
+              {/* 기본 정보 */}
+              <div>
+                <div className="flex items-center gap-3 mb-4">
+                  <span className="text-xs font-semibold text-slate-600 whitespace-nowrap">기본 정보</span>
+                  <div className="flex-1 h-px bg-slate-100" />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>{label('담당자명 *')}{input('name', '담당자 이름')}</div>
+                  <div>{label('담당자 연락처')}{input('phone', '010-0000-0000')}</div>
+                  <div>{label('이메일')}{input('email', 'example@email.com')}</div>
+                  <div>{label('담당자 직함')}{input('contactTitle', '예: 대표, 물류팀장')}</div>
+                  <div>{label('회사 / 법인명')}{input('companyName', '회사명')}</div>
+                  <div>{label('사업자등록번호')}{input('businessRegNo', '000-00-00000')}</div>
+                  <div>{label('업종')}{input('industry', '예: 식품제조, 물류')}</div>
+                  <div>{label('회사 전화')}{input('companyPhone', '02-0000-0000')}</div>
+                  <div className="col-span-2">{label('회사 주소')}{input('companyAddress', '본사 주소')}</div>
+                  <div>
+                    {label('직원수')}
+                    <div className="flex items-center gap-2">
+                      {input('employeeCount', '0')}
+                      <span className="text-xs font-semibold text-slate-400 shrink-0">명</span>
+                    </div>
+                  </div>
+                  <div className="col-span-2">
+                    {label('유입 경로')}
+                    {chips('source', SOURCES, true)}
+                  </div>
+                  <div>{label('영업 담당자')}{input('assignee', '영업사원 이름')}</div>
+                </div>
+              </div>
+
+              {/* 보유차량 + 법인매출 좌우 배치 */}
+              <div className="border-t border-slate-100 pt-5 grid grid-cols-2 gap-6">
+
+                {/* 보유 차량 정보 */}
+                <div>
+                  <div className="flex items-center gap-2 mb-3">
+                    <span className="text-xs font-semibold text-slate-600 whitespace-nowrap">보유 차량 정보</span>
+                    <div className="flex-1 h-px bg-slate-100" />
+                  </div>
+                  <div className="grid gap-2 mb-1" style={{ gridTemplateColumns: '1fr 56px 24px' }}>
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">차량명</span>
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest text-center">대수</span>
+                    <span />
+                  </div>
+                  <div className="space-y-2">
+                    {vehicleList.map((row, i) => (
+                      <div key={i} className="grid gap-2 items-center" style={{ gridTemplateColumns: '1fr 56px 24px' }}>
+                        <input
+                          value={row.name}
+                          onChange={e => { setVehicleList(prev => prev.map((r, idx) => idx === i ? { ...r, name: e.target.value } : r)); setSaved(false) }}
+                          placeholder="예: 메가트럭"
+                          className="w-full text-sm border border-slate-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-slate-300" />
+                        <input
+                          value={row.count}
+                          onChange={e => { setVehicleList(prev => prev.map((r, idx) => idx === i ? { ...r, count: e.target.value.replace(/[^0-9]/g, '') } : r)); setSaved(false) }}
+                          placeholder="0"
+                          className="w-full text-sm border border-slate-200 rounded-lg px-2 py-1.5 text-center focus:outline-none focus:ring-1 focus:ring-slate-300" />
+                        <button
+                          type="button"
+                          onClick={() => { setVehicleList(prev => prev.length > 1 ? prev.filter((_, idx) => idx !== i) : prev); setSaved(false) }}
+                          className="flex items-center justify-center w-6 h-6 rounded-md text-slate-300 hover:text-red-400 hover:bg-red-50 transition"
+                          disabled={vehicleList.length <= 1}>
+                          ✕
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => { setVehicleList(prev => [...prev, { name: '', count: '' }]); setSaved(false) }}
+                    className="mt-2 w-full py-1.5 text-xs font-semibold text-slate-400 border border-dashed border-slate-200 rounded-lg hover:border-slate-400 hover:text-slate-600 transition">
+                    + 열 추가
+                  </button>
+                  <div className="mt-2 flex items-center justify-between px-3 py-2 bg-slate-50 rounded-lg border border-slate-100">
+                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">총합</span>
+                    <span className="text-sm font-bold text-slate-700">
+                      {vehicleList.reduce((s, r) => s + (parseInt(r.count) || 0), 0) > 0
+                        ? `${vehicleList.reduce((s, r) => s + (parseInt(r.count) || 0), 0).toLocaleString()} 대`
+                        : '—'}
+                    </span>
+                  </div>
+                </div>
+
+                {/* 법인 매출 */}
+                <div>
+                  <div className="flex items-center gap-2 mb-3">
+                    <span className="text-xs font-semibold text-slate-600 whitespace-nowrap">법인 매출</span>
+                    <div className="flex-1 h-px bg-slate-100" />
+                  </div>
+                  <div className="space-y-2">
+                    {([
+                      { key: 'b2bRevenue1', year: new Date().getFullYear() - 1 },
+                      { key: 'b2bRevenue2', year: new Date().getFullYear() - 2 },
+                      { key: 'b2bRevenue3', year: new Date().getFullYear() - 3 },
+                    ] as { key: 'b2bRevenue1' | 'b2bRevenue2' | 'b2bRevenue3'; year: number }[]).map(({ key, year }) => (
+                      <div key={key} className="grid items-center gap-2" style={{ gridTemplateColumns: '60px 1fr auto' }}>
+                        <span className="text-xs font-bold text-slate-500 text-right">{year}년</span>
+                        <input
+                          value={f[key]}
+                          onChange={e => { setF(p => ({ ...p, [key]: e.target.value })); setSaved(false) }}
+                          placeholder="0"
+                          className="w-full text-sm border border-slate-200 rounded-lg px-2 py-1.5 text-right focus:outline-none focus:ring-1 focus:ring-slate-300"
+                        />
+                        <span className="text-xs font-semibold text-slate-400">억</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+              </div>
+            </div>
+          )}
+
+          {/* B2B 첨부 서류 */}
           {f.customerSegment === 'B2B' && (
             <div className="bg-white rounded-xl border border-slate-200 p-5">
-              <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-4">법인 정보 (B2B)</h3>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  {label('회사/법인명')}
-                  {input('companyName', '회사명')}
-                </div>
-                <div>
-                  {label('사업자등록번호')}
-                  {input('businessRegNo', '000-00-00000')}
-                </div>
-                <div>
-                  {label('담당자 직함')}
-                  {input('contactTitle', '예: 대표, 물류팀장')}
-                </div>
-                <div>
-                  {label('업종')}
-                  {input('industry', '예: 식품제조, 물류')}
-                </div>
-                <div>
-                  {label('회사 전화')}
-                  {input('companyPhone', '02-0000-0000')}
-                </div>
-                <div>
-                  {label('법인 구분')}
-                  {chips('b2bCategory', ['중소기업', '중견기업', '대기업', '개인사업자'], true)}
-                </div>
-                <div className="col-span-2">
-                  {label('회사 주소')}
-                  {input('companyAddress', '본사 주소')}
-                </div>
+              <h3 className="text-xs font-semibold text-slate-600 mb-4">첨부 서류</h3>
+              <div className="space-y-3">
+                {(['사업자등록증', '계좌정보'] as const).map(docType => {
+                  const doc = docs.find(d => d.type === docType)
+                  const isUploading = uploading === docType
+                  return (
+                    <div key={docType} className="flex items-center justify-between gap-3 px-4 py-3 rounded-lg border border-slate-100 bg-slate-50">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest whitespace-nowrap">{docType}</span>
+                        {doc ? (
+                          <a href={doc.path} target="_blank" rel="noreferrer"
+                            className="text-xs text-blue-600 hover:underline truncate max-w-[200px]" title={doc.name}>
+                            {doc.name}
+                          </a>
+                        ) : (
+                          <span className="text-xs text-slate-400">미업로드</span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        {doc && (
+                          <button type="button" onClick={() => handleDocDelete(docType)}
+                            className="text-[10px] text-red-400 hover:text-red-600 transition font-semibold">
+                            삭제
+                          </button>
+                        )}
+                        <label className={`cursor-pointer px-3 py-1.5 text-xs font-semibold rounded-lg border transition
+                          ${isUploading ? 'opacity-50 cursor-not-allowed' : 'border-slate-200 text-slate-600 hover:bg-white hover:border-slate-400'}`}>
+                          {isUploading ? '업로드 중...' : doc ? '재업로드' : '업로드'}
+                          <input type="file" className="hidden" disabled={isUploading}
+                            accept=".pdf,.jpg,.jpeg,.png,.heic"
+                            onChange={e => { const f = e.target.files?.[0]; if (f) handleDocUpload(docType, f); e.target.value = '' }} />
+                        </label>
+                      </div>
+                    </div>
+                  )
+                })}
               </div>
+              <p className="mt-3 text-[10px] text-slate-400">PDF, JPG, PNG, HEIC 지원 · 파일당 최대 10MB</p>
             </div>
           )}
 
-          {/* 차량 정보 */}
+          {/* 메모 (공통) */}
           <div className="bg-white rounded-xl border border-slate-200 p-5">
-            <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-4">차량 정보</h3>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                {label('제조사')}
-                <div className="flex flex-wrap gap-1.5 mb-1.5">
-                  {[...MAKER_PRESETS, '직접입력'].map(opt => (
-                    <button key={opt} type="button"
-                      onClick={() => { setMakerChip(makerChip === opt ? '' : opt); setSaved(false) }}
-                      className={`px-3 py-1 rounded-lg text-xs font-semibold border transition
-                        ${makerChip === opt ? 'bg-slate-800 text-white border-slate-800' : 'bg-white border-slate-200 text-slate-500 hover:border-slate-400'}`}>
-                      {opt}
-                    </button>
-                  ))}
-                </div>
-                {makerChip === '직접입력' && (
-                  <input value={makerCustom}
-                    onChange={e => { setMakerCustom(e.target.value); setSaved(false) }}
-                    placeholder="제조사 직접 입력"
-                    className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-slate-300" />
-                )}
-              </div>
-              <div>
-                {label('차량명')}
-                {input('vehicleName', '예: 메가트럭, 파비스')}
-              </div>
-              <div>
-                {label('연식')}
-                {input('vehicleYear', '예: 2020')}
-              </div>
-              <div>
-                {label('주행거리 (km)')}
-                <input
-                  value={f.totalMileage}
-                  onChange={e => {
-                    const n = e.target.value.replace(/[^0-9]/g, '')
-                    setF(p => ({ ...p, totalMileage: n ? Number(n).toLocaleString() : '' }))
-                    setSaved(false)
-                  }}
-                  placeholder="예: 150,000"
-                  className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-slate-300" />
-              </div>
-              <div className="col-span-2">
-                {label('차종 분류')}
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <p className="text-[10px] text-slate-400 mb-1">구분1 · 형태</p>
-                    {chips('truckType1', ['탑', '벤'], true)}
-                  </div>
-                  <div>
-                    <p className="text-[10px] text-slate-400 mb-1">구분2 · 연료</p>
-                    {chips('truckType2', ['경유', '가스', '전기'], true)}
-                  </div>
-                  <div>
-                    <p className="text-[10px] text-slate-400 mb-1">구분3 · 적재함</p>
-                    {chips('truckType3', ['건탑', '냉동', '냉장'], true)}
-                  </div>
-                  <div>
-                    <p className="text-[10px] text-slate-400 mb-1">구분4 · 높이</p>
-                    {chips('truckType4', ['저상', '표준', '하이탑'], true)}
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* 화주 정보 */}
-          <div className="bg-white rounded-xl border border-slate-200 p-5">
-            <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-4">화주 정보</h3>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="col-span-2">
-                {label('화주명')}
-                <div className="flex flex-wrap gap-1.5 mb-1.5">
-                  {[...SHIPPER_PRESETS, '직접입력'].map(opt => (
-                    <button key={opt} type="button"
-                      onClick={() => { setShipperChip(opt); setSaved(false) }}
-                      className={`px-3 py-1 rounded-lg text-xs font-semibold border transition
-                        ${shipperChip === opt ? 'bg-slate-800 text-white border-slate-800' : 'bg-white border-slate-200 text-slate-500 hover:border-slate-400'}`}>
-                      {opt}
-                    </button>
-                  ))}
-                </div>
-                {shipperChip === '직접입력' && (
-                  <input value={shipperCustom}
-                    onChange={e => { setShipperCustom(e.target.value); setSaved(false) }}
-                    placeholder="화주명 직접 입력"
-                    className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-slate-300" />
-                )}
-              </div>
-              <div>
-                {label('화물 유형')}
-                {input('cargoType', '예: 냉동식품, 공산품')}
-              </div>
-              <div />
-              <div>
-                {label('배송 지역 (시/도)')}
-                <select value={f.deliveryCity}
-                  onChange={e => { setFv('deliveryCity', e.target.value); setFv('deliveryDist', '') }}
-                  className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-1 focus:ring-slate-300">
-                  <option value="">시 / 도 선택</option>
-                  {CITIES.map(c => <option key={c} value={c}>{c}</option>)}
-                </select>
-              </div>
-              <div>
-                {label('배송 지역 (시/군/구)')}
-                <select value={f.deliveryDist}
-                  onChange={e => setFv('deliveryDist', e.target.value)}
-                  disabled={!f.deliveryCity}
-                  className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-1 focus:ring-slate-300 disabled:bg-slate-50 disabled:text-slate-400">
-                  <option value="">{f.deliveryCity ? '구 / 군 선택' : '시/도 먼저'}</option>
-                  {(REGIONS[f.deliveryCity] ?? []).map(d => <option key={d} value={d}>{d}</option>)}
-                </select>
-              </div>
-              <div>
-                {label('근무 패턴')}
-                <div className="flex flex-wrap gap-1.5 mb-1.5">
-                  {[...SHIFT_PRESETS, '직접입력'].map(opt => (
-                    <button key={opt} type="button"
-                      onClick={() => { setShiftChip(shiftChip === opt ? '' : opt); setSaved(false) }}
-                      className={`px-3 py-1 rounded-lg text-xs font-semibold border transition
-                        ${shiftChip === opt ? 'bg-slate-800 text-white border-slate-800' : 'bg-white border-slate-200 text-slate-500 hover:border-slate-400'}`}>
-                      {opt}
-                    </button>
-                  ))}
-                </div>
-                {shiftChip === '직접입력' && (
-                  <input value={shiftCustom}
-                    onChange={e => { setShiftCustom(e.target.value); setSaved(false) }}
-                    placeholder="예: 새벽배송"
-                    className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-slate-300" />
-                )}
-              </div>
-              <div>
-                {label('월 수입 (만원)')}
-                {input('monthlyIncome', '예: 350')}
-              </div>
-              <div className="col-span-2">
-                {label('화물 특이사항')}
-                <textarea value={f.cargoNote} rows={2}
-                  onChange={e => setFv('cargoNote', e.target.value)}
-                  placeholder="온도 조건, 하역 방식, 특수 요구사항 등..."
-                  className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 resize-none focus:outline-none focus:ring-1 focus:ring-slate-300" />
-              </div>
-            </div>
-          </div>
-
-          {/* 메모 */}
-          <div className="bg-white rounded-xl border border-slate-200 p-5">
-            <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-4">메모</h3>
-            <textarea value={f.memo} rows={4}
-              onChange={e => setFv('memo', e.target.value)}
+            <h3 className="text-xs font-semibold text-slate-600 mb-4">메모</h3>
+            <textarea value={f.memo} rows={4} onChange={e => setFv('memo', e.target.value)}
               placeholder="고객 특이사항, 니즈 등..."
               className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 resize-none focus:outline-none focus:ring-1 focus:ring-slate-300" />
           </div>
-        </div>
 
-        {/* 우측 사이드바 */}
-        <div className="space-y-4">
-          {/* 리드 전환 */}
-          <div className="bg-white rounded-xl border border-slate-200 p-4">
-            <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3">리드 관리</h3>
-            <button onClick={handleConvertToLead} disabled={converting}
-              className="w-full py-2.5 text-sm font-bold rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition disabled:opacity-50">
-              {converting ? '전환 중...' : '+ 새 리드로 전환'}
-            </button>
-            <p className="text-[10px] text-slate-400 mt-2 text-center">
-              이 고객을 영업 파이프라인에 등록합니다
-            </p>
-          </div>
-
-          {/* 연결된 리드 목록 */}
-          {customer.leads.length > 0 && (
-            <div className="bg-white rounded-xl border border-slate-200 p-4">
-              <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3">
-                연결된 리드 ({customer.leads.length})
-              </h3>
-              <div className="space-y-2">
-                {customer.leads.map(lead => (
-                  <Link key={lead.id} href={`/funnel/${lead.id}`}
-                    className="flex items-center justify-between p-2.5 rounded-lg bg-slate-50 hover:bg-slate-100 transition">
-                    <div className="flex items-center gap-2">
-                      <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded
-                        ${STAGE_COLOR[lead.stageCode?.charAt(0) ?? '1'] ?? 'bg-slate-100 text-slate-500'}`}>
-                        {lead.stageCode}
-                      </span>
-                      <span className="text-xs text-slate-700 font-medium">{lead.name}</span>
-                    </div>
-                    <span className={`text-[10px] font-semibold
-                      ${lead.salesStatus === '이탈' ? 'text-red-400' : lead.salesStatus === '완료' ? 'text-green-600' : 'text-slate-400'}`}>
-                      {lead.salesStatus}
+        {/* 연결된 리드 목록 */}
+        {customer.leads.length > 0 && (
+          <div className="bg-white rounded-xl border border-slate-200 p-5">
+            <h3 className="text-sm font-semibold text-slate-600 mb-3">
+              연결된 리드 ({customer.leads.length})
+            </h3>
+            <div className="space-y-2">
+              {customer.leads.map(lead => (
+                <Link key={lead.id} href={`/funnel/${lead.id}`}
+                  className="flex items-center justify-between p-2.5 rounded-lg bg-slate-50 hover:bg-slate-100 transition">
+                  <div className="flex items-center gap-2">
+                    <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded
+                      ${STAGE_COLOR[lead.stageCode?.charAt(0) ?? '1'] ?? 'bg-slate-100 text-slate-500'}`}>
+                      {lead.stageCode}
                     </span>
-                  </Link>
-                ))}
-              </div>
+                    <span className="text-xs text-slate-700 font-medium">{lead.name}</span>
+                  </div>
+                  <span className={`text-[10px] font-semibold
+                    ${lead.salesStatus === '이탈' ? 'text-red-400' : lead.salesStatus === '완료' ? 'text-green-600' : 'text-slate-400'}`}>
+                    {lead.salesStatus}
+                  </span>
+                </Link>
+              ))}
             </div>
-          )}
-
-          {/* 등록일 */}
-          <div className="px-4 py-3 rounded-xl bg-slate-50 text-center">
-            <p className="text-[10px] text-slate-400">등록일</p>
-            <p className="text-xs font-semibold text-slate-600 mt-0.5">
-              {new Date(customer.createdAt).toLocaleDateString('ko-KR')}
-            </p>
           </div>
-        </div>
+        )}
       </div>
 
       {/* 활동 이력 */}
-      <div className="mt-8">
+      <div className="mt-6">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-sm font-bold text-slate-700">영업 활동 이력</h2>
           <button onClick={() => setShowActForm(v => !v)}
