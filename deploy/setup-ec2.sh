@@ -50,7 +50,13 @@ fi
 
 mkdir -p "$APP_DIR" /opt/evn-warp-backups
 
-cat >"/etc/nginx/conf.d/${SERVER_NAME}.conf" <<EOF_NGINX
+NGINX_CONF="/etc/nginx/conf.d/${SERVER_NAME}.conf"
+CERT_DIR="/etc/letsencrypt/live/${SERVER_NAME}"
+CERT_FILE="${CERT_DIR}/fullchain.pem"
+CERT_KEY="${CERT_DIR}/privkey.pem"
+
+write_http_proxy_conf() {
+  cat >"$NGINX_CONF" <<EOF_NGINX
 server {
     listen 80;
     server_name ${SERVER_NAME};
@@ -69,12 +75,49 @@ server {
     }
 }
 EOF_NGINX
+}
+
+write_https_proxy_conf() {
+  cat >"$NGINX_CONF" <<EOF_NGINX
+server {
+    listen 80;
+    server_name ${SERVER_NAME};
+    return 301 https://\$host\$request_uri;
+}
+
+server {
+    listen 443 ssl;
+    server_name ${SERVER_NAME};
+
+    ssl_certificate ${CERT_FILE};
+    ssl_certificate_key ${CERT_KEY};
+    client_max_body_size 50m;
+
+    location / {
+        proxy_pass http://127.0.0.1:${PORT};
+        proxy_http_version 1.1;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_set_header Upgrade \$http_upgrade;
+        proxy_set_header Connection "upgrade";
+    }
+}
+EOF_NGINX
+}
+
+if [ -f "$CERT_FILE" ] && [ -f "$CERT_KEY" ]; then
+  write_https_proxy_conf
+else
+  write_http_proxy_conf
+fi
 
 systemctl enable nginx
 nginx -t
 systemctl restart nginx
 
-if [ ! -f "/etc/letsencrypt/live/${SERVER_NAME}/fullchain.pem" ]; then
+if [ ! -f "$CERT_FILE" ] || [ ! -f "$CERT_KEY" ]; then
   test -n "$CERTBOT_EMAIL" || { echo 'CERTBOT_EMAIL secret is required for first HTTPS cert.' >&2; exit 1; }
   certbot --nginx --non-interactive --agree-tos --redirect -m "$CERTBOT_EMAIL" -d "$SERVER_NAME"
 fi
