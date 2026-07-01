@@ -15,7 +15,21 @@ fi
 
 export DEBIAN_FRONTEND=noninteractive
 apt-get update
-apt-get install -y ca-certificates curl git nginx openssl awscli certbot python3-certbot-nginx
+apt-get install -y ca-certificates curl git nginx openssl unzip certbot python3-certbot-nginx
+
+
+if ! need_cmd aws; then
+  arch="$(uname -m)"
+  case "$arch" in
+    x86_64) aws_arch=x86_64 ;;
+    aarch64|arm64) aws_arch=aarch64 ;;
+    *) echo "Unsupported AWS CLI architecture: $arch" >&2; exit 1 ;;
+  esac
+  curl -fsSL "https://awscli.amazonaws.com/awscli-exe-linux-${aws_arch}.zip" -o /tmp/awscliv2.zip
+  rm -rf /tmp/aws
+  unzip -q /tmp/awscliv2.zip -d /tmp
+  /tmp/aws/install --update
+fi
 
 if ! need_cmd node || [ "$(node -p 'Number(process.versions.node.split(`.`)[0])')" -lt 20 ]; then
   curl -fsSL https://deb.nodesource.com/setup_22.x | bash -
