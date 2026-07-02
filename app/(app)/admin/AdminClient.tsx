@@ -6,7 +6,7 @@ import {
   AlertTriangle, CheckCircle2, RefreshCw,
   Users, Database, Link2, Unlink,
   GitMerge, Search, Phone, ChevronDown, ChevronUp,
-  Trash2, Eye,
+  Trash2, Eye, UserPlus, KeyRound, X,
 } from 'lucide-react'
 
 /* ── 타입 ── */
@@ -16,6 +16,18 @@ interface Stats {
   unlinkedDeals:      number
   customersWithDetail:number
 }
+
+interface UserRow {
+  id:        string
+  name:      string
+  email:     string
+  role:      string
+  teamId:    string | null
+  team:      { name: string } | null
+  createdAt: string
+}
+
+interface TeamRow { id: string; name: string }
 
 type CustInfo = { id: string; name: string; phone: string | null; status: string; leadCount: number; createdAt: string }
 type DupGroup = { phone: string | null; name: string; customers: CustInfo[] }
@@ -40,8 +52,64 @@ interface LostPreview {
 /* ── 상태 초기화 ── */
 const RESET_RESULT_INIT = null as { resetCount: number; createCount: number; message: string } | null
 
-export default function AdminClient({ stats }: { stats: Stats }) {
+export default function AdminClient({
+  stats, users: initialUsers, teams,
+}: {
+  stats: Stats; users: UserRow[]; teams: TeamRow[]
+}) {
   const router = useRouter()
+
+  /* ── 사용자 관리 ── */
+  const [users,      setUsers]      = useState<UserRow[]>(initialUsers)
+  const [showAdd,    setShowAdd]    = useState(false)
+  const [newUser,    setNewUser]    = useState({ name: '', email: '', password: '', role: 'user', teamId: '' })
+  const [addErr,     setAddErr]     = useState('')
+  const [addLoading, setAddLoading] = useState(false)
+  const [pwdId,      setPwdId]      = useState<string | null>(null)
+  const [newPwd,     setNewPwd]     = useState('')
+  const [pwdLoading, setPwdLoading] = useState(false)
+  const [delId,      setDelId]      = useState<string | null>(null)
+  const [delLoading, setDelLoading] = useState(false)
+
+  const handleAddUser = async () => {
+    setAddErr('')
+    if (!newUser.name.trim() || !newUser.email.trim() || !newUser.password.trim()) {
+      setAddErr('이름, 이메일, 비밀번호는 필수입니다.')
+      return
+    }
+    setAddLoading(true)
+    try {
+      const res  = await fetch('/api/users', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newUser),
+      })
+      const data = await res.json()
+      if (!res.ok) { setAddErr(data.error ?? '생성 실패'); return }
+      setUsers(prev => [...prev, data].sort((a, b) => a.name.localeCompare(b.name)))
+      setNewUser({ name: '', email: '', password: '', role: 'user', teamId: '' })
+      setShowAdd(false)
+    } finally { setAddLoading(false) }
+  }
+
+  const handleResetPwd = async (id: string) => {
+    if (!newPwd.trim()) return
+    setPwdLoading(true)
+    try {
+      const res = await fetch(`/api/users/${id}`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password: newPwd }),
+      })
+      if (res.ok) { setPwdId(null); setNewPwd('') }
+    } finally { setPwdLoading(false) }
+  }
+
+  const handleDelete = async (id: string) => {
+    setDelLoading(true)
+    try {
+      const res = await fetch(`/api/users/${id}`, { method: 'DELETE' })
+      if (res.ok) { setUsers(prev => prev.filter(u => u.id !== id)); setDelId(null) }
+    } finally { setDelLoading(false) }
+  }
 
   /* 초기화 작업 */
   const [resetStep,   setResetStep]   = useState<'idle' | 'confirm' | 'running' | 'done'>('idle')
@@ -165,8 +233,179 @@ export default function AdminClient({ stats }: { stats: Stats }) {
 
       {/* 헤더 */}
       <div>
-        <h1 className="text-2xl font-bold text-slate-800">데이터 관리</h1>
-        <p className="text-sm text-slate-500 mt-1">고객/리드 데이터 초기화 및 중복 통합</p>
+        <h1 className="text-2xl font-bold text-slate-800">관리자</h1>
+        <p className="text-sm text-slate-500 mt-1">사용자 계정 및 데이터 관리</p>
+      </div>
+
+      {/* ══ 사용자 관리 ══ */}
+      <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden">
+        <div className="px-6 py-4 bg-slate-800 flex items-center justify-between">
+          <div>
+            <h2 className="text-white font-bold text-sm flex items-center gap-2">
+              <Users size={15} /> 사용자 관리
+            </h2>
+            <p className="text-slate-400 text-xs mt-0.5">직원 계정 추가 · 비밀번호 초기화 · 삭제</p>
+          </div>
+          <button
+            onClick={() => { setShowAdd(v => !v); setAddErr('') }}
+            className="flex items-center gap-1.5 px-4 py-2 bg-white/10 hover:bg-white/20 text-white text-xs font-semibold rounded-lg transition">
+            <UserPlus size={13} />
+            사용자 추가
+          </button>
+        </div>
+
+        <div className="divide-y divide-slate-100">
+          {/* 사용자 추가 폼 */}
+          {showAdd && (
+            <div className="p-5 bg-slate-50 border-b border-slate-200">
+              <p className="text-xs font-bold text-slate-600 mb-3">새 사용자 등록</p>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs text-slate-500 mb-1 block">이름 *</label>
+                  <input
+                    value={newUser.name}
+                    onChange={e => setNewUser(p => ({ ...p, name: e.target.value }))}
+                    placeholder="홍길동"
+                    className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-slate-400"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs text-slate-500 mb-1 block">이메일 *</label>
+                  <input
+                    type="email"
+                    value={newUser.email}
+                    onChange={e => setNewUser(p => ({ ...p, email: e.target.value }))}
+                    placeholder="hong@evnsolution.com"
+                    className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-slate-400"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs text-slate-500 mb-1 block">비밀번호 *</label>
+                  <input
+                    type="password"
+                    value={newUser.password}
+                    onChange={e => setNewUser(p => ({ ...p, password: e.target.value }))}
+                    placeholder="8자 이상 권장"
+                    className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-slate-400"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs text-slate-500 mb-1 block">팀</label>
+                  <select
+                    value={newUser.teamId}
+                    onChange={e => setNewUser(p => ({ ...p, teamId: e.target.value }))}
+                    className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-1 focus:ring-slate-400">
+                    <option value="">팀 없음</option>
+                    {teams.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="text-xs text-slate-500 mb-1 block">권한</label>
+                  <select
+                    value={newUser.role}
+                    onChange={e => setNewUser(p => ({ ...p, role: e.target.value }))}
+                    className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-1 focus:ring-slate-400">
+                    <option value="user">일반 사용자</option>
+                    <option value="admin">관리자</option>
+                  </select>
+                </div>
+              </div>
+              {addErr && <p className="text-xs text-red-500 mt-2">{addErr}</p>}
+              <div className="flex gap-2 mt-4">
+                <button
+                  onClick={handleAddUser}
+                  disabled={addLoading}
+                  className="px-5 py-2 text-sm font-bold rounded-xl bg-slate-800 text-white hover:bg-slate-700 transition disabled:opacity-50 flex items-center gap-2">
+                  {addLoading ? <RefreshCw size={13} className="animate-spin" /> : <UserPlus size={13} />}
+                  {addLoading ? '생성 중...' : '계정 생성'}
+                </button>
+                <button
+                  onClick={() => { setShowAdd(false); setAddErr('') }}
+                  className="px-4 py-2 text-sm font-semibold rounded-xl border border-slate-200 text-slate-500 hover:bg-slate-50">
+                  취소
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* 사용자 목록 */}
+          {users.length === 0 ? (
+            <p className="text-sm text-slate-400 text-center py-8">등록된 사용자가 없습니다.</p>
+          ) : (
+            users.map(u => (
+              <div key={u.id} className="px-5 py-3.5 flex items-center justify-between gap-4">
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="font-semibold text-sm text-slate-800">{u.name}</span>
+                    <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
+                      u.role === 'admin' ? 'bg-violet-100 text-violet-700' : 'bg-slate-100 text-slate-500'
+                    }`}>
+                      {u.role === 'admin' ? '관리자' : '사용자'}
+                    </span>
+                    {u.team && (
+                      <span className="text-[10px] text-slate-400 bg-slate-50 border border-slate-200 px-1.5 py-0.5 rounded">
+                        {u.team.name}
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-xs text-slate-400 mt-0.5">{u.email}</p>
+                </div>
+
+                <div className="flex items-center gap-2 shrink-0">
+                  {/* 비밀번호 초기화 */}
+                  {pwdId === u.id ? (
+                    <div className="flex items-center gap-1.5">
+                      <input
+                        type="password"
+                        value={newPwd}
+                        onChange={e => setNewPwd(e.target.value)}
+                        placeholder="새 비밀번호"
+                        className="text-xs border border-slate-200 rounded-lg px-2.5 py-1.5 w-32 focus:outline-none focus:ring-1 focus:ring-slate-400"
+                      />
+                      <button
+                        onClick={() => handleResetPwd(u.id)}
+                        disabled={pwdLoading || !newPwd.trim()}
+                        className="px-2.5 py-1.5 text-xs font-bold rounded-lg bg-amber-500 text-white hover:bg-amber-600 disabled:opacity-40 transition">
+                        {pwdLoading ? '...' : '변경'}
+                      </button>
+                      <button onClick={() => { setPwdId(null); setNewPwd('') }}
+                        className="p-1.5 text-slate-400 hover:text-slate-600">
+                        <X size={13} />
+                      </button>
+                    </div>
+                  ) : delId === u.id ? (
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-xs text-red-600 font-medium">정말 삭제하시겠어요?</span>
+                      <button
+                        onClick={() => handleDelete(u.id)}
+                        disabled={delLoading}
+                        className="px-2.5 py-1.5 text-xs font-bold rounded-lg bg-red-600 text-white hover:bg-red-700 disabled:opacity-40 transition">
+                        {delLoading ? '...' : '삭제'}
+                      </button>
+                      <button onClick={() => setDelId(null)}
+                        className="p-1.5 text-slate-400 hover:text-slate-600">
+                        <X size={13} />
+                      </button>
+                    </div>
+                  ) : (
+                    <>
+                      <button
+                        onClick={() => { setPwdId(u.id); setDelId(null); setNewPwd('') }}
+                        className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50 transition">
+                        <KeyRound size={11} /> 비번 변경
+                      </button>
+                      <button
+                        onClick={() => { setDelId(u.id); setPwdId(null) }}
+                        className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold rounded-lg border border-red-200 text-red-500 hover:bg-red-50 transition">
+                        <Trash2 size={11} /> 삭제
+                      </button>
+                    </>
+                  )}
+                </div>
+              </div>
+            ))
+          )}
+        </div>
       </div>
 
       {/* 현황 카드 */}
