@@ -92,7 +92,7 @@ export default function Sidebar({ userName, userEmail }: Props) {
           onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = pathname.startsWith('/admin') ? '#C5D42A' : '#555' }}
         >
           <Settings2 size={13} />
-          데이터 관리
+          관리자
         </Link>
       </div>
 
