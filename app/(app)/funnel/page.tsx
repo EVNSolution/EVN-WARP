@@ -40,25 +40,27 @@ export default async function FunnelPage() {
     }
   })
 
-  // 영업퍼널 연동 KPI에서 이번 달 목표 읽기
-  let linkedKpi: { label: string; unit: string | null; entries: { target: number | null }[] } | null = null
+  // 영업퍼널 연동 KPI에서 이번 달 목표 읽기 (raw SQL로 linkedToFunnel 처리)
+  type LinkedKpiRow = { id: string; label: string; unit: string | null }
+  let linkedKpi: { label: string; unit: string | null } | null = null
   let salesTarget: number | null = null
   try {
-    linkedKpi = await prisma.companyKpi.findFirst({
-      where: { linkedToFunnel: true },
-      select: {
-        label: true,
-        unit: true,
-        entries: {
-          where: { year: currentYear, month: currentMonth },
-          select: { target: true },
-          take: 1,
-        },
-      },
-    })
-    salesTarget = linkedKpi?.entries[0]?.target ?? null
+    const rows = await prisma.$queryRaw<LinkedKpiRow[]>`
+      SELECT id, label, unit FROM "CompanyKpi" WHERE "linkedToFunnel" = 1 LIMIT 1
+    `
+    if (rows.length > 0) {
+      linkedKpi = { label: rows[0].label, unit: rows[0].unit }
+      const entryRows = await prisma.$queryRaw<{ target: number | null }[]>`
+        SELECT target FROM "CompanyKpiEntry"
+        WHERE "companyKpiId" = ${rows[0].id}
+          AND year = ${currentYear}
+          AND month = ${currentMonth}
+        LIMIT 1
+      `
+      salesTarget = entryRows[0]?.target ?? null
+    }
   } catch {
-    // linkedToFunnel 컬럼이 없는 환경(서버 재시작 전)에서도 페이지가 열리도록 폴백
+    // linkedToFunnel 컬럼이 없는 환경에서도 페이지가 열리도록 폴백
   }
 
   // 요약 통계
