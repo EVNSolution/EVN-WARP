@@ -49,7 +49,7 @@ const TYPE_META: Record<string, { icon: React.ReactNode; bg: string; text: strin
   '사무업무':  { icon: <Briefcase size={9} />, bg: 'bg-slate-100',  text: 'text-slate-600' },
 }
 type WeekDay = { dateStr: string; day: number; inMonth: boolean; dow: number }
-type SearchParams = { month?: string; tab?: string; user?: string }
+type SearchParams = { month?: string; tab?: string; user?: string; teamName?: string; scope?: string }
 
 /* ── 출장보고 목록 ── */
 const TRIP_STATUS: Record<string, { bg: string; text: string }> = {
@@ -93,11 +93,15 @@ function TripList({ items }: { items: any[] }) {
 }
 
 export default async function NotesPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
-  const { month: monthParam, tab, user: userParam } = await searchParams
-  const activeTab = tab === 'notes' ? 'notes' : 'calendar'
+  const { month: monthParam, tab, user: userParam, teamName: teamParam, scope } = await searchParams
+  const activeTab  = tab === 'notes' ? 'notes' : 'calendar'
+  const teamMode   = scope === 'team'   // 팀 선택 모드
 
   const session = await auth()
   const myName  = (session?.user as any)?.name as string | undefined
+
+  // 전체 팀 목록 조회 (팀 선택 드롭다운용)
+  const allTeams = await prisma.team.findMany({ orderBy: { name: 'asc' }, select: { id: true, name: true } })
 
   /* ── 날짜 계산 ── */
   const now      = new Date()
@@ -151,7 +155,8 @@ export default async function NotesPage({ searchParams }: { searchParams: Promis
     prisma.workActivity.findMany({
       where: {
         date: { gte: calFromDate, lte: calToDate },
-        ...(userParam ? { userName: userParam } : {}),
+        ...(userParam  ? { userName: userParam } : {}),
+        ...(teamParam  ? { team: { name: teamParam } } : {}),
       },
       include: {
         task: { select: { id: true, code: true, title: true, strategy: true } },
@@ -171,6 +176,7 @@ export default async function NotesPage({ searchParams }: { searchParams: Promis
         startDate: { lte: calToDate },
         endDate:   { gte: calFromDate },
         ...(userParam ? { userName: userParam } : {}),
+        ...(teamParam ? { teamName: teamParam } : {}),
       },
       orderBy: { startDate: 'asc' },
     }),
@@ -256,21 +262,22 @@ export default async function NotesPage({ searchParams }: { searchParams: Promis
         </div>
         <div className="flex items-center gap-3">
           <div className="flex items-center border border-white/20 rounded-lg overflow-hidden" style={{ backgroundColor: 'rgba(255,255,255,0.08)' }}>
-            <Link href={`/notes?month=${prevMonth}&tab=${activeTab}`}
+            <Link href={`/notes?month=${prevMonth}&tab=${activeTab}${userParam ? `&user=${encodeURIComponent(userParam)}` : ''}${teamMode || teamParam ? `&scope=team` : ''}${teamParam ? `&teamName=${encodeURIComponent(teamParam)}` : ''}`}
               className="px-2.5 py-1.5 text-white/50 hover:text-white hover:bg-white/10 transition-colors border-r border-white/20">
               <ChevronLeft size={16} />
             </Link>
             <span className="px-5 py-1.5 text-sm font-bold text-white min-w-[130px] text-center">
               {year}년 {month}월
             </span>
-            <Link href={`/notes?month=${nextMonth}&tab=${activeTab}`}
+            <Link href={`/notes?month=${nextMonth}&tab=${activeTab}${userParam ? `&user=${encodeURIComponent(userParam)}` : ''}${teamMode || teamParam ? `&scope=team` : ''}${teamParam ? `&teamName=${encodeURIComponent(teamParam)}` : ''}`}
               className="px-2.5 py-1.5 text-white/50 hover:text-white hover:bg-white/10 transition-colors border-l border-white/20">
               <ChevronRight size={16} />
             </Link>
           </div>
-          {/* 개인 / 전사 토글 */}
+          {/* 개인 / 팀 / 전사 토글 */}
           {myName && (
             <div className="flex border border-white/20 rounded-lg overflow-hidden text-xs font-bold">
+              {/* 개인 */}
               <Link
                 href={`/notes?month=${monthId}&tab=${activeTab}&user=${encodeURIComponent(myName)}`}
                 className={`px-3.5 py-2 transition-colors ${
@@ -281,14 +288,28 @@ export default async function NotesPage({ searchParams }: { searchParams: Promis
                 style={userParam === myName ? { backgroundColor: '#C5D42A' } : {}}>
                 개인
               </Link>
+              {/* 팀 — 항상 표시, 클릭 시 팀 선택 row 활성화 */}
               <Link
-                href={`/notes?month=${monthId}&tab=${activeTab}`}
+                href={teamParam
+                  ? `/notes?month=${monthId}&tab=${activeTab}&scope=team&teamName=${encodeURIComponent(teamParam)}`
+                  : `/notes?month=${monthId}&tab=${activeTab}&scope=team`}
                 className={`px-3.5 py-2 border-l border-white/20 transition-colors ${
-                  !userParam
+                  teamMode || teamParam
                     ? 'text-[#111] font-black'
                     : 'text-white/60 hover:text-white hover:bg-white/10'
                 }`}
-                style={!userParam ? { backgroundColor: '#C5D42A' } : {}}>
+                style={teamMode || teamParam ? { backgroundColor: '#C5D42A' } : {}}>
+                {teamParam ? `팀` : '팀'}
+              </Link>
+              {/* 전사 */}
+              <Link
+                href={`/notes?month=${monthId}&tab=${activeTab}`}
+                className={`px-3.5 py-2 border-l border-white/20 transition-colors ${
+                  !userParam && !teamParam && !teamMode
+                    ? 'text-[#111] font-black'
+                    : 'text-white/60 hover:text-white hover:bg-white/10'
+                }`}
+                style={!userParam && !teamParam && !teamMode ? { backgroundColor: '#C5D42A' } : {}}>
                 전사
               </Link>
             </div>
@@ -299,6 +320,25 @@ export default async function NotesPage({ searchParams }: { searchParams: Promis
           </Link>
         </div>
       </div>
+
+      {/* ── 팀 선택 row (팀 모드일 때) ── */}
+      {(teamMode || teamParam) && (
+        <div className="flex items-center gap-2 mb-3 flex-wrap">
+          <span className="text-xs font-semibold text-slate-500">팀 선택</span>
+          {allTeams.map(t => (
+            <Link key={t.id}
+              href={`/notes?month=${monthId}&tab=${activeTab}&scope=team&teamName=${encodeURIComponent(t.name)}`}
+              className={`px-3 py-1 rounded-full text-xs font-semibold transition-colors ${
+                teamParam === t.name
+                  ? 'text-[#111] font-black'
+                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+              }`}
+              style={teamParam === t.name ? { backgroundColor: '#C5D42A' } : {}}>
+              {t.name}
+            </Link>
+          ))}
+        </div>
+      )}
 
       {/* ── 작성자 필터 (2인 이상일 때) ── */}
       {userNames.length > 1 && (
@@ -324,6 +364,10 @@ export default async function NotesPage({ searchParams }: { searchParams: Promis
           const active = activeTab === val
           const tabHref = userParam
             ? `/notes?month=${monthId}&tab=${val}&user=${encodeURIComponent(userParam)}`
+            : teamParam
+            ? `/notes?month=${monthId}&tab=${val}&scope=team&teamName=${encodeURIComponent(teamParam)}`
+            : teamMode
+            ? `/notes?month=${monthId}&tab=${val}&scope=team`
             : `/notes?month=${monthId}&tab=${val}`
           return (
             <Link key={label} href={tabHref}
