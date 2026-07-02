@@ -19,7 +19,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
   const currentMonth  = new Date().getMonth() + 1
 
   /* ── 데이터 조회 ── */
-  const [execTasks, weeklyUpdates, companyKpis, announcements] = await Promise.all([
+  const [execTasks, weeklyUpdates, companyKpisRaw, announcements, linkedRows] = await Promise.all([
     prisma.strategyTask.findMany({
       where:   { parentId: { not: null }, suspended: false },
       include: { team: true },
@@ -37,7 +37,12 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
       orderBy: { date: 'desc' },
       take: 30,
     }),
+    // linkedToFunnel은 raw SQL로 읽어야 libSQL adapter 호환
+    prisma.$queryRaw<{ id: string }[]>`SELECT id FROM "CompanyKpi" WHERE "linkedToFunnel" = 1`,
   ])
+
+  const linkedIds = new Set(linkedRows.map(r => r.id))
+  const companyKpis = companyKpisRaw.map(k => ({ ...k, linkedToFunnel: linkedIds.has(k.id) }))
 
   /* ── 집계 ── */
   const updateByTaskId = new Map(weeklyUpdates.map(u => [u.taskId, u]))
