@@ -139,18 +139,31 @@ export default function CompanyKpiBoard({ kpis: initial, year, onClose }: { kpis
   }
 
   /* 영업퍼널 연동 토글 */
+  const [funnelSaving, setFunnelSaving] = useState<string | null>(null)
+  const [funnelMsg,    setFunnelMsg]    = useState<{ id: string; ok: boolean } | null>(null)
+
   async function handleToggleFunnel(kpiId: string, current: boolean) {
     const next = !current
-    await fetch(`/api/company-kpi/${kpiId}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ linkedToFunnel: next }),
-    })
-    // 단일 선택: 전체 해제 후 해당만 활성화
-    setKpis(prev => prev.map(k => ({
-      ...k,
-      linkedToFunnel: k.id === kpiId ? next : (next ? false : k.linkedToFunnel),
-    })))
+    setFunnelSaving(kpiId)
+    setFunnelMsg(null)
+    try {
+      const res = await fetch(`/api/company-kpi/${kpiId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ linkedToFunnel: next }),
+      })
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      setKpis(prev => prev.map(k => ({
+        ...k,
+        linkedToFunnel: k.id === kpiId ? next : (next ? false : k.linkedToFunnel),
+      })))
+      setFunnelMsg({ id: kpiId, ok: true })
+    } catch {
+      setFunnelMsg({ id: kpiId, ok: false })
+    } finally {
+      setFunnelSaving(null)
+      setTimeout(() => setFunnelMsg(null), 2000)
+    }
   }
 
   /* 달성률 색상 */
@@ -325,17 +338,25 @@ export default function CompanyKpiBoard({ kpis: initial, year, onClose }: { kpis
                             style={{ width: `${Math.min(rate ?? 0, 100)}%` }} />
                         </div>
                         {/* 영업퍼널 연동 토글 */}
-                        <button
-                          onClick={() => handleToggleFunnel(kpi.id, kpi.linkedToFunnel ?? false)}
-                          title={kpi.linkedToFunnel ? '영업퍼널 연동 해제' : '영업퍼널 판매목표로 연동'}
-                          className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-semibold border transition-colors ${
-                            kpi.linkedToFunnel
-                              ? 'bg-emerald-100 text-emerald-700 border-emerald-300 hover:bg-emerald-200'
-                              : 'bg-slate-50 text-slate-400 border-slate-200 hover:bg-slate-100 hover:text-slate-600'
-                          }`}>
-                          <Filter size={11} />
-                          {kpi.linkedToFunnel ? '퍼널 연동중' : '퍼널 연동'}
-                        </button>
+                        <div className="flex flex-col items-end gap-0.5">
+                          <button
+                            disabled={funnelSaving === kpi.id}
+                            onClick={() => handleToggleFunnel(kpi.id, kpi.linkedToFunnel ?? false)}
+                            title={kpi.linkedToFunnel ? '클릭하면 연동 해제됩니다' : '클릭하면 이달 목표가 영업퍼널 판매목표로 연동됩니다'}
+                            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-semibold border transition-colors disabled:opacity-60 ${
+                              kpi.linkedToFunnel
+                                ? 'bg-emerald-100 text-emerald-700 border-emerald-300 hover:bg-emerald-200'
+                                : 'bg-slate-50 text-slate-400 border-slate-200 hover:bg-slate-100 hover:text-slate-600'
+                            }`}>
+                            <Filter size={11} />
+                            {funnelSaving === kpi.id ? '저장중…' : kpi.linkedToFunnel ? '퍼널 연동중' : '퍼널 연동'}
+                          </button>
+                          {funnelMsg?.id === kpi.id && (
+                            <span className={`text-[9px] font-semibold ${funnelMsg.ok ? 'text-emerald-600' : 'text-red-500'}`}>
+                              {funnelMsg.ok ? '✓ 저장됨' : '✗ 저장 실패 (서버 재시작 필요)'}
+                            </span>
+                          )}
+                        </div>
                         {/* 편집/삭제 */}
                         <div className="flex gap-1">
                           <button onClick={() => { setEditingKpi(kpi.id); setEditForm({ label: kpi.label, unit: kpi.unit ?? '', category: kpi.category as Category, annualTarget: kpi.annualTarget != null ? String(kpi.annualTarget) : '' }) }}
