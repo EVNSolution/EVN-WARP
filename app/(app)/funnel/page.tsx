@@ -5,6 +5,9 @@ import ProcessGuideButton from '@/components/ProcessGuideButton'
 import ExcelImportExport from '@/components/ExcelImportExport'
 
 export default async function FunnelPage() {
+  const currentMonth = new Date().getMonth() + 1
+  const currentYear  = new Date().getFullYear()
+
   const rows = await prisma.salesDeal.findMany({ orderBy: { createdAt: 'asc' } })
 
   const deals: PipelineDeal[] = rows.map(d => {
@@ -36,6 +39,18 @@ export default async function FunnelPage() {
       purchaseTiming:   d.purchaseTiming   ?? null,
     }
   })
+
+  // 영업퍼널 연동 KPI에서 이번 달 목표 읽기
+  const linkedKpi = await prisma.companyKpi.findFirst({
+    where: { linkedToFunnel: true },
+    include: {
+      entries: {
+        where: { year: currentYear, month: currentMonth },
+        take: 1,
+      },
+    },
+  })
+  const salesTarget: number | null = linkedKpi?.entries[0]?.target ?? null
 
   // 요약 통계
   const activeDeals  = deals.filter(d => d.salesStatus === '진행중')
@@ -89,7 +104,11 @@ export default async function FunnelPage() {
       </div>
 
       {/* ── 본문: PipelineView ── */}
-      <PipelineView deals={deals} />
+      <PipelineView
+        deals={deals}
+        salesTarget={salesTarget}
+        linkedKpiLabel={linkedKpi ? `${linkedKpi.label}${linkedKpi.unit ? ` (${linkedKpi.unit})` : ''}` : null}
+      />
     </div>
   )
 }

@@ -125,16 +125,17 @@ model KpiActual {
 
 // 전사 KPI 관리
 model CompanyKpi {
-  id           String            @id @default(cuid())
-  year         Int               // 2026
-  label        String            // "연간 매출액"
-  unit         String?           // "억원" | "대" | "건" | "%"
-  category     String            // "재무" | "영업" | "운영"
-  index        Int               @default(0)
-  annualTarget Float?            // 연간 목표
-  entries      CompanyKpiEntry[]
-  createdAt    DateTime          @default(now())
-  updatedAt    DateTime          @updatedAt
+  id             String            @id @default(cuid())
+  year           Int               // 2026
+  label          String            // "연간 매출액"
+  unit           String?           // "억원" | "대" | "건" | "%"
+  category       String            // "재무" | "영업" | "운영"
+  index          Int               @default(0)
+  annualTarget   Float?            // 연간 목표
+  linkedToFunnel Boolean           @default(false)  // 영업퍼널 판매목표 연동
+  entries        CompanyKpiEntry[]
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
 }
 
 model CompanyKpiEntry {

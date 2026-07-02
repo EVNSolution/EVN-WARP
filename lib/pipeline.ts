@@ -22,6 +22,7 @@ export interface PipelineProcess {
   documents: PipelineDocument[]
   documentsB2B?: PipelineDocument[] // B2B 전용 서류 (없으면 documents 사용)
   target: number
+  conversionRate: number  // 전환율 (0~1), 필요 리드 = ceil(판매목표 / conversionRate)
 }
 
 export interface PipelinePhase {
@@ -37,7 +38,7 @@ export const PIPELINE: PipelinePhase[] = [
     phase: 1, name: '영업', color: 'bg-blue-700', textColor: 'text-blue-700',
     processes: [
       {
-        code: '1-1', name: '미성숙 리드', target: 20,
+        code: '1-1', name: '미성숙 리드', target: 20, conversionRate: 0.10,
         checks: [
           { key: '1-1-0', label: '배송업 의향 확인' },
         ],
@@ -51,7 +52,7 @@ export const PIPELINE: PipelinePhase[] = [
         ],
       },
       {
-        code: '1-2', name: '잠재 리드', target: 10,
+        code: '1-2', name: '잠재 리드', target: 10, conversionRate: 0.30,
         checks: [
           { key: '1-2-0', label: '차량정보 확보',   field: 'vehicle' },
           { key: '1-2-1', label: '화주정보 확보',   field: 'shipper' },
@@ -66,7 +67,7 @@ export const PIPELINE: PipelinePhase[] = [
         documents: [],
       },
       {
-        code: '1-3', name: '성숙 리드', target: 3,
+        code: '1-3', name: '성숙 리드', target: 3, conversionRate: 0.50,
         checks: [
           { key: '1-3-0', label: '구매예상시점 확정', opts: ['3개월 이내', '6개월 이내', '1년 이내'] },
           { key: '1-3-4', label: '자금조달방법 확인',   opts: ['여유자금', '캐피탈', '중고차매각', '직접입력'] },
@@ -87,7 +88,7 @@ export const PIPELINE: PipelinePhase[] = [
     phase: 2, name: '매출', color: 'bg-violet-700', textColor: 'text-violet-700',
     processes: [
       {
-        code: '2-1', name: '판매 신청', target: 2,
+        code: '2-1', name: '판매 신청', target: 2, conversionRate: 0.70,
         checks: [
           { key: '2-1-1', label: 'EV& 계약금 납입' },
           { key: '2-1-2', label: 'KIA 대리점 판매신청' },
@@ -103,7 +104,7 @@ export const PIPELINE: PipelinePhase[] = [
         ],
       },
       {
-        code: '2-2', name: '캐피탈 신청', target: 2,
+        code: '2-2', name: '캐피탈 신청', target: 2, conversionRate: 0.80,
         checks: [
           { key: '2-2-0', label: '현대커머셜 캐피탈 심사 신청' },
           { key: '2-2-1', label: '캐피탈 승인 결과 확인' },
@@ -114,7 +115,7 @@ export const PIPELINE: PipelinePhase[] = [
         ],
       },
       {
-        code: '2-3', name: '1차 출고', target: 1,
+        code: '2-3', name: '1차 출고', target: 1, conversionRate: 1.00,
         checks: [
           { key: '2-3-1', label: '캐피탈 실행_KIA 대금 송금' },
           { key: '2-3-0', label: 'KIA 오픈베드 차량 출고 예정일 확정' },
@@ -133,7 +134,7 @@ export const PIPELINE: PipelinePhase[] = [
     phase: 3, name: '특장제조', color: 'bg-orange-600', textColor: 'text-orange-600',
     processes: [
       {
-        code: '3-1', name: '특장', target: 1,
+        code: '3-1', name: '특장', target: 1, conversionRate: 1.00,
         checks: [
           { key: '3-1-0', label: '특장공장 입고 및 탁송 인수증 수령' },
           { key: '3-1-1', label: 'KIA 자동차 제작 행정서류 수령' },
@@ -151,7 +152,7 @@ export const PIPELINE: PipelinePhase[] = [
         ],
       },
       {
-        code: '3-2', name: '추가작업', target: 1,
+        code: '3-2', name: '추가작업', target: 1, conversionRate: 1.00,
         checks: [
           { key: '3-2-0', label: '특장차량 김포공장 이동 및 입고' },
           { key: '3-2-1', label: '공장 입고 검사 (특장 품질 확인)' },
@@ -163,7 +164,7 @@ export const PIPELINE: PipelinePhase[] = [
         ],
       },
       {
-        code: '3-3', name: '2차 출고', target: 1,
+        code: '3-3', name: '2차 출고', target: 1, conversionRate: 1.00,
         checks: [
           { key: '3-3-0', label: '캐피탈 2차 실행_EV& 대금 송금' },
           { key: '3-3-3', label: '보조금 행정 최종 확인' },
@@ -181,7 +182,7 @@ export const PIPELINE: PipelinePhase[] = [
     phase: 4, name: '대행업무', color: 'bg-teal-600', textColor: 'text-teal-600',
     processes: [
       {
-        code: '4-1', name: '영업용번호판', target: 1,
+        code: '4-1', name: '영업용번호판', target: 1, conversionRate: 1.00,
         checks: [
           { key: '4-1-0', label: '영업용 번호판 신청 서류 준비' },
           { key: '4-1-1', label: '영업용 번호판 신청 대행' },
@@ -194,7 +195,7 @@ export const PIPELINE: PipelinePhase[] = [
         ],
       },
       {
-        code: '4-2', name: '보험/취등록세', target: 1,
+        code: '4-2', name: '보험/취등록세', target: 1, conversionRate: 1.00,
         checks: [
           { key: '4-2-0', label: '자동차 보험 가입 대행' },
           { key: '4-2-1', label: '취득세 / 등록세 납부 대행' },

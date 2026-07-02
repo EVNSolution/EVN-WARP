@@ -2,7 +2,7 @@
 
 import { useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
-import { Plus, ChevronDown, ChevronUp, Trash2, Edit2, Check, X, XCircle } from 'lucide-react'
+import { Plus, ChevronDown, ChevronUp, Trash2, Edit2, Check, X, XCircle, Filter } from 'lucide-react'
 
 const CATEGORIES = ['재무', '영업', '운영'] as const
 type Category = typeof CATEGORIES[number]
@@ -18,6 +18,7 @@ interface Entry { id?: string; year: number; month: number; target: number | nul
 interface KpiItem {
   id: string; year: number; label: string; unit: string | null
   category: string; index: number; annualTarget: number | null
+  linkedToFunnel: boolean
   entries: Entry[]
 }
 
@@ -135,6 +136,21 @@ export default function CompanyKpiBoard({ kpis: initial, year, onClose }: { kpis
     if (!confirm('이 KPI 항목을 삭제하시겠습니까?')) return
     await fetch(`/api/company-kpi/${kpiId}`, { method: 'DELETE' })
     setKpis(prev => prev.filter(k => k.id !== kpiId))
+  }
+
+  /* 영업퍼널 연동 토글 */
+  async function handleToggleFunnel(kpiId: string, current: boolean) {
+    const next = !current
+    await fetch(`/api/company-kpi/${kpiId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ linkedToFunnel: next }),
+    })
+    // 단일 선택: 전체 해제 후 해당만 활성화
+    setKpis(prev => prev.map(k => ({
+      ...k,
+      linkedToFunnel: k.id === kpiId ? next : (next ? false : k.linkedToFunnel),
+    })))
   }
 
   /* 달성률 색상 */
@@ -308,6 +324,18 @@ export default function CompanyKpiBoard({ kpis: initial, year, onClose }: { kpis
                           <div className={`h-full rounded-full transition-all ${barColor(rate)}`}
                             style={{ width: `${Math.min(rate ?? 0, 100)}%` }} />
                         </div>
+                        {/* 영업퍼널 연동 토글 */}
+                        <button
+                          onClick={() => handleToggleFunnel(kpi.id, kpi.linkedToFunnel)}
+                          title={kpi.linkedToFunnel ? '영업퍼널 연동 해제' : '영업퍼널 판매목표로 연동'}
+                          className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-semibold border transition-colors ${
+                            kpi.linkedToFunnel
+                              ? 'bg-emerald-100 text-emerald-700 border-emerald-300 hover:bg-emerald-200'
+                              : 'bg-slate-50 text-slate-400 border-slate-200 hover:bg-slate-100 hover:text-slate-600'
+                          }`}>
+                          <Filter size={11} />
+                          {kpi.linkedToFunnel ? '퍼널 연동중' : '퍼널 연동'}
+                        </button>
                         {/* 편집/삭제 */}
                         <div className="flex gap-1">
                           <button onClick={() => { setEditingKpi(kpi.id); setEditForm({ label: kpi.label, unit: kpi.unit ?? '', category: kpi.category as Category, annualTarget: kpi.annualTarget != null ? String(kpi.annualTarget) : '' }) }}
