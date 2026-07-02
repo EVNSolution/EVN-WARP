@@ -1108,17 +1108,24 @@ export default function LeadDetailClient({ deal, customer = null }: { deal: Deal
           <Link href="/funnel" className="text-slate-400 hover:text-slate-600 text-sm transition">← 목록</Link>
           <div>
             <h1 className="text-2xl font-bold text-slate-800">
-              {f.name || deal.name}
               {(() => {
                 const seg = customer?.customerSegment ?? deal.customerSegment
                 const company = customer?.companyName ?? deal.companyName
-                return seg === 'B2B' && company ? ` (${company})` : null
+                return (seg === 'B2B' && company) ? company : (f.name || deal.name)
               })()}
               {customer?.customerCategory && (
                 <span className="ml-2 text-sm font-semibold text-slate-400">{customer.customerCategory}</span>
               )}
             </h1>
             <div className="flex items-center gap-2 mt-0.5">
+              {(() => {
+                const seg = customer?.customerSegment ?? deal.customerSegment
+                const company = customer?.companyName ?? deal.companyName
+                if (seg === 'B2B' && company) {
+                  return <span className="text-sm font-medium text-slate-700">{f.name || deal.name}</span>
+                }
+                return null
+              })()}
               <span className="text-sm text-slate-500">{f.phone || deal.phone}</span>
               {(() => {
                 const seg = customer?.customerSegment ?? deal.customerSegment

@@ -25,6 +25,7 @@ export default function ProcessGuideModal({ onClose }: { onClose: () => void }) 
   const [saving,     setSaving]     = useState(false)
   const [saved,      setSaved]      = useState(false)
   const [dirty,      setDirty]      = useState(false)
+  const [segment,    setSegment]    = useState<'B2C' | 'B2B'>('B2C')
   // 새 항목 입력 (단계코드 → { check, doc })
   const [newCheck,   setNewCheck]   = useState<Record<string, string>>({})
   const [newDoc,     setNewDoc]     = useState<Record<string, string>>({})
@@ -195,6 +196,28 @@ export default function ProcessGuideModal({ onClose }: { onClose: () => void }) 
           </div>
         </div>
 
+        {/* B2B / B2C 세그먼트 선택 */}
+        <div className="px-6 py-3 border-b border-slate-100 bg-slate-50/80 flex items-center gap-3 shrink-0">
+          <span className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">고객 유형</span>
+          <div className="flex gap-1.5">
+            {(['B2C', 'B2B'] as const).map(seg => (
+              <button
+                key={seg}
+                onClick={() => setSegment(seg)}
+                className={`px-4 py-1.5 text-xs font-bold rounded-lg border transition-colors ${
+                  segment === seg
+                    ? seg === 'B2B'
+                      ? 'bg-violet-600 text-white border-violet-600'
+                      : 'bg-sky-500 text-white border-sky-500'
+                    : 'bg-white text-slate-500 border-slate-200 hover:border-slate-400'
+                }`}
+              >
+                {seg === 'B2B' ? 'B2B 법인' : 'B2C 개인'}
+              </button>
+            ))}
+          </div>
+        </div>
+
         {/* 편집 모드 안내 */}
         {editMode && (
           <div className="guide-no-print px-6 py-2.5 bg-amber-50 border-b border-amber-100 text-xs text-amber-700 font-medium">
@@ -220,8 +243,13 @@ export default function ProcessGuideModal({ onClose }: { onClose: () => void }) 
                 <div className="space-y-1.5">
                   {phase.processes.map(proc => {
                     const isOpen    = openCodes.has(proc.code)
-                    const stageCks  = checks[proc.code] ?? []
-                    const stageDocs = docs[proc.code] ?? []
+                    const stageCks  = (segment === 'B2B' && proc.checksB2B)
+                      ? proc.checksB2B
+                      : (checks[proc.code] ?? [])
+                    const stageDocs = (segment === 'B2B' && proc.documentsB2B)
+                      ? proc.documentsB2B
+                      : (docs[proc.code] ?? [])
+                    const hasB2BVariant = !!(proc.checksB2B || proc.documentsB2B)
                     return (
                       <div key={proc.code} className="border border-slate-200 rounded-lg overflow-hidden">
                         {/* 프로세스 행 */}
@@ -234,6 +262,13 @@ export default function ProcessGuideModal({ onClose }: { onClose: () => void }) 
                               {proc.code}
                             </span>
                             <span className="text-sm font-semibold text-slate-700">{proc.name}</span>
+                            {hasB2BVariant && (
+                              <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded shrink-0 ${
+                                segment === 'B2B'
+                                  ? 'bg-violet-100 text-violet-600'
+                                  : 'bg-slate-100 text-slate-400'
+                              }`}>B2B별도</span>
+                            )}
                             <div className="flex items-center gap-1.5 ml-1">
                               {stageCks.length > 0 && (
                                 <span className="text-[10px] text-slate-400 flex items-center gap-0.5">
@@ -289,7 +324,7 @@ export default function ProcessGuideModal({ onClose }: { onClose: () => void }) 
                                   </li>
                                 ))}
                               </ul>
-                              {editMode && (
+                              {editMode && !(segment === 'B2B' && proc.checksB2B) && (
                                 <AddRow
                                   code={proc.code}
                                   value={newCheck[proc.code] ?? ''}

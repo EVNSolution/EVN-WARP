@@ -18,8 +18,9 @@ export interface PipelineProcess {
   code: string       // "1-1", "1-2", ...
   name: string
   checks: PipelineCheck[]
-  checksB2B?: PipelineCheck[]  // B2B 전용 체크리스트 (없으면 checks 사용)
+  checksB2B?: PipelineCheck[]      // B2B 전용 체크리스트 (없으면 checks 사용)
   documents: PipelineDocument[]
+  documentsB2B?: PipelineDocument[] // B2B 전용 서류 (없으면 documents 사용)
   target: number
 }
 
@@ -38,11 +39,15 @@ export const PIPELINE: PipelinePhase[] = [
       {
         code: '1-1', name: '미성숙 리드', target: 20,
         checks: [
-          { key: '1-1-0', label: '일반화물자동차운송업 확보' },
+          { key: '1-1-0', label: '배송업 의향 확인' },
         ],
-        documents: [
-          { key: 'freight_permit',   label: '화물자동차 운송사업 영업소허가증' },
-          { key: 'company_intro',    label: '회사소개자료' },
+        checksB2B: [
+          { key: '1-1-b2b-0', label: '일반화물자동차운송업 확보' },
+        ],
+        documents: [],
+        documentsB2B: [
+          { key: 'freight_permit', label: '화물자동차 운송사업 영업소허가증' },
+          { key: 'company_intro',  label: '회사소개자료' },
         ],
       },
       {

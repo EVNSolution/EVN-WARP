@@ -2,6 +2,7 @@ import { prisma } from '@/lib/db'
 import { getStageCode, PIPELINE } from '@/lib/pipeline'
 import PipelineView, { type PipelineDeal } from '@/components/PipelineView'
 import ProcessGuideButton from '@/components/ProcessGuideButton'
+import ExcelImportExport from '@/components/ExcelImportExport'
 
 export default async function FunnelPage() {
   const rows = await prisma.salesDeal.findMany({ orderBy: { createdAt: 'asc' } })
@@ -53,6 +54,7 @@ export default async function FunnelPage() {
           </p>
         </div>
         <div className="flex items-center gap-5 text-xs">
+          <ExcelImportExport />
           <ProcessGuideButton />
           <div className="text-center">
             <div className="text-white/50 text-[10px]">전체 리드</div>

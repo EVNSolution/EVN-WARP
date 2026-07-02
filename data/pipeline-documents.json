@@ -1,8 +1,5 @@
 {
-  "1-1": [
-    { "key": "freight_permit", "label": "화물자동차 운송사업 영업소허가증" },
-    { "key": "company_intro",  "label": "회사소개자료" }
-  ],
+  "1-1": [],
   "1-2": [],
   "1-3": [
     { "key": "business_reg_1_3",  "label": "사업자등록증" },

@@ -326,7 +326,9 @@ export default function PipelineView({ deals }: Props) {
         return (
           <td key={c.key} style={{ width: W_PX[c.width] }} className="px-4 py-2.5">
             <div className="flex items-center gap-1.5 min-w-0">
-              <span className="font-semibold text-slate-800 truncate">{d.name}</span>
+              <span className="font-semibold text-slate-800 truncate">
+                {(d.customerSegment === 'B2B' && d.companyName) ? d.companyName : d.name}
+              </span>
               {d.customerSegment === 'B2B'
                 ? <span className="shrink-0 px-1.5 py-0.5 rounded text-[9px] font-bold bg-violet-100 text-violet-700">법인</span>
                 : <span className="shrink-0 px-1.5 py-0.5 rounded text-[9px] font-bold bg-sky-50 text-sky-600">개인</span>
