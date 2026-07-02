@@ -65,10 +65,10 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
   const mentionFeed = validAnn.filter(a => !a.mentions?.includes('@전체') && !a.mentions?.includes('@all'))
 
   return (
-    <div className="p-5 bg-slate-100 min-h-screen">
+    <div className="p-5 bg-slate-100 h-[calc(100vh-64px)] flex flex-col overflow-hidden">
 
       {/* ── 헤더 ── */}
-      <div className="flex items-center justify-between mb-5">
+      <div className="flex items-center justify-between mb-4 shrink-0">
         <div>
           <h1 className="text-xl font-black text-slate-900 tracking-tight">경영 대시보드</h1>
           <p className="text-xs text-slate-500 mt-0.5">{currentYear}년 · 전략과제 실행현황 · 전사 KPI · 알림마당</p>
@@ -90,11 +90,11 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
       </div>
 
       {/* ══ 3컬럼 그리드 ══ */}
-      <div className="grid gap-4 items-start" style={{ gridTemplateColumns: 'repeat(3, 1fr)' }}>
+      <div className="grid gap-4 items-stretch flex-1 min-h-0" style={{ gridTemplateColumns: 'repeat(3, 1fr)' }}>
 
         {/* ① 전사 KPI 달성 현황 */}
-        <section className="bg-white rounded-2xl shadow-sm overflow-hidden">
-          <div className="px-5 py-4 flex items-center gap-3 bg-[#111111]">
+        <section className="bg-white rounded-2xl shadow-sm overflow-hidden flex flex-col">
+          <div className="px-5 py-4 flex items-center gap-3 bg-[#111111] shrink-0">
             <TrendingUp size={17} className="shrink-0" style={{ color: '#C5D42A' }} />
             <div className="flex-1 min-w-0">
               <h2 className="text-sm font-bold" style={{ color: '#C5D42A' }}>전사 KPI 달성 현황</h2>
@@ -106,17 +106,19 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
               buttonClassName="flex items-center gap-1.5 text-xs font-semibold text-white border border-white/20 px-3 py-1.5 rounded-lg hover:bg-white/10 transition-colors"
             />
           </div>
-          <KpiDashboardChart kpis={companyKpis} currentMonth={currentMonth} />
+          <div className="flex-1 overflow-y-auto">
+            <KpiDashboardChart kpis={companyKpis} currentMonth={currentMonth} />
+          </div>
         </section>
 
         {/* ② 전략과제 현황 */}
-        <section className="bg-white rounded-2xl shadow-sm overflow-hidden">
-          <div className="px-5 py-4 bg-[#111111]">
+        <section className="bg-white rounded-2xl shadow-sm overflow-hidden flex flex-col">
+          <div className="px-5 py-4 bg-[#111111] shrink-0">
             <h2 className="text-sm font-bold text-white">전략과제 현황</h2>
             <p className="text-[11px] mt-0.5" style={{ color: '#C5D42A' }}>팀별 실행 상태 · {weekLabel}</p>
           </div>
 
-          <div className="grid grid-cols-4 divide-x divide-slate-100 border-b border-slate-100">
+          <div className="grid grid-cols-4 divide-x divide-slate-100 border-b border-slate-100 shrink-0">
             {[
               { label: '정상',    count: statusCounts.정상,    numCls: 'text-emerald-600', bg: 'bg-emerald-50/70' },
               { label: '지연',    count: statusCounts.지연,    numCls: 'text-amber-600',   bg: 'bg-amber-50/70' },
@@ -124,20 +126,21 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
               { label: '완료',    count: statusCounts.완료,    numCls: 'text-blue-600',    bg: 'bg-blue-50/50' },
             ].map(({ label, count, numCls, bg }) => (
               <div key={label} className={`py-3 text-center ${bg}`}>
-                <p className="text-[10px] text-slate-500 leading-none mb-1">{label}</p>
-                <p className={`text-2xl font-black tabular-nums leading-none ${numCls}`}>{count}</p>
+                <p className="text-xs text-slate-500 leading-none mb-1.5">{label}</p>
+                <p className={`text-3xl font-black tabular-nums leading-none ${numCls}`}>{count}</p>
               </div>
             ))}
           </div>
 
-          <table className="w-full text-xs">
+          <div className="flex-1 overflow-y-auto min-h-0">
+          <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-slate-100 bg-slate-50/60">
-                <th className="text-left pl-4 pr-2 py-2 text-[10px] font-semibold text-slate-400 tracking-wide">팀</th>
-                <th className="text-center px-1 py-2 text-[10px] font-bold text-emerald-600 w-9">정상</th>
-                <th className="text-center px-1 py-2 text-[10px] font-bold text-amber-600 w-9">지연</th>
-                <th className="text-center px-1 py-2 text-[10px] font-bold text-red-500 w-12">조치필요</th>
-                <th className="text-center px-1 py-2 text-[10px] font-bold text-blue-500 w-10">완료</th>
+                <th className="text-left pl-4 pr-2 py-2.5 text-xs font-semibold text-slate-400 tracking-wide">팀</th>
+                <th className="text-center px-1 py-2.5 text-xs font-bold text-emerald-600 w-12">정상</th>
+                <th className="text-center px-1 py-2.5 text-xs font-bold text-amber-600 w-12">지연</th>
+                <th className="text-center px-1 py-2.5 text-xs font-bold text-red-500 w-14">조치필요</th>
+                <th className="text-center px-1 py-2.5 text-xs font-bold text-blue-500 w-12">완료</th>
               </tr>
             </thead>
             <tbody>
@@ -148,49 +151,50 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
                 const cntDone    = teamTasks.filter(t => t.status === '완료').length
                 return (
                   <tr key={teamName} className="border-b border-slate-50 last:border-0 hover:bg-slate-50/50">
-                    <td className="pl-4 pr-2 py-2.5 align-middle">
+                    <td className="pl-4 pr-2 py-3 align-middle">
                       <div className="flex items-center gap-1.5">
-                        <span className="font-bold text-slate-700 text-xs">{teamName}</span>
-                        <span className="text-[9px] font-semibold text-slate-400">{teamTasks.length}건</span>
+                        <span className="font-bold text-slate-700 text-sm">{teamName}</span>
+                        <span className="text-xs font-semibold text-slate-400">{teamTasks.length}건</span>
                       </div>
                     </td>
-                    <td className="text-center px-1 py-2.5 align-middle">
+                    <td className="text-center px-1 py-3 align-middle">
                       {cntNormal > 0
-                        ? <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-emerald-100 text-[10px] font-black text-emerald-700">{cntNormal}</span>
-                        : <span className="text-slate-200 text-xs">—</span>}
+                        ? <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-emerald-100 text-xs font-black text-emerald-700">{cntNormal}</span>
+                        : <span className="text-slate-200 text-sm">—</span>}
                     </td>
-                    <td className="text-center px-1 py-2.5 align-middle">
+                    <td className="text-center px-1 py-3 align-middle">
                       {cntDelayed > 0
-                        ? <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-amber-100 text-[10px] font-black text-amber-700">{cntDelayed}</span>
-                        : <span className="text-slate-200 text-xs">—</span>}
+                        ? <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-amber-100 text-xs font-black text-amber-700">{cntDelayed}</span>
+                        : <span className="text-slate-200 text-sm">—</span>}
                     </td>
-                    <td className="text-center px-1 py-2.5 align-middle">
+                    <td className="text-center px-1 py-3 align-middle">
                       {cntAction > 0
-                        ? <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-red-100 text-[10px] font-black text-red-600">{cntAction}</span>
-                        : <span className="text-slate-200 text-xs">—</span>}
+                        ? <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-red-100 text-xs font-black text-red-600">{cntAction}</span>
+                        : <span className="text-slate-200 text-sm">—</span>}
                     </td>
-                    <td className="text-center px-1 py-2.5 align-middle">
+                    <td className="text-center px-1 py-3 align-middle">
                       {cntDone > 0
-                        ? <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-blue-100 text-[10px] font-black text-blue-600">{cntDone}</span>
-                        : <span className="text-slate-200 text-xs">—</span>}
+                        ? <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-blue-100 text-xs font-black text-blue-600">{cntDone}</span>
+                        : <span className="text-slate-200 text-sm">—</span>}
                     </td>
                   </tr>
                 )
               })}
               <tr className="bg-[#111111]">
-                <td className="pl-4 pr-2 py-2 text-[10px] font-bold text-slate-400">합계 · {execTasks.length}건</td>
-                <td className="text-center px-1 py-2 text-[10px] font-black text-emerald-400">{statusCounts.정상 || '—'}</td>
-                <td className="text-center px-1 py-2 text-[10px] font-black text-amber-400">{statusCounts.지연 || '—'}</td>
-                <td className="text-center px-1 py-2 text-[10px] font-black text-red-400">{statusCounts.조치필요 || '—'}</td>
-                <td className="text-center px-1 py-2 text-[10px] font-black text-blue-400">{statusCounts.완료 || '—'}</td>
+                <td className="pl-4 pr-2 py-2.5 text-xs font-bold text-slate-400">합계 · {execTasks.length}건</td>
+                <td className="text-center px-1 py-2.5 text-xs font-black text-emerald-400">{statusCounts.정상 || '—'}</td>
+                <td className="text-center px-1 py-2.5 text-xs font-black text-amber-400">{statusCounts.지연 || '—'}</td>
+                <td className="text-center px-1 py-2.5 text-xs font-black text-red-400">{statusCounts.조치필요 || '—'}</td>
+                <td className="text-center px-1 py-2.5 text-xs font-black text-blue-400">{statusCounts.완료 || '—'}</td>
               </tr>
             </tbody>
           </table>
+          </div>
         </section>
 
         {/* ③ 알림마당 */}
         <section className="bg-white rounded-2xl shadow-sm overflow-hidden flex flex-col">
-          <div className="px-4 py-4 bg-[#111111]">
+          <div className="px-4 py-4 bg-[#111111] shrink-0">
             <div className="flex items-center gap-2">
               <Megaphone size={15} className="shrink-0" style={{ color: '#C5D42A' }} />
               <h2 className="text-sm font-bold text-white">알림마당</h2>
@@ -198,7 +202,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
             <p className="text-[11px] mt-0.5" style={{ color: '#C5D42A' }}>4페이지 @멘션 연동</p>
           </div>
 
-          <div className="flex-1 overflow-y-auto" style={{ maxHeight: 520 }}>
+          <div className="flex-1 overflow-y-auto min-h-0">
             {globalAnn.length > 0 && (
               <div>
                 <div className="px-4 py-1.5 bg-amber-50 border-b border-amber-100 flex items-center gap-1.5">

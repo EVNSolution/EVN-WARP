@@ -4,7 +4,8 @@ import { useState } from 'react'
 
 const EVN_GREEN = '#C5D42A'
 const MONTHS    = ['1','2','3','4','5','6','7','8','9','10','11','12']
-const BAR_H     = 52   // 차트 높이(px)
+const BAR_H        = 104  // 월별 차트 높이(px)
+const ANNUAL_BAR_H = 156  // 연간 차트 높이(px, 월별 × 1.5)
 
 interface Entry  { month: number; target: number | null; actual: number | null }
 interface KpiRow {
@@ -66,7 +67,7 @@ function MonthlyBars({ entries, currentMonth }: { entries: Entry[]; currentMonth
                   style={{
                     height: `${tPct}%`,
                     minHeight: target > 0 ? 1 : 0,
-                    backgroundColor: isCur ? `${EVN_GREEN}55` : '#e2e8f0',
+                    backgroundColor: isCur ? '#7ca300' : '#94a3b8',
                   }} />
               </div>
               {/* 실적 막대 */}
@@ -76,7 +77,7 @@ function MonthlyBars({ entries, currentMonth }: { entries: Entry[]; currentMonth
                       style={{
                         height: `${aPct}%`,
                         minHeight: actual > 0 ? 1 : 0,
-                        backgroundColor: ok ? EVN_GREEN : '#94a3b8',
+                        backgroundColor: ok ? EVN_GREEN : '#ef4444',
                       }} />
                   : null}
               </div>
@@ -110,30 +111,30 @@ function AnnualBars({ annualTgt, ytd }: { annualTgt: number; ytd: number }) {
   return (
     <div className="mt-2 flex items-end gap-3">
       {/* Y축 레이블 */}
-      <div className="flex flex-col justify-between text-right shrink-0" style={{ width: 32, height: BAR_H }}>
+      <div className="flex flex-col justify-between text-right shrink-0" style={{ width: 32, height: ANNUAL_BAR_H }}>
         <span className="text-[8px] text-slate-300 leading-none">{fmt(maxVal)}</span>
         <span className="text-[8px] text-slate-300 leading-none">0</span>
       </div>
 
       {/* 막대 영역 */}
-      <div className="flex items-end gap-2" style={{ height: BAR_H }}>
+      <div className="flex items-end gap-2" style={{ height: ANNUAL_BAR_H }}>
         {/* 연간 목표 */}
         <div className="flex flex-col items-center gap-1">
-          <div className="flex items-end" style={{ height: BAR_H }}>
-            <div className="rounded-t-sm bg-slate-200"
-              style={{ width: BAR_W, height: `${tPct}%`, minHeight: annualTgt > 0 ? 2 : 0 }} />
+          <div className="flex items-end" style={{ height: ANNUAL_BAR_H }}>
+            <div className="rounded-t-sm"
+              style={{ width: BAR_W, height: `${tPct}%`, minHeight: annualTgt > 0 ? 2 : 0, backgroundColor: '#64748b' }} />
           </div>
           <span className="text-[9px] text-slate-400 whitespace-nowrap">연간 목표</span>
         </div>
         {/* YTD 실적 */}
         <div className="flex flex-col items-center gap-1">
-          <div className="flex items-end" style={{ height: BAR_H }}>
+          <div className="flex items-end" style={{ height: ANNUAL_BAR_H }}>
             <div className="rounded-t-sm"
               style={{
                 width: BAR_W,
                 height: `${aPct}%`,
                 minHeight: ytd > 0 ? 2 : 0,
-                backgroundColor: ok ? EVN_GREEN : '#94a3b8',
+                backgroundColor: ok ? EVN_GREEN : '#ef4444',
               }} />
           </div>
           <span className="text-[9px] text-slate-400 whitespace-nowrap">YTD 실적</span>
@@ -239,8 +240,8 @@ export default function KpiDashboardChart({
       {/* 범례 */}
       {(() => {
         const items = view === 'monthly'
-          ? [{ color: '#e2e8f0', label: '목표' }, { color: '#94a3b8', label: '실적(미달)' }, { color: EVN_GREEN, label: '실적(달성)' }]
-          : [{ color: '#e2e8f0', label: '연간목표' }, { color: '#94a3b8', label: 'YTD(미달)' }, { color: EVN_GREEN, label: 'YTD(달성)' }]
+          ? [{ color: '#94a3b8', label: '목표' }, { color: '#ef4444', label: '실적(미달)' }, { color: EVN_GREEN, label: '실적(달성)' }]
+          : [{ color: '#64748b', label: '연간목표' }, { color: '#ef4444', label: 'YTD(미달)' }, { color: EVN_GREEN, label: 'YTD(달성)' }]
         return (
           <div className="flex items-center gap-4 px-5 py-2.5 border-t border-slate-100 bg-slate-50/60">
             {items.map(({ color, label }) => (

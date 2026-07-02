@@ -6,7 +6,7 @@ import {
   AlertTriangle, CheckCircle2, RefreshCw,
   Users, Database, Link2, Unlink,
   GitMerge, Search, Phone, ChevronDown, ChevronUp,
-  Trash2, Eye, UserPlus, KeyRound, X,
+  Trash2, Eye, UserPlus, KeyRound, X, Pencil,
 } from 'lucide-react'
 
 /* ── 타입 ── */
@@ -65,11 +65,14 @@ export default function AdminClient({
   const [newUser,    setNewUser]    = useState({ name: '', email: '', password: '', role: 'user', teamId: '' })
   const [addErr,     setAddErr]     = useState('')
   const [addLoading, setAddLoading] = useState(false)
-  const [pwdId,      setPwdId]      = useState<string | null>(null)
-  const [newPwd,     setNewPwd]     = useState('')
-  const [pwdLoading, setPwdLoading] = useState(false)
-  const [delId,      setDelId]      = useState<string | null>(null)
-  const [delLoading, setDelLoading] = useState(false)
+  const [pwdId,        setPwdId]        = useState<string | null>(null)
+  const [newPwd,       setNewPwd]       = useState('')
+  const [pwdLoading,   setPwdLoading]   = useState(false)
+  const [delId,        setDelId]        = useState<string | null>(null)
+  const [delLoading,   setDelLoading]   = useState(false)
+  const [teamEditId,   setTeamEditId]   = useState<string | null>(null)
+  const [teamEditVal,  setTeamEditVal]  = useState('')
+  const [teamLoading,  setTeamLoading]  = useState(false)
 
   const handleAddUser = async () => {
     setAddErr('')
@@ -109,6 +112,24 @@ export default function AdminClient({
       const res = await fetch(`/api/users/${id}`, { method: 'DELETE' })
       if (res.ok) { setUsers(prev => prev.filter(u => u.id !== id)); setDelId(null) }
     } finally { setDelLoading(false) }
+  }
+
+  const handleChangeTeam = async (id: string) => {
+    setTeamLoading(true)
+    try {
+      const res = await fetch(`/api/users/${id}`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ teamId: teamEditVal || null }),
+      })
+      if (res.ok) {
+        const newTeam = teams.find(t => t.id === teamEditVal) ?? null
+        setUsers(prev => prev.map(u => u.id === id
+          ? { ...u, teamId: teamEditVal || null, team: newTeam }
+          : u
+        ))
+        setTeamEditId(null)
+      }
+    } finally { setTeamLoading(false) }
   }
 
   /* 초기화 작업 */
@@ -328,11 +349,16 @@ export default function AdminClient({
             </div>
           )}
 
-          {/* 사용자 목록 */}
+          {/* 사용자 목록 — 팀별 그룹 */}
           {users.length === 0 ? (
             <p className="text-sm text-slate-400 text-center py-8">등록된 사용자가 없습니다.</p>
-          ) : (
-            users.map(u => (
+          ) : (() => {
+            const teamGroups = teams
+              .map(t => ({ team: t, members: users.filter(u => u.teamId === t.id) }))
+              .filter(g => g.members.length > 0)
+            const noTeam = users.filter(u => !u.teamId)
+
+            const renderUser = (u: UserRow) => (
               <div key={u.id} className="px-5 py-3.5 flex items-center justify-between gap-4">
                 <div className="min-w-0">
                   <div className="flex items-center gap-2">
@@ -342,60 +368,68 @@ export default function AdminClient({
                     }`}>
                       {u.role === 'admin' ? '관리자' : '사용자'}
                     </span>
-                    {u.team && (
-                      <span className="text-[10px] text-slate-400 bg-slate-50 border border-slate-200 px-1.5 py-0.5 rounded">
-                        {u.team.name}
-                      </span>
-                    )}
                   </div>
                   <p className="text-xs text-slate-400 mt-0.5">{u.email}</p>
                 </div>
 
                 <div className="flex items-center gap-2 shrink-0">
-                  {/* 비밀번호 초기화 */}
                   {pwdId === u.id ? (
                     <div className="flex items-center gap-1.5">
-                      <input
-                        type="password"
-                        value={newPwd}
+                      <input type="password" value={newPwd}
                         onChange={e => setNewPwd(e.target.value)}
                         placeholder="새 비밀번호"
-                        className="text-xs border border-slate-200 rounded-lg px-2.5 py-1.5 w-32 focus:outline-none focus:ring-1 focus:ring-slate-400"
-                      />
-                      <button
-                        onClick={() => handleResetPwd(u.id)}
+                        className="text-xs border border-slate-200 rounded-lg px-2.5 py-1.5 w-32 focus:outline-none focus:ring-1 focus:ring-slate-400" />
+                      <button onClick={() => handleResetPwd(u.id)}
                         disabled={pwdLoading || !newPwd.trim()}
                         className="px-2.5 py-1.5 text-xs font-bold rounded-lg bg-amber-500 text-white hover:bg-amber-600 disabled:opacity-40 transition">
                         {pwdLoading ? '...' : '변경'}
                       </button>
-                      <button onClick={() => { setPwdId(null); setNewPwd('') }}
-                        className="p-1.5 text-slate-400 hover:text-slate-600">
+                      <button onClick={() => { setPwdId(null); setNewPwd('') }} className="p-1.5 text-slate-400 hover:text-slate-600">
+                        <X size={13} />
+                      </button>
+                    </div>
+                  ) : teamEditId === u.id ? (
+                    <div className="flex items-center gap-1.5">
+                      <select value={teamEditVal} onChange={e => setTeamEditVal(e.target.value)}
+                        className="text-xs border border-slate-200 rounded-lg px-2 py-1.5 bg-white focus:outline-none focus:ring-1 focus:ring-slate-400">
+                        <option value="">팀 없음</option>
+                        {teams.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                      </select>
+                      <button onClick={() => handleChangeTeam(u.id)}
+                        disabled={teamLoading}
+                        className="px-2.5 py-1.5 text-xs font-bold rounded-lg bg-slate-700 text-white hover:bg-slate-800 disabled:opacity-40 transition">
+                        {teamLoading ? '...' : '저장'}
+                      </button>
+                      <button onClick={() => setTeamEditId(null)} className="p-1.5 text-slate-400 hover:text-slate-600">
                         <X size={13} />
                       </button>
                     </div>
                   ) : delId === u.id ? (
                     <div className="flex items-center gap-1.5">
                       <span className="text-xs text-red-600 font-medium">정말 삭제하시겠어요?</span>
-                      <button
-                        onClick={() => handleDelete(u.id)}
+                      <button onClick={() => handleDelete(u.id)}
                         disabled={delLoading}
                         className="px-2.5 py-1.5 text-xs font-bold rounded-lg bg-red-600 text-white hover:bg-red-700 disabled:opacity-40 transition">
                         {delLoading ? '...' : '삭제'}
                       </button>
-                      <button onClick={() => setDelId(null)}
-                        className="p-1.5 text-slate-400 hover:text-slate-600">
+                      <button onClick={() => setDelId(null)} className="p-1.5 text-slate-400 hover:text-slate-600">
                         <X size={13} />
                       </button>
                     </div>
                   ) : (
                     <>
                       <button
-                        onClick={() => { setPwdId(u.id); setDelId(null); setNewPwd('') }}
+                        onClick={() => { setTeamEditId(u.id); setTeamEditVal(u.teamId ?? ''); setPwdId(null); setDelId(null) }}
+                        className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50 transition">
+                        <Pencil size={11} /> 팀 변경
+                      </button>
+                      <button
+                        onClick={() => { setPwdId(u.id); setDelId(null); setTeamEditId(null); setNewPwd('') }}
                         className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50 transition">
                         <KeyRound size={11} /> 비번 변경
                       </button>
                       <button
-                        onClick={() => { setDelId(u.id); setPwdId(null) }}
+                        onClick={() => { setDelId(u.id); setPwdId(null); setTeamEditId(null) }}
                         className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold rounded-lg border border-red-200 text-red-500 hover:bg-red-50 transition">
                         <Trash2 size={11} /> 삭제
                       </button>
@@ -403,8 +437,33 @@ export default function AdminClient({
                   )}
                 </div>
               </div>
-            ))
-          )}
+            )
+
+            return (
+              <>
+                {teamGroups.map(({ team, members }) => (
+                  <div key={team.id}>
+                    <div className="px-5 py-2 bg-slate-50 border-y border-slate-100 flex items-center gap-2">
+                      <Users size={11} className="text-slate-400" />
+                      <span className="text-xs font-bold text-slate-600">{team.name}</span>
+                      <span className="text-[10px] text-slate-400">{members.length}명</span>
+                    </div>
+                    {members.map(renderUser)}
+                  </div>
+                ))}
+                {noTeam.length > 0 && (
+                  <div>
+                    <div className="px-5 py-2 bg-slate-50 border-y border-slate-100 flex items-center gap-2">
+                      <Users size={11} className="text-slate-300" />
+                      <span className="text-xs font-bold text-slate-400">팀 미배정</span>
+                      <span className="text-[10px] text-slate-400">{noTeam.length}명</span>
+                    </div>
+                    {noTeam.map(renderUser)}
+                  </div>
+                )}
+              </>
+            )
+          })()}
         </div>
       </div>
 
