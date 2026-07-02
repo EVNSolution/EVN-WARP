@@ -18,7 +18,7 @@ interface Entry { id?: string; year: number; month: number; target: number | nul
 interface KpiItem {
   id: string; year: number; label: string; unit: string | null
   category: string; index: number; annualTarget: number | null
-  linkedToFunnel: boolean
+  linkedToFunnel?: boolean
   entries: Entry[]
 }
 
@@ -326,7 +326,7 @@ export default function CompanyKpiBoard({ kpis: initial, year, onClose }: { kpis
                         </div>
                         {/* 영업퍼널 연동 토글 */}
                         <button
-                          onClick={() => handleToggleFunnel(kpi.id, kpi.linkedToFunnel)}
+                          onClick={() => handleToggleFunnel(kpi.id, kpi.linkedToFunnel ?? false)}
                           title={kpi.linkedToFunnel ? '영업퍼널 연동 해제' : '영업퍼널 판매목표로 연동'}
                           className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-semibold border transition-colors ${
                             kpi.linkedToFunnel

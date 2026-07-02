@@ -12,7 +12,7 @@ import KpiInputModal from './KpiInputModal'
 /* ── 타입 ── */
 type CalEvent = { id: string; date: string; title: string; type: string; person: string; source: 'activity' | 'meeting' }
 type AnnItem  = { id: string; title: string; date: string; type: string; mentions: string | null }
-type KpiRow   = { id: string; year: number; label: string; unit: string | null; category: string; index: number; annualTarget: number | null; linkedToFunnel: boolean; entries: { id?: string; year: number; month: number; target: number | null; actual: number | null; memo: string | null }[] }
+type KpiRow   = { id: string; year: number; label: string; unit: string | null; category: string; index: number; annualTarget: number | null; linkedToFunnel?: boolean; entries: { id?: string; year: number; month: number; target: number | null; actual: number | null; memo: string | null }[] }
 type TaskRow  = { teamId: string; teamName: string; taskId: string; taskStatus: string; weeklyStatus: string | null }
 
 interface Props {

@@ -41,16 +41,25 @@ export default async function FunnelPage() {
   })
 
   // 영업퍼널 연동 KPI에서 이번 달 목표 읽기
-  const linkedKpi = await prisma.companyKpi.findFirst({
-    where: { linkedToFunnel: true },
-    include: {
-      entries: {
-        where: { year: currentYear, month: currentMonth },
-        take: 1,
+  let linkedKpi: { label: string; unit: string | null; entries: { target: number | null }[] } | null = null
+  let salesTarget: number | null = null
+  try {
+    linkedKpi = await prisma.companyKpi.findFirst({
+      where: { linkedToFunnel: true },
+      select: {
+        label: true,
+        unit: true,
+        entries: {
+          where: { year: currentYear, month: currentMonth },
+          select: { target: true },
+          take: 1,
+        },
       },
-    },
-  })
-  const salesTarget: number | null = linkedKpi?.entries[0]?.target ?? null
+    })
+    salesTarget = linkedKpi?.entries[0]?.target ?? null
+  } catch {
+    // linkedToFunnel 컬럼이 없는 환경(서버 재시작 전)에서도 페이지가 열리도록 폴백
+  }
 
   // 요약 통계
   const activeDeals  = deals.filter(d => d.salesStatus === '진행중')

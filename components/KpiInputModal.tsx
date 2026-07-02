@@ -9,7 +9,7 @@ interface KpiEntry { id?: string; year: number; month: number; target: number | 
 interface KpiItem {
   id: string; year: number; label: string; unit: string | null
   category: string; index: number; annualTarget: number | null
-  linkedToFunnel: boolean
+  linkedToFunnel?: boolean
   entries: KpiEntry[]
 }
 
