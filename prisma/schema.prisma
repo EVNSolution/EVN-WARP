@@ -18,15 +18,16 @@ model Team {
 }
 
 model User {
-  id        String   @id @default(cuid())
-  name      String
-  email     String   @unique
-  password  String
-  role      String   @default("user")  // "admin" | "user"
-  teamId    String?
-  team      Team?    @relation(fields: [teamId], references: [id])
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id           String   @id @default(cuid())
+  name         String
+  email        String   @unique
+  password     String
+  role         String   @default("user")  // "admin" | "user"
+  teamId       String?
+  team         Team?    @relation(fields: [teamId], references: [id])
+  agentProfile Agent?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 }
 
 model StrategyTask {
@@ -221,6 +222,7 @@ model Customer {
   referrer        String?
   leadType        String?
   assignee        String?
+  isAgent         Boolean  @default(false)  // 이 고객이 소개자(Agent)로 활동 가능 여부
   memo            String?
 
   // 인적사항 (B2C)
@@ -278,6 +280,7 @@ model Customer {
 
   leads           SalesDeal[]
   activities      CustomerActivity[]
+  agentProfiles   Agent[]
 
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
@@ -317,12 +320,40 @@ model LeadMeeting {
   updatedAt   DateTime  @updatedAt
 }
 
+// ── 소개자(Agent) 마스터 ──────────────────────────────────────────────────────
+model Agent {
+  id         String    @id @default(cuid())
+  name       String
+  phone      String?
+  email      String?
+  company    String?
+  type       String    @default("외부")  // "내부" | "외부"
+  memo       String?
+
+  // 내부 임직원 연결 (1:1)
+  userId     String?   @unique
+  user       User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  // 기존 고객 연결
+  customerId String?
+  customer   Customer? @relation(fields: [customerId], references: [id], onDelete: SetNull)
+
+  deals      SalesDeal[]
+
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+}
+
 model SalesDeal {
   id          String   @id @default(cuid())
 
-  // 고객 마스터 연결 (신규)
+  // 고객 마스터 연결
   customerId  String?
   customer    Customer? @relation(fields: [customerId], references: [id], onDelete: SetNull)
+
+  // 소개자 Agent 연결
+  agentId     String?
+  agent       Agent?   @relation(fields: [agentId], references: [id], onDelete: SetNull)
 
   meetings    LeadMeeting[]
 

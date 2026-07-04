@@ -122,8 +122,10 @@ export async function POST(req: NextRequest) {
         monthlyPayment:  body.monthlyPayment  ?? null,
         loanMonths:      body.loanMonths      ?? null,
         deliveredAt:     body.deliveredAt     ? new Date(body.deliveredAt) : null,
+        // agentId는 FK 관계로 ORM create 시 실패 가능 → 별도 raw UPDATE
         assignee:        body.assignee        || null,
         memo:            body.memo            || null,
+        checklistJson:   body.checklistJson   || null,
         purchaseGoal:    body.purchaseGoal    || null,
         keyFactors:      body.keyFactors      || null,
         lostReason:      body.lostReason      || null,
@@ -166,8 +168,16 @@ export async function POST(req: NextRequest) {
         cargoNote:     body.cargoNote     || null,
       },
     })
-    return NextResponse.json(deal, { status: 201 })
-  } catch {
-    return NextResponse.json({ error: '생성 실패' }, { status: 500 })
+
+    // agentId: FK 관계 필드는 create 후 raw SQL로 별도 설정
+    const agentId = body.agentId || null
+    if (agentId) {
+      await prisma.$executeRaw`UPDATE "SalesDeal" SET "agentId" = ${agentId} WHERE id = ${deal.id}`
+    }
+
+    return NextResponse.json({ ...deal, agentId }, { status: 201 })
+  } catch (e: any) {
+    console.error('[deals POST] 에러:', e?.message, e?.code)
+    return NextResponse.json({ error: e?.message ?? '생성 실패' }, { status: 500 })
   }
 }

@@ -3,9 +3,11 @@
 import { useState, useEffect, useRef } from 'react'
 import { PipelineDeal } from './PipelineView'
 import { formatPhone } from '@/lib/format'
+import AgentPicker from './AgentPicker'
+import AssigneePicker from './AssigneePicker'
 
 /* ── 리드 발굴경로 (고객 유입경로와 별도 관리) ── */
-const LEAD_SOURCES = ['소개', '자체발굴', '인바운드', 'SNS', '전시회', '기타']
+const LEAD_SOURCES = ['소개', '자체발굴', '인바운드', 'SNS', '전시회', '기타', 'Agent']
 const CUST_SOURCES = ['소개', '온라인', '전시장/이벤트', '직접방문', '기타']
 
 type Segment = 'B2C' | 'B2B'
@@ -49,10 +51,17 @@ export default function NewDealModal({ onClose, onCreated }: Props) {
 
   /* ── Step 2: 리드 정보 ── */
   const [dealSource,       setDealSource]       = useState('')
+  const [agentValue,       setAgentValue]       = useState<{ id: string; name: string } | null>(null)
   const [assignee,         setAssignee]         = useState('')
   const [memo,             setMemo]             = useState('')
   const [intentChecked,    setIntentChecked]    = useState(false)
   const [intentNote,       setIntentNote]       = useState('')
+  const [showNewAgent,     setShowNewAgent]     = useState(false)
+  const [newAgentName,     setNewAgentName]     = useState('')
+  const [newAgentPhone,    setNewAgentPhone]    = useState('')
+  const [newAgentCompany,  setNewAgentCompany]  = useState('')
+  const [newAgentType,     setNewAgentType]     = useState<'내부' | '외부'>('외부')
+  const [savingAgent,      setSavingAgent]      = useState(false)
 
   /* 고객 검색 디바운스 */
   useEffect(() => {
@@ -144,6 +153,7 @@ export default function NewDealModal({ onClose, onCreated }: Props) {
           customerSegment: customer.customerSegment || null,
           companyName:     customer.companyName     || null,
           source:          dealSource               || null,
+          agentId:         agentValue?.id           || null,
           assignee:        assignee                 || null,
           memo:            memo                     || null,
           stageCode:       '1-1',
@@ -175,6 +185,33 @@ export default function NewDealModal({ onClose, onCreated }: Props) {
     } catch {
       setError('네트워크 오류')
       setSaving(false)
+    }
+  }
+
+  /* 신규 Agent 등록 */
+  const handleCreateAgent = async () => {
+    if (!newAgentName.trim()) return
+    setSavingAgent(true)
+    try {
+      const res = await fetch('/api/agents', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name:    newAgentName.trim(),
+          phone:   newAgentPhone   || null,
+          company: newAgentCompany || null,
+          type:    newAgentType,
+        }),
+      })
+      if (res.ok || res.status === 409) {
+        const data = await res.json()
+        const agent = res.status === 409 ? data.agent : data
+        setAgentValue({ id: agent.id, name: agent.name })
+        setShowNewAgent(false)
+        setNewAgentName(''); setNewAgentPhone(''); setNewAgentCompany('')
+      }
+    } finally {
+      setSavingAgent(false)
     }
   }
 
@@ -417,13 +454,16 @@ export default function NewDealModal({ onClose, onCreated }: Props) {
                 </span>
               </label>
               {intentChecked && (
-                <input
-                  autoFocus
-                  value={intentNote}
-                  onChange={e => setIntentNote(e.target.value)}
-                  placeholder="확인 방법 입력 (예: 전화 통화, 대면 상담 등)"
-                  className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-slate-300 ml-7"
-                />
+                <div className="flex gap-3">
+                  <div className="w-4 shrink-0" />
+                  <input
+                    autoFocus
+                    value={intentNote}
+                    onChange={e => setIntentNote(e.target.value)}
+                    placeholder="확인 방법 입력 (예: 전화 통화, 대면 상담 등)"
+                    className="flex-1 min-w-0 text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-slate-300"
+                  />
+                </div>
               )}
             </div>
 
@@ -433,24 +473,79 @@ export default function NewDealModal({ onClose, onCreated }: Props) {
               <div className="flex gap-2 flex-wrap">
                 {LEAD_SOURCES.map(s => (
                   <button key={s} type="button"
-                    onClick={() => setDealSource(dealSource === s ? '' : s)}
+                    onClick={() => { setDealSource(dealSource === s ? '' : s); if (s !== 'Agent') { setAgentValue(null); setShowNewAgent(false) } }}
                     className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all
                       ${dealSource === s
-                        ? 'bg-slate-800 text-white border-slate-800'
+                        ? s === 'Agent'
+                          ? 'bg-indigo-600 text-white border-indigo-600'
+                          : 'bg-slate-800 text-white border-slate-800'
                         : 'bg-white border-slate-200 text-slate-500 hover:border-slate-400'}`}>
                     {s}
                   </button>
                 ))}
               </div>
+
+              {/* Agent 선택 시 AgentPicker 표시 */}
+              {dealSource === 'Agent' && (
+                <div className="mt-3 space-y-2">
+                  <AgentPicker
+                    value={agentValue}
+                    onChange={setAgentValue}
+                    onCreateNew={name => { setNewAgentName(name); setShowNewAgent(true) }}
+                  />
+
+                  {/* 신규 Agent 인라인 등록 폼 */}
+                  {showNewAgent && (
+                    <div className="border border-indigo-200 rounded-xl p-4 bg-indigo-50/50 space-y-3">
+                      <p className="text-[11px] font-bold text-indigo-600 uppercase tracking-widest">새 소개자 등록</p>
+
+                      {/* 내부 / 외부 선택 */}
+                      <div className="flex gap-1.5">
+                        {(['내부', '외부'] as const).map(t => (
+                          <button key={t} type="button"
+                            onClick={() => setNewAgentType(t)}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all
+                              ${newAgentType === t
+                                ? t === '내부' ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-teal-600 text-white border-teal-600'
+                                : 'bg-white border-slate-200 text-slate-500'}`}>
+                            {t === '내부' ? '🏢 내부 임직원' : '🤝 외부인'}
+                          </button>
+                        ))}
+                      </div>
+
+                      <input value={newAgentName} onChange={e => setNewAgentName(e.target.value)}
+                        placeholder="이름 *" className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-300" />
+                      <input value={newAgentPhone} onChange={e => setNewAgentPhone(e.target.value)}
+                        placeholder="연락처" className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-300" />
+                      {newAgentType === '외부' && (
+                        <input value={newAgentCompany} onChange={e => setNewAgentCompany(e.target.value)}
+                          placeholder="소속 회사" className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-300" />
+                      )}
+
+                      <div className="flex gap-2">
+                        <button type="button" onClick={() => setShowNewAgent(false)}
+                          className="flex-1 py-2 text-xs font-semibold rounded-lg border border-slate-200 text-slate-500 hover:bg-white transition">
+                          취소
+                        </button>
+                        <button type="button" onClick={handleCreateAgent} disabled={savingAgent || !newAgentName.trim()}
+                          className="flex-1 py-2 text-xs font-semibold rounded-lg bg-indigo-600 text-white hover:bg-indigo-500 transition disabled:opacity-50 flex items-center justify-center gap-1.5">
+                          {savingAgent
+                            ? <><span className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />등록 중</>
+                            : '소개자 등록'}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* 담당 영업사원 */}
             <div>
               <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-widest mb-1">담당 영업사원</label>
-              <input
+              <AssigneePicker
                 value={assignee}
-                onChange={e => setAssignee(e.target.value)}
-                placeholder="이름 입력"
+                onChange={setAssignee}
                 className="w-full text-sm border border-slate-200 rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-slate-300"
               />
             </div>

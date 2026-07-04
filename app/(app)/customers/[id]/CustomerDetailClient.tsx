@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
+import AssigneePicker from '@/components/AssigneePicker'
 import { useRouter } from 'next/navigation'
 import { formatPhone } from '@/lib/format'
 
@@ -54,7 +55,7 @@ type Activity = {
 type Customer = {
   id: string; name: string; phone: string | null; email: string | null
   customerSegment: string | null; customerCategory: string | null; status: string; grade: string | null
-  source: string | null; assignee: string | null; memo: string | null
+  source: string | null; assignee: string | null; isAgent: boolean; memo: string | null
   regionCity: string | null; regionDist: string | null
   /* B2C */
   gender: string | null; birthInfo: string | null; maritalStatus: string | null
@@ -93,6 +94,7 @@ export default function CustomerDetailClient({ customer, returnTo }: { customer:
     grade:            customer.grade            ?? '',
     source:           customer.source           ?? '',
     assignee:         customer.assignee         ?? '',
+    isAgent:          customer.isAgent          ?? false,
     memo:             customer.memo             ?? '',
     regionCity:       customer.regionCity       ?? '',
     regionDist:       customer.regionDist       ?? '',
@@ -238,6 +240,7 @@ export default function CustomerDetailClient({ customer, returnTo }: { customer:
           email:            f.email            || null,
           grade:            f.grade            || null,
           source:           f.source           || null,
+          isAgent:          f.isAgent,
           regionCity:       f.regionCity       || null,
           regionDist:       f.regionDist       || null,
           // B2C 개인정보
@@ -448,7 +451,11 @@ export default function CustomerDetailClient({ customer, returnTo }: { customer:
                   <div>{label('고객명 *')}{input('name', '고객 이름')}</div>
                   <div>{label('연락처')}{input('phone', '010-0000-0000')}</div>
                   <div>{label('이메일')}{input('email', 'example@email.com')}</div>
-                  <div>{label('담당자')}{input('assignee', '영업사원 이름')}</div>
+                  <div>
+                    {label('담당자')}
+                    <AssigneePicker value={f.assignee} onChange={v => setFv('assignee', v)}
+                      className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-slate-300" />
+                  </div>
                   <div className="col-span-2">
                     {label('고객 분류')}
                     {chips('customerCategory', ['자차지입', '임대지입', '용차', '월급기사'], true)}
@@ -456,6 +463,21 @@ export default function CustomerDetailClient({ customer, returnTo }: { customer:
                   <div className="col-span-2">
                     {label('유입 경로')}
                     {chips('source', SOURCES, true)}
+                  </div>
+                  <div className="col-span-2">
+                    <label className="block text-[11px] font-semibold text-slate-400 mb-1.5 uppercase tracking-wide">소개자(Agent) 활동 여부</label>
+                    <button type="button"
+                      onClick={() => { setF(prev => ({ ...prev, isAgent: !prev.isAgent })); setSaved(false) }}
+                      className={`flex items-center gap-2.5 px-4 py-2 rounded-xl text-sm font-semibold border transition-all
+                        ${f.isAgent
+                          ? 'bg-indigo-600 text-white border-indigo-600'
+                          : 'bg-white text-slate-500 border-slate-200 hover:border-slate-400'}`}>
+                      <span className={`w-4 h-4 rounded-full border-2 flex items-center justify-center transition-all
+                        ${f.isAgent ? 'bg-white border-white' : 'border-slate-300'}`}>
+                        {f.isAgent && <span className="w-2 h-2 rounded-full bg-indigo-600 block" />}
+                      </span>
+                      {f.isAgent ? '✓ Agent 활동 가능 — 소개자 검색 시 포함됩니다' : 'Agent 활동 없음'}
+                    </button>
                   </div>
                 </div>
               </div>
@@ -670,7 +692,11 @@ export default function CustomerDetailClient({ customer, returnTo }: { customer:
                     {label('유입 경로')}
                     {chips('source', SOURCES, true)}
                   </div>
-                  <div>{label('영업 담당자')}{input('assignee', '영업사원 이름')}</div>
+                  <div>
+                    {label('영업 담당자')}
+                    <AssigneePicker value={f.assignee} onChange={v => setFv('assignee', v)}
+                      className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-slate-300" />
+                  </div>
                 </div>
               </div>
 

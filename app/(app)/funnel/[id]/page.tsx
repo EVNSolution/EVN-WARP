@@ -12,7 +12,18 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
   if (!d) notFound()
   const customer = d.customer ?? null
 
+  // agentId FK 관계: include 대신 $queryRaw (libSQL 어댑터 호환)
+  type AgentRow = { id: string; name: string; type: string; company: string | null }
   const a = d as any
+  const agentId = a.agentId as string | null
+  let agentRow: AgentRow | null = null
+  if (agentId) {
+    const rows = await prisma.$queryRaw<AgentRow[]>`
+      SELECT id, name, type, company FROM "Agent" WHERE id = ${agentId} LIMIT 1
+    `
+    agentRow = rows[0] ?? null
+  }
+
   const stageCode    = a.stageCode   ?? getStageCode(d.stage)
   const salesStatus  = a.salesStatus ?? (d.stage === '이탈' ? '이탈' : d.stage === '출고 완료' ? '완료' : '진행중')
   const checklistJson = a.checklistJson ?? null
@@ -105,6 +116,8 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
         totalPrice:       a.totalPrice       ?? null,
         monthlyPayment:   a.monthlyPayment   ?? null,
         loanMonths:       a.loanMonths       ?? null,
+        agentId:         agentId,
+        agent:           agentRow,
         assignee:         d.assignee,
         memo:            d.memo,
         lostReason:      d.lostReason,

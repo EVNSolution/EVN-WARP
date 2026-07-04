@@ -87,6 +87,10 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
         ...(b.cargoNote        !== undefined && { cargoNote:        n(b.cargoNote) }),
       },
     })
+    // libSQL Boolean 호환: isAgent는 raw SQL로 별도 업데이트
+    if (b.isAgent !== undefined) {
+      await prisma.$executeRaw`UPDATE "Customer" SET "isAgent" = ${b.isAgent ? 1 : 0} WHERE id = ${id}`
+    }
     return NextResponse.json(customer)
   } catch {
     return NextResponse.json({ error: '수정 실패' }, { status: 500 })

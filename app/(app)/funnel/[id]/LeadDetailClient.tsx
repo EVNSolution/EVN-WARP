@@ -4,6 +4,9 @@ import { useState, useTransition, useEffect, useRef, type ChangeEvent } from 're
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { PIPELINE } from '@/lib/pipeline'
+import AgentPicker from '@/components/AgentPicker'
+import AssigneePicker from '@/components/AssigneePicker'
+import CallAnalysisModal from '@/components/CallAnalysisModal'
 
 /* ── 선택 옵션 ── */
 const SOURCES        = ['소개', '온라인', '전시장/이벤트', '직접방문', '기타']
@@ -78,6 +81,8 @@ interface Deal {
   monthlyPayment: number | null
   loanMonths: number | null
   assignee: string | null
+  agentId: string | null
+  agent: { id: string; name: string; type: string; company: string | null } | null
   memo: string | null
   lostReason: string | null
   stageCode: string
@@ -158,6 +163,7 @@ export default function LeadDetailClient({ deal, customer = null }: { deal: Deal
     phone:            deal.phone ?? '',
     source:           deal.source ?? '',
     assignee:         deal.assignee ?? '',
+    memo:             deal.memo ?? '',
     phoneConsultedAt: deal.phoneConsultedAt?.slice(0, 10) ?? '',
     currentVehicle:   deal.currentVehicle ?? '',
     tradeIn:          deal.tradeIn ?? '',
@@ -188,6 +194,11 @@ export default function LeadDetailClient({ deal, customer = null }: { deal: Deal
     setSaved(false)
   }
 
+  /* ── 소개자 Agent ── */
+  const [agentValue, setAgentValue] = useState<{ id: string; name: string } | null>(
+    deal.agent ? { id: deal.agent.id, name: deal.agent.name } : null
+  )
+
   /* ── 기타 상태 ── */
   const [checks, setChecks] = useState<Record<string, boolean | string>>(() => {
     try { return deal.checklistJson ? JSON.parse(deal.checklistJson) : {} }
@@ -212,6 +223,7 @@ export default function LeadDetailClient({ deal, customer = null }: { deal: Deal
   const [mtgFiles,    setMtgFiles]    = useState<MFile[]>([])
   const [uploading,   setUploading]   = useState(false)
   const [savingMtg,   setSavingMtg]   = useState(false)
+  const [showAnalysis, setShowAnalysis] = useState(false)
   const fileRef      = useRef<HTMLInputElement>(null)
   const mtgSectionRef = useRef<HTMLDivElement>(null)
 
@@ -445,7 +457,9 @@ export default function LeadDetailClient({ deal, customer = null }: { deal: Deal
         name:             f.name.trim() || deal.name,
         phone:            f.phone            || null,
         source:           f.source           || null,
+        agentId:          agentValue?.id     || null,
         assignee:         f.assignee         || null,
+        memo:             f.memo             || null,
         phoneConsultedAt: f.phoneConsultedAt  || null,
         currentVehicle:   f.currentVehicle   || null,
         tradeIn:          f.tradeIn          || null,
@@ -1171,6 +1185,56 @@ export default function LeadDetailClient({ deal, customer = null }: { deal: Deal
         <span className="text-2xl font-bold text-slate-700 w-14 text-right">{pct}%</span>
       </div>
 
+      {/* ── 리드 기본 정보 ── */}
+      <div className="mb-6 p-4 bg-white rounded-xl border border-slate-200 space-y-4">
+        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">리드 기본 정보</p>
+        <div className="grid grid-cols-2 gap-4">
+          {/* 유입경로 */}
+          <div className="col-span-2">
+            <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">유입경로</label>
+            <div className="flex gap-1.5 flex-wrap">
+              {['소개', '자체발굴', '인바운드', 'SNS', '전시회', '기타', 'Agent'].map(s => (
+                <button key={s} type="button"
+                  onClick={() => { setFv('source', f.source === s ? '' : s); if (s !== 'Agent') setAgentValue(null) }}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all
+                    ${f.source === s
+                      ? s === 'Agent' ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-slate-800 text-white border-slate-800'
+                      : 'bg-white border-slate-200 text-slate-500 hover:border-slate-400'}`}>
+                  {s}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* 소개자 AgentPicker (Agent 선택 시) */}
+          {f.source === 'Agent' && (
+            <div className="col-span-2">
+              <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">소개자</label>
+              <AgentPicker value={agentValue} onChange={setAgentValue} />
+              {deal.agent && !agentValue && (
+                <p className="text-xs text-slate-400 mt-1">기존: {deal.agent.name}</p>
+              )}
+            </div>
+          )}
+
+          {/* 담당자 */}
+          <div>
+            <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">담당 영업사원</label>
+            <AssigneePicker value={f.assignee} onChange={v => setFv('assignee', v)}
+              className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-slate-300" />
+          </div>
+
+          {/* 메모 */}
+          <div className="col-span-2">
+            <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">메모</label>
+            <textarea value={f.memo ?? ''} rows={3}
+              onChange={e => setFv('memo', e.target.value)}
+              placeholder="상담 내용, 고객 니즈 등..."
+              className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 resize-none focus:outline-none focus:ring-2 focus:ring-slate-300" />
+          </div>
+        </div>
+      </div>
+
       {/* 단계 아코디언 */}
       <div className="space-y-2.5">
         {PIPELINE.map(phase => (
@@ -1212,6 +1276,16 @@ export default function LeadDetailClient({ deal, customer = null }: { deal: Deal
                     </button>
                   ))}
                 </div>
+              </div>
+              {/* AI 통화 분석 */}
+              <div>
+                <button
+                  type="button"
+                  onClick={() => setShowAnalysis(true)}
+                  className="w-full px-3 py-2 text-xs font-semibold rounded-lg border-2 border-dashed border-indigo-200 text-indigo-500 hover:bg-indigo-50 hover:border-indigo-400 transition"
+                >
+                  녹음 파일 AI 분석 → 자동 입력
+                </button>
               </div>
               {/* 일시 + 소요시간 */}
               <div className="flex gap-2">
@@ -1357,6 +1431,23 @@ export default function LeadDetailClient({ deal, customer = null }: { deal: Deal
         )}
       </div>
 
+      {/* AI 통화 분석 모달 */}
+      {showAnalysis && (
+        <CallAnalysisModal
+          onClose={() => setShowAnalysis(false)}
+          onApply={({ content, result, nextAction, duration }) => {
+            setMtg(m => ({
+              ...m,
+              type:       '통화',
+              content,
+              result,
+              nextAction,
+              duration:   duration != null ? String(duration) : m.duration,
+            }))
+            setShowMtgForm(true)
+          }}
+        />
+      )}
     </div>
   )
 }

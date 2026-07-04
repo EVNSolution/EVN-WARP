@@ -10,6 +10,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     const deal = await prisma.salesDeal.update({
       where: { id },
       data: {
+        // agentId는 FK 필드 — libSQL 어댑터 호환을 위해 ORM update에서 제외, 아래 $executeRaw로 처리
         ...(b.stage            !== undefined && { stage: b.stage }),
         ...(b.name             !== undefined && { name: b.name.trim() }),
         ...(b.phone            !== undefined && { phone: b.phone || null }),
@@ -94,7 +95,18 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
         ...(b.cargoNote      !== undefined && { cargoNote:      b.cargoNote      || null }),
       },
     })
-    return NextResponse.json(deal)
+
+    // agentId FK 필드: libSQL 어댑터 호환 — $executeRaw로 별도 처리
+    if (b.agentId !== undefined) {
+      const agentId = b.agentId || null
+      if (agentId) {
+        await prisma.$executeRaw`UPDATE "SalesDeal" SET "agentId" = ${agentId} WHERE id = ${id}`
+      } else {
+        await prisma.$executeRaw`UPDATE "SalesDeal" SET "agentId" = NULL WHERE id = ${id}`
+      }
+    }
+
+    return NextResponse.json({ ...deal, agentId: b.agentId !== undefined ? (b.agentId || null) : undefined })
   } catch {
     return NextResponse.json({ error: '수정 실패' }, { status: 500 })
   }
