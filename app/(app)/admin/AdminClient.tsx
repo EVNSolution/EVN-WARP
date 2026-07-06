@@ -6,7 +6,7 @@ import {
   AlertTriangle, CheckCircle2, RefreshCw,
   Users, Database, Link2, Unlink,
   GitMerge, Search, Phone, ChevronDown, ChevronUp,
-  Trash2, Eye, UserPlus, KeyRound, X, Pencil, FolderPlus,
+  Trash2, Eye, UserPlus, X, Pencil, FolderPlus,
 } from 'lucide-react'
 
 /* ── 타입 ── */
@@ -111,17 +111,11 @@ export default function AdminClient({
   const [newUser,    setNewUser]    = useState({ name: '', email: '', password: '', role: 'user', teamId: '' })
   const [addErr,     setAddErr]     = useState('')
   const [addLoading, setAddLoading] = useState(false)
-  const [pwdId,        setPwdId]        = useState<string | null>(null)
-  const [newPwd,       setNewPwd]       = useState('')
-  const [pwdLoading,   setPwdLoading]   = useState(false)
-  const [delId,        setDelId]        = useState<string | null>(null)
-  const [delLoading,   setDelLoading]   = useState(false)
-  const [teamEditId,   setTeamEditId]   = useState<string | null>(null)
-  const [teamEditVal,  setTeamEditVal]  = useState('')
-  const [teamLoading,  setTeamLoading]  = useState(false)
-  const [editId,       setEditId]       = useState<string | null>(null)
-  const [editVal,      setEditVal]      = useState({ name: '', email: '', role: 'user' })
-  const [editLoading,  setEditLoading]  = useState(false)
+  const [delId,       setDelId]       = useState<string | null>(null)
+  const [delLoading,  setDelLoading]  = useState(false)
+  const [editId,      setEditId]      = useState<string | null>(null)
+  const [editVal,     setEditVal]     = useState({ name: '', email: '', role: 'user', teamId: '', newPassword: '' })
+  const [editLoading, setEditLoading] = useState(false)
 
   const handleAddUser = async () => {
     setAddErr('')
@@ -143,18 +137,6 @@ export default function AdminClient({
     } finally { setAddLoading(false) }
   }
 
-  const handleResetPwd = async (id: string) => {
-    if (!newPwd.trim()) return
-    setPwdLoading(true)
-    try {
-      const res = await fetch(`/api/users/${id}`, {
-        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ password: newPwd }),
-      })
-      if (res.ok) { setPwdId(null); setNewPwd('') }
-    } finally { setPwdLoading(false) }
-  }
-
   const handleDelete = async (id: string) => {
     setDelLoading(true)
     try {
@@ -167,36 +149,24 @@ export default function AdminClient({
     if (!editVal.name.trim() || !editVal.email.trim()) return
     setEditLoading(true)
     try {
+      const body: Record<string, unknown> = {
+        name: editVal.name, email: editVal.email, role: editVal.role,
+        teamId: editVal.teamId || null,
+      }
+      if (editVal.newPassword.trim()) body.password = editVal.newPassword
       const res = await fetch(`/api/users/${id}`, {
         method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: editVal.name, email: editVal.email, role: editVal.role }),
+        body: JSON.stringify(body),
       })
       if (res.ok) {
+        const newTeam = teams.find(t => t.id === editVal.teamId) ?? null
         setUsers(prev => prev.map(u => u.id === id
-          ? { ...u, name: editVal.name.trim(), email: editVal.email.trim(), role: editVal.role }
+          ? { ...u, name: editVal.name.trim(), email: editVal.email.trim(), role: editVal.role, teamId: editVal.teamId || null, team: newTeam }
           : u
         ))
         setEditId(null)
       }
     } finally { setEditLoading(false) }
-  }
-
-  const handleChangeTeam = async (id: string) => {
-    setTeamLoading(true)
-    try {
-      const res = await fetch(`/api/users/${id}`, {
-        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ teamId: teamEditVal || null }),
-      })
-      if (res.ok) {
-        const newTeam = teams.find(t => t.id === teamEditVal) ?? null
-        setUsers(prev => prev.map(u => u.id === id
-          ? { ...u, teamId: teamEditVal || null, team: newTeam }
-          : u
-        ))
-        setTeamEditId(null)
-      }
-    } finally { setTeamLoading(false) }
   }
 
   /* 초기화 작업 */
@@ -518,109 +488,97 @@ export default function AdminClient({
             const noTeam = users.filter(u => !u.teamId)
 
             const renderUser = (u: UserRow) => (
-              <div key={u.id} className="px-5 py-3.5 flex items-center justify-between gap-4">
-                <div className="min-w-0">
-                  <div className="flex items-center gap-2">
-                    <span className="font-semibold text-sm text-slate-800">{u.name}</span>
-                    <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
-                      u.role === 'admin' ? 'bg-violet-100 text-violet-700' : 'bg-slate-100 text-slate-500'
-                    }`}>
-                      {u.role === 'admin' ? '관리자' : '사용자'}
-                    </span>
+              <div key={u.id}>
+                <div className="px-5 py-3.5 flex items-center justify-between gap-4">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="font-semibold text-sm text-slate-800">{u.name}</span>
+                      <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
+                        u.role === 'admin' ? 'bg-violet-100 text-violet-700' : 'bg-slate-100 text-slate-500'
+                      }`}>
+                        {u.role === 'admin' ? '관리자' : '사용자'}
+                      </span>
+                      {u.team && <span className="text-[10px] text-slate-400">{u.team.name}</span>}
+                    </div>
+                    <p className="text-xs text-slate-400 mt-0.5">{u.email}</p>
                   </div>
-                  <p className="text-xs text-slate-400 mt-0.5">{u.email}</p>
+                  <div className="flex items-center gap-2 shrink-0">
+                    {delId === u.id ? (
+                      <>
+                        <span className="text-xs text-red-600 font-medium">정말 삭제하시겠어요?</span>
+                        <button onClick={() => handleDelete(u.id)} disabled={delLoading}
+                          className="px-2.5 py-1.5 text-xs font-bold rounded-lg bg-red-600 text-white hover:bg-red-700 disabled:opacity-40 transition">
+                          {delLoading ? '...' : '삭제'}
+                        </button>
+                        <button onClick={() => setDelId(null)} className="p-1.5 text-slate-400 hover:text-slate-600">
+                          <X size={13} />
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        <button
+                          onClick={() => { setEditId(editId === u.id ? null : u.id); setEditVal({ name: u.name, email: u.email, role: u.role, teamId: u.teamId ?? '', newPassword: '' }); setDelId(null) }}
+                          className={`flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold rounded-lg border transition ${editId === u.id ? 'bg-slate-100 border-slate-300 text-slate-700' : 'border-slate-200 text-slate-500 hover:bg-slate-50'}`}>
+                          <Pencil size={11} /> 정보 수정
+                        </button>
+                        <button
+                          onClick={() => { setDelId(u.id); setEditId(null) }}
+                          className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold rounded-lg border border-red-200 text-red-500 hover:bg-red-50 transition">
+                          <Trash2 size={11} /> 삭제
+                        </button>
+                      </>
+                    )}
+                  </div>
                 </div>
-
-                <div className="flex items-center gap-2 shrink-0">
-                  {editId === u.id ? (
-                    <div className="flex items-center gap-1.5 flex-wrap">
-                      <input value={editVal.name} onChange={e => setEditVal(p => ({ ...p, name: e.target.value }))}
-                        placeholder="이름"
-                        className="text-xs border border-slate-200 rounded-lg px-2.5 py-1.5 w-24 focus:outline-none focus:ring-1 focus:ring-slate-400" />
-                      <input value={editVal.email} onChange={e => setEditVal(p => ({ ...p, email: e.target.value }))}
-                        placeholder="이메일"
-                        className="text-xs border border-slate-200 rounded-lg px-2.5 py-1.5 w-44 focus:outline-none focus:ring-1 focus:ring-slate-400" />
-                      <select value={editVal.role} onChange={e => setEditVal(p => ({ ...p, role: e.target.value }))}
-                        className="text-xs border border-slate-200 rounded-lg px-2 py-1.5 bg-white focus:outline-none focus:ring-1 focus:ring-slate-400">
-                        <option value="user">일반</option>
-                        <option value="admin">관리자</option>
-                      </select>
+                {editId === u.id && (
+                  <div className="mx-5 mb-4 p-4 bg-slate-50 border border-slate-200 rounded-xl">
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="text-xs text-slate-500 mb-1 block">이름 *</label>
+                        <input value={editVal.name} onChange={e => setEditVal(p => ({ ...p, name: e.target.value }))}
+                          className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-slate-400" />
+                      </div>
+                      <div>
+                        <label className="text-xs text-slate-500 mb-1 block">이메일 *</label>
+                        <input value={editVal.email} onChange={e => setEditVal(p => ({ ...p, email: e.target.value }))}
+                          className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-slate-400" />
+                      </div>
+                      <div>
+                        <label className="text-xs text-slate-500 mb-1 block">팀</label>
+                        <select value={editVal.teamId} onChange={e => setEditVal(p => ({ ...p, teamId: e.target.value }))}
+                          className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-1 focus:ring-slate-400">
+                          <option value="">팀 없음</option>
+                          {teams.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="text-xs text-slate-500 mb-1 block">권한</label>
+                        <select value={editVal.role} onChange={e => setEditVal(p => ({ ...p, role: e.target.value }))}
+                          className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-1 focus:ring-slate-400">
+                          <option value="user">일반 사용자</option>
+                          <option value="admin">관리자</option>
+                        </select>
+                      </div>
+                      <div className="col-span-2">
+                        <label className="text-xs text-slate-500 mb-1 block">새 비밀번호 <span className="text-slate-400">(변경 시에만 입력)</span></label>
+                        <input type="password" value={editVal.newPassword} onChange={e => setEditVal(p => ({ ...p, newPassword: e.target.value }))}
+                          placeholder="변경하지 않으면 비워두세요"
+                          className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-slate-400" />
+                      </div>
+                    </div>
+                    <div className="flex gap-2 mt-3">
                       <button onClick={() => handleEditUser(u.id)} disabled={editLoading || !editVal.name.trim() || !editVal.email.trim()}
-                        className="px-2.5 py-1.5 text-xs font-bold rounded-lg bg-slate-700 text-white hover:bg-slate-800 disabled:opacity-40 transition">
-                        {editLoading ? '...' : '저장'}
+                        className="px-4 py-2 text-sm font-bold rounded-lg bg-slate-800 text-white hover:bg-slate-700 disabled:opacity-40 transition flex items-center gap-1.5">
+                        {editLoading ? <RefreshCw size={12} className="animate-spin" /> : null}
+                        {editLoading ? '저장 중...' : '저장'}
                       </button>
-                      <button onClick={() => setEditId(null)} className="p-1.5 text-slate-400 hover:text-slate-600">
-                        <X size={13} />
-                      </button>
-                    </div>
-                  ) : pwdId === u.id ? (
-                    <div className="flex items-center gap-1.5">
-                      <input type="password" value={newPwd}
-                        onChange={e => setNewPwd(e.target.value)}
-                        placeholder="새 비밀번호"
-                        className="text-xs border border-slate-200 rounded-lg px-2.5 py-1.5 w-32 focus:outline-none focus:ring-1 focus:ring-slate-400" />
-                      <button onClick={() => handleResetPwd(u.id)}
-                        disabled={pwdLoading || !newPwd.trim()}
-                        className="px-2.5 py-1.5 text-xs font-bold rounded-lg bg-amber-500 text-white hover:bg-amber-600 disabled:opacity-40 transition">
-                        {pwdLoading ? '...' : '변경'}
-                      </button>
-                      <button onClick={() => { setPwdId(null); setNewPwd('') }} className="p-1.5 text-slate-400 hover:text-slate-600">
-                        <X size={13} />
+                      <button onClick={() => setEditId(null)}
+                        className="px-4 py-2 text-sm font-semibold rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-100 transition">
+                        취소
                       </button>
                     </div>
-                  ) : teamEditId === u.id ? (
-                    <div className="flex items-center gap-1.5">
-                      <select value={teamEditVal} onChange={e => setTeamEditVal(e.target.value)}
-                        className="text-xs border border-slate-200 rounded-lg px-2 py-1.5 bg-white focus:outline-none focus:ring-1 focus:ring-slate-400">
-                        <option value="">팀 없음</option>
-                        {teams.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
-                      </select>
-                      <button onClick={() => handleChangeTeam(u.id)}
-                        disabled={teamLoading}
-                        className="px-2.5 py-1.5 text-xs font-bold rounded-lg bg-slate-700 text-white hover:bg-slate-800 disabled:opacity-40 transition">
-                        {teamLoading ? '...' : '저장'}
-                      </button>
-                      <button onClick={() => setTeamEditId(null)} className="p-1.5 text-slate-400 hover:text-slate-600">
-                        <X size={13} />
-                      </button>
-                    </div>
-                  ) : delId === u.id ? (
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-xs text-red-600 font-medium">정말 삭제하시겠어요?</span>
-                      <button onClick={() => handleDelete(u.id)}
-                        disabled={delLoading}
-                        className="px-2.5 py-1.5 text-xs font-bold rounded-lg bg-red-600 text-white hover:bg-red-700 disabled:opacity-40 transition">
-                        {delLoading ? '...' : '삭제'}
-                      </button>
-                      <button onClick={() => setDelId(null)} className="p-1.5 text-slate-400 hover:text-slate-600">
-                        <X size={13} />
-                      </button>
-                    </div>
-                  ) : (
-                    <>
-                      <button
-                        onClick={() => { setEditId(u.id); setEditVal({ name: u.name, email: u.email, role: u.role }); setPwdId(null); setDelId(null); setTeamEditId(null) }}
-                        className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50 transition">
-                        <Pencil size={11} /> 정보 수정
-                      </button>
-                      <button
-                        onClick={() => { setTeamEditId(u.id); setTeamEditVal(u.teamId ?? ''); setPwdId(null); setDelId(null); setEditId(null) }}
-                        className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50 transition">
-                        <Pencil size={11} /> 팀 변경
-                      </button>
-                      <button
-                        onClick={() => { setPwdId(u.id); setDelId(null); setTeamEditId(null); setEditId(null); setNewPwd('') }}
-                        className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50 transition">
-                        <KeyRound size={11} /> 비번 변경
-                      </button>
-                      <button
-                        onClick={() => { setDelId(u.id); setPwdId(null); setTeamEditId(null); setEditId(null) }}
-                        className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold rounded-lg border border-red-200 text-red-500 hover:bg-red-50 transition">
-                        <Trash2 size={11} /> 삭제
-                      </button>
-                    </>
-                  )}
-                </div>
+                  </div>
+                )}
               </div>
             )
 
