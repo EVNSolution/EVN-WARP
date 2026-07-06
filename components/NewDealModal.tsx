@@ -7,7 +7,7 @@ import AgentPicker from './AgentPicker'
 import AssigneePicker from './AssigneePicker'
 
 /* ── 리드 발굴경로 (고객 유입경로와 별도 관리) ── */
-const LEAD_SOURCES = ['소개', '자체발굴', '인바운드', 'SNS', '전시회', '기타', 'Agent']
+const LEAD_SOURCES = ['소개', '자체발굴', '인바운드', 'SNS', '전시회', '기타', '소개인']
 const CUST_SOURCES = ['소개', '온라인', '전시장/이벤트', '직접방문', '기타']
 
 type Segment = 'B2C' | 'B2B'
@@ -473,10 +473,10 @@ export default function NewDealModal({ onClose, onCreated }: Props) {
               <div className="flex gap-2 flex-wrap">
                 {LEAD_SOURCES.map(s => (
                   <button key={s} type="button"
-                    onClick={() => { setDealSource(dealSource === s ? '' : s); if (s !== 'Agent') { setAgentValue(null); setShowNewAgent(false) } }}
+                    onClick={() => { setDealSource(dealSource === s ? '' : s); if (s !== '소개인') { setAgentValue(null); setShowNewAgent(false) } }}
                     className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all
                       ${dealSource === s
-                        ? s === 'Agent'
+                        ? s === '소개인'
                           ? 'bg-indigo-600 text-white border-indigo-600'
                           : 'bg-slate-800 text-white border-slate-800'
                         : 'bg-white border-slate-200 text-slate-500 hover:border-slate-400'}`}>
@@ -485,8 +485,8 @@ export default function NewDealModal({ onClose, onCreated }: Props) {
                 ))}
               </div>
 
-              {/* Agent 선택 시 AgentPicker 표시 */}
-              {dealSource === 'Agent' && (
+              {/* 소개인 선택 시 AgentPicker 표시 */}
+              {dealSource === '소개인' && (
                 <div className="mt-3 space-y-2">
                   <AgentPicker
                     value={agentValue}
@@ -497,7 +497,7 @@ export default function NewDealModal({ onClose, onCreated }: Props) {
                   {/* 신규 Agent 인라인 등록 폼 */}
                   {showNewAgent && (
                     <div className="border border-indigo-200 rounded-xl p-4 bg-indigo-50/50 space-y-3">
-                      <p className="text-[11px] font-bold text-indigo-600 uppercase tracking-widest">새 소개자 등록</p>
+                      <p className="text-[11px] font-bold text-indigo-600 uppercase tracking-widest">새 소개인 등록</p>
 
                       {/* 내부 / 외부 선택 */}
                       <div className="flex gap-1.5">
@@ -531,7 +531,7 @@ export default function NewDealModal({ onClose, onCreated }: Props) {
                           className="flex-1 py-2 text-xs font-semibold rounded-lg bg-indigo-600 text-white hover:bg-indigo-500 transition disabled:opacity-50 flex items-center justify-center gap-1.5">
                           {savingAgent
                             ? <><span className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />등록 중</>
-                            : '소개자 등록'}
+                            : '소개인 등록'}
                         </button>
                       </div>
                     </div>

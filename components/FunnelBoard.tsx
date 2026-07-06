@@ -660,7 +660,7 @@ export default function FunnelBoard({ deals: initialDeals }: Props) {
                 <FieldInput label="지역(도)" value={form.regionCity} onChange={v => setF({ regionCity: v })} placeholder="경기" />
                 <FieldInput label="지역(시군구)" value={form.regionDist} onChange={v => setF({ regionDist: v })} placeholder="성남시" />
               </div>
-              <FieldInput label="추천인" value={form.referrer} onChange={v => setF({ referrer: v })} placeholder="소개자명" />
+              <FieldInput label="추천인" value={form.referrer} onChange={v => setF({ referrer: v })} placeholder="소개인명" />
 
               <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest border-t border-slate-100 pt-3">리드</p>
               <div className="grid grid-cols-2 gap-2">

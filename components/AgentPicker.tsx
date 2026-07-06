@@ -136,7 +136,7 @@ export default function AgentPicker({ value, onChange, onCreateNew }: Props) {
         </div>
         <div className="flex-1 min-w-0">
           <p className="text-sm font-semibold text-slate-800 truncate">{value.name}</p>
-          <p className="text-[10px] text-indigo-500">소개자 선택됨</p>
+          <p className="text-[10px] text-indigo-500">소개인 선택됨</p>
         </div>
         <button type="button" onClick={handleClear}
           className="shrink-0 text-slate-400 hover:text-red-500 transition-colors">
@@ -206,7 +206,7 @@ export default function AgentPicker({ value, onChange, onCreateNew }: Props) {
           onClick={() => { onCreateNew(query); setOpen(false) }}
           className="w-full text-left px-4 py-2.5 text-xs text-indigo-500 hover:bg-indigo-50 border-t border-slate-100 flex items-center gap-2 transition-colors font-semibold">
           <Plus size={12} />
-          {query ? `"${query}" 새 소개자로 등록` : '새 소개자 등록'}
+          {query ? `"${query}" 새 소개인로 등록` : '새 소개인 등록'}
         </button>
       )}
     </div>
@@ -221,7 +221,7 @@ export default function AgentPicker({ value, onChange, onCreateNew }: Props) {
           value={query}
           onChange={e => { setQuery(e.target.value); if (!open) setOpen(true) }}
           onFocus={() => { setOpen(true); updatePos() }}
-          placeholder="소개자 이름 검색 (임직원 / 외부 Agent)..."
+          placeholder="소개인 이름 검색 (임직원 / 외부 소개인)..."
           className="w-full text-sm border border-slate-200 rounded-xl pl-8 pr-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-slate-300"
         />
         {loading && (

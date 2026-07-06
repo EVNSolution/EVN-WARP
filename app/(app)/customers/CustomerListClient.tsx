@@ -42,7 +42,7 @@ const COL_DEFS: ColDef[] = [
   { key: 'source',       label: '유입경로', dw: 'sm' },
   { key: 'collectedAt',  label: '수집일',   dw: 'sm' },
   { key: 'assignee',     label: '담당자',   dw: 'sm' },
-  { key: 'isAgent',      label: 'Agent',    dw: 'sm' },
+  { key: 'isAgent',      label: '소개인',   dw: 'sm' },
   { key: 'leads',        label: '리드',     dw: 'sm' },
   { key: 'lastActivity', label: '최근활동', dw: 'md' },
   { key: 'detail',       label: '상세',     dw: 'sm' },
@@ -314,7 +314,7 @@ export default function CustomerListClient({ customers: initial }: Props) {
                           return (
                             <td key="isAgent" className="px-3 py-2.5 text-center">
                               {c.isAgent
-                                ? <span className="inline-block px-2 py-0.5 rounded-full text-[9px] font-bold bg-indigo-100 text-indigo-700">Agent</span>
+                                ? <span className="inline-block px-2 py-0.5 rounded-full text-[9px] font-bold bg-indigo-100 text-indigo-700">소개인</span>
                                 : <span className="text-slate-200">—</span>}
                             </td>
                           )

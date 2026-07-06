@@ -465,7 +465,7 @@ export default function CustomerDetailClient({ customer, returnTo }: { customer:
                     {chips('source', SOURCES, true)}
                   </div>
                   <div className="col-span-2">
-                    <label className="block text-[11px] font-semibold text-slate-400 mb-1.5 uppercase tracking-wide">소개자(Agent) 활동 여부</label>
+                    <label className="block text-[11px] font-semibold text-slate-400 mb-1.5 uppercase tracking-wide">소개인 여부</label>
                     <button type="button"
                       onClick={() => { setF(prev => ({ ...prev, isAgent: !prev.isAgent })); setSaved(false) }}
                       className={`flex items-center gap-2.5 px-4 py-2 rounded-xl text-sm font-semibold border transition-all
@@ -476,7 +476,7 @@ export default function CustomerDetailClient({ customer, returnTo }: { customer:
                         ${f.isAgent ? 'bg-white border-white' : 'border-slate-300'}`}>
                         {f.isAgent && <span className="w-2 h-2 rounded-full bg-indigo-600 block" />}
                       </span>
-                      {f.isAgent ? '✓ Agent 활동 가능 — 소개자 검색 시 포함됩니다' : 'Agent 활동 없음'}
+                      {f.isAgent ? '✓ 소개인 — 소개인 검색 시 포함됩니다' : '소개인'}
                     </button>
                   </div>
                 </div>

@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import Link from 'next/link'
 import { PIPELINE, getStatusColor } from '@/lib/pipeline'
 import NewDealModal from './NewDealModal'
@@ -48,6 +49,7 @@ const LEAD_DEFS: ColDef[] = [
   { key: 'collectedAt',    label: '수집일',     dw: 'sm' },
   { key: 'assignee',       label: '담당자',     dw: 'sm' },
   { key: 'memo',           label: '메모',       dw: 'lg' },
+  { key: 'record',         label: '기록',       dw: 'sm' },
   { key: 'detail',         label: '상세',       dw: 'sm' },
 ]
 
@@ -182,6 +184,142 @@ function ColSettingsPanel({
   )
 }
 
+/* ── 빠른 미팅 기록 모달 ── */
+function QuickMeetingModal({
+  deal, onClose, onSaved,
+}: {
+  deal: PipelineDeal
+  onClose: () => void
+  onSaved: () => void
+}) {
+  const leadName = (deal.customerSegment === 'B2B' && deal.companyName) ? deal.companyName : deal.name
+
+  const now = new Date()
+  const localIso = new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 16)
+
+  const [type,       setType]       = useState('통화')
+  const [meetingAt,  setMeetingAt]  = useState(localIso)
+  const [duration,   setDuration]   = useState('')
+  const [content,    setContent]    = useState('')
+  const [result,     setResult]     = useState('')
+  const [nextAction, setNextAction] = useState('')
+  const [saving,     setSaving]     = useState(false)
+  const [error,      setError]      = useState('')
+
+  const handleSave = async () => {
+    if (!content.trim()) { setError('미팅 내용을 입력해 주세요.'); return }
+    setSaving(true)
+    try {
+      const res = await fetch(`/api/deals/${deal.id}/meetings`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type,
+          meetingAt: meetingAt || undefined,
+          duration:  duration ? Number(duration) : null,
+          content:   content.trim() || null,
+          result:    result.trim()  || null,
+          nextAction: nextAction.trim() || null,
+        }),
+      })
+      if (!res.ok) { setError('저장 실패'); setSaving(false); return }
+      onSaved()
+      onClose()
+    } catch {
+      setError('네트워크 오류')
+      setSaving(false)
+    }
+  }
+
+  const modal = (
+    <div className="fixed inset-0 bg-black/40 z-[9999] flex items-center justify-center p-4"
+      onClick={e => { if (e.target === e.currentTarget) onClose() }}>
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md flex flex-col">
+        {/* 헤더 */}
+        <div className="flex items-start justify-between px-5 py-4 border-b border-slate-100">
+          <div>
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-0.5">미팅 기록 추가</p>
+            <p className="text-sm font-bold text-slate-800">{leadName}</p>
+            {deal.phone && <p className="text-xs text-slate-400 mt-0.5">{deal.phone}</p>}
+          </div>
+          <button onClick={onClose} className="text-slate-300 hover:text-slate-600 transition text-lg leading-none mt-0.5">✕</button>
+        </div>
+
+        {/* 폼 */}
+        <div className="p-5 space-y-4">
+          {/* 유형 */}
+          <div>
+            <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">유형</label>
+            <div className="flex gap-1.5">
+              {['통화', '방문', '화상', '기타'].map(t => (
+                <button key={t} type="button" onClick={() => setType(t)}
+                  className={`px-3 py-1 rounded-lg text-xs font-semibold border transition
+                    ${type === t ? 'bg-slate-800 text-white border-slate-800' : 'bg-white border-slate-200 text-slate-500 hover:border-slate-400'}`}>
+                  {t}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* 일시 + 소요 */}
+          <div className="flex gap-3">
+            <div className="flex-1">
+              <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">일시</label>
+              <input type="datetime-local" value={meetingAt} onChange={e => setMeetingAt(e.target.value)}
+                className="w-full text-xs border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-slate-300" />
+            </div>
+            <div className="w-20">
+              <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">소요(분)</label>
+              <input type="number" value={duration} onChange={e => setDuration(e.target.value)} placeholder="30"
+                className="w-full text-xs border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-slate-300" />
+            </div>
+          </div>
+
+          {/* 내용 */}
+          <div>
+            <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">미팅 내용 *</label>
+            <textarea value={content} onChange={e => setContent(e.target.value)} rows={3}
+              placeholder="상담 내용, 고객 요청사항 등..."
+              className="w-full text-xs border border-slate-200 rounded-lg px-3 py-2 resize-none focus:outline-none focus:ring-1 focus:ring-slate-300" />
+          </div>
+
+          {/* 결과 + 다음 액션 */}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">결과</label>
+              <input value={result} onChange={e => setResult(e.target.value)}
+                placeholder="예: 구매의향 확인"
+                className="w-full text-xs border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-slate-300" />
+            </div>
+            <div>
+              <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">다음 액션</label>
+              <input value={nextAction} onChange={e => setNextAction(e.target.value)}
+                placeholder="예: 견적서 발송"
+                className="w-full text-xs border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-slate-300" />
+            </div>
+          </div>
+
+          {error && <p className="text-xs text-red-500">{error}</p>}
+        </div>
+
+        {/* 하단 버튼 */}
+        <div className="px-5 py-4 border-t border-slate-100 flex justify-end gap-2">
+          <button type="button" onClick={onClose}
+            className="px-4 py-2 text-xs font-semibold rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50 transition">
+            취소
+          </button>
+          <button type="button" onClick={handleSave} disabled={saving}
+            className="px-5 py-2 text-xs font-bold rounded-lg bg-slate-800 text-white hover:bg-slate-700 transition disabled:opacity-50">
+            {saving ? '저장 중...' : '기록 저장'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+
+  return createPortal(modal, document.body)
+}
+
 /* ── 기존 스타일 상수 ── */
 const STATUS_BG_HEX: Record<string, string> = {
   green: '#22c55e', yellow: '#facc15', red: '#ef4444',
@@ -232,6 +370,7 @@ export default function PipelineView({ deals, salesTarget, linkedKpiLabel }: Pro
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [activeTab,    setActiveTab]    = useState<Tab>('all')
   const [searchQuery,  setSearchQuery]  = useState('')
+  const [quickMtgDeal, setQuickMtgDeal] = useState<PipelineDeal | null>(null)
 
   /* 컬럼 설정 — SSR 안전하게 useEffect에서 로드 */
   const [leadCols, setLeadCols] = useState<ColCfg[]>(() => mkCfg(LEAD_DEFS))
@@ -379,6 +518,16 @@ export default function PipelineView({ deals, salesTarget, linkedKpiLabel }: Pro
         return <td key={c.key} style={{ width: W_PX[c.width] }} className="px-3 py-2.5 text-slate-500 truncate">{d.assignee ?? '—'}</td>
       case 'memo':
         return <td key={c.key} style={{ width: W_PX[c.width] }} className="px-3 py-2.5 text-slate-400 truncate max-w-0">{d.memo ?? ''}</td>
+      case 'record':
+        return (
+          <td key={c.key} style={{ width: W_PX[c.width] }} className="px-2 py-2.5 text-center">
+            <button
+              onClick={e => { e.stopPropagation(); setQuickMtgDeal(d) }}
+              className="inline-block px-2.5 py-1 rounded text-[10px] font-semibold bg-indigo-50 text-indigo-600 hover:bg-indigo-100 transition">
+              + 기록
+            </button>
+          </td>
+        )
       case 'detail':
         return (
           <td key={c.key} style={{ width: W_PX[c.width] }} className="px-3 py-2.5 text-center">
@@ -748,6 +897,13 @@ export default function PipelineView({ deals, salesTarget, linkedKpiLabel }: Pro
       <NewDealModal
         onClose={() => setShowNewModal(false)}
         onCreated={handleCreated}
+      />
+    )}
+    {quickMtgDeal && (
+      <QuickMeetingModal
+        deal={quickMtgDeal}
+        onClose={() => setQuickMtgDeal(null)}
+        onSaved={() => setQuickMtgDeal(null)}
       />
     )}
     </>

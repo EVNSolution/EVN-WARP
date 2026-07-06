@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { LayoutDashboard, Target, Users, BookOpen, Filter, UserRound, Settings2 } from 'lucide-react'
+import { LayoutDashboard, Target, Users, BookOpen, Filter, UserRound, Settings2, CircleUserRound } from 'lucide-react'
 import LogoutButton from './LogoutButton'
 
 const navItems = [
@@ -93,6 +93,16 @@ export default function Sidebar({ userName, userEmail }: Props) {
         >
           <Settings2 size={13} />
           관리자
+        </Link>
+        <Link
+          href="/account"
+          className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs transition-all"
+          style={{ color: pathname.startsWith('/account') ? '#C5D42A' : '#555' }}
+          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = '#999' }}
+          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = pathname.startsWith('/account') ? '#C5D42A' : '#555' }}
+        >
+          <CircleUserRound size={13} />
+          내 계정
         </Link>
       </div>
 

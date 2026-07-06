@@ -194,7 +194,7 @@ export default function LeadDetailClient({ deal, customer = null }: { deal: Deal
     setSaved(false)
   }
 
-  /* ── 소개자 Agent ── */
+  /* ── 소개인 Agent ── */
   const [agentValue, setAgentValue] = useState<{ id: string; name: string } | null>(
     deal.agent ? { id: deal.agent.id, name: deal.agent.name } : null
   )
@@ -1193,12 +1193,12 @@ export default function LeadDetailClient({ deal, customer = null }: { deal: Deal
           <div className="col-span-2">
             <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">유입경로</label>
             <div className="flex gap-1.5 flex-wrap">
-              {['소개', '자체발굴', '인바운드', 'SNS', '전시회', '기타', 'Agent'].map(s => (
+              {['소개', '자체발굴', '인바운드', 'SNS', '전시회', '기타', '소개인'].map(s => (
                 <button key={s} type="button"
-                  onClick={() => { setFv('source', f.source === s ? '' : s); if (s !== 'Agent') setAgentValue(null) }}
+                  onClick={() => { setFv('source', f.source === s ? '' : s); if (s !== '소개인') setAgentValue(null) }}
                   className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all
                     ${f.source === s
-                      ? s === 'Agent' ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-slate-800 text-white border-slate-800'
+                      ? s === '소개인' ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-slate-800 text-white border-slate-800'
                       : 'bg-white border-slate-200 text-slate-500 hover:border-slate-400'}`}>
                   {s}
                 </button>
@@ -1206,10 +1206,10 @@ export default function LeadDetailClient({ deal, customer = null }: { deal: Deal
             </div>
           </div>
 
-          {/* 소개자 AgentPicker (Agent 선택 시) */}
-          {f.source === 'Agent' && (
+          {/* 소개인 AgentPicker (소개인 선택 시) */}
+          {(f.source === '소개인' || f.source === 'Agent') && (
             <div className="col-span-2">
-              <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">소개자</label>
+              <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">소개인</label>
               <AgentPicker value={agentValue} onChange={setAgentValue} />
               {deal.agent && !agentValue && (
                 <p className="text-xs text-slate-400 mt-1">기존: {deal.agent.name}</p>
