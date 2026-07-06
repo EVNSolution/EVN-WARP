@@ -8,10 +8,11 @@ export async function PATCH(
 ) {
   const { id } = await params
   const body = await req.json()
-  const { name, role, teamId, password } = body
+  const { name, email, role, teamId, password } = body
 
   const data: Record<string, unknown> = {}
   if (name)              data.name     = name.trim()
+  if (email?.trim())     data.email    = email.trim()
   if (role)              data.role     = role
   if (teamId !== undefined) data.teamId = teamId || null
   if (password?.trim())  data.password = await bcrypt.hash(password, 12)

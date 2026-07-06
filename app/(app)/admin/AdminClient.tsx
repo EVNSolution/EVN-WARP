@@ -63,8 +63,26 @@ export default function AdminClient({
   const [teams,        setTeams]        = useState<TeamRow[]>(initialTeams)
   const [newTeamName,  setNewTeamName]  = useState('')
   const [teamAddLoading, setTeamAddLoading] = useState(false)
-  const [teamDelId,    setTeamDelId]    = useState<string | null>(null)
+  const [teamDelId,      setTeamDelId]      = useState<string | null>(null)
   const [teamDelLoading, setTeamDelLoading] = useState(false)
+  const [teamRenameId,   setTeamRenameId]   = useState<string | null>(null)
+  const [teamRenameVal,  setTeamRenameVal]  = useState('')
+  const [teamRenameLoading, setTeamRenameLoading] = useState(false)
+
+  const handleRenameTeam = async (id: string) => {
+    if (!teamRenameVal.trim()) return
+    setTeamRenameLoading(true)
+    try {
+      const res = await fetch(`/api/teams/${id}`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: teamRenameVal.trim() }),
+      })
+      if (res.ok) {
+        setTeams(prev => prev.map(t => t.id === id ? { ...t, name: teamRenameVal.trim() } : t))
+        setTeamRenameId(null)
+      }
+    } finally { setTeamRenameLoading(false) }
+  }
 
   const handleAddTeam = async () => {
     if (!newTeamName.trim()) return
@@ -101,6 +119,9 @@ export default function AdminClient({
   const [teamEditId,   setTeamEditId]   = useState<string | null>(null)
   const [teamEditVal,  setTeamEditVal]  = useState('')
   const [teamLoading,  setTeamLoading]  = useState(false)
+  const [editId,       setEditId]       = useState<string | null>(null)
+  const [editVal,      setEditVal]      = useState({ name: '', email: '', role: 'user' })
+  const [editLoading,  setEditLoading]  = useState(false)
 
   const handleAddUser = async () => {
     setAddErr('')
@@ -140,6 +161,24 @@ export default function AdminClient({
       const res = await fetch(`/api/users/${id}`, { method: 'DELETE' })
       if (res.ok) { setUsers(prev => prev.filter(u => u.id !== id)); setDelId(null) }
     } finally { setDelLoading(false) }
+  }
+
+  const handleEditUser = async (id: string) => {
+    if (!editVal.name.trim() || !editVal.email.trim()) return
+    setEditLoading(true)
+    try {
+      const res = await fetch(`/api/users/${id}`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: editVal.name, email: editVal.email, role: editVal.role }),
+      })
+      if (res.ok) {
+        setUsers(prev => prev.map(u => u.id === id
+          ? { ...u, name: editVal.name.trim(), email: editVal.email.trim(), role: editVal.role }
+          : u
+        ))
+        setEditId(null)
+      }
+    } finally { setEditLoading(false) }
   }
 
   const handleChangeTeam = async (id: string) => {
@@ -323,29 +362,54 @@ export default function AdminClient({
             <div className="divide-y divide-slate-100 border border-slate-200 rounded-xl overflow-hidden">
               {teams.map(t => (
                 <div key={t.id} className="flex items-center justify-between px-4 py-3">
-                  <span className="text-sm font-semibold text-slate-700">{t.name}</span>
-                  <div className="flex items-center gap-1.5">
-                    {teamDelId === t.id ? (
-                      <>
-                        <span className="text-xs text-red-600 font-medium">정말 삭제하시겠어요?</span>
-                        <button
-                          onClick={() => handleDeleteTeam(t.id)}
-                          disabled={teamDelLoading}
-                          className="px-2.5 py-1.5 text-xs font-bold rounded-lg bg-red-600 text-white hover:bg-red-700 disabled:opacity-40 transition">
-                          {teamDelLoading ? '...' : '삭제'}
-                        </button>
-                        <button onClick={() => setTeamDelId(null)} className="p-1.5 text-slate-400 hover:text-slate-600">
-                          <X size={13} />
-                        </button>
-                      </>
-                    ) : (
-                      <button
-                        onClick={() => setTeamDelId(t.id)}
-                        className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold rounded-lg border border-red-200 text-red-500 hover:bg-red-50 transition">
-                        <Trash2 size={11} /> 삭제
+                  {teamRenameId === t.id ? (
+                    <div className="flex items-center gap-1.5 flex-1">
+                      <input
+                        value={teamRenameVal}
+                        onChange={e => setTeamRenameVal(e.target.value)}
+                        onKeyDown={e => e.key === 'Enter' && handleRenameTeam(t.id)}
+                        className="flex-1 text-sm border border-slate-300 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-slate-400"
+                      />
+                      <button onClick={() => handleRenameTeam(t.id)} disabled={teamRenameLoading || !teamRenameVal.trim()}
+                        className="px-2.5 py-1.5 text-xs font-bold rounded-lg bg-slate-700 text-white hover:bg-slate-800 disabled:opacity-40 transition">
+                        {teamRenameLoading ? '...' : '저장'}
                       </button>
-                    )}
-                  </div>
+                      <button onClick={() => setTeamRenameId(null)} className="p-1.5 text-slate-400 hover:text-slate-600">
+                        <X size={13} />
+                      </button>
+                    </div>
+                  ) : (
+                    <>
+                      <span className="text-sm font-semibold text-slate-700">{t.name}</span>
+                      <div className="flex items-center gap-1.5">
+                        {teamDelId === t.id ? (
+                          <>
+                            <span className="text-xs text-red-600 font-medium">정말 삭제하시겠어요?</span>
+                            <button onClick={() => handleDeleteTeam(t.id)} disabled={teamDelLoading}
+                              className="px-2.5 py-1.5 text-xs font-bold rounded-lg bg-red-600 text-white hover:bg-red-700 disabled:opacity-40 transition">
+                              {teamDelLoading ? '...' : '삭제'}
+                            </button>
+                            <button onClick={() => setTeamDelId(null)} className="p-1.5 text-slate-400 hover:text-slate-600">
+                              <X size={13} />
+                            </button>
+                          </>
+                        ) : (
+                          <>
+                            <button
+                              onClick={() => { setTeamRenameId(t.id); setTeamRenameVal(t.name); setTeamDelId(null) }}
+                              className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50 transition">
+                              <Pencil size={11} /> 수정
+                            </button>
+                            <button
+                              onClick={() => { setTeamDelId(t.id); setTeamRenameId(null) }}
+                              className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold rounded-lg border border-red-200 text-red-500 hover:bg-red-50 transition">
+                              <Trash2 size={11} /> 삭제
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    </>
+                  )}
                 </div>
               ))}
             </div>
@@ -468,7 +532,28 @@ export default function AdminClient({
                 </div>
 
                 <div className="flex items-center gap-2 shrink-0">
-                  {pwdId === u.id ? (
+                  {editId === u.id ? (
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <input value={editVal.name} onChange={e => setEditVal(p => ({ ...p, name: e.target.value }))}
+                        placeholder="이름"
+                        className="text-xs border border-slate-200 rounded-lg px-2.5 py-1.5 w-24 focus:outline-none focus:ring-1 focus:ring-slate-400" />
+                      <input value={editVal.email} onChange={e => setEditVal(p => ({ ...p, email: e.target.value }))}
+                        placeholder="이메일"
+                        className="text-xs border border-slate-200 rounded-lg px-2.5 py-1.5 w-44 focus:outline-none focus:ring-1 focus:ring-slate-400" />
+                      <select value={editVal.role} onChange={e => setEditVal(p => ({ ...p, role: e.target.value }))}
+                        className="text-xs border border-slate-200 rounded-lg px-2 py-1.5 bg-white focus:outline-none focus:ring-1 focus:ring-slate-400">
+                        <option value="user">일반</option>
+                        <option value="admin">관리자</option>
+                      </select>
+                      <button onClick={() => handleEditUser(u.id)} disabled={editLoading || !editVal.name.trim() || !editVal.email.trim()}
+                        className="px-2.5 py-1.5 text-xs font-bold rounded-lg bg-slate-700 text-white hover:bg-slate-800 disabled:opacity-40 transition">
+                        {editLoading ? '...' : '저장'}
+                      </button>
+                      <button onClick={() => setEditId(null)} className="p-1.5 text-slate-400 hover:text-slate-600">
+                        <X size={13} />
+                      </button>
+                    </div>
+                  ) : pwdId === u.id ? (
                     <div className="flex items-center gap-1.5">
                       <input type="password" value={newPwd}
                         onChange={e => setNewPwd(e.target.value)}
@@ -514,17 +599,22 @@ export default function AdminClient({
                   ) : (
                     <>
                       <button
-                        onClick={() => { setTeamEditId(u.id); setTeamEditVal(u.teamId ?? ''); setPwdId(null); setDelId(null) }}
+                        onClick={() => { setEditId(u.id); setEditVal({ name: u.name, email: u.email, role: u.role }); setPwdId(null); setDelId(null); setTeamEditId(null) }}
+                        className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50 transition">
+                        <Pencil size={11} /> 정보 수정
+                      </button>
+                      <button
+                        onClick={() => { setTeamEditId(u.id); setTeamEditVal(u.teamId ?? ''); setPwdId(null); setDelId(null); setEditId(null) }}
                         className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50 transition">
                         <Pencil size={11} /> 팀 변경
                       </button>
                       <button
-                        onClick={() => { setPwdId(u.id); setDelId(null); setTeamEditId(null); setNewPwd('') }}
+                        onClick={() => { setPwdId(u.id); setDelId(null); setTeamEditId(null); setEditId(null); setNewPwd('') }}
                         className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50 transition">
                         <KeyRound size={11} /> 비번 변경
                       </button>
                       <button
-                        onClick={() => { setDelId(u.id); setPwdId(null); setTeamEditId(null) }}
+                        onClick={() => { setDelId(u.id); setPwdId(null); setTeamEditId(null); setEditId(null) }}
                         className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold rounded-lg border border-red-200 text-red-500 hover:bg-red-50 transition">
                         <Trash2 size={11} /> 삭제
                       </button>
