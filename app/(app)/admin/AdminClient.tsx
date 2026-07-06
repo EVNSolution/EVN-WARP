@@ -6,7 +6,7 @@ import {
   AlertTriangle, CheckCircle2, RefreshCw,
   Users, Database, Link2, Unlink,
   GitMerge, Search, Phone, ChevronDown, ChevronUp,
-  Trash2, Eye, UserPlus, KeyRound, X, Pencil,
+  Trash2, Eye, UserPlus, KeyRound, X, Pencil, FolderPlus,
 } from 'lucide-react'
 
 /* ── 타입 ── */
@@ -53,11 +53,39 @@ interface LostPreview {
 const RESET_RESULT_INIT = null as { resetCount: number; createCount: number; message: string } | null
 
 export default function AdminClient({
-  stats, users: initialUsers, teams,
+  stats, users: initialUsers, teams: initialTeams,
 }: {
   stats: Stats; users: UserRow[]; teams: TeamRow[]
 }) {
   const router = useRouter()
+
+  /* ── 팀 관리 ── */
+  const [teams,        setTeams]        = useState<TeamRow[]>(initialTeams)
+  const [newTeamName,  setNewTeamName]  = useState('')
+  const [teamAddLoading, setTeamAddLoading] = useState(false)
+  const [teamDelId,    setTeamDelId]    = useState<string | null>(null)
+  const [teamDelLoading, setTeamDelLoading] = useState(false)
+
+  const handleAddTeam = async () => {
+    if (!newTeamName.trim()) return
+    setTeamAddLoading(true)
+    try {
+      const res  = await fetch('/api/teams', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: newTeamName.trim() }),
+      })
+      const data = await res.json()
+      if (res.ok) { setTeams(prev => [...prev, data].sort((a, b) => a.name.localeCompare(b.name))); setNewTeamName('') }
+    } finally { setTeamAddLoading(false) }
+  }
+
+  const handleDeleteTeam = async (id: string) => {
+    setTeamDelLoading(true)
+    try {
+      const res = await fetch(`/api/teams/${id}`, { method: 'DELETE' })
+      if (res.ok) { setTeams(prev => prev.filter(t => t.id !== id)); setTeamDelId(null) }
+    } finally { setTeamDelLoading(false) }
+  }
 
   /* ── 사용자 관리 ── */
   const [users,      setUsers]      = useState<UserRow[]>(initialUsers)
@@ -256,6 +284,73 @@ export default function AdminClient({
       <div>
         <h1 className="text-2xl font-bold text-slate-800">관리자</h1>
         <p className="text-sm text-slate-500 mt-1">사용자 계정 및 데이터 관리</p>
+      </div>
+
+      {/* ══ 팀 관리 ══ */}
+      <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden">
+        <div className="px-6 py-4 bg-slate-700 flex items-center justify-between">
+          <div>
+            <h2 className="text-white font-bold text-sm flex items-center gap-2">
+              <FolderPlus size={15} /> 팀 관리
+            </h2>
+            <p className="text-slate-400 text-xs mt-0.5">팀 추가 · 삭제 — 사용자 등록 전에 먼저 팀을 만드세요</p>
+          </div>
+        </div>
+
+        <div className="p-5 space-y-3">
+          {/* 팀 추가 입력 */}
+          <div className="flex gap-2">
+            <input
+              value={newTeamName}
+              onChange={e => setNewTeamName(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && handleAddTeam()}
+              placeholder="팀 이름 입력 (예: 영업1팀)"
+              className="flex-1 text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-slate-400"
+            />
+            <button
+              onClick={handleAddTeam}
+              disabled={teamAddLoading || !newTeamName.trim()}
+              className="px-4 py-2 text-sm font-bold rounded-lg bg-slate-800 text-white hover:bg-slate-700 transition disabled:opacity-40 flex items-center gap-1.5">
+              {teamAddLoading ? <RefreshCw size={12} className="animate-spin" /> : <FolderPlus size={12} />}
+              추가
+            </button>
+          </div>
+
+          {/* 팀 목록 */}
+          {teams.length === 0 ? (
+            <p className="text-xs text-slate-400 text-center py-4">등록된 팀이 없습니다.</p>
+          ) : (
+            <div className="divide-y divide-slate-100 border border-slate-200 rounded-xl overflow-hidden">
+              {teams.map(t => (
+                <div key={t.id} className="flex items-center justify-between px-4 py-3">
+                  <span className="text-sm font-semibold text-slate-700">{t.name}</span>
+                  <div className="flex items-center gap-1.5">
+                    {teamDelId === t.id ? (
+                      <>
+                        <span className="text-xs text-red-600 font-medium">정말 삭제하시겠어요?</span>
+                        <button
+                          onClick={() => handleDeleteTeam(t.id)}
+                          disabled={teamDelLoading}
+                          className="px-2.5 py-1.5 text-xs font-bold rounded-lg bg-red-600 text-white hover:bg-red-700 disabled:opacity-40 transition">
+                          {teamDelLoading ? '...' : '삭제'}
+                        </button>
+                        <button onClick={() => setTeamDelId(null)} className="p-1.5 text-slate-400 hover:text-slate-600">
+                          <X size={13} />
+                        </button>
+                      </>
+                    ) : (
+                      <button
+                        onClick={() => setTeamDelId(t.id)}
+                        className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold rounded-lg border border-red-200 text-red-500 hover:bg-red-50 transition">
+                        <Trash2 size={11} /> 삭제
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* ══ 사용자 관리 ══ */}
