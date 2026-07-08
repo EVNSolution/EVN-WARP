@@ -12,7 +12,9 @@ function esc(v) {
   if (v === null || v === undefined) return 'NULL'
   if (typeof v === 'number' || typeof v === 'bigint') return String(v)
   if (typeof v === 'boolean') return v ? '1' : '0'
-  return `'${String(v).replace(/'/g, "''")}'`
+  // escape single quotes and replace newlines with char(10) so INSERT stays single-line
+  const s = String(v).replace(/'/g, "''").replace(/\r/g, '').replace(/\n/g, "' || char(10) || '")
+  return `'${s}'`
 }
 
 async function dumpTable(table, orderBy = 'rowid') {
