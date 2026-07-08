@@ -70,6 +70,7 @@ fi
 
 npm ci
 npx prisma generate
+npx tsx scripts/dedup-teams.ts
 npx prisma db push
 
 admin_email="$(node -e "const fs=require('fs');const dotenv=require('dotenv');const e=dotenv.parse(fs.readFileSync('.env'));process.stdout.write(e.ADMIN_EMAIL||'')")"
