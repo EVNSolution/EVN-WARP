@@ -28,7 +28,7 @@ jobs:
           cat > /tmp/check.json << 'EOF'
           {"commands": [
             "cd /opt/evn-warp",
-            "node -e \"const {createClient}=require('@libsql/client');const c=createClient({url:'file:./dev.db'});(async(){const ts=['Team','StrategyTask','KpiItem','MonthlyTarget','Countermeasure','WorkActivity','WeeklyUpdate','CompanyKpi','CompanyKpiEntry'];for(const t of ts){try{const r=await c.execute('SELECT COUNT(*) as cnt FROM \\\"'+t+'\\\"');console.log(t+': '+r.rows[0].cnt);}catch(e){console.log(t+': ERROR '+e.message);}}})();\""
+            "node -e \"const {createClient}=require('@libsql/client');const c=createClient({url:'file:./dev.db'});const ts=['Team','StrategyTask','KpiItem','MonthlyTarget','Countermeasure','WorkActivity','WeeklyUpdate','CompanyKpi','CompanyKpiEntry'];Promise.all(ts.map(t=>c.execute('SELECT COUNT(*) as cnt FROM \\\"'+t+'\\\"').then(r=>t+': '+r.rows[0].cnt).catch(e=>t+': ERROR '+e.message))).then(rs=>rs.forEach(r=>console.log(r))).catch(e=>console.error(e));\""
           ]}
           EOF
 
