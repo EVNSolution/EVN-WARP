@@ -467,17 +467,27 @@ export default function TripDayTable({
                           const isKrw = cellCur === 'KRW'
                           return (
                             <>
+                              {/* 금액 입력 + 📎 */}
                               <div className="flex items-center gap-0.5">
                                 <input type="number"
                                   value={row?.[c.cost] ?? ''}
                                   onChange={e => updateField(date, { [c.cost]: e.target.value ? Number(e.target.value) : null })}
                                   className="w-full text-[11px] px-1 py-1 rounded border border-transparent hover:border-slate-200 focus:border-indigo-300 focus:outline-none bg-transparent text-right"
                                   placeholder="0" />
-                                {/* 통화 토글: fxCurrency 설정 시만 표시 */}
+                                {isUploading ? (
+                                  <span className="text-[9px] text-blue-400 shrink-0">…</span>
+                                ) : (
+                                  <button onClick={() => { pendingUpload.current = { date, col: c.cost }; fileInputRef.current?.click() }}
+                                    className="text-[11px] leading-none shrink-0 text-slate-300 hover:text-blue-500 transition"
+                                    title="영수증 추가">📎</button>
+                                )}
+                              </div>
+                              {/* 통화 토글 + KRW 환산 (두 번째 줄) */}
+                              <div className="flex items-center justify-between mt-0.5">
                                 {fxCurrency ? (
                                   <button
                                     onClick={() => changeCellCurrency(date, c.cost, isKrw ? fxCurrency : 'KRW')}
-                                    className="text-[9px] font-semibold px-1 py-0.5 rounded shrink-0 transition border"
+                                    className="text-[9px] font-semibold px-1.5 py-0.5 rounded transition border"
                                     style={isKrw
                                       ? { color: '#64748b', background: '#f1f5f9', borderColor: '#e2e8f0' }
                                       : { color: '#1d4ed8', background: '#dbeafe', borderColor: '#93c5fd' }
@@ -487,22 +497,14 @@ export default function TripDayTable({
                                     {cellCur}
                                   </button>
                                 ) : (
-                                  <span className="text-[9px] shrink-0 text-slate-400">KRW</span>
+                                  <span className="text-[9px] text-slate-400">KRW</span>
                                 )}
-                                {isUploading ? (
-                                  <span className="text-[9px] text-blue-400 shrink-0">…</span>
-                                ) : (
-                                  <button onClick={() => { pendingUpload.current = { date, col: c.cost }; fileInputRef.current?.click() }}
-                                    className="text-[11px] leading-none shrink-0 text-slate-300 hover:text-blue-500 transition"
-                                    title="영수증 추가">📎</button>
+                                {!isKrw && fxRate && row?.[c.cost] != null && row[c.cost]! > 0 && (
+                                  <span className="text-[10px] text-slate-400">
+                                    ={Math.round(row[c.cost]! * fxRate).toLocaleString('ko-KR')}
+                                  </span>
                                 )}
                               </div>
-                              {/* KRW 환산 표시 (외화 셀 + 환율 있을 때) */}
-                              {!isKrw && fxRate && row?.[c.cost] != null && row[c.cost]! > 0 && (
-                                <div className="text-[10px] text-slate-400 text-right mt-0.5">
-                                  = {Math.round(row[c.cost]! * fxRate).toLocaleString('ko-KR')} KRW
-                                </div>
-                              )}
                             </>
                           )
                         })()}
