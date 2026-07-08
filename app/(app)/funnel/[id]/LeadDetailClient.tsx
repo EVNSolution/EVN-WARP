@@ -1332,10 +1332,7 @@ export default function LeadDetailClient({ deal, customer = null }: { deal: Deal
                     accept=".mp3,.m4a,.wav,.pdf,.docx,.xlsx,.txt,.png,.jpg"
                     onChange={handleFileUpload}
                     className="hidden" />
-                  <input ref={docFileRef} type="file"
-                    accept=".pdf,.jpg,.jpeg,.png,.xlsx,.docx"
-                    onChange={handleDocFileChange}
-                    className="hidden" />
+                  {/* docFileRef는 아래 항상 마운트된 위치로 이동 */}
                   <button onClick={() => fileRef.current?.click()} disabled={uploading}
                     className="px-3 py-1.5 text-xs rounded-lg border border-slate-300 text-slate-600 hover:bg-slate-100 transition disabled:opacity-40">
                     {uploading ? '업로드 중...' : '파일 선택'}
@@ -1430,6 +1427,12 @@ export default function LeadDetailClient({ deal, customer = null }: { deal: Deal
           </div>
         )}
       </div>
+
+      {/* 증빙서류 업로드용 숨김 input — 항상 마운트되어야 docFileRef.current?.click() 작동 */}
+      <input ref={docFileRef} type="file"
+        accept=".pdf,.jpg,.jpeg,.png,.xlsx,.docx"
+        onChange={handleDocFileChange}
+        className="hidden" />
 
       {/* AI 통화 분석 모달 */}
       {showAnalysis && (
