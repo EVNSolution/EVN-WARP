@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { useState, useEffect, useRef, useCallback } from 'react'
 
@@ -292,7 +292,7 @@ export default function TripDayTable({
             <span className="text-slate-400">조회 중…</span>
           ) : fxRate ? (
             <span className="text-blue-600 font-medium">
-              1 {fxCurrency} = {fxRate.toLocaleString('ko-KR')} 원
+              1 {fxCurrency} = {fxRate.toLocaleString('ko-KR')} KRW
               <span className="ml-1 text-slate-400">({startDate} 기준)</span>
             </span>
           ) : (
@@ -377,7 +377,7 @@ export default function TripDayTable({
                             className="w-full text-[11px] px-1 py-1 rounded border border-transparent hover:border-slate-200 focus:border-indigo-300 focus:outline-none bg-transparent text-right"
                             placeholder="0" />
                           <span className="text-[9px] shrink-0 text-slate-400">
-                            {fxCurrency && fxRate ? fxCurrency : '원'}
+                            {fxCurrency && fxRate ? fxCurrency : 'KRW'}
                           </span>
                           {isUploading ? (
                             <span className="text-[9px] text-blue-400 shrink-0">…</span>
@@ -390,7 +390,7 @@ export default function TripDayTable({
                         {/* KRW 환산 표시 (외화 모드 + 환율 있을 때) */}
                         {fxCurrency && fxRate && row?.[c.cost] != null && row[c.cost]! > 0 && (
                           <div className="text-[10px] text-slate-400 text-right mt-0.5">
-                            = {Math.round(row[c.cost]! * fxRate).toLocaleString('ko-KR')} 원
+                            = {Math.round(row[c.cost]! * fxRate).toLocaleString('ko-KR')} KRW
                           </div>
                         )}
                         {/* 첨부된 영수증 목록 (다중) */}
@@ -423,7 +423,7 @@ export default function TripDayTable({
                     totals[i] > 0 ? (
                       <div>
                         <div className="text-blue-600">{totals[i].toLocaleString('ko-KR')} {fxCurrency}</div>
-                        <div className="text-indigo-700">{Math.round(totals[i] * fxRate).toLocaleString('ko-KR')} 원</div>
+                        <div className="text-indigo-700">{Math.round(totals[i] * fxRate).toLocaleString('ko-KR')} KRW</div>
                       </div>
                     ) : '—'
                   ) : (
@@ -449,7 +449,7 @@ export default function TripDayTable({
                 <div>
                   <span className="text-slate-400 text-xs">결재 금액</span>
                   <span className="ml-2 text-xl font-bold text-indigo-700">{Math.round(grandTotal * fxRate).toLocaleString('ko-KR')}</span>
-                  <span className="ml-1 text-slate-500">원</span>
+                  <span className="ml-1 text-slate-500">KRW</span>
                 </div>
               </div>
             ) : (

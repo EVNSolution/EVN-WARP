@@ -269,6 +269,35 @@ export default function TripForm({ mode, initial, users, currentUserId }: Props)
   return (
     <div className="max-w-5xl mx-auto py-8 px-6 space-y-5">
 
+      {/* ── Sticky 저장 바 ─────────────────────────────────────────── */}
+      <div className="sticky top-0 z-30 -mx-6 px-6 py-2.5 bg-white/95 backdrop-blur border-b border-slate-200 shadow-sm flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <div className="w-6 h-6 rounded-lg flex items-center justify-center shrink-0"
+            style={{ backgroundColor: form.type === '해외출장' ? '#6366f1' : '#f97316' }}>
+            {form.type === '해외출장' ? <Plane size={12} className="text-white" /> : <MapPin size={12} className="text-white" />}
+          </div>
+          <span className="text-sm font-semibold text-slate-700 truncate max-w-xs">
+            {form.title || (mode === 'create' ? '새 출장보고서' : '출장보고서 수정')}
+          </span>
+        </div>
+        <div className="flex items-center gap-2">
+          {saving && <span className="text-xs text-slate-400">저장 중…</span>}
+          <button onClick={() => save()}
+            disabled={saving}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-semibold rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-50 disabled:opacity-50 transition-all">
+            <Save size={13} />
+            초안 저장
+          </button>
+          <button onClick={() => save('승인요청')}
+            disabled={saving}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-semibold rounded-lg text-white transition-all disabled:opacity-50"
+            style={{ background: 'linear-gradient(135deg, #6366f1, #8b5cf6)' }}>
+            <Send size={13} />
+            승인 요청
+          </button>
+        </div>
+      </div>
+
       {/* 헤더 */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
