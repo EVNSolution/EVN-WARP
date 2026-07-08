@@ -41,6 +41,8 @@ const tables = [
   ['WeeklyUpdate',    'rowid'],
   ['CompanyKpi',      'rowid'],
   ['CompanyKpiEntry', 'rowid'],
+  ['TripReport',      'rowid'],
+  ['TripDayRecord',   'rowid'],
 ]
 
 let sql = `-- EVN WARP 전략과제/KPI 데이터 이전 스크립트\n-- 생성: ${new Date().toISOString()}\nPRAGMA foreign_keys = OFF;\nBEGIN TRANSACTION;\n\n`
