@@ -571,9 +571,27 @@ export default function TripDayTable({
         </div>
       )}
 
-      <p className="mt-2 text-[11px] text-slate-400 text-center">
-        영수증을 비용 셀에 드래그하거나 📎를 클릭해 첨부하면 금액이 자동 인식됩니다. 자동 저장됩니다.
-      </p>
+      <div className="mt-3 flex items-center justify-between">
+        <p className="text-[11px] text-slate-400">
+          영수증을 비용 셀에 드래그하거나 📎를 클릭해 첨부하면 금액이 자동 인식됩니다.
+        </p>
+        <button
+          onClick={() => {
+            Object.values(saveTimers.current).forEach(clearTimeout)
+            saveTimers.current = {}
+            Promise.all(rows.map(row =>
+              fetch(`/api/trips/${tripId}/days/${row.id}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(row),
+              })
+            ))
+          }}
+          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg border border-slate-300 text-slate-600 hover:bg-slate-50 transition shrink-0"
+        >
+          💾 저장
+        </button>
+      </div>
     </div>
   )
 }
