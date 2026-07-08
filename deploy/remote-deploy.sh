@@ -31,14 +31,19 @@ cd "$APP_DIR"
 old_commit="$(git rev-parse --short HEAD 2>/dev/null || true)"
 git fetch --prune origin "$DEPLOY_REF"
 
-# git 작업 전에 public/uploads 파일을 영구 보존 디렉터리로 이동
-# (git에서 삭제된 파일이 EC2에 남아 있으면 checkout이 실패하므로 선행 처리)
+# git 작업 전에 public/uploads 정리 (실제 디렉터리 또는 심볼릭 링크 모두 처리)
+# git에서 삭제된 파일이 EC2에 남아 있으면 checkout이 실패하므로 선행 처리
 UPLOADS_PERSIST="/opt/evn-uploads"
 mkdir -p "$UPLOADS_PERSIST"
 if [ -d "public/uploads" ] && [ ! -L "public/uploads" ]; then
+  # 실제 디렉터리: 파일을 영구 보존 디렉터리로 복사 후 삭제
   cp -rn "public/uploads/." "$UPLOADS_PERSIST/" 2>/dev/null || true
   rm -rf "public/uploads"
   echo "Migrated public/uploads -> $UPLOADS_PERSIST"
+elif [ -L "public/uploads" ]; then
+  # 심볼릭 링크: 링크만 제거 (파일은 이미 $UPLOADS_PERSIST에 있음)
+  rm "public/uploads"
+  echo "Removed public/uploads symlink"
 fi
 
 git checkout -B deploy-target FETCH_HEAD
