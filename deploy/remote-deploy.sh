@@ -30,6 +30,17 @@ fi
 cd "$APP_DIR"
 old_commit="$(git rev-parse --short HEAD 2>/dev/null || true)"
 git fetch --prune origin "$DEPLOY_REF"
+
+# git 작업 전에 public/uploads 파일을 영구 보존 디렉터리로 이동
+# (git에서 삭제된 파일이 EC2에 남아 있으면 checkout이 실패하므로 선행 처리)
+UPLOADS_PERSIST="/opt/evn-uploads"
+mkdir -p "$UPLOADS_PERSIST"
+if [ -d "public/uploads" ] && [ ! -L "public/uploads" ]; then
+  cp -rn "public/uploads/." "$UPLOADS_PERSIST/" 2>/dev/null || true
+  rm -rf "public/uploads"
+  echo "Migrated public/uploads -> $UPLOADS_PERSIST"
+fi
+
 git checkout -B deploy-target FETCH_HEAD
 git reset --hard FETCH_HEAD
 new_commit="$(git rev-parse --short HEAD)"
@@ -38,10 +49,6 @@ if [ -f dev.db ]; then
   cp dev.db "$BACKUP_DIR/dev-${ts}-${old_commit:-unknown}.db"
 fi
 
-# 업로드 파일 영구 보존 디렉터리 (배포와 무관하게 유지)
-# 파일은 /api/uploads/ 라우트를 통해 서빙됨 (public/ 바깥에 위치)
-UPLOADS_PERSIST="/opt/evn-uploads"
-mkdir -p "$UPLOADS_PERSIST"
 echo "Uploads directory: $UPLOADS_PERSIST"
 
 app_env="$(get_param "$SSM_APP_ENV_PARAM")"
