@@ -63,12 +63,6 @@ export default async function FunnelPage() {
     // linkedToFunnel 컬럼이 없는 환경에서도 페이지가 열리도록 폴백
   }
 
-  // 요약 통계
-  const activeDeals  = deals.filter(d => d.salesStatus === '진행중')
-  const lostDeals    = deals.filter(d => d.salesStatus === '이탈')
-  const doneDeals    = deals.filter(d => d.salesStatus === '완료')
-  const contractCount = deals.filter(d => ['2-1','2-2','2-3','3-1','3-2','3-3','4-1'].includes(d.stageCode)).length
-
   return (
     <div className="flex flex-col h-[calc(100vh-64px)] overflow-hidden">
       {/* ── 상단 헤더 ── */}
@@ -79,29 +73,9 @@ export default async function FunnelPage() {
             4단계 · 11 프로세스 통합 관리
           </p>
         </div>
-        <div className="flex items-center gap-5 text-xs">
+        <div className="flex items-center gap-3 text-xs">
           <ExcelImportExport />
           <ProcessGuideButton />
-          <div className="text-center">
-            <div className="text-white/50 text-[10px]">전체 리드</div>
-            <div className="text-white font-bold text-base">{deals.length}</div>
-          </div>
-          <div className="text-center">
-            <div className="text-white/50 text-[10px]">진행중</div>
-            <div className="text-blue-400 font-bold text-base">{activeDeals.length}</div>
-          </div>
-          <div className="text-center">
-            <div className="text-white/50 text-[10px]">계약 이후</div>
-            <div className="font-bold text-base" style={{ color: '#C5D42A' }}>{contractCount}</div>
-          </div>
-          <div className="text-center">
-            <div className="text-white/50 text-[10px]">출고 완료</div>
-            <div className="text-green-400 font-bold text-base">{doneDeals.length}</div>
-          </div>
-          <div className="text-center">
-            <div className="text-white/50 text-[10px]">이탈</div>
-            <div className="text-slate-500 font-bold text-base">{lostDeals.length}</div>
-          </div>
         </div>
       </div>
 
