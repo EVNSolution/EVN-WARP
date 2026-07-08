@@ -5,6 +5,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   const { id } = await params
   const body = await req.json()
   const { type, title, content, mentions, date, endDate, kpiItemId, kpiWeek, actualNum, countermeasureId, planStatus, referenceUrl,
+    taskId, teamId, userId, userName,
     expenseTransport, expenseAccomm, expenseMeal, expenseOther, expenseNote,
     expenseTransportReceipt, expenseAccommReceipt, expenseMealReceipt, expenseOtherReceipt } = body
 
@@ -22,6 +23,10 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   const activity = await prisma.workActivity.update({
     where: { id },
     data: {
+      ...(taskId   !== undefined && { taskId:   taskId   || null }),
+      ...(teamId   !== undefined && { teamId:   teamId   || null }),
+      ...(userId   !== undefined && { userId:   userId   || null }),
+      ...(userName !== undefined && { userName: userName || null }),
       ...(type     !== undefined && { type }),
       ...(title    !== undefined && { title: title.trim() }),
       ...(content  !== undefined && { content: content || null }),

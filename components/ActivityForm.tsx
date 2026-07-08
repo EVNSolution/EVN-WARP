@@ -213,12 +213,16 @@ type Task    = {
   kpiItems: KpiItem[]
   countermeasures: CmItem[]
 }
+type User = { id: string; name: string | null; email: string }
 
 interface Props {
   teams:   Team[]
   tasks:   Task[]
+  users?:  User[]
   initial?: {
     id?:               string
+    userId?:           string
+    userName?:         string
     taskId?:           string | null
     teamId?:           string
     date?:             string
@@ -249,11 +253,13 @@ interface Props {
 
 const TRIP_TYPES = new Set(['국내출장', '해외출장'])
 
-export default function ActivityForm({ teams, tasks, initial, mode, returnUrl = '/notes', expensePrintUrl }: Props) {
+export default function ActivityForm({ teams, tasks, users = [], initial, mode, returnUrl = '/notes', expensePrintUrl }: Props) {
   const router = useRouter()
   const WEEK_OPTIONS = generateWeekOptions()
   const currentWeekId = WEEK_OPTIONS.find(o => o.label.includes('이번 주'))?.value ?? WEEK_OPTIONS[0]?.value ?? ''
 
+  const [userId,   setUserId]   = useState(initial?.userId   ?? '')
+  const [userName, setUserName] = useState(initial?.userName ?? '')
   const [linked, setLinked] = useState<boolean>(initial?.taskId != null ? true : false)
 
   const initTask = initial?.taskId ? tasks.find(t => t.id === initial.taskId) : null
@@ -380,6 +386,8 @@ export default function ActivityForm({ teams, tasks, initial, mode, returnUrl = 
     const payload = {
       taskId: finalTaskId,
       teamId: finalTeamId,
+      ...(userId   && { userId }),
+      ...(userName && { userName }),
       date, type, title: finalTitle, content, mentions,
       planStatus,
       referenceUrl: referenceUrl.trim() || null,
@@ -574,6 +582,27 @@ export default function ActivityForm({ teams, tasks, initial, mode, returnUrl = 
                   }`}>{t.name}</button>
               ))}
             </div>
+          </div>
+        )}
+
+        {/* ③-b 담당자 (users 목록이 있을 때만 표시) */}
+        {users.length > 0 && (
+          <div className="bg-white border border-slate-200 rounded-xl p-5">
+            <p className="text-sm font-semibold text-slate-700 mb-2">담당자</p>
+            <select
+              value={userId}
+              onChange={e => {
+                const u = users.find(u => u.id === e.target.value)
+                setUserId(e.target.value)
+                setUserName(u ? (u.name ?? u.email) : '')
+              }}
+              className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-300"
+            >
+              <option value="">-- 담당자 선택 --</option>
+              {users.map(u => (
+                <option key={u.id} value={u.id}>{u.name ?? u.email}</option>
+              ))}
+            </select>
           </div>
         )}
 
