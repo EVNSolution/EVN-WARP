@@ -257,23 +257,27 @@ export default function TripDayTable({
       const res = await fetch(`/api/trips/${tripId}/days/ocr`, { method: 'POST', body: fd })
       const data = await res.json()
 
-      // 현재 행의 기존 금액·영수증 URL 읽기
-      const currentRow    = rows.find(r => r.date === date)
-      const prevAmount    = (currentRow?.[col]        as number | null) ?? 0
-      const prevReceipt   = (currentRow?.[receiptKey] as string | null) ?? ''
+      const currentRow  = rows.find(r => r.date === date)
+      const prevAmount  = (currentRow?.[col]        as number | null) ?? 0
+      const prevReceipt = (currentRow?.[receiptKey] as string | null) ?? ''
 
       const patch: Partial<DayRecord> = {
-        // 영수증 URL 누적 (파이프 구분)
         [receiptKey]: prevReceipt ? `${prevReceipt}|${data.url}` : data.url,
       }
-      // 금액 누적 합산
       if (data.amount != null) patch[col] = prevAmount + data.amount
+
+      // OCR이 통화를 감지했고 현재 셀 통화와 다를 때 → 자동 전환
+      if (data.currency && data.currency !== getCellCurrency(date, col)) {
+        const newDateMap = { ...(cellCurrencies[date] ?? {}), [col]: data.currency }
+        setCellCurrencies(prev => ({ ...prev, [date]: newDateMap }))
+        patch.costCurrencies = JSON.stringify(newDateMap)
+      }
 
       await updateField(date, patch)
     } finally {
       setUploading(null)
     }
-  }, [tripId, updateField, rows])
+  }, [tripId, updateField, rows, getCellCurrency, cellCurrencies])
 
   const onFileChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const p = pendingUpload.current
@@ -485,7 +489,10 @@ export default function TripDayTable({
                                   className="text-[10px] text-blue-500 hover:underline">📄{i+1}</a>
                                 <button onClick={() => {
                                   const urls = receiptUrl.split('|').filter((_, idx) => idx !== i)
-                                  updateField(date, { [receiptKey]: urls.length > 0 ? urls.join('|') : null })
+                                  updateField(date, {
+                                    [receiptKey]: urls.length > 0 ? urls.join('|') : null,
+                                    [c.cost]: null,  // 영수증 삭제 시 금액도 초기화
+                                  })
                                 }} className="text-slate-300 hover:text-red-400 text-[9px] ml-0.5">✕</button>
                               </div>
                             ))}

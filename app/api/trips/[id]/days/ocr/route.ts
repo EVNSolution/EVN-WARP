@@ -2,6 +2,27 @@ import { NextRequest, NextResponse } from 'next/server'
 import { writeFile, mkdir, readdir } from 'fs/promises'
 import path from 'path'
 
+// AI 응답에서 금액 + 통화 파싱: "23500 KRW" / "285.50 CNY" 등
+function parseOcrResponse(raw: string): { amount: number | null; currency: string | null } {
+  const currencyMap: [string, string][] = [
+    ['KRW', 'KRW'], ['원', 'KRW'], ['₩', 'KRW'],
+    ['CNY', 'CNY'], ['RMB', 'CNY'], ['CNH', 'CNY'], ['元', 'CNY'], ['人民币', 'CNY'],
+    ['USD', 'USD'], ['$', 'USD'],
+    ['EUR', 'EUR'], ['€', 'EUR'],
+    ['JPY', 'JPY'], ['円', 'JPY'],
+    ['THB', 'THB'], ['฿', 'THB'],
+    ['VND', 'VND'], ['₫', 'VND'],
+  ]
+  let currency: string | null = null
+  for (const [symbol, code] of currencyMap) {
+    if (raw.toUpperCase().includes(symbol.toUpperCase())) { currency = code; break }
+  }
+  const nums = raw.match(/[\d,，.]+/g)
+  if (!nums) return { amount: null, currency }
+  const amount = parseFloat(nums[nums.length - 1].replace(/[,，]/g, ''))
+  return { amount: isNaN(amount) || amount <= 0 ? null : amount, currency }
+}
+
 // Tesseract 텍스트에서 합계 금액 파싱
 function extractAmountFromText(text: string): number | null {
   const lines = text.split('\n').map(l => l.trim()).filter(Boolean)
@@ -38,11 +59,12 @@ function extractAmountFromText(text: string): number | null {
 // ── 1순위: Gemini Vision (모델 순차 폴백) ────────────────────────────
 const GEMINI_MODELS = ['gemini-2.5-flash', 'gemini-2.0-flash-lite', 'gemini-2.0-flash']
 
-async function geminiOCR(buffer: Buffer, mimeType: string): Promise<number | null> {
+async function geminiOCR(buffer: Buffer, mimeType: string): Promise<{ amount: number | null; currency: string | null }> {
   const { GoogleGenerativeAI } = await import('@google/generative-ai')
   const genai  = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY!)
-  const prompt = '이 영수증 이미지에서 최종 합계(총액) 금액만 숫자로 알려주세요. ' +
-                 '통화 기호·쉼표·공백 없이 숫자만 답하세요. 예: 15000  또는  285.50'
+  const prompt = '이 영수증에서 최종 합계 금액과 통화를 알려주세요. ' +
+                 '형식 예시: "23500 KRW" 또는 "285.50 CNY" 또는 "15.50 USD" ' +
+                 '금액 숫자와 통화코드(KRW/CNY/USD 등) 두 가지만 답하세요.'
 
   for (const modelName of GEMINI_MODELS) {
     try {
@@ -51,19 +73,19 @@ async function geminiOCR(buffer: Buffer, mimeType: string): Promise<number | nul
         { inlineData: { data: buffer.toString('base64'), mimeType: mimeType as any } },
         prompt,
       ])
-      const raw    = result.response.text().trim()
-      const amount = parseFloat(raw.replace(/[^0-9.]/g, ''))
-      console.log(`[Gemini OCR:${modelName}] 응답: "${raw}" → ${amount}`)
-      if (!isNaN(amount) && amount > 0) return amount
+      const raw = result.response.text().trim()
+      console.log(`[Gemini OCR:${modelName}] 응답: "${raw}"`)
+      const parsed = parseOcrResponse(raw)
+      if (parsed.amount != null) return parsed
     } catch (e: any) {
       console.warn(`[Gemini OCR:${modelName}] 실패: ${e?.message}`)
     }
   }
-  return null
+  return { amount: null, currency: null }
 }
 
 // ── 2순위: Claude Vision ──────────────────────────────────────────────
-async function claudeOCR(buffer: Buffer, mimeType: string): Promise<number | null> {
+async function claudeOCR(buffer: Buffer, mimeType: string): Promise<{ amount: number | null; currency: string | null }> {
   const Anthropic = (await import('@anthropic-ai/sdk')).default
   const client  = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! })
   const message = await client.messages.create({
@@ -73,14 +95,13 @@ async function claudeOCR(buffer: Buffer, mimeType: string): Promise<number | nul
       role: 'user',
       content: [
         { type: 'image', source: { type: 'base64', media_type: mimeType as any, data: buffer.toString('base64') } },
-        { type: 'text', text: '이 영수증에서 최종 합계 금액만 숫자로 알려주세요. 숫자만 답하세요. 예: 15000' },
+        { type: 'text', text: '이 영수증에서 최종 합계 금액과 통화를 알려주세요. 형식: "금액 통화코드" 예: "23500 KRW" 또는 "285 CNY"' },
       ],
     }],
   })
-  const raw    = (message.content[0] as any).text?.trim() ?? ''
-  const amount = parseFloat(raw.replace(/[^0-9.]/g, ''))
-  console.log(`[Claude OCR] 응답: "${raw}" → ${amount}`)
-  return isNaN(amount) ? null : amount
+  const raw = (message.content[0] as any).text?.trim() ?? ''
+  console.log(`[Claude OCR] 응답: "${raw}"`)
+  return parseOcrResponse(raw)
 }
 
 
@@ -127,8 +148,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   if (googleKey) {
     try {
-      const amount = await geminiOCR(buffer, file.type)
-      return NextResponse.json({ url, amount, engine: 'gemini' })
+      const { amount, currency } = await geminiOCR(buffer, file.type)
+      return NextResponse.json({ url, amount, currency, engine: 'gemini' })
     } catch (e: any) {
       console.error('[Gemini OCR] 실패, 다음 엔진 시도:', e?.message)
     }
@@ -136,10 +157,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   if (anthropicKey) {
     try {
-      const amount = await claudeOCR(buffer, file.type)
-      return NextResponse.json({ url, amount, engine: 'claude' })
+      const { amount, currency } = await claudeOCR(buffer, file.type)
+      return NextResponse.json({ url, amount, currency, engine: 'claude' })
     } catch (e: any) {
-      console.error('[Claude OCR] 실패, Tesseract 폴백:', e?.message)
+      console.error('[Claude OCR] 실패:', e?.message)
     }
   }
 
