@@ -1,0 +1,126 @@
+name: Import A3/KPI Data to EC2
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  AWS_REGION: ${{ secrets.AWS_REGION }}
+  AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
+  EC2_INSTANCE_ID: ${{ secrets.EC2_INSTANCE_ID }}
+  APP_DIR: /opt/evn-warp
+
+jobs:
+  import:
+    name: Import A3/KPI data
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: ${{ env.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Build and send SSM import command
+        id: ssm
+        run: |
+          python3 << 'PYEOF'
+          import json, base64, pathlib, subprocess, os
+
+          sql = pathlib.Path('scripts/a3-kpi-export.sql').read_bytes()
+          sql_b64 = base64.b64encode(sql).decode()
+          app_dir = os.environ['APP_DIR']
+
+          # Node.js fallback (parse INSERT lines and execute one by one via @libsql/client)
+          node_script = (
+            "const {createClient}=require('@libsql/client');"
+            "const c=createClient({url:'file:./dev.db'});"
+            "const sql=require('fs').readFileSync('/tmp/a3-import.sql','utf8');"
+            "const stmts=sql.split('\\n').filter(l=>l.trimStart().startsWith('INSERT'));"
+            "let ok=0,skip=0;"
+            "(async()=>{"
+            "for(const s of stmts){"
+            "try{await c.execute(s);ok++;}catch(e){skip++;}"
+            "}"
+            "console.log('imported:',ok,'skipped:',skip);"
+            "process.exit(0);"
+            "})()"
+          )
+
+          commands = [
+              'set -eu',
+              # Write b64 SQL (single-line, no special chars)
+              f"printf '%s' '{sql_b64}' | base64 -d > /tmp/a3-import.sql",
+              f"cd {app_dir}",
+              # Try sqlite3 first, fall back to node
+              (
+                f"if which sqlite3 2>/dev/null; then "
+                f"sqlite3 dev.db < /tmp/a3-import.sql && echo 'sqlite3: import done'; "
+                f"else "
+                f"node -e \"{node_script}\"; "
+                f"fi"
+              ),
+              "echo 'Data import complete'",
+          ]
+
+          params = json.dumps({'commands': commands})
+          with open('/tmp/ssm-import.json', 'w') as f:
+              f.write(params)
+
+          print(f"SQL: {len(sql)} bytes  b64: {len(sql_b64)} chars")
+
+          result = subprocess.run(
+              [
+                'aws', 'ssm', 'send-command',
+                '--instance-ids', os.environ['EC2_INSTANCE_ID'],
+                '--document-name', 'AWS-RunShellScript',
+                '--comment', 'EVN-WARP A3/KPI data import',
+                '--timeout-seconds', '300',
+                '--parameters', f'file:///tmp/ssm-import.json',
+                '--query', 'Command.CommandId',
+                '--output', 'text',
+              ],
+              capture_output=True, text=True, check=True
+          )
+          command_id = result.stdout.strip()
+          print(f"SSM command: {command_id}")
+
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
+              f.write(f"command_id={command_id}\n")
+          PYEOF
+
+      - name: Wait for result
+        env:
+          COMMAND_ID: ${{ steps.ssm.outputs.command_id }}
+        run: |
+          for i in $(seq 1 30); do
+            status="$(aws ssm get-command-invocation \
+              --command-id "$COMMAND_ID" \
+              --instance-id "$EC2_INSTANCE_ID" \
+              --query Status --output text 2>/dev/null || echo Pending)"
+            echo "[$i] Status: $status"
+            case "$status" in
+              Success|Failed|Cancelled|TimedOut|Undeliverable|Terminated|DeliveryTimedOut) break ;;
+            esac
+            sleep 10
+          done
+
+          echo "=== STDOUT ==="
+          aws ssm get-command-invocation \
+            --command-id "$COMMAND_ID" \
+            --instance-id "$EC2_INSTANCE_ID" \
+            --query StandardOutputContent --output text || true
+
+          echo "=== STDERR ==="
+          aws ssm get-command-invocation \
+            --command-id "$COMMAND_ID" \
+            --instance-id "$EC2_INSTANCE_ID" \
+            --query StandardErrorContent --output text || true
+
+          test "$status" = Success
