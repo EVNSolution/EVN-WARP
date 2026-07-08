@@ -57,3 +57,7 @@ dev.db-journal
 *.xls
 *.xlsm
 *.xlsb
+
+# Uploaded files (stored outside public/ to avoid Turbopack scanning)
+/public/uploads/
+/uploads/

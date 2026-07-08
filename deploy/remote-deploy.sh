@@ -38,18 +38,11 @@ if [ -f dev.db ]; then
   cp dev.db "$BACKUP_DIR/dev-${ts}-${old_commit:-unknown}.db"
 fi
 
-# 업로드 파일을 배포와 무관하게 영구 보존
-# /opt/evn-uploads/ 에 실제 파일을 두고 public/uploads 는 심볼릭 링크로 연결
+# 업로드 파일 영구 보존 디렉터리 (배포와 무관하게 유지)
+# 파일은 /api/uploads/ 라우트를 통해 서빙됨 (public/ 바깥에 위치)
 UPLOADS_PERSIST="/opt/evn-uploads"
 mkdir -p "$UPLOADS_PERSIST"
-# 기존 public/uploads 폴더(심볼릭 링크가 아닌 실제 폴더)가 있으면 영구 보존 디렉터리로 이동
-if [ -d "$APP_DIR/public/uploads" ] && [ ! -L "$APP_DIR/public/uploads" ]; then
-  cp -r "$APP_DIR/public/uploads/." "$UPLOADS_PERSIST/" 2>/dev/null || true
-  rm -rf "$APP_DIR/public/uploads"
-fi
-mkdir -p "$APP_DIR/public"
-ln -sfn "$UPLOADS_PERSIST" "$APP_DIR/public/uploads"
-echo "Uploads symlink: $APP_DIR/public/uploads -> $UPLOADS_PERSIST"
+echo "Uploads directory: $UPLOADS_PERSIST"
 
 app_env="$(get_param "$SSM_APP_ENV_PARAM")"
 previous_auth_secret=""
@@ -73,6 +66,7 @@ grep -q '^DATABASE_URL=' .env || printf '\nDATABASE_URL="file:./dev.db"\n' >> .e
 grep -q '^NEXTAUTH_URL=' .env || printf '\nNEXTAUTH_URL="https://%s"\n' "$SERVER_NAME" >> .env
 grep -q '^AUTH_URL=' .env || printf '\nAUTH_URL="https://%s"\n' "$SERVER_NAME" >> .env
 grep -q '^AUTH_TRUST_HOST=' .env || printf '\nAUTH_TRUST_HOST="true"\n' >> .env
+grep -q '^UPLOADS_DIR=' .env || printf '\nUPLOADS_DIR="%s"\n' "$UPLOADS_PERSIST" >> .env
 if ! grep -q '^AUTH_SECRET=' .env; then
   if [ -n "$previous_auth_secret" ]; then
     printf '\n%s\n' "$previous_auth_secret" >> .env

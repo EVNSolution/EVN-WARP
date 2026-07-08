@@ -119,7 +119,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   // ── 파일 저장 (카테고리+날짜 기반 자동 명명) ─────────────────────
   const bytes     = await file.arrayBuffer()
   const buffer    = Buffer.from(bytes)
-  const uploadDir = path.join(process.cwd(), 'public', 'uploads', 'receipts', id)
+  const UPLOADS_DIR = process.env.UPLOADS_DIR ?? path.join(process.cwd(), 'uploads')
+  const uploadDir = path.join(UPLOADS_DIR, 'receipts', id)
 
   let url: string
   try {
@@ -137,7 +138,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
     const filename = shortDate ? `${category}${idx}_${shortDate}${ext}` : `${category}${idx}${ext}`
     await writeFile(path.join(uploadDir, filename), buffer)
-    url = `/uploads/receipts/${id}/${encodeURIComponent(filename)}`
+    url = `/api/uploads/receipts/${id}/${encodeURIComponent(filename)}`
   } catch (e: any) {
     console.error('[Receipt Upload] 파일 저장 실패:', e?.message, '| uploadDir:', uploadDir)
     return NextResponse.json({ error: `파일 저장 실패: ${e?.message}` }, { status: 500 })
