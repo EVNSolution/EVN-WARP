@@ -30,11 +30,15 @@ export default async function TripPrintPage({ params }: { params: Promise<{ id: 
 
   const trip = await prisma.tripReport.findUnique({
     where: { id },
-    include: { dayRecords: { orderBy: { date: 'asc' } } },
+    include: {
+      dayRecords: { orderBy: { date: 'asc' } },
+      expenses:   { orderBy: [{ date: 'asc' }, { sortOrder: 'asc' }] },
+    },
   })
   if (!trip) notFound()
 
-  const days = trip.dayRecords
+  const days    = trip.dayRecords
+  const expenses = (trip as any).expenses ?? []
   const approvers: any[] = (() => {
     try { return JSON.parse((trip as any).approversJson ?? '[]') } catch { return [] }
   })()
@@ -232,6 +236,64 @@ export default async function TripPrintPage({ params }: { params: Promise<{ id: 
             </table>
           </>
         )}
+
+        {/* 비용정산 내역 */}
+        {expenses.length > 0 && (() => {
+          const totalKrw = expenses.reduce((s: number, e: any) => s + (e.amountKrw ?? 0), 0)
+          // 날짜별로 그룹핑
+          const byDate: Record<string, any[]> = {}
+          for (const e of expenses) {
+            if (!byDate[e.date]) byDate[e.date] = []
+            byDate[e.date].push(e)
+          }
+          return (
+            <>
+              <div className="sec-title">비용정산 내역</div>
+              <table>
+                <thead>
+                  <tr>
+                    <th style={{ width: '10%' }}>일자</th>
+                    <th style={{ width: '16%' }}>구분</th>
+                    <th>세부정보</th>
+                    <th style={{ width: '10%' }}>통화</th>
+                    <th style={{ width: '13%' }}>외화 금액</th>
+                    <th style={{ width: '10%' }}>환율</th>
+                    <th style={{ width: '13%' }}>원화 금액</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {Object.entries(byDate).map(([date, items]) =>
+                    items.map((e: any, i: number) => (
+                      <tr key={e.id}>
+                        {i === 0 && (
+                          <td rowSpan={items.length} style={{ textAlign: 'center', fontSize: '8.5pt', verticalAlign: 'middle' }}>
+                            {fmtMd(date)}
+                          </td>
+                        )}
+                        <td style={{ fontSize: '8.5pt', textAlign: 'center' }}>{e.category}</td>
+                        <td style={{ fontSize: '8.5pt' }}>{e.detail ?? ''}</td>
+                        <td style={{ fontSize: '8.5pt', textAlign: 'center' }}>{e.currency}</td>
+                        <td style={{ fontSize: '8.5pt', textAlign: 'right' }}>
+                          {e.currency !== 'KRW' && e.amountForeign ? num(e.amountForeign) : ''}
+                        </td>
+                        <td style={{ fontSize: '8pt', textAlign: 'right', color: '#64748b' }}>
+                          {e.exchangeRate ? e.exchangeRate.toLocaleString('ko-KR') : ''}
+                        </td>
+                        <td style={{ fontSize: '8.5pt', textAlign: 'right' }}>{num(e.amountKrw)}</td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+                <tfoot>
+                  <tr style={{ fontWeight: 700, background: '#f8fafc' }}>
+                    <td colSpan={6} style={{ textAlign: 'right', fontSize: '9pt' }}>합 계</td>
+                    <td style={{ textAlign: 'right', color: '#1e3a5f' }}>{krw(totalKrw)}</td>
+                  </tr>
+                </tfoot>
+              </table>
+            </>
+          )
+        })()}
 
         {/* ④ 결재란 */}
         <div className="sec-title">④ 결재란</div>

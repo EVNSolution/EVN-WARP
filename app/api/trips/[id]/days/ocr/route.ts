@@ -129,11 +129,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     let idx = 1
     try {
       const existing = await readdir(uploadDir)
-      const matching = existing.filter(f => f.startsWith(category) && /^\d/.test(f.slice(category.length)))
-      if (matching.length > 0) {
-        const indices = matching.map(f => parseInt(f.slice(category.length)) || 0)
-        idx = Math.max(...indices) + 1
-      }
+      // 같은 날짜·같은 카테고리 파일만 카운트해서 날짜별로 번호 리셋
+      const dateTag = shortDate ? `_${shortDate}` : ''
+      const matching = shortDate
+        ? existing.filter(f => f.startsWith(category) && f.includes(dateTag))
+        : existing.filter(f => f.startsWith(category) && /^\d/.test(f.slice(category.length)) && !f.includes('_'))
+      idx = matching.length + 1
     } catch {}
 
     const filename = shortDate ? `${category}${idx}_${shortDate}${ext}` : `${category}${idx}${ext}`
