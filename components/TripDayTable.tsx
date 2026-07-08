@@ -129,11 +129,9 @@ export default function TripDayTable({
   const [loading, setLoading] = useState(true)
   const [dragOver, setDragOver] = useState<{ date: string; col: CostKey } | null>(null)
   const [uploading, setUploading] = useState<{ date: string; col: CostKey } | null>(null)
-  const [saveStatus, setSaveStatus] = useState<'idle' | 'pending' | 'saving' | 'saved'>('idle')
   const fileInputRef = useRef<HTMLInputElement>(null)
   const pendingUpload = useRef<{ date: string; col: CostKey } | null>(null)
   const saveTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({})
-  const pendingRows = useRef<Record<string, DayRecord>>({})
 
   // ── 외화 환율 상태 ───────────────────────────────────────────────
   const [fxCurrency, setFxCurrency] = useState(isOverseas ? 'CNY' : '')
@@ -213,41 +211,17 @@ export default function TripDayTable({
     return created
   }, [rows, tripId])
 
-  // ── 즉시 저장 (단일 row) ─────────────────────────────────────────
-  const flushRow = useCallback(async (row: DayRecord) => {
-    await fetch(`/api/trips/${tripId}/days/${row.id}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(row),
-    })
-    delete pendingRows.current[row.id]
-  }, [tripId])
-
-  // ── 전체 미저장 row 즉시 flush ────────────────────────────────────
-  const flushAll = useCallback(async () => {
-    const pending = Object.values(pendingRows.current)
-    if (pending.length === 0) { setSaveStatus('saved'); return }
-    setSaveStatus('saving')
-    Object.values(saveTimers.current).forEach(clearTimeout)
-    saveTimers.current = {}
-    await Promise.all(pending.map(flushRow))
-    setSaveStatus('saved')
-    setTimeout(() => setSaveStatus('idle'), 2000)
-  }, [flushRow])
-
   // ── persist row (debounced) ──────────────────────────────────────
   const persist = useCallback((row: DayRecord) => {
-    pendingRows.current[row.id] = row
-    setSaveStatus('pending')
     clearTimeout(saveTimers.current[row.id])
-    saveTimers.current[row.id] = setTimeout(async () => {
-      await flushRow(row)
-      if (Object.keys(pendingRows.current).length === 0) {
-        setSaveStatus('saved')
-        setTimeout(() => setSaveStatus('idle'), 2000)
-      }
+    saveTimers.current[row.id] = setTimeout(() => {
+      fetch(`/api/trips/${tripId}/days/${row.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(row),
+      })
     }, 500)
-  }, [flushRow])
+  }, [tripId])
 
   // ── update field ────────────────────────────────────────────────
   const updateField = useCallback(async (date: string, patch: Partial<DayRecord>) => {
