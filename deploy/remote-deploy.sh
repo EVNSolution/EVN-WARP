@@ -71,7 +71,7 @@ fi
 npm ci
 npx prisma generate
 npx tsx scripts/dedup-teams.ts
-npx prisma db push
+npx prisma db push --accept-data-loss
 
 admin_email="$(node -e "const fs=require('fs');const dotenv=require('dotenv');const e=dotenv.parse(fs.readFileSync('.env'));process.stdout.write(e.ADMIN_EMAIL||'')")"
 admin_password="$(node -e "const fs=require('fs');const dotenv=require('dotenv');const e=dotenv.parse(fs.readFileSync('.env'));process.stdout.write(e.ADMIN_PASSWORD||'')")"
