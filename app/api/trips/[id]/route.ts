@@ -12,6 +12,18 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   const { id } = await params
   try {
     const b = await req.json()
+
+    // 승인요청 시 결재자 필수 체크
+    if (b.status === '승인요청') {
+      const existing = await prisma.tripReport.findUnique({ where: { id }, select: { approversJson: true } as any })
+      const approversRaw = (b.approversJson ?? (existing as any)?.approversJson) ?? '[]'
+      let approvers: any[] = []
+      try { approvers = JSON.parse(approversRaw) } catch {}
+      if (approvers.length === 0) {
+        return NextResponse.json({ error: '결재자를 먼저 지정해주세요.' }, { status: 422 })
+      }
+    }
+
     const trip = await prisma.tripReport.update({
       where: { id },
       data: {
@@ -47,7 +59,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
         preApproverName: b.preApproverName ?? null,
         approvalComment: b.approvalComment ?? null,
         approvedAt:      b.approvedAt      ? new Date(b.approvedAt) : null,
-        submittedAt:     b.submittedAt     ? new Date(b.submittedAt) : undefined,
+        submittedAt:     'submittedAt' in b ? (b.submittedAt ? new Date(b.submittedAt) : null) : undefined,
       },
     })
     return NextResponse.json(trip)

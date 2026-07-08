@@ -38,7 +38,10 @@ export default async function TripDetailPage({ params }: { params: Promise<{ id:
   const session = await auth()
   const currentUser = session?.user as any
 
-  const trip = await prisma.tripReport.findUnique({ where: { id } })
+  const [trip, users] = await Promise.all([
+    prisma.tripReport.findUnique({ where: { id } }),
+    prisma.user.findMany({ select: { id: true, name: true, email: true }, orderBy: { name: 'asc' } }),
+  ])
   if (!trip) notFound()
 
   const st = statusStyle[trip.status] ?? statusStyle['초안']
@@ -251,9 +254,11 @@ export default async function TripDetailPage({ params }: { params: Promise<{ id:
           isAuthor={isAuthor}
           isApprover={isApprover}
           approverId={trip.approverId ?? ''}
+          approversJson={(trip as any).approversJson ?? '[]'}
           preApprovalStatus={(trip as any).preApprovalStatus ?? null}
           preApproverId={(trip as any).preApproverId ?? null}
           isPreApprover={isPreApprover}
+          users={users}
         />
 
       </div>
