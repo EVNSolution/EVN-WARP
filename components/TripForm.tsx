@@ -352,7 +352,7 @@ export default function TripForm({ mode, initial, users, currentUserId }: Props)
         </div>
         <div className="px-5 py-4">
           {mode === 'edit' && form.id ? (
-            <TripDayTable tripId={form.id} startDate={form.startDate} endDate={form.endDate} />
+            <TripDayTable tripId={form.id} startDate={form.startDate} endDate={form.endDate} isOverseas={form.type === '해외출장'} />
           ) : createDates.length > 0 ? (
             <div className="overflow-x-auto">
               <table className="w-full border-collapse" style={{ minWidth: 580 }}>

@@ -2,6 +2,8 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react'
 
+const FX_CURRENCIES = ['CNY', 'USD', 'EUR', 'JPY', 'THB', 'VND']
+
 // IME(한글/중문) 조합 중 state 업데이트를 막아 글자 끊김을 방지
 function TextCell({ value, onCommit, placeholder, className }: {
   value: string; onCommit: (v: string) => void; placeholder?: string; className?: string
@@ -123,10 +125,12 @@ export default function TripDayTable({
   tripId,
   startDate,
   endDate,
+  isOverseas,
 }: {
   tripId: string
   startDate: string
   endDate: string
+  isOverseas?: boolean
 }) {
   const [rows, setRows] = useState<DayRecord[]>([])
   const [loading, setLoading] = useState(true)
@@ -135,6 +139,35 @@ export default function TripDayTable({
   const fileInputRef = useRef<HTMLInputElement>(null)
   const pendingUpload = useRef<{ date: string; col: CostKey } | null>(null)
   const saveTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({})
+
+  // ── 외화 환율 상태 ───────────────────────────────────────────────
+  const [fxCurrency, setFxCurrency] = useState(isOverseas ? 'CNY' : '')
+  const [fxRate, setFxRate] = useState<number | null>(null)
+  const [fxLoading, setFxLoading] = useState(false)
+  const [fxError, setFxError] = useState('')
+  // 외화 입력값 로컬 보관 (저장 안 함): key = "date.costKey"
+  const [fxInputs, setFxInputs] = useState<Record<string, string>>({})
+  const fxKey = (date: string, col: CostKey) => `${date}.${col}`
+
+  const fetchFxRate = useCallback(async (currency: string) => {
+    if (!currency || currency === 'KRW') { setFxRate(null); return }
+    setFxLoading(true); setFxError('')
+    try {
+      const res = await fetch(`/api/exchange-rate?currency=${currency}&date=${startDate}`)
+      const data = await res.json()
+      if (data.rate) setFxRate(data.rate)
+      else setFxError('조회 실패 — 직접 입력해 주세요')
+    } catch {
+      setFxError('조회 실패')
+    } finally {
+      setFxLoading(false)
+    }
+  }, [startDate])
+
+  // 해외출장이면 마운트 시 CNY 자동 조회
+  useEffect(() => {
+    if (isOverseas) fetchFxRate('CNY')
+  }, [isOverseas, fetchFxRate])
 
   const allDates = dateRange(startDate, endDate)
 
@@ -245,6 +278,46 @@ export default function TripDayTable({
     <div>
       <input ref={fileInputRef} type="file" className="hidden" accept="image/*,.pdf" onChange={onFileChange} />
 
+      {/* ── 환율 배너 ─────────────────────────────────────────────── */}
+      <div className="mb-3 flex flex-wrap items-center gap-2 px-3 py-2 bg-blue-50 border border-blue-200 rounded-lg text-xs">
+        <span className="font-semibold text-blue-700">💱 외화 환산</span>
+        <select
+          value={fxCurrency}
+          onChange={e => { setFxCurrency(e.target.value); fetchFxRate(e.target.value) }}
+          className="border border-blue-200 rounded px-2 py-0.5 text-xs bg-white text-slate-700"
+        >
+          <option value="">KRW (원화 직접 입력)</option>
+          {FX_CURRENCIES.map(c => <option key={c} value={c}>{c}</option>)}
+        </select>
+        {fxCurrency && (
+          fxLoading ? (
+            <span className="text-slate-400">조회 중…</span>
+          ) : fxRate ? (
+            <span className="text-blue-600 font-medium">
+              1 {fxCurrency} = {fxRate.toLocaleString('ko-KR')} 원
+              <span className="ml-1 text-slate-400">({startDate} 기준)</span>
+            </span>
+          ) : (
+            <input
+              type="number"
+              placeholder="환율 직접 입력 (ex: 194.5)"
+              className="border border-blue-300 rounded px-2 py-0.5 text-xs w-44"
+              onBlur={e => { if (e.target.value) setFxRate(Number(e.target.value)) }}
+            />
+          )
+        )}
+        {fxError && <span className="text-red-500">{fxError}</span>}
+        {fxCurrency && fxRate && (
+          <button
+            onClick={() => fetchFxRate(fxCurrency)}
+            className="text-blue-400 hover:text-blue-700 underline"
+          >재조회</button>
+        )}
+        {fxCurrency && fxRate && (
+          <span className="text-slate-400 ml-auto">외화 금액 입력 시 원화 자동 환산</span>
+        )}
+      </div>
+
       <div className="overflow-x-auto">
         <table className="w-full border-collapse" style={{ minWidth: 700 }}>
           <thead>
@@ -298,7 +371,29 @@ export default function TripDayTable({
                         onDragLeave={() => setDragOver(null)}
                         onDrop={async e => { e.preventDefault(); setDragOver(null); const f = e.dataTransfer.files[0]; if (f) uploadReceipt(date, c.cost, f) }}
                       >
-                        {/* 금액 입력 */}
+                        {/* 외화 입력 (환율 설정 시) */}
+                        {fxCurrency && fxRate && (
+                          <div className="flex items-center gap-0.5 mb-0.5">
+                            <input
+                              type="number"
+                              value={fxInputs[fxKey(date, c.cost)] ?? ''}
+                              onChange={e => {
+                                const val = e.target.value
+                                setFxInputs(prev => ({ ...prev, [fxKey(date, c.cost)]: val }))
+                                const num = parseFloat(val)
+                                if (!isNaN(num) && fxRate) {
+                                  updateField(date, { [c.cost]: Math.round(num * fxRate) })
+                                } else if (val === '') {
+                                  updateField(date, { [c.cost]: null })
+                                }
+                              }}
+                              placeholder={fxCurrency}
+                              className="w-full text-[10px] px-1 py-0.5 rounded border border-blue-200 bg-blue-50/60 focus:outline-none focus:border-blue-400 text-right text-blue-700"
+                            />
+                            <span className="text-[9px] text-blue-400 shrink-0">{fxCurrency}</span>
+                          </div>
+                        )}
+                        {/* 원화 금액 표시/입력 */}
                         <div className="flex items-center gap-0.5">
                           <input type="number"
                             value={row?.[c.cost] ?? ''}

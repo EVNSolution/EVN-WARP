@@ -191,6 +191,7 @@ export default async function TripDetailPage({ params }: { params: Promise<{ id:
               tripId={trip.id}
               startDate={trip.startDate}
               endDate={trip.endDate}
+              isOverseas={isOverseas}
             />
           </div>
         </div>
