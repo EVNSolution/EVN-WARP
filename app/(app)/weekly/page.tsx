@@ -77,7 +77,7 @@ export default async function WeeklyPage({ searchParams }: { searchParams: Promi
     const d = getWeekStart(weekId); d.setUTCDate(d.getUTCDate() + 6); return d.toISOString().slice(0, 10)
   })()
 
-  const [tasks, weeklyUpdates, thisWeekActivities, nextWeekActivities] = await Promise.all([
+  const [tasks, weeklyUpdates, prevWeekUpdates, thisWeekActivities, nextWeekActivities] = await Promise.all([
     prisma.strategyTask.findMany({
       where: { parentId: { not: null }, suspended: false },
       include: {
@@ -89,6 +89,10 @@ export default async function WeeklyPage({ searchParams }: { searchParams: Promi
     }),
     prisma.weeklyUpdate.findMany({
       where: { week: weekId },
+    }),
+    prisma.weeklyUpdate.findMany({
+      where: { week: prevWeek },
+      select: { taskId: true, status: true },
     }),
     prisma.workActivity.findMany({
       where: { date: { gte: thisWeekFromDate, lte: thisWeekToDate } },
@@ -150,6 +154,10 @@ export default async function WeeklyPage({ searchParams }: { searchParams: Promi
   const ganttUpdates: Record<string, { id: string; status: string; completed: string | null }> = {}
   for (const [tid, u] of updateByTaskId) {
     ganttUpdates[tid] = { id: u.id, status: u.status, completed: u.completed }
+  }
+  const ganttPrevUpdates: Record<string, string> = {}
+  for (const u of prevWeekUpdates) {
+    ganttPrevUpdates[u.taskId] = u.status
   }
 
   return (
@@ -240,6 +248,7 @@ export default async function WeeklyPage({ searchParams }: { searchParams: Promi
           <GanttChart
             teamEntries={ganttTeamEntries}
             updates={ganttUpdates}
+            prevUpdates={ganttPrevUpdates}
             ganttWeeks={ganttWeeks}
             weekId={weekId}
             nextWeek={nextWeek}

@@ -18,6 +18,13 @@ const IDLE_CLS: Record<Status, string> = {
   '조치필요': 'border-red-300    hover:bg-red-100',
   '완료':    'border-blue-300   hover:bg-blue-100',
 }
+// 이전 주에서 이어받은 상태 표시 (점선 테두리, 속이 빈 채로)
+const INHERITED_CLS: Record<Status, string> = {
+  '정상':    'border-green-400  border-dashed hover:bg-green-100',
+  '지연':    'border-yellow-400 border-dashed hover:bg-yellow-100',
+  '조치필요': 'border-red-400    border-dashed hover:bg-red-100',
+  '완료':    'border-blue-400   border-dashed hover:bg-blue-100',
+}
 
 interface Props {
   taskId:         string
@@ -26,18 +33,19 @@ interface Props {
   weekStart:      string
   updateId?:      string
   currentStatus?: string
+  prevStatus?:    string
 }
 
 export default function GanttStatusToggle({
-  taskId, teamId, weekId, weekStart, updateId, currentStatus,
+  taskId, teamId, weekId, weekStart, updateId, currentStatus, prevStatus,
 }: Props) {
   const router = useRouter()
-  const [status, setStatus]       = useState<string | undefined>(currentStatus)
+  const [status, setStatus]         = useState<string | undefined>(currentStatus)
   const [resolvedId, setResolvedId] = useState<string | undefined>(updateId)
-  const [saving, setSaving]       = useState(false)
+  const [saving, setSaving]         = useState(false)
 
   async function handleClick(next: Status) {
-    if (saving || next === status) return
+    if (saving) return
     setSaving(true)
     try {
       if (resolvedId) {
@@ -62,20 +70,33 @@ export default function GanttStatusToggle({
     }
   }
 
+  const inherited = !status && prevStatus && STATUSES.includes(prevStatus as Status)
+    ? prevStatus as Status
+    : undefined
+
   return (
-    <div className={`flex gap-1.5 ${saving ? 'opacity-50 pointer-events-none' : ''}`}>
-      {STATUSES.map(s => (
-        <button
-          key={s}
-          onClick={() => handleClick(s)}
-          title={s}
-          className={`w-3.5 h-3.5 rounded-full border-2 transition-all ${
-            status === s
-              ? ACTIVE_CLS[s]
-              : `bg-white ${IDLE_CLS[s]}`
-          }`}
-        />
-      ))}
+    <div
+      className={`flex gap-1.5 ${saving ? 'opacity-50 pointer-events-none' : ''}`}
+      title={inherited ? `이전 주 상태: ${inherited} (클릭하면 이번 주에 저장됩니다)` : undefined}
+    >
+      {STATUSES.map(s => {
+        const isActive    = status === s
+        const isInherited = !status && s === inherited
+        return (
+          <button
+            key={s}
+            onClick={() => handleClick(s)}
+            title={s}
+            className={`w-3.5 h-3.5 rounded-full border-2 transition-all ${
+              isActive
+                ? ACTIVE_CLS[s]
+                : isInherited
+                ? `bg-white ${INHERITED_CLS[s]}`
+                : `bg-white ${IDLE_CLS[s]}`
+            }`}
+          />
+        )
+      })}
     </div>
   )
 }

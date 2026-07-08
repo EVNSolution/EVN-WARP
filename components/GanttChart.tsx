@@ -46,6 +46,7 @@ interface UpdateItem {
 interface GanttChartProps {
   teamEntries:   TeamEntry[]
   updates:       Record<string, UpdateItem>
+  prevUpdates:   Record<string, string>
   ganttWeeks:    string[]
   weekId:        string
   nextWeek:      string
@@ -59,6 +60,7 @@ interface GanttChartProps {
 export default function GanttChart({
   teamEntries,
   updates,
+  prevUpdates,
   ganttWeeks,
   weekId,
   nextWeek,
@@ -255,6 +257,7 @@ export default function GanttChart({
                             taskId={task.id}  teamId={task.teamId}
                             weekId={weekId}   weekStart={weekStartIso}
                             updateId={update?.id} currentStatus={update?.status}
+                            prevStatus={prevUpdates[task.id]}
                           />
                         </div>
                       </div>
