@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import VehicleForm, { VehicleData } from '@/components/VehicleForm'
 import { formatPhone } from '@/lib/format'
+import AssigneePicker from '@/components/AssigneePicker'
 
 /* ── 행정구역 ── */
 const REGIONS: Record<string, string[]> = {
@@ -364,7 +365,7 @@ export default function NewLeadPage() {
 
             {/* 담당 영업사원 */}
             <Field label="담당 영업사원">
-              <TextInput value={assignee} onChange={setAssignee} placeholder="이름" />
+              <AssigneePicker value={assignee} onChange={setAssignee} className={INPUT_CLS} />
             </Field>
 
             {/* 메모 */}

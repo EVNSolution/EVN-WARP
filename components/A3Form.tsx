@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Save, Plus, Trash2, Info, ChevronUp, ChevronDown } from 'lucide-react'
+import AssigneePicker from '@/components/AssigneePicker'
 
 const MONTHS = ['1월','2월','3월','4월','5월','6월','7월','8월','9월','10월','11월','12월']
 
@@ -378,7 +379,7 @@ export default function A3Form({ teams, parentTasks, ceoTeamId, initial, mode }:
 
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1.5">과제 오너 <span className="text-red-500">*</span></label>
-            <input value={form.owner} onChange={e => setField('owner', e.target.value)} placeholder="이름"
+            <AssigneePicker value={form.owner} onChange={v => setField('owner', v)}
               className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300" />
           </div>
 

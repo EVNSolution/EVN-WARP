@@ -331,8 +331,17 @@ export default function TripForm({ mode, initial, users, currentUserId }: Props)
             </select>
           </Field>
           <Field label="출장자" required>
-            <input className={inputCls} value={form.userName}
-              onChange={e => set('userName', e.target.value)} placeholder="출장자 이름" />
+            <select className={inputCls} value={form.userId ?? ''}
+              onChange={e => {
+                const u = users.find(u => u.id === e.target.value)
+                set('userId', e.target.value)
+                set('userName', u ? u.name : '')
+              }}>
+              <option value="">-- 출장자 선택 --</option>
+              {users.map(u => (
+                <option key={u.id} value={u.id}>{u.name}</option>
+              ))}
+            </select>
           </Field>
         </div>
         <Field label="출장 제목" required>
