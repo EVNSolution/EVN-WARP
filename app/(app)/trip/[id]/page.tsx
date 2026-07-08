@@ -208,21 +208,6 @@ export default async function TripDetailPage({ params }: { params: Promise<{ id:
           </div>
         </div>
 
-        {/* 비용정산 내역 (TripExpenseEditor) */}
-        <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-          <div className="px-5 py-3 border-b border-slate-100 bg-slate-50">
-            <h2 className="text-sm font-bold text-slate-700">비용정산 내역</h2>
-            <p className="text-xs text-slate-400 mt-0.5">항목별 외화/원화 금액을 입력하고 영수증을 첨부하세요</p>
-          </div>
-          <div className="px-5 py-4">
-            <TripExpenseEditor
-              tripId={trip.id}
-              startDate={trip.startDate}
-              endDate={trip.endDate}
-            />
-          </div>
-        </div>
-
         {/* ④ 승인 정보 */}
         {(() => {
           const approvers: any[] = (() => {

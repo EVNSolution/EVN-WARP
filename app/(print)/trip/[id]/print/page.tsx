@@ -3,7 +3,6 @@ import { auth } from '@/auth'
 import { prisma } from '@/lib/db'
 import { notFound, redirect } from 'next/navigation'
 
-// ── 인쇄 전용 버튼 (Client) ──────────────────────────────────────────
 import PrintButton from './PrintButton'
 
 function fmt(d: string) {
@@ -18,10 +17,44 @@ function krw(v: number | null | undefined) {
   if (!v) return '—'
   return v.toLocaleString('ko-KR') + '원'
 }
-function num(v: number | null | undefined) {
+function num(v: number | null | undefined, suffix = '') {
   if (!v) return ''
-  return v.toLocaleString('ko-KR')
+  return v.toLocaleString('ko-KR') + suffix
 }
+
+// 출장개시일 기준 환율 조회 (서버에서 직접 호출)
+async function fetchRate(currency: string, date: string): Promise<number | null> {
+  if (!currency || currency === 'KRW') return null
+  try {
+    const cur = currency.toLowerCase()
+    const res = await fetch(
+      `https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@${date}/v1/currencies/${cur}.json`,
+      { next: { revalidate: 86400 } }
+    )
+    if (res.ok) {
+      const data = await res.json()
+      const rate = data[cur]?.['krw']
+      if (rate) return Math.round(rate * 100) / 100
+    }
+    // fallback
+    const res2 = await fetch(
+      `https://latest.currency-api.pages.dev/v1/currencies/${cur}.json`,
+      { next: { revalidate: 86400 } }
+    )
+    const data2 = await res2.json()
+    return data2[cur]?.['krw'] ?? null
+  } catch {
+    return null
+  }
+}
+
+type CostKey = 'transportCost' | 'accommodationCost' | 'mealCost' | 'otherCost'
+const COST_COLS: { key: CostKey; label: string; receipt: 'transportReceipt' | 'accommodationReceipt' | 'mealReceipt' | 'otherReceipt' }[] = [
+  { key: 'transportCost',     label: '교통비',  receipt: 'transportReceipt'     },
+  { key: 'accommodationCost', label: '숙박비',  receipt: 'accommodationReceipt' },
+  { key: 'mealCost',          label: '식비',    receipt: 'mealReceipt'           },
+  { key: 'otherCost',         label: '기타',    receipt: 'otherReceipt'          },
+]
 
 export default async function TripPrintPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -30,24 +63,78 @@ export default async function TripPrintPage({ params }: { params: Promise<{ id: 
 
   const trip = await prisma.tripReport.findUnique({
     where: { id },
-    include: {
-      dayRecords: { orderBy: { date: 'asc' } },
-      expenses:   { orderBy: [{ date: 'asc' }, { sortOrder: 'asc' }] },
-    },
+    include: { dayRecords: { orderBy: { date: 'asc' } } },
   })
   if (!trip) notFound()
 
-  const days    = trip.dayRecords
-  const expenses = (trip as any).expenses ?? []
+  const days = trip.dayRecords
+  const isOverseas = trip.type === '해외출장'
   const approvers: any[] = (() => {
     try { return JSON.parse((trip as any).approversJson ?? '[]') } catch { return [] }
   })()
 
-  const totalTransport     = days.reduce((s, d) => s + (d.transportCost ?? 0), 0)
-  const totalAccommodation = days.reduce((s, d) => s + (d.accommodationCost ?? 0), 0)
-  const totalMeal          = days.reduce((s, d) => s + (d.mealCost ?? 0), 0)
-  const totalOther         = days.reduce((s, d) => s + (d.otherCost ?? 0), 0)
-  const grandTotal         = totalTransport + totalAccommodation + totalMeal + totalOther
+  // ── 통화 맵 파싱 ──────────────────────────────────────────────────────
+  // costCurrencies: JSON {"transportCost":"CNY","mealCost":"KRW", ...} per day
+  type CurrencyMap = Partial<Record<CostKey, string>>
+  const dateCurrencyMap: Record<string, CurrencyMap> = {}
+  for (const d of days) {
+    try {
+      dateCurrencyMap[d.date] = JSON.parse((d as any).costCurrencies ?? '{}')
+    } catch {
+      dateCurrencyMap[d.date] = {}
+    }
+  }
+
+  function getCellCurrency(date: string, col: CostKey, defaultCur: string): string {
+    return dateCurrencyMap[date]?.[col] ?? defaultCur
+  }
+
+  // ── 해외출장: 주요 외화 감지 & 환율 조회 ──────────────────────────────
+  // 가장 많이 사용된 외화를 주요 통화로 선정
+  let fxCurrency = ''
+  let fxRate: number | null = null
+
+  if (isOverseas) {
+    const currencyCount: Record<string, number> = {}
+    for (const d of days) {
+      const map = dateCurrencyMap[d.date]
+      for (const col of COST_COLS) {
+        const val = d[col.key] ?? 0
+        if (!val) continue
+        const cur = map?.[col.key] ?? ''
+        if (cur && cur !== 'KRW') currencyCount[cur] = (currencyCount[cur] ?? 0) + 1
+      }
+    }
+    fxCurrency = Object.entries(currencyCount).sort((a, b) => b[1] - a[1])[0]?.[0] ?? 'CNY'
+    fxRate = await fetchRate(fxCurrency, trip.startDate)
+  }
+
+  // ── 합계 계산 ─────────────────────────────────────────────────────────
+  let totalFxRaw = 0   // 외화 합계 (raw)
+  let totalKrw   = 0   // KRW 환산 합계
+
+  const colTotals: Record<CostKey, { fx: number; krw: number }> = {
+    transportCost:     { fx: 0, krw: 0 },
+    accommodationCost: { fx: 0, krw: 0 },
+    mealCost:          { fx: 0, krw: 0 },
+    otherCost:         { fx: 0, krw: 0 },
+  }
+
+  for (const d of days) {
+    for (const col of COST_COLS) {
+      const val = d[col.key] ?? 0
+      if (!val) continue
+      const cur = getCellCurrency(d.date, col.key, fxCurrency || 'KRW')
+      if (cur === 'KRW') {
+        colTotals[col.key].krw += val
+        totalKrw += val
+      } else {
+        colTotals[col.key].fx += val
+        totalFxRaw += val
+        totalKrw += fxRate ? Math.round(val * fxRate) : val
+      }
+    }
+  }
 
   const today = new Date().toLocaleDateString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit' })
 
@@ -72,9 +159,9 @@ export default async function TripPrintPage({ params }: { params: Promise<{ id: 
         .approval-box { border: 1px solid #cbd5e1; text-align: center; }
         .approval-box .role { background: #f1f5f9; font-size: 8pt; font-weight: 600; padding: 3px; border-bottom: 1px solid #cbd5e1; }
         .approval-box .name { font-size: 9pt; padding: 16px 8px; min-height: 32px; }
+        .cur-badge { font-size: 7pt; color: #2563eb; margin-left: 2px; font-weight: 600; }
       `}</style>
 
-      {/* 인쇄 버튼 (화면에서만 표시) */}
       <div className="no-print fixed top-4 right-4 flex gap-2 z-50">
         <PrintButton />
         <a href={`/trip/${id}`}
@@ -93,7 +180,7 @@ export default async function TripPrintPage({ params }: { params: Promise<{ id: 
           <div style={{ textAlign: 'right', fontSize: '8.5pt', color: '#64748b' }}>
             <div>작성일: {today}</div>
             <div style={{ marginTop: 2 }}>
-              <span style={{ background: trip.type === '해외출장' ? '#dbeafe' : '#ffedd5', color: trip.type === '해외출장' ? '#1d4ed8' : '#c2410c', padding: '1px 6px', borderRadius: 4, fontSize: '8pt', fontWeight: 600 }}>
+              <span style={{ background: isOverseas ? '#dbeafe' : '#ffedd5', color: isOverseas ? '#1d4ed8' : '#c2410c', padding: '1px 6px', borderRadius: 4, fontSize: '8pt', fontWeight: 600 }}>
                 {trip.type}
               </span>
               <span style={{ marginLeft: 6, fontWeight: 600, color: '#334155' }}>{trip.status}</span>
@@ -121,6 +208,16 @@ export default async function TripPrintPage({ params }: { params: Promise<{ id: 
               <td className="info-label">숙박</td>
               <td className="info-val" colSpan={3}>{trip.accommodation ?? '—'}</td>
             </tr>
+            {isOverseas && fxCurrency && (
+              <tr>
+                <td className="info-label">적용 환율</td>
+                <td className="info-val" colSpan={3}>
+                  {fxRate
+                    ? `1 ${fxCurrency} = ${fxRate.toLocaleString('ko-KR')} KRW (${trip.startDate} 기준)`
+                    : `${fxCurrency} — 환율 조회 실패, 직접 확인 필요`}
+                </td>
+              </tr>
+            )}
           </tbody>
         </table>
 
@@ -160,23 +257,41 @@ export default async function TripPrintPage({ params }: { params: Promise<{ id: 
               <th style={{ width: '9%' }}>숙박비</th>
               <th style={{ width: '9%' }}>식비</th>
               <th style={{ width: '9%' }}>기타</th>
-              <th style={{ width: '10%' }}>소계</th>
+              <th style={{ width: '10%' }}>소계(KRW)</th>
             </tr>
           </thead>
           <tbody>
             {days.map(d => {
-              const rowTotal = (d.transportCost ?? 0) + (d.accommodationCost ?? 0) + (d.mealCost ?? 0) + (d.otherCost ?? 0)
+              const rowKrw = COST_COLS.reduce((s, col) => {
+                const val = d[col.key] ?? 0
+                if (!val) return s
+                const cur = getCellCurrency(d.date, col.key, fxCurrency || 'KRW')
+                return s + (cur === 'KRW' ? val : fxRate ? Math.round(val * fxRate) : val)
+              }, 0)
               return (
                 <tr key={d.id}>
                   <td style={{ textAlign: 'center', fontSize: '8.5pt' }}>{fmtMd(d.date)}</td>
                   <td style={{ textAlign: 'center', fontSize: '9pt' }}>{d.city ?? ''}</td>
                   <td style={{ fontSize: '9pt' }}>{d.company ?? ''}</td>
                   <td style={{ fontSize: '9pt', whiteSpace: 'pre-wrap' }}>{d.activity ?? ''}</td>
-                  <td style={{ textAlign: 'right', fontSize: '8.5pt' }}>{num(d.transportCost)}</td>
-                  <td style={{ textAlign: 'right', fontSize: '8.5pt' }}>{num(d.accommodationCost)}</td>
-                  <td style={{ textAlign: 'right', fontSize: '8.5pt' }}>{num(d.mealCost)}</td>
-                  <td style={{ textAlign: 'right', fontSize: '8.5pt' }}>{num(d.otherCost)}</td>
-                  <td style={{ textAlign: 'right', fontSize: '8.5pt', fontWeight: rowTotal ? 600 : 'normal' }}>{rowTotal ? num(rowTotal) : ''}</td>
+                  {COST_COLS.map(col => {
+                    const val = d[col.key] ?? 0
+                    const cur = val ? getCellCurrency(d.date, col.key, fxCurrency || 'KRW') : 'KRW'
+                    const isFx = cur !== 'KRW'
+                    return (
+                      <td key={col.key} style={{ textAlign: 'right', fontSize: '8.5pt' }}>
+                        {val ? (
+                          <>
+                            {num(val)}
+                            {isFx && <span className="cur-badge">{cur}</span>}
+                          </>
+                        ) : ''}
+                      </td>
+                    )
+                  })}
+                  <td style={{ textAlign: 'right', fontSize: '8.5pt', fontWeight: rowKrw ? 600 : 'normal' }}>
+                    {rowKrw ? num(rowKrw) : ''}
+                  </td>
                 </tr>
               )
             })}
@@ -185,13 +300,31 @@ export default async function TripPrintPage({ params }: { params: Promise<{ id: 
             )}
           </tbody>
           <tfoot>
+            {/* 외화 소계 행 (해외출장이고 외화가 있을 때) */}
+            {isOverseas && fxCurrency && totalFxRaw > 0 && (
+              <tr style={{ background: '#eff6ff', fontSize: '8pt', color: '#1d4ed8' }}>
+                <td colSpan={4} style={{ textAlign: 'right', fontSize: '8.5pt' }}>
+                  외화 소계
+                </td>
+                {COST_COLS.map(col => (
+                  <td key={col.key} style={{ textAlign: 'right' }}>
+                    {colTotals[col.key].fx ? `${num(colTotals[col.key].fx)} ${fxCurrency}` : ''}
+                  </td>
+                ))}
+                <td style={{ textAlign: 'right', fontWeight: 600 }}>
+                  {num(totalFxRaw)} {fxCurrency}
+                </td>
+              </tr>
+            )}
             <tr style={{ fontWeight: 700, background: '#f8fafc' }}>
-              <td colSpan={4} style={{ textAlign: 'right', fontSize: '9pt' }}>합 계</td>
-              <td style={{ textAlign: 'right' }}>{num(totalTransport) || '—'}</td>
-              <td style={{ textAlign: 'right' }}>{num(totalAccommodation) || '—'}</td>
-              <td style={{ textAlign: 'right' }}>{num(totalMeal) || '—'}</td>
-              <td style={{ textAlign: 'right' }}>{num(totalOther) || '—'}</td>
-              <td style={{ textAlign: 'right', color: '#1e3a5f' }}>{krw(grandTotal)}</td>
+              <td colSpan={4} style={{ textAlign: 'right', fontSize: '9pt' }}>합 계 (KRW)</td>
+              {COST_COLS.map(col => {
+                const krwVal = colTotals[col.key].krw + (fxRate ? Math.round(colTotals[col.key].fx * fxRate) : colTotals[col.key].fx)
+                return (
+                  <td key={col.key} style={{ textAlign: 'right' }}>{krwVal ? num(krwVal) : '—'}</td>
+                )
+              })}
+              <td style={{ textAlign: 'right', color: '#1e3a5f' }}>{krw(totalKrw)}</td>
             </tr>
           </tfoot>
         </table>
@@ -211,20 +344,15 @@ export default async function TripPrintPage({ params }: { params: Promise<{ id: 
               <tbody>
                 {days.flatMap(d => {
                   const rows: React.ReactElement[] = []
-                  const entries: [string, string | null][] = [
-                    ['교통비', d.transportReceipt],
-                    ['숙박비', d.accommodationReceipt],
-                    ['식비', d.mealReceipt],
-                    ['기타', d.otherReceipt],
-                  ]
-                  for (const [cat, urls] of entries) {
+                  for (const col of COST_COLS) {
+                    const urls = d[col.receipt]
                     if (!urls) continue
                     urls.split('|').forEach((url, i) => {
                       const name = decodeURIComponent(url.split('/').pop() ?? url)
                       rows.push(
-                        <tr key={`${d.id}-${cat}-${i}`}>
+                        <tr key={`${d.id}-${col.key}-${i}`}>
                           <td style={{ textAlign: 'center', fontSize: '8.5pt' }}>{fmtMd(d.date)}</td>
-                          <td style={{ textAlign: 'center', fontSize: '8.5pt' }}>{cat}</td>
+                          <td style={{ textAlign: 'center', fontSize: '8.5pt' }}>{col.label}</td>
                           <td style={{ fontSize: '8.5pt' }}>{name}</td>
                         </tr>
                       )
@@ -236,64 +364,6 @@ export default async function TripPrintPage({ params }: { params: Promise<{ id: 
             </table>
           </>
         )}
-
-        {/* 비용정산 내역 */}
-        {expenses.length > 0 && (() => {
-          const totalKrw = expenses.reduce((s: number, e: any) => s + (e.amountKrw ?? 0), 0)
-          // 날짜별로 그룹핑
-          const byDate: Record<string, any[]> = {}
-          for (const e of expenses) {
-            if (!byDate[e.date]) byDate[e.date] = []
-            byDate[e.date].push(e)
-          }
-          return (
-            <>
-              <div className="sec-title">비용정산 내역</div>
-              <table>
-                <thead>
-                  <tr>
-                    <th style={{ width: '10%' }}>일자</th>
-                    <th style={{ width: '16%' }}>구분</th>
-                    <th>세부정보</th>
-                    <th style={{ width: '10%' }}>통화</th>
-                    <th style={{ width: '13%' }}>외화 금액</th>
-                    <th style={{ width: '10%' }}>환율</th>
-                    <th style={{ width: '13%' }}>원화 금액</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {Object.entries(byDate).map(([date, items]) =>
-                    items.map((e: any, i: number) => (
-                      <tr key={e.id}>
-                        {i === 0 && (
-                          <td rowSpan={items.length} style={{ textAlign: 'center', fontSize: '8.5pt', verticalAlign: 'middle' }}>
-                            {fmtMd(date)}
-                          </td>
-                        )}
-                        <td style={{ fontSize: '8.5pt', textAlign: 'center' }}>{e.category}</td>
-                        <td style={{ fontSize: '8.5pt' }}>{e.detail ?? ''}</td>
-                        <td style={{ fontSize: '8.5pt', textAlign: 'center' }}>{e.currency}</td>
-                        <td style={{ fontSize: '8.5pt', textAlign: 'right' }}>
-                          {e.currency !== 'KRW' && e.amountForeign ? num(e.amountForeign) : ''}
-                        </td>
-                        <td style={{ fontSize: '8pt', textAlign: 'right', color: '#64748b' }}>
-                          {e.exchangeRate ? e.exchangeRate.toLocaleString('ko-KR') : ''}
-                        </td>
-                        <td style={{ fontSize: '8.5pt', textAlign: 'right' }}>{num(e.amountKrw)}</td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-                <tfoot>
-                  <tr style={{ fontWeight: 700, background: '#f8fafc' }}>
-                    <td colSpan={6} style={{ textAlign: 'right', fontSize: '9pt' }}>합 계</td>
-                    <td style={{ textAlign: 'right', color: '#1e3a5f' }}>{krw(totalKrw)}</td>
-                  </tr>
-                </tfoot>
-              </table>
-            </>
-          )
-        })()}
 
         {/* ④ 결재란 */}
         <div className="sec-title">④ 결재란</div>
