@@ -575,6 +575,7 @@ model TripDayRecord {
   mealReceipt          String?
   otherCost            Float?
   otherReceipt         String?
+  costCurrencies       String?  // JSON: {transportCost:'CNY',mealCost:'KRW',...}
 
   createdAt     DateTime   @default(now())
   updatedAt     DateTime   @updatedAt

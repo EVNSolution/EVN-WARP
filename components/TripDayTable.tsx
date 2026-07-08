@@ -84,6 +84,7 @@ interface DayRecord {
   mealReceipt: string | null
   otherCost: number | null
   otherReceipt: string | null
+  costCurrencies: string | null  // JSON: {transportCost:'CNY', mealCost:'KRW', ...}
 }
 
 type CostKey = 'transportCost' | 'accommodationCost' | 'mealCost' | 'otherCost'
@@ -112,14 +113,6 @@ function fmtDate(d: string) {
   return `${dt.getUTCMonth() + 1}월 ${dt.getUTCDate()}일`
 }
 
-function fmtKrw(n: number | null | undefined) {
-  if (!n) return ''
-  return Math.round(n).toLocaleString('ko-KR')
-}
-
-function sumCol(rows: DayRecord[], key: CostKey) {
-  return rows.reduce((s, r) => s + (r[key] ?? 0), 0)
-}
 
 export default function TripDayTable({
   tripId,
@@ -141,11 +134,14 @@ export default function TripDayTable({
   const saveTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({})
 
   // ── 외화 환율 상태 ───────────────────────────────────────────────
-  // DB에 저장된 값은 외화 금액 그대로(CNY 등). KRW는 value × fxRate로 표시만.
   const [fxCurrency, setFxCurrency] = useState(isOverseas ? 'CNY' : '')
   const [fxRate, setFxRate] = useState<number | null>(null)
   const [fxLoading, setFxLoading] = useState(false)
   const [fxError, setFxError] = useState('')
+
+  // ── 셀별 통화 오버라이드 ─────────────────────────────────────────
+  // {[date]: {transportCost: 'KRW', mealCost: 'CNY', ...}}
+  const [cellCurrencies, setCellCurrencies] = useState<Record<string, Partial<Record<CostKey, string>>>>({})
 
   const fetchFxRate = useCallback(async (currency: string) => {
     if (!currency || currency === 'KRW') { setFxRate(null); return }
@@ -169,12 +165,25 @@ export default function TripDayTable({
 
   const allDates = dateRange(startDate, endDate)
 
+  // ── 셀 통화 헬퍼 ─────────────────────────────────────────────────
+  const getCellCurrency = useCallback((date: string, col: CostKey): string => {
+    return cellCurrencies[date]?.[col] ?? fxCurrency ?? 'KRW'
+  }, [cellCurrencies, fxCurrency])
+
   // ── load ────────────────────────────────────────────────────────
   useEffect(() => {
     fetch(`/api/trips/${tripId}/days`)
       .then(r => r.json())
       .then((data: DayRecord[]) => {
         setRows(data)
+        // DB에 저장된 셀별 통화 복원
+        const map: Record<string, Partial<Record<CostKey, string>>> = {}
+        for (const row of data) {
+          if (row.costCurrencies) {
+            try { map[row.date] = JSON.parse(row.costCurrencies) } catch {}
+          }
+        }
+        setCellCurrencies(map)
         setLoading(false)
       })
   }, [tripId])
@@ -222,6 +231,13 @@ export default function TripDayTable({
     persist(updated)
   }, [ensureRow, persist])
 
+  // ── 셀 통화 변경 ─────────────────────────────────────────────────
+  const changeCellCurrency = useCallback(async (date: string, col: CostKey, newCurrency: string) => {
+    const newDateMap = { ...(cellCurrencies[date] ?? {}), [col]: newCurrency }
+    setCellCurrencies(prev => ({ ...prev, [date]: newDateMap }))
+    updateField(date, { costCurrencies: JSON.stringify(newDateMap) })
+  }, [cellCurrencies, updateField])
+
   // ── receipt upload + OCR ─────────────────────────────────────────
   const COST_LABEL: Record<CostKey, string> = {
     transportCost:     '교통비',
@@ -266,9 +282,31 @@ export default function TripDayTable({
     e.target.value = ''
   }, [uploadReceipt])
 
-  // ── totals ───────────────────────────────────────────────────────
-  const totals = COST_COLS.map(c => sumCol(rows, c.cost))
-  const grandTotal = totals.reduce((s, v) => s + v, 0)
+  // ── totals (셀별 통화 반영, KRW 환산 기준) ──────────────────────
+  const cellToKrw = (date: string, col: CostKey, val: number | null): number => {
+    if (!val) return 0
+    const cur = getCellCurrency(date, col)
+    if (cur === 'KRW' || !fxRate) return val
+    return Math.round(val * fxRate)
+  }
+
+  const colTotalsKrw = COST_COLS.map(c =>
+    rows.reduce((s, r) => s + cellToKrw(r.date, c.cost, r[c.cost] ?? null), 0)
+  )
+  const grandTotalKrw = colTotalsKrw.reduce((s, v) => s + v, 0)
+
+  // 외화(fxCurrency) 셀 합계 (raw 금액)
+  const grandTotalFxRaw = fxCurrency ? rows.reduce((s, r) =>
+    COST_COLS.reduce((s2, c) => {
+      const cur = getCellCurrency(r.date, c.cost)
+      return s2 + (cur === fxCurrency ? (r[c.cost] ?? 0) : 0)
+    }, s), 0) : 0
+  const grandTotalKrwDirect = rows.reduce((s, r) =>
+    COST_COLS.reduce((s2, c) => {
+      const cur = getCellCurrency(r.date, c.cost)
+      return s2 + (cur === 'KRW' ? (r[c.cost] ?? 0) : 0)
+    }, s), 0)
+  const hasMixedCurrencies = fxCurrency && fxRate && grandTotalKrwDirect > 0 && grandTotalFxRaw > 0
 
   if (loading) return <div className="text-slate-400 py-8 text-center text-sm">로딩 중…</div>
 
@@ -312,7 +350,31 @@ export default function TripDayTable({
           >재조회</button>
         )}
         {fxCurrency && fxRate && (
-          <span className="text-slate-400 ml-auto">금액은 {fxCurrency} 기준 · KRW는 자동 환산 표시</span>
+          <>
+            <span className="text-slate-400">셀 버튼 클릭으로 개별 통화 변경 가능</span>
+            <button
+              onClick={() => {
+                const allKrw = allDates.every(d =>
+                  COST_COLS.every(c => getCellCurrency(d, c.cost) === 'KRW')
+                )
+                const targetCur = allKrw ? fxCurrency : 'KRW'
+                const newMap: Record<string, Partial<Record<CostKey, string>>> = {}
+                for (const d of allDates) {
+                  const rowMap: Partial<Record<CostKey, string>> = {}
+                  for (const c of COST_COLS) rowMap[c.cost] = targetCur
+                  newMap[d] = rowMap
+                }
+                setCellCurrencies(newMap)
+                for (const d of allDates) {
+                  const row = rows.find(r => r.date === d)
+                  if (row) updateField(d, { costCurrencies: JSON.stringify(newMap[d]) })
+                }
+              }}
+              className="ml-auto text-[11px] px-2 py-0.5 rounded border border-blue-300 text-blue-600 hover:bg-blue-100 transition"
+            >
+              전체 일괄 변경
+            </button>
+          </>
         )}
       </div>
 
@@ -369,30 +431,51 @@ export default function TripDayTable({
                         onDragLeave={() => setDragOver(null)}
                         onDrop={async e => { e.preventDefault(); setDragOver(null); const f = e.dataTransfer.files[0]; if (f) uploadReceipt(date, c.cost, f) }}
                       >
-                        {/* 금액 입력 — 외화 모드면 CNY 저장 + KRW 표시 / 원화 모드면 KRW 저장 */}
-                        <div className="flex items-center gap-0.5">
-                          <input type="number"
-                            value={row?.[c.cost] ?? ''}
-                            onChange={e => updateField(date, { [c.cost]: e.target.value ? Number(e.target.value) : null })}
-                            className="w-full text-[11px] px-1 py-1 rounded border border-transparent hover:border-slate-200 focus:border-indigo-300 focus:outline-none bg-transparent text-right"
-                            placeholder="0" />
-                          <span className="text-[9px] shrink-0 text-slate-400">
-                            {fxCurrency && fxRate ? fxCurrency : 'KRW'}
-                          </span>
-                          {isUploading ? (
-                            <span className="text-[9px] text-blue-400 shrink-0">…</span>
-                          ) : (
-                            <button onClick={() => { pendingUpload.current = { date, col: c.cost }; fileInputRef.current?.click() }}
-                              className="text-[11px] leading-none shrink-0 text-slate-300 hover:text-blue-500 transition"
-                              title="영수증 추가">📎</button>
-                          )}
-                        </div>
-                        {/* KRW 환산 표시 (외화 모드 + 환율 있을 때) */}
-                        {fxCurrency && fxRate && row?.[c.cost] != null && row[c.cost]! > 0 && (
-                          <div className="text-[10px] text-slate-400 text-right mt-0.5">
-                            = {Math.round(row[c.cost]! * fxRate).toLocaleString('ko-KR')} KRW
-                          </div>
-                        )}
+                        {/* 금액 입력 + 통화 토글 */}
+                        {(() => {
+                          const cellCur = getCellCurrency(date, c.cost)
+                          const isKrw = cellCur === 'KRW'
+                          return (
+                            <>
+                              <div className="flex items-center gap-0.5">
+                                <input type="number"
+                                  value={row?.[c.cost] ?? ''}
+                                  onChange={e => updateField(date, { [c.cost]: e.target.value ? Number(e.target.value) : null })}
+                                  className="w-full text-[11px] px-1 py-1 rounded border border-transparent hover:border-slate-200 focus:border-indigo-300 focus:outline-none bg-transparent text-right"
+                                  placeholder="0" />
+                                {/* 통화 토글: fxCurrency 설정 시만 표시 */}
+                                {fxCurrency ? (
+                                  <button
+                                    onClick={() => changeCellCurrency(date, c.cost, isKrw ? fxCurrency : 'KRW')}
+                                    className="text-[9px] font-semibold px-1 py-0.5 rounded shrink-0 transition border"
+                                    style={isKrw
+                                      ? { color: '#64748b', background: '#f1f5f9', borderColor: '#e2e8f0' }
+                                      : { color: '#1d4ed8', background: '#dbeafe', borderColor: '#93c5fd' }
+                                    }
+                                    title={isKrw ? `${fxCurrency}로 전환` : 'KRW로 전환'}
+                                  >
+                                    {cellCur}
+                                  </button>
+                                ) : (
+                                  <span className="text-[9px] shrink-0 text-slate-400">KRW</span>
+                                )}
+                                {isUploading ? (
+                                  <span className="text-[9px] text-blue-400 shrink-0">…</span>
+                                ) : (
+                                  <button onClick={() => { pendingUpload.current = { date, col: c.cost }; fileInputRef.current?.click() }}
+                                    className="text-[11px] leading-none shrink-0 text-slate-300 hover:text-blue-500 transition"
+                                    title="영수증 추가">📎</button>
+                                )}
+                              </div>
+                              {/* KRW 환산 표시 (외화 셀 + 환율 있을 때) */}
+                              {!isKrw && fxRate && row?.[c.cost] != null && row[c.cost]! > 0 && (
+                                <div className="text-[10px] text-slate-400 text-right mt-0.5">
+                                  = {Math.round(row[c.cost]! * fxRate).toLocaleString('ko-KR')} KRW
+                                </div>
+                              )}
+                            </>
+                          )
+                        })()}
                         {/* 첨부된 영수증 목록 (다중) */}
                         {receiptUrl && (
                           <div className="flex flex-wrap gap-x-1 mt-0.5">
@@ -414,21 +497,15 @@ export default function TripDayTable({
                 </tr>
               )
             })}
-            {/* 합계 행 */}
+            {/* 합계 행 (KRW 환산 기준) */}
             <tr className="bg-slate-100 font-bold">
               <td colSpan={4} className="border border-slate-300 px-2 py-1.5 text-xs text-right text-slate-700">합계</td>
               {COST_COLS.map((c, i) => (
                 <td key={c.cost} className="border border-slate-300 px-1 py-1.5 text-right text-[11px]">
-                  {fxCurrency && fxRate ? (
-                    totals[i] > 0 ? (
-                      <div>
-                        <div className="text-blue-600">{totals[i].toLocaleString('ko-KR')} {fxCurrency}</div>
-                        <div className="text-indigo-700">{Math.round(totals[i] * fxRate).toLocaleString('ko-KR')} KRW</div>
-                      </div>
-                    ) : '—'
-                  ) : (
-                    <span className="text-indigo-700">{totals[i] > 0 ? fmtKrw(totals[i]) : '—'}</span>
-                  )}
+                  {colTotalsKrw[i] > 0
+                    ? <span className="text-indigo-700">{colTotalsKrw[i].toLocaleString('ko-KR')} KRW</span>
+                    : '—'
+                  }
                 </td>
               ))}
             </tr>
@@ -436,27 +513,49 @@ export default function TripDayTable({
         </table>
       </div>
 
-      {grandTotal > 0 && (
+      {grandTotalKrw > 0 && (
         <div className="mt-3 flex justify-end">
           <div className="bg-indigo-50 border border-indigo-200 rounded-lg px-5 py-2 text-sm">
-            {fxCurrency && fxRate ? (
+            {hasMixedCurrencies ? (
+              // CNY + KRW 혼합
+              <div className="flex items-baseline gap-2 flex-wrap">
+                <div>
+                  <span className="text-slate-500 text-xs">{fxCurrency}</span>
+                  <span className="ml-1 font-bold text-blue-600">{grandTotalFxRaw.toLocaleString('ko-KR')}</span>
+                  {fxRate && <span className="text-xs text-slate-400 ml-1">(={Math.round(grandTotalFxRaw * fxRate).toLocaleString('ko-KR')} KRW)</span>}
+                </div>
+                <span className="text-slate-400">+</span>
+                <div>
+                  <span className="text-slate-500 text-xs">KRW</span>
+                  <span className="ml-1 font-bold text-slate-600">{grandTotalKrwDirect.toLocaleString('ko-KR')}</span>
+                </div>
+                <span className="text-slate-400">=</span>
+                <div>
+                  <span className="text-slate-500 text-xs">총 결재</span>
+                  <span className="ml-2 text-xl font-bold text-indigo-700">{grandTotalKrw.toLocaleString('ko-KR')}</span>
+                  <span className="ml-1 text-slate-500">KRW</span>
+                </div>
+              </div>
+            ) : fxCurrency && grandTotalFxRaw > 0 && fxRate ? (
+              // 전체 외화
               <div className="flex items-baseline gap-3">
                 <div>
                   <span className="text-slate-500 text-xs">외화 합계</span>
-                  <span className="ml-2 text-lg font-bold text-blue-600">{grandTotal.toLocaleString('ko-KR')}</span>
+                  <span className="ml-2 text-lg font-bold text-blue-600">{grandTotalFxRaw.toLocaleString('ko-KR')}</span>
                   <span className="ml-1 text-slate-500 text-xs">{fxCurrency}</span>
                 </div>
                 <div>
                   <span className="text-slate-400 text-xs">결재 금액</span>
-                  <span className="ml-2 text-xl font-bold text-indigo-700">{Math.round(grandTotal * fxRate).toLocaleString('ko-KR')}</span>
+                  <span className="ml-2 text-xl font-bold text-indigo-700">{grandTotalKrw.toLocaleString('ko-KR')}</span>
                   <span className="ml-1 text-slate-500">KRW</span>
                 </div>
               </div>
             ) : (
+              // 전체 KRW
               <>
                 <span className="text-slate-500">총 출장비용</span>
-                <span className="ml-3 text-xl font-bold text-indigo-700">{fmtKrw(grandTotal)}</span>
-                <span className="ml-1 text-slate-500">원</span>
+                <span className="ml-3 text-xl font-bold text-indigo-700">{grandTotalKrw.toLocaleString('ko-KR')}</span>
+                <span className="ml-1 text-slate-500">KRW</span>
               </>
             )}
           </div>

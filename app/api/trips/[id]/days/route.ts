@@ -28,6 +28,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       mealReceipt:         body.mealReceipt         || null,
       otherCost:           body.otherCost           ?? null,
       otherReceipt:        body.otherReceipt        || null,
+      costCurrencies:      body.costCurrencies      ?? null,
     },
   })
   return NextResponse.json(day, { status: 201 })
