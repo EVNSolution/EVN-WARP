@@ -85,15 +85,25 @@ export default function AdminClient({
   }
 
   const handleAddTeam = async () => {
-    if (!newTeamName.trim()) return
+    const trimmed = newTeamName.trim()
+    if (!trimmed || teamAddLoading) return
+    if (teams.some(t => t.name === trimmed)) {
+      alert(`"${trimmed}" 팀이 이미 존재합니다.`)
+      return
+    }
     setTeamAddLoading(true)
     try {
       const res  = await fetch('/api/teams', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: newTeamName.trim() }),
+        body: JSON.stringify({ name: trimmed }),
       })
       const data = await res.json()
-      if (res.ok) { setTeams(prev => [...prev, data].sort((a, b) => a.name.localeCompare(b.name))); setNewTeamName('') }
+      if (res.ok) {
+        setTeams(prev => [...prev, data].sort((a, b) => a.name.localeCompare(b.name)))
+        setNewTeamName('')
+      } else {
+        alert(data.error ?? '팀 추가 실패')
+      }
     } finally { setTeamAddLoading(false) }
   }
 
