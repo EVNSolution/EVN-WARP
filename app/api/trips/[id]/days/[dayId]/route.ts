@@ -5,7 +5,25 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   const { dayId } = await params
   const body = await req.json()
   const { id: _id, createdAt: _c, updatedAt: _u, tripReportId: _t, ...data } = body
-  const day = await prisma.tripDayRecord.update({ where: { id: dayId }, data })
+
+  await prisma.$executeRaw`
+    UPDATE "TripDayRecord" SET
+      "city"                 = ${data.city                 ?? null},
+      "company"              = ${data.company              ?? null},
+      "activity"             = ${data.activity             ?? null},
+      "transportCost"        = ${data.transportCost        ?? null},
+      "transportReceipt"     = ${data.transportReceipt     ?? null},
+      "accommodationCost"    = ${data.accommodationCost    ?? null},
+      "accommodationReceipt" = ${data.accommodationReceipt ?? null},
+      "mealCost"             = ${data.mealCost             ?? null},
+      "mealReceipt"          = ${data.mealReceipt          ?? null},
+      "otherCost"            = ${data.otherCost            ?? null},
+      "otherReceipt"         = ${data.otherReceipt         ?? null},
+      "costCurrencies"       = ${data.costCurrencies       ?? null},
+      "updatedAt"            = CURRENT_TIMESTAMP
+    WHERE "id" = ${dayId}
+  `
+  const day = await prisma.tripDayRecord.findUnique({ where: { id: dayId } })
   return NextResponse.json(day)
 }
 

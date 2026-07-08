@@ -255,6 +255,12 @@ export default function TripDayTable({
       fd.append('category', COST_LABEL[col])
       fd.append('date', date)
       const res = await fetch(`/api/trips/${tripId}/days/ocr`, { method: 'POST', body: fd })
+      if (!res.ok) {
+        const errText = await res.text().catch(() => res.status.toString())
+        console.error('[Receipt Upload] 서버 오류:', res.status, errText)
+        alert(`영수증 업로드 실패 (${res.status})\n${errText.slice(0, 200)}`)
+        return
+      }
       const data = await res.json()
 
       const currentRow  = rows.find(r => r.date === date)

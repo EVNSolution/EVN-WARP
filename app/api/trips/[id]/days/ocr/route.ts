@@ -120,21 +120,28 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const bytes     = await file.arrayBuffer()
   const buffer    = Buffer.from(bytes)
   const uploadDir = path.join(process.cwd(), 'public', 'uploads', 'receipts', id)
-  await mkdir(uploadDir, { recursive: true })
 
-  let idx = 1
+  let url: string
   try {
-    const existing = await readdir(uploadDir)
-    const matching = existing.filter(f => f.startsWith(category) && /^\d/.test(f.slice(category.length)))
-    if (matching.length > 0) {
-      const indices = matching.map(f => parseInt(f.slice(category.length)) || 0)
-      idx = Math.max(...indices) + 1
-    }
-  } catch {}
+    await mkdir(uploadDir, { recursive: true })
 
-  const filename = shortDate ? `${category}${idx}_${shortDate}${ext}` : `${category}${idx}${ext}`
-  await writeFile(path.join(uploadDir, filename), buffer)
-  const url = `/uploads/receipts/${id}/${encodeURIComponent(filename)}`
+    let idx = 1
+    try {
+      const existing = await readdir(uploadDir)
+      const matching = existing.filter(f => f.startsWith(category) && /^\d/.test(f.slice(category.length)))
+      if (matching.length > 0) {
+        const indices = matching.map(f => parseInt(f.slice(category.length)) || 0)
+        idx = Math.max(...indices) + 1
+      }
+    } catch {}
+
+    const filename = shortDate ? `${category}${idx}_${shortDate}${ext}` : `${category}${idx}${ext}`
+    await writeFile(path.join(uploadDir, filename), buffer)
+    url = `/uploads/receipts/${id}/${encodeURIComponent(filename)}`
+  } catch (e: any) {
+    console.error('[Receipt Upload] 파일 저장 실패:', e?.message, '| uploadDir:', uploadDir)
+    return NextResponse.json({ error: `파일 저장 실패: ${e?.message}` }, { status: 500 })
+  }
 
   // PDF는 이미지 OCR 불가
   const isImage = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/bmp', 'image/tiff'].includes(file.type)

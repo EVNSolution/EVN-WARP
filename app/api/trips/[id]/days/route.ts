@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
+import { randomBytes } from 'crypto'
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -13,23 +14,25 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const body = await req.json()
-  const day = await prisma.tripDayRecord.create({
-    data: {
-      tripReportId:        id,
-      date:                body.date,
-      city:                body.city                || null,
-      company:             body.company             || null,
-      activity:            body.activity            || null,
-      transportCost:       body.transportCost       ?? null,
-      transportReceipt:    body.transportReceipt    || null,
-      accommodationCost:   body.accommodationCost   ?? null,
-      accommodationReceipt:body.accommodationReceipt|| null,
-      mealCost:            body.mealCost            ?? null,
-      mealReceipt:         body.mealReceipt         || null,
-      otherCost:           body.otherCost           ?? null,
-      otherReceipt:        body.otherReceipt        || null,
-      costCurrencies:      body.costCurrencies      ?? null,
-    },
-  })
+
+  const dayId = 'c' + randomBytes(11).toString('base64url').slice(0, 23)
+  await prisma.$executeRaw`
+    INSERT INTO "TripDayRecord" (
+      "id","tripReportId","date","city","company","activity",
+      "transportCost","transportReceipt","accommodationCost","accommodationReceipt",
+      "mealCost","mealReceipt","otherCost","otherReceipt","costCurrencies",
+      "createdAt","updatedAt"
+    ) VALUES (
+      ${dayId}, ${id}, ${body.date},
+      ${body.city || null}, ${body.company || null}, ${body.activity || null},
+      ${body.transportCost ?? null}, ${body.transportReceipt || null},
+      ${body.accommodationCost ?? null}, ${body.accommodationReceipt || null},
+      ${body.mealCost ?? null}, ${body.mealReceipt || null},
+      ${body.otherCost ?? null}, ${body.otherReceipt || null},
+      ${body.costCurrencies ?? null},
+      CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+    )
+  `
+  const day = await prisma.tripDayRecord.findUnique({ where: { id: dayId } })
   return NextResponse.json(day, { status: 201 })
 }
