@@ -344,28 +344,6 @@ export default function TripDayTable({
     <div>
       <input ref={fileInputRef} type="file" className="hidden" accept="image/*,.pdf" onChange={onFileChange} />
 
-      {/* ── 저장 버튼 바 ──────────────────────────────────────────── */}
-      <div className="mb-2 flex items-center justify-between">
-        <span className="text-[11px] text-slate-400">
-          {saveStatus === 'pending' && '미저장 내용 있음'}
-          {saveStatus === 'saving' && '저장 중…'}
-          {saveStatus === 'saved'  && '✓ 저장됨'}
-        </span>
-        <button
-          onClick={flushAll}
-          disabled={saveStatus === 'saving'}
-          className={`text-xs px-3 py-1.5 rounded-lg font-semibold transition border ${
-            saveStatus === 'pending'
-              ? 'bg-indigo-600 text-white border-indigo-600 hover:bg-indigo-700'
-              : saveStatus === 'saving'
-              ? 'bg-indigo-300 text-white border-indigo-300 cursor-not-allowed'
-              : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50'
-          }`}
-        >
-          {saveStatus === 'saving' ? '저장 중…' : '저장'}
-        </button>
-      </div>
-
       {/* ── 환율 배너 ─────────────────────────────────────────────── */}
       <div className="mb-3 flex flex-wrap items-center gap-2 px-3 py-2 bg-blue-50 border border-blue-200 rounded-lg text-xs">
         <span className="font-semibold text-blue-700">💱 외화 환산</span>
