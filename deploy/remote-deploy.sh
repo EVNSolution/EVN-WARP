@@ -38,6 +38,19 @@ if [ -f dev.db ]; then
   cp dev.db "$BACKUP_DIR/dev-${ts}-${old_commit:-unknown}.db"
 fi
 
+# 업로드 파일을 배포와 무관하게 영구 보존
+# /opt/evn-uploads/ 에 실제 파일을 두고 public/uploads 는 심볼릭 링크로 연결
+UPLOADS_PERSIST="/opt/evn-uploads"
+mkdir -p "$UPLOADS_PERSIST"
+# 기존 public/uploads 폴더(심볼릭 링크가 아닌 실제 폴더)가 있으면 영구 보존 디렉터리로 이동
+if [ -d "$APP_DIR/public/uploads" ] && [ ! -L "$APP_DIR/public/uploads" ]; then
+  cp -r "$APP_DIR/public/uploads/." "$UPLOADS_PERSIST/" 2>/dev/null || true
+  rm -rf "$APP_DIR/public/uploads"
+fi
+mkdir -p "$APP_DIR/public"
+ln -sfn "$UPLOADS_PERSIST" "$APP_DIR/public/uploads"
+echo "Uploads symlink: $APP_DIR/public/uploads -> $UPLOADS_PERSIST"
+
 app_env="$(get_param "$SSM_APP_ENV_PARAM")"
 previous_auth_secret=""
 if [ -f .env ]; then
