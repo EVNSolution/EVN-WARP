@@ -45,9 +45,18 @@ export default async function TripDetailPage({ params }: { params: Promise<{ id:
   if (!trip) notFound()
 
   const st = statusStyle[trip.status] ?? statusStyle['초안']
-  const isAuthor      = trip.userId === currentUser?.id
-  const isApprover    = trip.approverId === currentUser?.id
+  const isAuthor = trip.userId === currentUser?.id
+
+  // approversJson(신규) + approverId(구버전) 양쪽 모두 확인
+  const approversArr: { userId: string }[] = (() => {
+    try { return JSON.parse((trip as any).approversJson ?? '[]') } catch { return [] }
+  })()
+  const isApprover =
+    trip.approverId === currentUser?.id ||
+    approversArr.some(a => a.userId === currentUser?.id)
+
   const isPreApprover = (trip as any).preApproverId === currentUser?.id
+  const isAdmin    = currentUser?.role === 'admin'
   const isOverseas = trip.type === '해외출장'
 
   const budgetTotal = (trip.budgetTransport ?? 0) + (trip.budgetAccomm ?? 0) +
@@ -88,7 +97,7 @@ export default async function TripDetailPage({ params }: { params: Promise<{ id:
               className="flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-lg border border-slate-300 text-slate-600 hover:bg-slate-50 transition-all">
               🖨 인쇄
             </Link>
-            {isAuthor && (trip.status === '초안' || trip.status === '반려') && (
+            {(isAuthor || isAdmin) && (trip.status === '초안' || trip.status === '반려') && (
               <Link href={`/trip/${trip.id}/edit`}
                 className="flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-50 transition-all">
                 <Edit2 size={14} />
@@ -251,7 +260,7 @@ export default async function TripDetailPage({ params }: { params: Promise<{ id:
         <TripActions
           tripId={trip.id}
           status={trip.status}
-          isAuthor={isAuthor}
+          isAuthor={isAuthor || isAdmin}
           isApprover={isApprover}
           approverId={trip.approverId ?? ''}
           approversJson={(trip as any).approversJson ?? '[]'}
