@@ -137,17 +137,18 @@ export default async function TripPrintPage({ params }: { params: Promise<{ id: 
   }
 
   const today = new Date().toLocaleDateString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit' })
+  const authorName = trip.userName || (session?.user as any)?.name || ''
 
   return (
     <>
       <style>{`
-        @page { size: A4; margin: 18mm 15mm; }
+        @page { size: A4; margin: 15mm 10mm; }
         @media print {
           .no-print { display: none !important; }
           body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
         }
         body { font-family: 'Noto Sans KR', sans-serif; font-size: 10pt; color: #1e293b; background: white; }
-        .page { max-width: 190mm; margin: 0 auto; padding: 10mm 0; }
+        .page { max-width: 210mm; margin: 0 auto; padding: 10mm 0; }
         table { border-collapse: collapse; width: 100%; }
         th, td { border: 1px solid #cbd5e1; padding: 4px 6px; }
         th { background: #f1f5f9; font-weight: 600; text-align: center; font-size: 9pt; }
@@ -156,7 +157,7 @@ export default async function TripPrintPage({ params }: { params: Promise<{ id: 
         .info-label { width: 22mm; background: #f8fafc; font-weight: 600; font-size: 9pt;
           color: #475569; white-space: nowrap; text-align: center; }
         .info-val { font-size: 9.5pt; padding: 4px 8px; }
-        .approval-box { border: 1px solid #cbd5e1; text-align: center; }
+        .approval-box { border: 1px solid #cbd5e1; text-align: center; padding: 0; vertical-align: top; }
         .approval-box .role { background: #f1f5f9; font-size: 8pt; font-weight: 600; padding: 3px; border-bottom: 1px solid #cbd5e1; }
         .approval-box .name { font-size: 9pt; padding: 16px 8px; min-height: 32px; }
         .cur-badge { font-size: 7pt; color: #2563eb; margin-left: 2px; font-weight: 600; }
@@ -178,7 +179,8 @@ export default async function TripPrintPage({ params }: { params: Promise<{ id: 
             <div style={{ fontSize: '18pt', fontWeight: 800, color: '#1e3a5f', letterSpacing: '-0.5px' }}>출장 보고서</div>
           </div>
           <div style={{ textAlign: 'right', fontSize: '8.5pt', color: '#64748b' }}>
-            <div>작성일: {today}</div>
+            <div>작성자: {authorName}</div>
+            <div style={{ marginTop: 2 }}>작성일: {today}</div>
             <div style={{ marginTop: 2 }}>
               <span style={{ background: isOverseas ? '#dbeafe' : '#ffedd5', color: isOverseas ? '#1d4ed8' : '#c2410c', padding: '1px 6px', borderRadius: 4, fontSize: '8pt', fontWeight: 600 }}>
                 {trip.type}
@@ -249,15 +251,15 @@ export default async function TripPrintPage({ params }: { params: Promise<{ id: 
         <table>
           <thead>
             <tr>
-              <th style={{ width: '10%' }}>일자</th>
-              <th style={{ width: '9%' }}>도시</th>
-              <th style={{ width: '12%' }}>업체명</th>
+              <th style={{ width: '8%' }}>일자</th>
+              <th style={{ width: '7%' }}>도시</th>
+              <th style={{ width: '11%' }}>업체명</th>
               <th>주요 활동</th>
               <th style={{ width: '9%' }}>교통비</th>
               <th style={{ width: '9%' }}>숙박비</th>
-              <th style={{ width: '9%' }}>식비</th>
-              <th style={{ width: '9%' }}>기타</th>
-              <th style={{ width: '10%' }}>소계(KRW)</th>
+              <th style={{ width: '8%' }}>식비</th>
+              <th style={{ width: '8%' }}>기타</th>
+              <th style={{ width: '13%' }}>소계(KRW)</th>
             </tr>
           </thead>
           <tbody>
@@ -374,7 +376,7 @@ export default async function TripPrintPage({ params }: { params: Promise<{ id: 
                 <>
                   <td className="approval-box" style={{ width: `${100 / (approvers.length + 1)}%` }}>
                     <div className="role">작성자</div>
-                    <div className="name">{trip.userName}</div>
+                    <div className="name">{authorName}</div>
                   </td>
                   {approvers.map((a: any, i: number) => (
                     <td key={i} className="approval-box" style={{ width: `${100 / (approvers.length + 1)}%` }}>
@@ -391,7 +393,7 @@ export default async function TripPrintPage({ params }: { params: Promise<{ id: 
                 <>
                   <td className="approval-box" style={{ width: '25%' }}>
                     <div className="role">작성자</div>
-                    <div className="name">{trip.userName}</div>
+                    <div className="name">{authorName}</div>
                   </td>
                   <td className="approval-box" style={{ width: '25%' }}>
                     <div className="role">검토</div>
