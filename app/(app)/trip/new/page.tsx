@@ -29,7 +29,7 @@ export default async function NewTripPage({
         type: tripType,
         title: '',
         userId: user?.id ?? '',
-        userName: '',
+        userName: user?.name ?? user?.email ?? '',
         destination: '',
         purpose: '',
         startDate,

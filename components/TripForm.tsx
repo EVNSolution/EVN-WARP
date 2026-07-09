@@ -154,6 +154,15 @@ export default function TripForm({ mode, initial, users, currentUserId }: Props)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
+  // userId가 있는데 userName이 비어있으면 users 목록에서 자동 채움
+  useEffect(() => {
+    if (form.userId && !form.userName) {
+      const u = users.find(u => u.id === form.userId)
+      if (u) setForm(prev => ({ ...prev, userName: u.name ?? u.email ?? '' }))
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   // 다중 승인자 (approversJson 파싱)
   const initApprovers: Approver[] = (() => {
     try { return JSON.parse((initial as any).approversJson ?? '[]') } catch { return [] }
