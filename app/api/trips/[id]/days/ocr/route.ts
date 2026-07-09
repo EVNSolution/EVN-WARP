@@ -158,7 +158,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   if (googleKey) {
     try {
       const { amount, currency } = await geminiOCR(buffer, file.type)
-      return NextResponse.json({ url, amount, currency, engine: 'gemini' })
+      if (amount != null) return NextResponse.json({ url, amount, currency, engine: 'gemini' })
     } catch (e: any) {
       console.error('[Gemini OCR] 실패, 다음 엔진 시도:', e?.message)
     }
@@ -167,7 +167,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   if (anthropicKey) {
     try {
       const { amount, currency } = await claudeOCR(buffer, file.type)
-      return NextResponse.json({ url, amount, currency, engine: 'claude' })
+      if (amount != null) return NextResponse.json({ url, amount, currency, engine: 'claude' })
     } catch (e: any) {
       console.error('[Claude OCR] 실패:', e?.message)
     }
