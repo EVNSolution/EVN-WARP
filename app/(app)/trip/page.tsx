@@ -2,6 +2,7 @@ import { auth } from '@/auth'
 import { prisma } from '@/lib/db'
 import Link from 'next/link'
 import { Plus, MapPin, Plane, ChevronRight } from 'lucide-react'
+import TripDeleteButton from '@/components/TripDeleteButton'
 
 const STATUS_LIST = ['전체', '초안', '승인요청', '승인', '반려'] as const
 
@@ -138,6 +139,8 @@ export default async function TripListPage({
                   <span className={`shrink-0 text-[11px] font-bold px-2.5 py-1 rounded-full ${st.bg} ${st.text}`}>
                     {trip.status}
                   </span>
+
+                  <TripDeleteButton tripId={trip.id} />
 
                   <ChevronRight size={16} className="shrink-0 text-slate-300 group-hover:text-slate-500 transition-colors" />
                 </Link>
