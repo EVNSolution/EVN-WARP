@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
+import { createNotification } from '@/lib/createNotification'
 
 export async function GET(_: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -24,6 +25,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
       }
     }
 
+    const prevTrip = await prisma.tripReport.findUnique({ where: { id }, select: { status: true } as any })
     const trip = await prisma.tripReport.update({
       where: { id },
       data: {
@@ -63,6 +65,29 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
         submittedAt:     'submittedAt' in b ? (b.submittedAt ? new Date(b.submittedAt) : null) : undefined,
       },
     })
+    // 승인요청 전환 시 결재라인 전원에게 알림
+    if (b.status === '승인요청' && (prevTrip as any)?.status !== '승인요청') {
+      let approvers: any[] = []
+      try { approvers = JSON.parse((trip as any).approversJson ?? '[]') } catch {}
+      // 첫 번째 처리 대상자(들)에게만 알림
+      const firstConsentor = approvers.find((a: any) => (a.type ?? '결재') === '동의' && a.status === '대기')
+      const firstFinalApprover = !firstConsentor
+        ? approvers.find((a: any) => (a.type ?? '결재') === '결재' && a.status === '대기')
+        : null
+      const targets = firstConsentor
+        ? approvers.filter((a: any) => (a.type ?? '결재') === '동의' && a.status === '대기').slice(0, 1)
+        : firstFinalApprover ? [firstFinalApprover] : []
+      for (const a of targets) {
+        await createNotification({
+          userId: a.userId,
+          tripId: id,
+          type: 'approval_request',
+          message: `[${trip.title}] 승인 요청이 도착했습니다`,
+          link: `/trip/${id}`,
+        })
+      }
+    }
+
     return NextResponse.json(trip)
   } catch (err: any) {
     return NextResponse.json({ error: err?.message ?? '수정 오류' }, { status: 500 })

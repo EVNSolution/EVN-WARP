@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/auth'
 import { prisma } from '@/lib/db'
+import { createNotification } from '@/lib/createNotification'
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await auth()
@@ -80,6 +81,51 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         "approvalComment"= ${approvalComment}
     WHERE id = ${id}
   `
+
+  // ── 알림 발송 ──────────────────────────────────────────────────
+  const updatedApprovers: any[] = JSON.parse(newApproversJson)
+
+  if (newTripStatus === '반려') {
+    // 작성자에게 반려 알림
+    if (trip.userId) {
+      await createNotification({
+        userId: trip.userId,
+        tripId: id,
+        type: 'rejected',
+        message: `[${trip.title}] 출장보고서가 반려되었습니다`,
+        link: `/trip/${id}`,
+      })
+    }
+  } else if (newTripStatus === '승인') {
+    // 작성자에게 최종 승인 알림
+    if (trip.userId) {
+      await createNotification({
+        userId: trip.userId,
+        tripId: id,
+        type: 'approved',
+        message: `[${trip.title}] 출장보고서가 승인되었습니다`,
+        link: `/trip/${id}`,
+      })
+    }
+  } else {
+    // 다음 처리 대상자에게 알림
+    const nextConsentor = updatedApprovers.find(
+      (a: any) => (a.type ?? '결재') === '동의' && a.status === '대기'
+    )
+    const nextFinalApprover = !nextConsentor
+      ? updatedApprovers.find((a: any) => (a.type ?? '결재') === '결재' && a.status === '대기')
+      : null
+    const nextActor = nextConsentor ?? nextFinalApprover
+    if (nextActor) {
+      await createNotification({
+        userId: nextActor.userId,
+        tripId: id,
+        type: 'approval_request',
+        message: `[${trip.title}] 승인 차례가 되었습니다`,
+        link: `/trip/${id}`,
+      })
+    }
+  }
 
   return NextResponse.json({ ok: true, tripStatus: newTripStatus })
 }

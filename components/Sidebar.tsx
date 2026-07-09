@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { LayoutDashboard, Target, Users, BookOpen, Filter, UserRound, Settings2, CircleUserRound } from 'lucide-react'
 import LogoutButton from './LogoutButton'
+import NotificationBell from './NotificationBell'
 
 const navItems = [
   { href: '/dashboard', label: '경영 대시보드', icon: LayoutDashboard },
@@ -71,6 +72,11 @@ export default function Sidebar({ userName, userEmail }: Props) {
           )
         })}
       </nav>
+
+      {/* 알림 */}
+      <div className="px-3 pb-1">
+        <NotificationBell />
+      </div>
 
       {/* 보조 메뉴 */}
       <div className="px-3 pb-2 space-y-0.5">

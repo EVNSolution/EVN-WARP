@@ -606,6 +606,17 @@ model TripExpense {
   updatedAt    DateTime    @updatedAt
 }
 
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  tripId    String?
+  type      String   // 'approval_request' | 'approved' | 'rejected'
+  message   String
+  link      String?
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now())
+}
+
 model WeeklyUpdate {
   id        String       @id @default(cuid())
   taskId    String
