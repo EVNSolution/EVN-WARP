@@ -24,25 +24,17 @@ jobs:
 
       - name: Test API keys on EC2
         run: |
+          SCRIPT_B64=$(base64 -w 0 deploy/test-api-keys.sh)
+
           COMMAND_ID=$(aws ssm send-command \
             --instance-ids "$EC2_INSTANCE_ID" \
             --document-name "AWS-RunShellScript" \
-            --parameters 'commands=[
-              "GOOGLE_KEY=$(grep -m1 \"^GOOGLE_API_KEY\" /opt/evn-warp/.env | cut -d= -f2- | tr -d '\\\"')",
-              "ANTHROPIC_KEY=$(grep -m1 \"^ANTHROPIC_API_KEY\" /opt/evn-warp/.env | cut -d= -f2- | tr -d '\\\"')",
-              "echo \"Google key tail: ...${GOOGLE_KEY: -10}\"",
-              "echo \"Anthropic key tail: ...${ANTHROPIC_KEY: -10}\"",
-              "echo \"Google key length: ${#GOOGLE_KEY}\"",
-              "echo \"Anthropic key length: ${#ANTHROPIC_KEY}\"",
-              "echo \"=== Google API test ===\"",
-              "HTTP=$(curl -s -o /tmp/gres.txt -w \"%{http_code}\" \"https://generativelanguage.googleapis.com/v1beta/models?key=${GOOGLE_KEY}\")",
-              "echo \"HTTP status: $HTTP\"",
-              "cat /tmp/gres.txt | head -c 300"
-            ]' \
+            --parameters "{\"commands\":[\"echo '$SCRIPT_B64' | base64 -d | bash\"]}" \
             --query "Command.CommandId" \
             --output text)
 
-          sleep 20
+          echo "SSM Command: $COMMAND_ID"
+          sleep 25
 
           aws ssm get-command-invocation \
             --command-id "$COMMAND_ID" \
