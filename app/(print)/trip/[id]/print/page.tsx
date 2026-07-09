@@ -286,13 +286,12 @@ export default async function TripPrintPage({ params }: { params: Promise<{ id: 
                   {COST_COLS.map(col => {
                     const val = d[col.key] ?? 0
                     const cur = val ? getCellCurrency(d.date, col.key, fxCurrency || 'KRW') : 'KRW'
-                    const isFx = cur !== 'KRW'
                     return (
                       <td key={col.key} style={{ textAlign: 'right', fontSize: '8.5pt' }}>
                         {val ? (
                           <>
                             {num(val)}
-                            {isFx && <span className="cur-badge">{cur}</span>}
+                            <span className="cur-badge">{cur}</span>
                           </>
                         ) : ''}
                       </td>
