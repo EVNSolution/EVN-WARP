@@ -139,8 +139,22 @@ export default function TripActions({
 
   const submitApproval = async () => {
     if (!hasApprover) return
-    await saveApprovers(approvers)
-    await patch({ status: '승인요청', submittedAt: new Date().toISOString() })
+    setBusy(true)
+    try {
+      window.dispatchEvent(new CustomEvent('save-trip-days'))
+      await fetch(`/api/trips/${tripId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          approversJson: JSON.stringify(approvers),
+          status: '승인요청',
+          submittedAt: new Date().toISOString(),
+        }),
+      })
+      router.refresh()
+    } finally {
+      setBusy(false)
+    }
   }
 
   const withdrawApproval = async () => {
@@ -322,6 +336,16 @@ export default function TripActions({
                     <UserPlus size={14} />추가
                   </button>
                 </div>
+              </div>
+            )}
+
+            {/* 결재라인 저장 */}
+            {approvers.length > 0 && (
+              <div className="flex justify-end pt-2 mt-1 border-t border-slate-100">
+                <button onClick={() => saveApprovers(approvers)} disabled={savingApprovers}
+                  className="flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-lg border-2 border-indigo-300 text-indigo-600 hover:bg-indigo-50 disabled:opacity-50 transition-all">
+                  {savingApprovers ? '저장 중...' : <><Check size={13} />결재라인 저장</>}
+                </button>
               </div>
             )}
           </div>

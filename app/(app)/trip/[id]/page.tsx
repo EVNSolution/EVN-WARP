@@ -187,6 +187,21 @@ export default async function TripDetailPage({ params }: { params: Promise<{ id:
           </div>
         )}
 
+        {/* 승인 / 제출 액션 (Client Component) */}
+        <TripActions
+          tripId={trip.id}
+          status={trip.status}
+          isAuthor={isAuthor || isAdmin}
+          isApprover={isApprover}
+          approverId={trip.approverId ?? ''}
+          approversJson={(trip as any).approversJson ?? '[]'}
+          preApprovalStatus={(trip as any).preApprovalStatus ?? null}
+          preApproverId={(trip as any).preApproverId ?? null}
+          isPreApprover={isPreApprover}
+          users={users}
+          currentApproverType={currentApproverType}
+        />
+
         {/* ① 기본 정보 */}
         <Sec title="① 기본 정보">
           <Row label="출장 구분" value={trip.type} />
@@ -275,20 +290,6 @@ export default async function TripDetailPage({ params }: { params: Promise<{ id:
           )
         })()}
 
-        {/* 승인 / 제출 액션 (Client Component) */}
-        <TripActions
-          tripId={trip.id}
-          status={trip.status}
-          isAuthor={isAuthor || isAdmin}
-          isApprover={isApprover}
-          approverId={trip.approverId ?? ''}
-          approversJson={(trip as any).approversJson ?? '[]'}
-          preApprovalStatus={(trip as any).preApprovalStatus ?? null}
-          preApproverId={(trip as any).preApproverId ?? null}
-          isPreApprover={isPreApprover}
-          users={users}
-          currentApproverType={currentApproverType}
-        />
 
       </div>
     </div>
