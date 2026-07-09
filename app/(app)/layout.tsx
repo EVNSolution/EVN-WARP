@@ -8,7 +8,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   return (
     <div className="flex h-full min-h-screen">
       <Sidebar userName={user?.name ?? ''} userEmail={user?.email ?? ''} />
-      <main className="flex-1 overflow-auto">{children}</main>
+      <main className="flex-1 overflow-auto" style={{ backgroundColor: '#f8f9fa' }}>{children}</main>
     </div>
   )
 }

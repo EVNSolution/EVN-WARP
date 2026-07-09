@@ -78,7 +78,7 @@ export default async function TripDetailPage({ params }: { params: Promise<{ id:
     (trip.actualMeal ?? 0) + (trip.actualOther ?? 0)
 
   return (
-    <div className="min-h-screen" style={{ backgroundColor: '#f8f9fa' }}>
+    <div style={{ backgroundColor: '#f8f9fa' }}>
 
       {/* 헤더 */}
       <div className="px-8 py-5 bg-white border-b border-slate-200">
@@ -121,7 +121,7 @@ export default async function TripDetailPage({ params }: { params: Promise<{ id:
         </div>
       </div>
 
-      <div className="px-8 py-6 space-y-5 max-w-5xl">
+      <div className="px-8 py-6 pb-12 space-y-5 max-w-5xl">
 
         {/* 사전품의 기록 배너 */}
         {(trip as any).preApprovalStatus && (
