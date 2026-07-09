@@ -61,7 +61,7 @@ const TRIP_STATUS: Record<string, { bg: string; text: string }> = {
 
 function TripList({ items }: { items: any[] }) {
   if (items.length === 0) {
-    return <div className="px-5 py-8 text-center text-xs text-slate-400">이 월에 출장 기록이 없습니다.</div>
+    return <div className="px-5 py-8 text-center text-xs text-slate-400">출장 기록이 없습니다.</div>
   }
   return (
     <div className="divide-y divide-slate-100">
@@ -172,13 +172,10 @@ export default async function NotesPage({ searchParams }: { searchParams: Promis
     }),
     prisma.tripReport.findMany({
       where: {
-        type:      '해외출장',
-        startDate: { lte: calToDate },
-        endDate:   { gte: calFromDate },
         ...(userParam ? { userName: userParam } : {}),
         ...(teamParam ? { teamName: teamParam } : {}),
       },
-      orderBy: { startDate: 'asc' },
+      orderBy: { startDate: 'desc' },
     }),
   ])
   const userNames = userRows.map(r => r.userName!).filter(Boolean)
@@ -423,13 +420,17 @@ export default async function NotesPage({ searchParams }: { searchParams: Promis
             <div className="px-5 py-3 border-b border-orange-100 bg-orange-50/60 flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <MapPin size={14} className="text-orange-500" />
-                <h2 className="text-sm font-bold text-orange-900">해외출장 보고</h2>
+                <h2 className="text-sm font-bold text-orange-900">출장보고</h2>
                 <span className="text-xs text-orange-500 bg-orange-100 px-1.5 py-0.5 rounded-full font-semibold">{tripReports.length}건</span>
               </div>
               <div className="flex gap-2">
-                <Link href={`/trip/new?type=해외출장`}
+                <Link href="/trip/new"
+                  className="flex items-center gap-1 text-xs text-orange-600 hover:text-orange-800 border border-orange-200 px-2 py-1 rounded-lg bg-white transition-colors">
+                  <Plus size={11} /> 국내출장
+                </Link>
+                <Link href="/trip/new?type=해외출장"
                   className="flex items-center gap-1 text-xs text-red-600 hover:text-red-800 border border-red-200 px-2 py-1 rounded-lg bg-white transition-colors">
-                  <Plus size={11} /> 해외출장 추가
+                  <Globe size={11} /> 해외출장
                 </Link>
               </div>
             </div>
