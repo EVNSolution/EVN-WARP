@@ -146,7 +146,12 @@ const moneyInput = (value: number | null | undefined, onChange: (v: number | nul
   </div>
 )
 
-interface Approver { userId: string; userName: string; order: number; status: string; comment: string | null; approvedAt: string | null }
+type ApproverType = '동의' | '결재'
+interface Approver { userId: string; userName: string; type: ApproverType; order: number; status: string; comment: string | null; approvedAt: string | null }
+const APPROVER_TYPE_STYLE: Record<ApproverType, { bg: string; text: string }> = {
+  '동의': { bg: 'bg-blue-100',   text: 'text-blue-700' },
+  '결재': { bg: 'bg-purple-100', text: 'text-purple-700' },
+}
 interface Traveler { userId: string; userName: string }
 
 export default function TripForm({ mode, initial, users, currentUserId }: Props) {
@@ -183,9 +188,15 @@ export default function TripForm({ mode, initial, users, currentUserId }: Props)
 
   // 다중 승인자 (approversJson 파싱)
   const initApprovers: Approver[] = (() => {
-    try { return JSON.parse((initial as any).approversJson ?? '[]') } catch { return [] }
+    try {
+      return (JSON.parse((initial as any).approversJson ?? '[]') as any[]).map(a => ({
+        ...a, type: (a.type ?? '결재') as ApproverType,
+      }))
+    } catch { return [] }
   })()
   const [approvers, setApprovers] = useState<Approver[]>(initApprovers)
+  const [addType, setAddType] = useState<ApproverType>('동의')
+  const [selectedApproverId, setSelectedApproverId] = useState('')
   const [draftDays, setDraftDays] = useState<Record<string, DraftDay>>({})
 
   const set = (k: keyof TripData, v: any) => setForm(prev => ({ ...prev, [k]: v }))
@@ -195,13 +206,15 @@ export default function TripForm({ mode, initial, users, currentUserId }: Props)
   const createDates = (mode === 'create' && form.startDate && form.endDate)
     ? dateRange(form.startDate, form.endDate) : []
 
-  const addApprover = (userId: string) => {
-    const u = users.find(u => u.id === userId)
-    if (!u || approvers.some(a => a.userId === userId)) return
+  const addApprover = () => {
+    if (!selectedApproverId) return
+    const u = users.find(u => u.id === selectedApproverId)
+    if (!u || approvers.some(a => a.userId === selectedApproverId)) return
     setApprovers(prev => [...prev, {
-      userId, userName: u.name, order: prev.length + 1,
-      status: '대기', comment: null, approvedAt: null,
+      userId: u.id, userName: u.name ?? u.email, type: addType,
+      order: prev.length + 1, status: '대기', comment: null, approvedAt: null,
     }])
+    setSelectedApproverId('')
   }
   const removeApprover = (idx: number) => {
     setApprovers(prev => prev.filter((_, i) => i !== idx).map((a, i) => ({ ...a, order: i + 1 })))
@@ -422,11 +435,6 @@ export default function TripForm({ mode, initial, users, currentUserId }: Props)
             onChange={v => set('purpose', v)}
             placeholder="• 방문 목적을 입력하세요 (Enter로 항목 추가)" />
         </Field>
-        <Field label="동행자">
-          <input className={inputCls} value={form.companions ?? ''}
-            onChange={e => set('companions', e.target.value)}
-            placeholder="예) 이영희, 박민준" />
-        </Field>
       </Section>
 
       {/* ③ 일자별 일정 및 비용 명세 */}
@@ -528,42 +536,68 @@ export default function TripForm({ mode, initial, users, currentUserId }: Props)
             </div>
           )}
 
-          <div className="space-y-2 mb-3">
-            {approvers.map((a, i) => (
-              <div key={a.userId} className="flex items-center gap-2 px-3 py-2 bg-indigo-50 border border-indigo-100 rounded-lg">
-                <span className="w-5 h-5 rounded-full bg-indigo-500 text-white text-[10px] flex items-center justify-center font-bold shrink-0">{i + 1}</span>
-                <span className="text-sm font-semibold text-indigo-800 flex-1">{a.userName}</span>
-                <div className="flex items-center gap-0.5">
-                  <button onClick={() => moveApprover(i, 'up')} disabled={i === 0}
-                    className="p-0.5 text-slate-400 hover:text-indigo-500 disabled:opacity-20">
-                    <ChevronUp size={14} />
-                  </button>
-                  <button onClick={() => moveApprover(i, 'down')} disabled={i === approvers.length - 1}
-                    className="p-0.5 text-slate-400 hover:text-indigo-500 disabled:opacity-20">
-                    <ChevronDown size={14} />
-                  </button>
-                  <button onClick={() => removeApprover(i)}
-                    className="p-0.5 text-slate-300 hover:text-red-400 ml-1">
-                    <Trash2 size={13} />
-                  </button>
+          {approvers.length === 0 && (
+            <div className="text-xs text-slate-400 px-3 py-2 border border-dashed border-slate-200 rounded-lg mb-3">
+              아래에서 동의/결재 인원을 추가하세요.
+            </div>
+          )}
+
+          <div className="space-y-1.5 mb-3">
+            {approvers.map((a, i) => {
+              const ts = APPROVER_TYPE_STYLE[a.type] ?? APPROVER_TYPE_STYLE['결재']
+              return (
+                <div key={a.userId} className="flex items-center gap-2 px-3 py-2 bg-slate-50 border border-slate-100 rounded-lg">
+                  <span className="w-5 h-5 rounded-full bg-indigo-100 text-indigo-600 text-[10px] flex items-center justify-center font-bold shrink-0">{i + 1}</span>
+                  <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full shrink-0 ${ts.bg} ${ts.text}`}>{a.type}</span>
+                  <span className="text-sm font-semibold text-slate-800 flex-1">{a.userName}</span>
+                  <div className="flex items-center gap-0.5">
+                    <button type="button" onClick={() => moveApprover(i, 'up')} disabled={i === 0}
+                      className="p-0.5 text-slate-400 hover:text-indigo-500 disabled:opacity-20">
+                      <ChevronUp size={14} />
+                    </button>
+                    <button type="button" onClick={() => moveApprover(i, 'down')} disabled={i === approvers.length - 1}
+                      className="p-0.5 text-slate-400 hover:text-indigo-500 disabled:opacity-20">
+                      <ChevronDown size={14} />
+                    </button>
+                    <button type="button" onClick={() => removeApprover(i)}
+                      className="p-0.5 text-slate-300 hover:text-red-400 ml-1">
+                      <Trash2 size={13} />
+                    </button>
+                  </div>
                 </div>
-              </div>
-            ))}
+              )
+            })}
           </div>
 
-          <div className="flex gap-2">
-            <select
-              className={inputCls}
-              value=""
-              onChange={e => { if (e.target.value) addApprover(e.target.value) }}
-            >
-              <option value="">+ 승인자 추가</option>
-              {users
-                .filter(u => !approvers.some(a => a.userId === u.id))
-                .map(u => (
-                  <option key={u.id} value={u.id}>{u.name} ({u.email})</option>
+          {/* 동의/결재 타입 선택 + 인원 추가 */}
+          <div className="space-y-2">
+            <div className="flex gap-2">
+              {(['동의', '결재'] as ApproverType[]).map(t => {
+                const ts = APPROVER_TYPE_STYLE[t]
+                const checked = addType === t
+                return (
+                  <label key={t} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border cursor-pointer text-sm font-semibold transition-all
+                    ${checked ? `${ts.bg} ${ts.text} border-current` : 'border-slate-200 text-slate-500 hover:bg-slate-50'}`}>
+                    <input type="radio" name="addType" value={t} checked={checked}
+                      onChange={() => setAddType(t)} className="sr-only" />
+                    {t}
+                  </label>
+                )
+              })}
+            </div>
+            <div className="flex gap-2">
+              <select className={inputCls} value={selectedApproverId}
+                onChange={e => setSelectedApproverId(e.target.value)}>
+                <option value="">인원 선택...</option>
+                {users.filter(u => !approvers.some(a => a.userId === u.id)).map(u => (
+                  <option key={u.id} value={u.id}>{u.name}</option>
                 ))}
-            </select>
+              </select>
+              <button type="button" onClick={addApprover} disabled={!selectedApproverId}
+                className="shrink-0 flex items-center gap-1.5 px-3 py-2 text-sm font-semibold rounded-lg border border-indigo-200 text-indigo-600 hover:bg-indigo-50 disabled:opacity-40 disabled:cursor-not-allowed transition-all">
+                <UserPlus size={14} />추가
+              </button>
+            </div>
           </div>
         </div>
       </Section>
