@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Send, Check, X, Trash2, FileCheck, UserPlus, Undo2, Save } from 'lucide-react'
+import { Send, Check, X, Trash2, FileCheck, Undo2, Save } from 'lucide-react'
 
 type ApproverType = '동의' | '결재'
 
@@ -71,7 +71,6 @@ export default function TripActions({
       }))
     } catch { return [] }
   })
-  const [selectedUserId, setSelectedUserId] = useState('')
   const [selectedType, setSelectedType] = useState<ApproverType>('동의')
   const [savingApprovers, setSavingApprovers] = useState(false)
 
@@ -107,11 +106,11 @@ export default function TripActions({
     }
   }
 
-  const addApprover = () => {
-    if (!selectedUserId) return
-    const user = users.find(u => u.id === selectedUserId)
+  const addApprover = (userId: string) => {
+    if (!userId) return
+    const user = users.find(u => u.id === userId)
     if (!user) return
-    if (approvers.some(a => a.userId === selectedUserId)) return
+    if (approvers.some(a => a.userId === userId)) return
     setApprovers(prev => [...prev, {
       userId: user.id,
       userName: user.name ?? user.email,
@@ -120,7 +119,6 @@ export default function TripActions({
       approvedAt: null,
       comment: null,
     }])
-    setSelectedUserId('')
   }
 
   const removeApprover = (userId: string) => {
@@ -308,7 +306,6 @@ export default function TripActions({
             {/* 결재자 추가 */}
             {availableUsers.length > 0 && (
               <div className="space-y-2">
-                {/* 동의 / 결재 타입 선택 */}
                 <div className="flex gap-3">
                   {(['동의', '결재'] as ApproverType[]).map(t => {
                     const ts = TYPE_STYLE[t]
@@ -323,19 +320,13 @@ export default function TripActions({
                     )
                   })}
                 </div>
-                <div className="flex items-center gap-2">
-                  <select value={selectedUserId} onChange={e => setSelectedUserId(e.target.value)}
-                    className="flex-1 border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-300 bg-white">
-                    <option value="">인원 선택...</option>
-                    {availableUsers.map(u => (
-                      <option key={u.id} value={u.id}>{u.name ?? u.email}</option>
-                    ))}
-                  </select>
-                  <button onClick={addApprover} disabled={!selectedUserId}
-                    className="flex items-center gap-1.5 px-3 py-2 text-sm font-semibold rounded-lg border border-indigo-200 text-indigo-600 hover:bg-indigo-50 disabled:opacity-40 disabled:cursor-not-allowed transition-all">
-                    <UserPlus size={14} />추가
-                  </button>
-                </div>
+                <select value="" onChange={e => { addApprover(e.target.value) }}
+                  className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-300 bg-white">
+                  <option value="">+ 결재자 선택하여 추가...</option>
+                  {availableUsers.map(u => (
+                    <option key={u.id} value={u.id}>{u.name ?? u.email}</option>
+                  ))}
+                </select>
               </div>
             )}
 
@@ -398,19 +389,13 @@ export default function TripActions({
                     )
                   })}
                 </div>
-                <div className="flex items-center gap-2">
-                  <select value={selectedUserId} onChange={e => setSelectedUserId(e.target.value)}
-                    className="flex-1 border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-300 bg-white">
-                    <option value="">인원 선택...</option>
-                    {availableUsers.map(u => (
-                      <option key={u.id} value={u.id}>{u.name ?? u.email}</option>
-                    ))}
-                  </select>
-                  <button onClick={addApprover} disabled={!selectedUserId}
-                    className="flex items-center gap-1.5 px-3 py-2 text-sm font-semibold rounded-lg border border-indigo-200 text-indigo-600 hover:bg-indigo-50 disabled:opacity-40 transition-all">
-                    <UserPlus size={14} />추가
-                  </button>
-                </div>
+                <select value="" onChange={e => { addApprover(e.target.value) }}
+                  className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-300 bg-white">
+                  <option value="">+ 결재자 선택하여 추가...</option>
+                  {availableUsers.map(u => (
+                    <option key={u.id} value={u.id}>{u.name ?? u.email}</option>
+                  ))}
+                </select>
               </div>
             )}
           </div>
