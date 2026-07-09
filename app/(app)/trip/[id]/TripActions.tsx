@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Send, Check, X, Trash2, FileCheck, UserPlus, Undo2 } from 'lucide-react'
+import { Send, Check, X, Trash2, FileCheck, UserPlus, Undo2, Save } from 'lucide-react'
 
 type ApproverType = '동의' | '결재'
 
@@ -107,29 +107,39 @@ export default function TripActions({
     }
   }
 
-  const addApprover = async () => {
+  const addApprover = () => {
     if (!selectedUserId) return
     const user = users.find(u => u.id === selectedUserId)
     if (!user) return
     if (approvers.some(a => a.userId === selectedUserId)) return
-    const newApprovers: Approver[] = [...approvers, {
+    setApprovers(prev => [...prev, {
       userId: user.id,
       userName: user.name ?? user.email,
       type: selectedType,
       status: '대기',
       approvedAt: null,
       comment: null,
-    }]
-    await saveApprovers(newApprovers)
+    }])
     setSelectedUserId('')
   }
 
-  const removeApprover = async (userId: string) => {
-    await saveApprovers(approvers.filter(a => a.userId !== userId))
+  const removeApprover = (userId: string) => {
+    setApprovers(prev => prev.filter(a => a.userId !== userId))
+  }
+
+  const saveDraft = async () => {
+    setBusy(true)
+    try {
+      window.dispatchEvent(new CustomEvent('save-trip-days'))
+      await saveApprovers(approvers)
+    } finally {
+      setBusy(false)
+    }
   }
 
   const submitApproval = async () => {
     if (!hasApprover) return
+    await saveApprovers(approvers)
     await patch({ status: '승인요청', submittedAt: new Date().toISOString() })
   }
 
@@ -181,8 +191,8 @@ export default function TripActions({
             <span className="text-sm text-slate-800 flex-1">{a.userName}</span>
             <span className={`text-xs font-semibold ${ss}`}>{a.status}</span>
             {editable && (
-              <button onClick={() => removeApprover(a.userId)} disabled={savingApprovers}
-                className="text-slate-300 hover:text-red-400 transition-colors disabled:opacity-30">
+              <button onClick={() => removeApprover(a.userId)}
+                className="text-slate-300 hover:text-red-400 transition-colors">
                 <X size={13} />
               </button>
             )}
@@ -307,7 +317,7 @@ export default function TripActions({
                       <option key={u.id} value={u.id}>{u.name ?? u.email}</option>
                     ))}
                   </select>
-                  <button onClick={addApprover} disabled={!selectedUserId || savingApprovers}
+                  <button onClick={addApprover} disabled={!selectedUserId}
                     className="flex items-center gap-1.5 px-3 py-2 text-sm font-semibold rounded-lg border border-indigo-200 text-indigo-600 hover:bg-indigo-50 disabled:opacity-40 disabled:cursor-not-allowed transition-all">
                     <UserPlus size={14} />추가
                   </button>
@@ -321,12 +331,18 @@ export default function TripActions({
               className="flex items-center gap-1.5 px-3 py-2 text-xs text-red-500 hover:bg-red-50 rounded-lg transition-all">
               <Trash2 size={13} />삭제
             </button>
-            <button onClick={submitApproval} disabled={busy || !hasApprover}
-              title={!hasApprover ? '결재자를 먼저 지정해주세요' : ''}
-              className="flex items-center gap-2 px-5 py-2 text-sm font-semibold rounded-lg text-white disabled:opacity-40 disabled:cursor-not-allowed transition-all"
-              style={{ background: hasApprover ? 'linear-gradient(135deg, #6366f1, #8b5cf6)' : '#94a3b8' }}>
-              <Send size={14} />최종 승인 요청
-            </button>
+            <div className="flex items-center gap-2">
+              <button onClick={saveDraft} disabled={busy}
+                className="flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-50 disabled:opacity-50 transition-all">
+                <Save size={14} />초안 저장
+              </button>
+              <button onClick={submitApproval} disabled={busy || !hasApprover}
+                title={!hasApprover ? '결재자를 먼저 지정해주세요' : ''}
+                className="flex items-center gap-2 px-5 py-2 text-sm font-semibold rounded-lg text-white disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+                style={{ background: hasApprover ? 'linear-gradient(135deg, #6366f1, #8b5cf6)' : '#94a3b8' }}>
+                <Send size={14} />최종 승인 요청
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -375,7 +391,7 @@ export default function TripActions({
                       <option key={u.id} value={u.id}>{u.name ?? u.email}</option>
                     ))}
                   </select>
-                  <button onClick={addApprover} disabled={!selectedUserId || savingApprovers}
+                  <button onClick={addApprover} disabled={!selectedUserId}
                     className="flex items-center gap-1.5 px-3 py-2 text-sm font-semibold rounded-lg border border-indigo-200 text-indigo-600 hover:bg-indigo-50 disabled:opacity-40 transition-all">
                     <UserPlus size={14} />추가
                   </button>

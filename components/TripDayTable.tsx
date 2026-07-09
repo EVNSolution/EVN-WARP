@@ -132,6 +132,7 @@ export default function TripDayTable({
   const fileInputRef = useRef<HTMLInputElement>(null)
   const pendingUpload = useRef<{ date: string; col: CostKey } | null>(null)
   const saveTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({})
+  const rowsRef = useRef<DayRecord[]>([])
 
   // ── 외화 환율 상태 ───────────────────────────────────────────────
   const [fxCurrency, setFxCurrency] = useState(isOverseas ? 'CNY' : '')
@@ -157,6 +158,26 @@ export default function TripDayTable({
       setFxLoading(false)
     }
   }, [startDate])
+
+  // rowsRef를 최신 rows와 동기화 (이벤트 리스너 stale closure 방지)
+  useEffect(() => { rowsRef.current = rows }, [rows])
+
+  // 부모(TripActions)의 '초안 저장' 이벤트를 받아 모든 행을 즉시 저장
+  useEffect(() => {
+    const handleSave = () => {
+      Object.values(saveTimers.current).forEach(clearTimeout)
+      saveTimers.current = {}
+      Promise.all(rowsRef.current.map(row =>
+        fetch(`/api/trips/${tripId}/days/${row.id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(row),
+        })
+      ))
+    }
+    window.addEventListener('save-trip-days', handleSave)
+    return () => window.removeEventListener('save-trip-days', handleSave)
+  }, [tripId])
 
   // 해외출장이면 마운트 시 CNY 자동 조회
   useEffect(() => {
@@ -577,26 +598,10 @@ export default function TripDayTable({
         </div>
       )}
 
-      <div className="mt-3 flex items-center justify-between">
+      <div className="mt-3">
         <p className="text-[11px] text-slate-400">
           영수증을 비용 셀에 드래그하거나 📎를 클릭해 첨부하면 금액이 자동 인식됩니다.
         </p>
-        <button
-          onClick={() => {
-            Object.values(saveTimers.current).forEach(clearTimeout)
-            saveTimers.current = {}
-            Promise.all(rows.map(row =>
-              fetch(`/api/trips/${tripId}/days/${row.id}`, {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(row),
-              })
-            ))
-          }}
-          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg border border-slate-300 text-slate-600 hover:bg-slate-50 transition shrink-0"
-        >
-          💾 저장
-        </button>
       </div>
     </div>
   )
