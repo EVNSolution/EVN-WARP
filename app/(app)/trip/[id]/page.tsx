@@ -59,6 +59,19 @@ export default async function TripDetailPage({ params }: { params: Promise<{ id:
   const isAdmin    = currentUser?.role === 'admin'
   const isOverseas = trip.type === '해외출장'
 
+  // 현재 처리 차례인 결재자 계산 (동의 전원 완료 후 결재 차례)
+  const consentors   = approversArr.filter((a: any) => (a.type ?? '결재') === '동의')
+  const finalApprovers = approversArr.filter((a: any) => (a.type ?? '결재') === '결재')
+  const allConsentDone = consentors.every((a: any) => a.status !== '대기')
+  const activeApprover: any =
+    consentors.find((a: any) => a.status === '대기') ??
+    (allConsentDone ? finalApprovers.find((a: any) => a.status === '대기') : null) ??
+    null
+  const currentApproverType: '동의' | '결재' | null =
+    activeApprover?.userId === currentUser?.id
+      ? ((activeApprover.type ?? '결재') as '동의' | '결재')
+      : null
+
   const budgetTotal = (trip.budgetTransport ?? 0) + (trip.budgetAccomm ?? 0) +
     (trip.budgetMeal ?? 0) + (trip.budgetOther ?? 0)
   const actualTotal = (trip.actualTransport ?? 0) + (trip.actualAccomm ?? 0) +
@@ -268,6 +281,7 @@ export default async function TripDetailPage({ params }: { params: Promise<{ id:
           preApproverId={(trip as any).preApproverId ?? null}
           isPreApprover={isPreApprover}
           users={users}
+          currentApproverType={currentApproverType}
         />
 
       </div>

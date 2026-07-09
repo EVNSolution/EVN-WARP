@@ -4,9 +4,12 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Send, Check, X, Trash2, FileCheck, UserPlus, Undo2 } from 'lucide-react'
 
+type ApproverType = '동의' | '결재'
+
 interface Approver {
   userId: string
   userName: string
+  type: ApproverType
   status: string
   approvedAt: string | null
   comment: string | null
@@ -29,6 +32,19 @@ interface Props {
   preApproverId: string | null
   isPreApprover: boolean
   users: User[]
+  currentApproverType: ApproverType | null
+}
+
+const TYPE_STYLE: Record<ApproverType, { bg: string; text: string; label: string }> = {
+  '동의': { bg: 'bg-blue-100',   text: 'text-blue-700',   label: '동의' },
+  '결재': { bg: 'bg-purple-100', text: 'text-purple-700', label: '결재' },
+}
+
+const STATUS_STYLE: Record<string, string> = {
+  '대기': 'text-slate-400',
+  '동의': 'text-blue-600',
+  '승인': 'text-green-600',
+  '반려': 'text-red-500',
 }
 
 export default function TripActions({
@@ -36,6 +52,7 @@ export default function TripActions({
   approversJson,
   preApprovalStatus, isPreApprover,
   users,
+  currentApproverType,
 }: Props) {
   const router = useRouter()
   const [busy, setBusy] = useState(false)
@@ -46,11 +63,16 @@ export default function TripActions({
   const [showPreRequest, setShowPreRequest] = useState(false)
   const [showDelete, setShowDelete] = useState(false)
 
-  // 결재라인
   const [approvers, setApprovers] = useState<Approver[]>(() => {
-    try { return JSON.parse(approversJson) } catch { return [] }
+    try {
+      return (JSON.parse(approversJson) as any[]).map(a => ({
+        ...a,
+        type: (a.type ?? '결재') as ApproverType,
+      }))
+    } catch { return [] }
   })
   const [selectedUserId, setSelectedUserId] = useState('')
+  const [selectedType, setSelectedType] = useState<ApproverType>('동의')
   const [savingApprovers, setSavingApprovers] = useState(false)
 
   const hasApprover = approvers.length > 0
@@ -90,9 +112,10 @@ export default function TripActions({
     const user = users.find(u => u.id === selectedUserId)
     if (!user) return
     if (approvers.some(a => a.userId === selectedUserId)) return
-    const newApprovers = [...approvers, {
+    const newApprovers: Approver[] = [...approvers, {
       userId: user.id,
       userName: user.name ?? user.email,
+      type: selectedType,
       status: '대기',
       approvedAt: null,
       comment: null,
@@ -102,8 +125,7 @@ export default function TripActions({
   }
 
   const removeApprover = async (userId: string) => {
-    const newApprovers = approvers.filter(a => a.userId !== userId)
-    await saveApprovers(newApprovers)
+    await saveApprovers(approvers.filter(a => a.userId !== userId))
   }
 
   const submitApproval = async () => {
@@ -113,6 +135,22 @@ export default function TripActions({
 
   const withdrawApproval = async () => {
     await patch({ status: '초안', submittedAt: null })
+  }
+
+  const handleApprove = async (action: '동의' | '승인' | '반려') => {
+    setBusy(true)
+    try {
+      await fetch(`/api/trips/${tripId}/approve`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action, comment: comment || null }),
+      })
+      router.refresh()
+    } finally {
+      setBusy(false)
+      setComment('')
+      setShowReject(false)
+    }
   }
 
   const deleteFn = async () => {
@@ -125,6 +163,35 @@ export default function TripActions({
   const canHandlePreApproval  = isPreApprover && preApprovalStatus === '요청'
   const availableUsers = users.filter(u => !approvers.some(a => a.userId === u.id))
 
+  const isMyTurn = currentApproverType != null && isApprover && status === '승인요청'
+  const actionLabel = currentApproverType === '동의' ? '동의' : '승인'
+  const actionColor = currentApproverType === '동의'
+    ? 'linear-gradient(135deg, #3b82f6, #2563eb)'
+    : 'linear-gradient(135deg, #10b981, #059669)'
+
+  const ApproverList = ({ editable }: { editable: boolean }) => (
+    <div className="space-y-1.5 mb-3">
+      {approvers.map((a, i) => {
+        const ts = TYPE_STYLE[a.type] ?? TYPE_STYLE['결재']
+        const ss = STATUS_STYLE[a.status] ?? 'text-slate-400'
+        return (
+          <div key={a.userId} className="flex items-center gap-2 bg-slate-50 rounded-lg px-3 py-2">
+            <span className="w-5 h-5 rounded-full bg-indigo-100 text-indigo-600 text-[10px] flex items-center justify-center font-bold shrink-0">{i + 1}</span>
+            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${ts.bg} ${ts.text} shrink-0`}>{ts.label}</span>
+            <span className="text-sm text-slate-800 flex-1">{a.userName}</span>
+            <span className={`text-xs font-semibold ${ss}`}>{a.status}</span>
+            {editable && (
+              <button onClick={() => removeApprover(a.userId)} disabled={savingApprovers}
+                className="text-slate-300 hover:text-red-400 transition-colors disabled:opacity-30">
+                <X size={13} />
+              </button>
+            )}
+          </div>
+        )
+      })}
+    </div>
+  )
+
   return (
     <div className="space-y-3">
 
@@ -134,35 +201,22 @@ export default function TripActions({
           <div className="flex items-start justify-between gap-4">
             <div>
               <p className="text-sm font-bold text-blue-800">사전품의 요청 (선택)</p>
-              <p className="text-xs text-blue-600 mt-0.5">
-                기본정보·방문정보 작성 후 출장 전 승인을 요청할 수 있습니다. 건너뛰어도 됩니다.
-              </p>
+              <p className="text-xs text-blue-600 mt-0.5">기본정보·방문정보 작성 후 출장 전 승인을 요청할 수 있습니다.</p>
             </div>
-            <button
-              onClick={() => setShowPreRequest(v => !v)}
-              className="shrink-0 flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-lg border border-blue-300 text-blue-700 hover:bg-blue-100 transition-all"
-            >
+            <button onClick={() => setShowPreRequest(v => !v)}
+              className="shrink-0 flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-lg border border-blue-300 text-blue-700 hover:bg-blue-100 transition-all">
               <FileCheck size={14} />사전품의 요청
             </button>
           </div>
           {showPreRequest && (
             <div className="mt-3 space-y-2">
-              <input
-                value={preComment}
-                onChange={e => setPreComment(e.target.value)}
+              <input value={preComment} onChange={e => setPreComment(e.target.value)}
                 className="w-full border border-blue-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300 bg-white"
-                placeholder="품의 요청 메모 (선택사항)"
-              />
+                placeholder="품의 요청 메모 (선택사항)" />
               <div className="flex justify-end">
-                <button
-                  onClick={() => patch({
-                    preApprovalStatus: '요청',
-                    preApprovalRequestedAt: new Date().toISOString(),
-                    preApprovalComment: preComment || null,
-                  })}
+                <button onClick={() => patch({ preApprovalStatus: '요청', preApprovalRequestedAt: new Date().toISOString(), preApprovalComment: preComment || null })}
                   disabled={busy}
-                  className="flex items-center gap-2 px-5 py-2 text-sm font-semibold rounded-lg text-white disabled:opacity-50 transition-all bg-blue-600 hover:bg-blue-700"
-                >
+                  className="flex items-center gap-2 px-5 py-2 text-sm font-semibold rounded-lg text-white disabled:opacity-50 bg-blue-600 hover:bg-blue-700">
                   <Send size={14} />품의 요청 제출
                 </button>
               </div>
@@ -171,7 +225,7 @@ export default function TripActions({
         </div>
       )}
 
-      {/* 사전품의 승인 대기 안내 (작성자) */}
+      {/* 사전품의 승인 대기 안내 */}
       {isAuthor && preApprovalStatus === '요청' && (
         <div className="bg-amber-50 rounded-xl border border-amber-200 shadow-sm px-5 py-3">
           <p className="text-sm font-semibold text-amber-800">사전품의 검토 중</p>
@@ -183,21 +237,15 @@ export default function TripActions({
       {canHandlePreApproval && (
         <div className="bg-blue-50 rounded-xl border border-blue-200 shadow-sm px-5 py-4 space-y-3">
           <p className="text-sm font-bold text-blue-800">사전품의 검토</p>
-          <textarea
-            rows={2}
-            value={preComment}
-            onChange={e => setPreComment(e.target.value)}
+          <textarea rows={2} value={preComment} onChange={e => setPreComment(e.target.value)}
             className="w-full border border-blue-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300 bg-white"
-            placeholder="품의 의견을 남겨주세요 (선택사항)"
-          />
+            placeholder="품의 의견을 남겨주세요 (선택사항)" />
           <div className="flex items-center gap-3 justify-end">
             {showPreReject ? (
               <>
                 <p className="text-xs text-red-600 mr-auto">사전품의를 반려하시겠습니까?</p>
                 <button onClick={() => setShowPreReject(false)} className="px-3 py-2 text-sm text-slate-500 hover:bg-slate-100 rounded-lg">취소</button>
-                <button
-                  onClick={() => patch({ preApprovalStatus: '반려', preApprovalComment: preComment || null })}
-                  disabled={busy}
+                <button onClick={() => patch({ preApprovalStatus: '반려', preApprovalComment: preComment || null })} disabled={busy}
                   className="flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-lg bg-red-500 text-white hover:bg-red-600 disabled:opacity-50">
                   <X size={14} />반려 확인
                 </button>
@@ -208,13 +256,7 @@ export default function TripActions({
                   className="flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-lg border border-red-200 text-red-500 hover:bg-red-50">
                   <X size={14} />반려
                 </button>
-                <button
-                  onClick={() => patch({
-                    preApprovalStatus: '승인',
-                    preApprovalComment: preComment || null,
-                    preApprovedAt: new Date().toISOString(),
-                  })}
-                  disabled={busy}
+                <button onClick={() => patch({ preApprovalStatus: '승인', preApprovalComment: preComment || null, preApprovedAt: new Date().toISOString() })} disabled={busy}
                   className="flex items-center gap-2 px-5 py-2 text-sm font-semibold rounded-lg text-white disabled:opacity-50 bg-blue-600 hover:bg-blue-700">
                   <Check size={14} />사전 승인
                 </button>
@@ -227,7 +269,6 @@ export default function TripActions({
       {/* 결재라인 + 최종 승인 요청 (작성자, 초안) */}
       {isAuthor && status === '초안' && (
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-          {/* 결재라인 섹션 */}
           <div className="px-5 py-4 border-b border-slate-100">
             <div className="flex items-center justify-between mb-3">
               <p className="text-sm font-bold text-slate-700">결재라인</p>
@@ -238,59 +279,49 @@ export default function TripActions({
               )}
             </div>
 
-            {/* 현재 결재자 목록 */}
-            {approvers.length > 0 && (
-              <div className="space-y-1.5 mb-3">
-                {approvers.map((a, i) => (
-                  <div key={a.userId} className="flex items-center gap-2 bg-slate-50 rounded-lg px-3 py-2">
-                    <span className="w-5 h-5 rounded-full bg-indigo-100 text-indigo-600 text-[10px] flex items-center justify-center font-bold shrink-0">{i + 1}</span>
-                    <span className="text-sm text-slate-800 flex-1">{a.userName}</span>
-                    <button
-                      onClick={() => removeApprover(a.userId)}
-                      disabled={savingApprovers}
-                      className="text-slate-300 hover:text-red-400 transition-colors disabled:opacity-30"
-                      title="결재자 제거"
-                    >
-                      <X size={13} />
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
+            {approvers.length > 0 && <ApproverList editable />}
 
             {/* 결재자 추가 */}
             {availableUsers.length > 0 && (
-              <div className="flex items-center gap-2">
-                <select
-                  value={selectedUserId}
-                  onChange={e => setSelectedUserId(e.target.value)}
-                  className="flex-1 border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-300 bg-white"
-                >
-                  <option value="">결재자 선택...</option>
-                  {availableUsers.map(u => (
-                    <option key={u.id} value={u.id}>{u.name ?? u.email}</option>
-                  ))}
-                </select>
-                <button
-                  onClick={addApprover}
-                  disabled={!selectedUserId || savingApprovers}
-                  className="flex items-center gap-1.5 px-3 py-2 text-sm font-semibold rounded-lg border border-indigo-200 text-indigo-600 hover:bg-indigo-50 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
-                >
-                  <UserPlus size={14} />추가
-                </button>
+              <div className="space-y-2">
+                {/* 동의 / 결재 타입 선택 */}
+                <div className="flex gap-3">
+                  {(['동의', '결재'] as ApproverType[]).map(t => {
+                    const ts = TYPE_STYLE[t]
+                    const checked = selectedType === t
+                    return (
+                      <label key={t} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border cursor-pointer text-sm font-semibold transition-all
+                        ${checked ? `${ts.bg} ${ts.text} border-current` : 'border-slate-200 text-slate-500 hover:bg-slate-50'}`}>
+                        <input type="radio" name="approverType" value={t} checked={checked}
+                          onChange={() => setSelectedType(t)} className="sr-only" />
+                        {t}
+                      </label>
+                    )
+                  })}
+                </div>
+                <div className="flex items-center gap-2">
+                  <select value={selectedUserId} onChange={e => setSelectedUserId(e.target.value)}
+                    className="flex-1 border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-300 bg-white">
+                    <option value="">인원 선택...</option>
+                    {availableUsers.map(u => (
+                      <option key={u.id} value={u.id}>{u.name ?? u.email}</option>
+                    ))}
+                  </select>
+                  <button onClick={addApprover} disabled={!selectedUserId || savingApprovers}
+                    className="flex items-center gap-1.5 px-3 py-2 text-sm font-semibold rounded-lg border border-indigo-200 text-indigo-600 hover:bg-indigo-50 disabled:opacity-40 disabled:cursor-not-allowed transition-all">
+                    <UserPlus size={14} />추가
+                  </button>
+                </div>
               </div>
             )}
           </div>
 
-          {/* 하단 액션 */}
           <div className="px-5 py-4 flex items-center justify-between">
             <button onClick={() => setShowDelete(true)}
               className="flex items-center gap-1.5 px-3 py-2 text-xs text-red-500 hover:bg-red-50 rounded-lg transition-all">
               <Trash2 size={13} />삭제
             </button>
-            <button
-              onClick={submitApproval}
-              disabled={busy || !hasApprover}
+            <button onClick={submitApproval} disabled={busy || !hasApprover}
               title={!hasApprover ? '결재자를 먼저 지정해주세요' : ''}
               className="flex items-center gap-2 px-5 py-2 text-sm font-semibold rounded-lg text-white disabled:opacity-40 disabled:cursor-not-allowed transition-all"
               style={{ background: hasApprover ? 'linear-gradient(135deg, #6366f1, #8b5cf6)' : '#94a3b8' }}>
@@ -300,18 +331,15 @@ export default function TripActions({
         </div>
       )}
 
-      {/* 승인요청 철회 (작성자, 승인요청 상태) */}
+      {/* 승인요청 철회 (작성자) */}
       {isAuthor && status === '승인요청' && (
         <div className="flex items-center justify-between bg-amber-50 rounded-xl border border-amber-200 shadow-sm px-5 py-4">
           <div>
             <p className="text-sm font-semibold text-amber-800">승인 요청 중</p>
             <p className="text-xs text-amber-600 mt-0.5">요청을 철회하면 초안으로 돌아가 수정할 수 있습니다.</p>
           </div>
-          <button
-            onClick={withdrawApproval}
-            disabled={busy}
-            className="flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-lg border border-amber-300 text-amber-700 hover:bg-amber-100 disabled:opacity-50 transition-all"
-          >
+          <button onClick={withdrawApproval} disabled={busy}
+            className="flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-lg border border-amber-300 text-amber-700 hover:bg-amber-100 disabled:opacity-50 transition-all">
             <Undo2 size={14} />승인요청 철회
           </button>
         </div>
@@ -322,37 +350,42 @@ export default function TripActions({
         <div className="bg-white rounded-xl border border-red-200 shadow-sm overflow-hidden">
           <div className="px-5 py-4 border-b border-red-100">
             <p className="text-sm font-bold text-slate-700 mb-3">결재라인</p>
-            {approvers.length > 0 && (
-              <div className="space-y-1.5 mb-3">
-                {approvers.map((a, i) => (
-                  <div key={a.userId} className="flex items-center gap-2 bg-slate-50 rounded-lg px-3 py-2">
-                    <span className="w-5 h-5 rounded-full bg-indigo-100 text-indigo-600 text-[10px] flex items-center justify-center font-bold shrink-0">{i + 1}</span>
-                    <span className="text-sm text-slate-800 flex-1">{a.userName}</span>
-                    <button onClick={() => removeApprover(a.userId)} disabled={savingApprovers} className="text-slate-300 hover:text-red-400 disabled:opacity-30"><X size={13} /></button>
-                  </div>
-                ))}
-              </div>
-            )}
+            {approvers.length > 0 && <ApproverList editable />}
             {availableUsers.length > 0 && (
-              <div className="flex items-center gap-2">
-                <select value={selectedUserId} onChange={e => setSelectedUserId(e.target.value)}
-                  className="flex-1 border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-300 bg-white">
-                  <option value="">결재자 선택...</option>
-                  {availableUsers.map(u => (
-                    <option key={u.id} value={u.id}>{u.name ?? u.email}</option>
-                  ))}
-                </select>
-                <button onClick={addApprover} disabled={!selectedUserId || savingApprovers}
-                  className="flex items-center gap-1.5 px-3 py-2 text-sm font-semibold rounded-lg border border-indigo-200 text-indigo-600 hover:bg-indigo-50 disabled:opacity-40 transition-all">
-                  <UserPlus size={14} />추가
-                </button>
+              <div className="space-y-2">
+                <div className="flex gap-3">
+                  {(['동의', '결재'] as ApproverType[]).map(t => {
+                    const ts = TYPE_STYLE[t]
+                    const checked = selectedType === t
+                    return (
+                      <label key={t} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border cursor-pointer text-sm font-semibold transition-all
+                        ${checked ? `${ts.bg} ${ts.text} border-current` : 'border-slate-200 text-slate-500 hover:bg-slate-50'}`}>
+                        <input type="radio" name="approverType" value={t} checked={checked}
+                          onChange={() => setSelectedType(t)} className="sr-only" />
+                        {t}
+                      </label>
+                    )
+                  })}
+                </div>
+                <div className="flex items-center gap-2">
+                  <select value={selectedUserId} onChange={e => setSelectedUserId(e.target.value)}
+                    className="flex-1 border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-300 bg-white">
+                    <option value="">인원 선택...</option>
+                    {availableUsers.map(u => (
+                      <option key={u.id} value={u.id}>{u.name ?? u.email}</option>
+                    ))}
+                  </select>
+                  <button onClick={addApprover} disabled={!selectedUserId || savingApprovers}
+                    className="flex items-center gap-1.5 px-3 py-2 text-sm font-semibold rounded-lg border border-indigo-200 text-indigo-600 hover:bg-indigo-50 disabled:opacity-40 transition-all">
+                    <UserPlus size={14} />추가
+                  </button>
+                </div>
               </div>
             )}
           </div>
           <div className="px-5 py-4 flex items-center justify-between">
             <p className="text-sm text-red-600">보고서를 수정 후 재제출 할 수 있습니다.</p>
-            <button
-              onClick={() => patch({ status: '승인요청', submittedAt: new Date().toISOString(), approvalComment: null })}
+            <button onClick={() => patch({ status: '승인요청', submittedAt: new Date().toISOString(), approvalComment: null })}
               disabled={busy || !hasApprover}
               className="flex items-center gap-2 px-5 py-2 text-sm font-semibold rounded-lg text-white disabled:opacity-40 transition-all"
               style={{ background: hasApprover ? 'linear-gradient(135deg, #6366f1, #8b5cf6)' : '#94a3b8' }}>
@@ -362,25 +395,24 @@ export default function TripActions({
         </div>
       )}
 
-      {/* 최종 승인/반려 처리 (승인자) */}
-      {isApprover && status === '승인요청' && (
-        <div className="bg-amber-50 rounded-xl border border-amber-200 shadow-sm px-5 py-4 space-y-3">
-          <p className="text-sm font-bold text-amber-800">이 출장보고서를 승인하시겠습니까?</p>
-          <textarea
-            rows={2}
-            value={comment}
-            onChange={e => setComment(e.target.value)}
-            className="w-full border border-amber-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-300 bg-white"
-            placeholder="승인 의견을 남겨주세요 (선택사항)"
-          />
+      {/* 동의/결재 처리 (내 차례인 경우) */}
+      {isMyTurn && (
+        <div className="rounded-xl border shadow-sm px-5 py-4 space-y-3"
+          style={{ background: currentApproverType === '동의' ? '#eff6ff' : '#f0fdf4',
+                   borderColor: currentApproverType === '동의' ? '#bfdbfe' : '#bbf7d0' }}>
+          <p className="text-sm font-bold" style={{ color: currentApproverType === '동의' ? '#1e40af' : '#065f46' }}>
+            {currentApproverType === '동의' ? '동의 요청을 받았습니다' : '결재 요청을 받았습니다'}
+          </p>
+          <textarea rows={2} value={comment} onChange={e => setComment(e.target.value)}
+            className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 bg-white"
+            style={{ borderColor: currentApproverType === '동의' ? '#bfdbfe' : '#bbf7d0' }}
+            placeholder="의견을 남겨주세요 (선택사항)" />
           <div className="flex items-center gap-3 justify-end">
             {showReject ? (
               <>
                 <p className="text-xs text-red-600 mr-auto">반려 처리하시겠습니까?</p>
                 <button onClick={() => setShowReject(false)} className="px-3 py-2 text-sm text-slate-500 hover:bg-slate-100 rounded-lg">취소</button>
-                <button
-                  onClick={() => patch({ status: '반려', approvalComment: comment || null, approvedAt: null })}
-                  disabled={busy}
+                <button onClick={() => handleApprove('반려')} disabled={busy}
                   className="flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-lg bg-red-500 text-white hover:bg-red-600 disabled:opacity-50">
                   <X size={14} />반려 확인
                 </button>
@@ -391,16 +423,22 @@ export default function TripActions({
                   className="flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-lg border border-red-200 text-red-500 hover:bg-red-50">
                   <X size={14} />반려
                 </button>
-                <button
-                  onClick={() => patch({ status: '승인', approvalComment: comment || null, approvedAt: new Date().toISOString() })}
-                  disabled={busy}
+                <button onClick={() => handleApprove(currentApproverType === '동의' ? '동의' : '승인')} disabled={busy}
                   className="flex items-center gap-2 px-5 py-2 text-sm font-semibold rounded-lg text-white disabled:opacity-50 transition-all"
-                  style={{ background: 'linear-gradient(135deg, #10b981, #059669)' }}>
-                  <Check size={14} />승인
+                  style={{ background: actionColor }}>
+                  <Check size={14} />{actionLabel}
                 </button>
               </>
             )}
           </div>
+        </div>
+      )}
+
+      {/* 대기 중 안내 (결재라인에 있지만 아직 내 차례 아님) */}
+      {isApprover && status === '승인요청' && !isMyTurn && (
+        <div className="bg-slate-50 rounded-xl border border-slate-200 shadow-sm px-5 py-3">
+          <p className="text-sm font-semibold text-slate-600">처리 대기 중</p>
+          <p className="text-xs text-slate-400 mt-0.5">이전 인원의 처리가 완료되면 알림을 받습니다.</p>
         </div>
       )}
 
