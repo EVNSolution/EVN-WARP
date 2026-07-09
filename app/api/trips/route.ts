@@ -27,6 +27,7 @@ export async function POST(req: NextRequest) {
         userId:          b.userId          ?? null,
         userName:        b.userName        ?? '',
         teamName:        b.teamName        ?? null,
+        travelersJson:   b.travelersJson   ?? null,
         destination:     b.destination,
         purpose:         b.purpose,
         visitTarget:     b.visitTarget     ?? null,

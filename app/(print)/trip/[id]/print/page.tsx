@@ -137,7 +137,14 @@ export default async function TripPrintPage({ params }: { params: Promise<{ id: 
   }
 
   const today = new Date().toLocaleDateString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit' })
-  const authorName = trip.userName || (session?.user as any)?.name || ''
+  const travelersArr: { userId: string; userName: string }[] = (() => {
+    try {
+      const arr = JSON.parse((trip as any).travelersJson ?? '[]')
+      if (arr.length > 0) return arr
+    } catch {}
+    return trip.userName ? [{ userId: trip.userId ?? '', userName: trip.userName }] : []
+  })()
+  const authorName = travelersArr.map(t => t.userName).join(', ') || (session?.user as any)?.name || ''
 
   return (
     <>
@@ -196,7 +203,7 @@ export default async function TripPrintPage({ params }: { params: Promise<{ id: 
           <tbody>
             <tr>
               <td className="info-label">출장자</td>
-              <td className="info-val">{trip.userName}{trip.teamName ? ` (${trip.teamName})` : ''}</td>
+              <td className="info-val">{authorName}{trip.teamName ? ` (${trip.teamName})` : ''}</td>
               <td className="info-label">출장지</td>
               <td className="info-val">{trip.destination}</td>
             </tr>

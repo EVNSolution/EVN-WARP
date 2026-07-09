@@ -500,6 +500,7 @@ model TripReport {
   userId      String?
   userName    String
   teamName    String?
+  travelersJson String?  // JSON: [{userId, userName}]
 
   // 출장 정보
   destination String

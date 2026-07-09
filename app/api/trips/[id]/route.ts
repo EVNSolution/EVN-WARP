@@ -32,6 +32,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
         userId:          b.userId          ?? null,
         userName:        b.userName        ?? '',
         teamName:        b.teamName        ?? null,
+        travelersJson:   b.travelersJson   ?? null,
         destination:     b.destination,
         purpose:         b.purpose,
         visitTarget:     b.visitTarget     ?? null,

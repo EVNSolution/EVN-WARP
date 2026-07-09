@@ -190,7 +190,13 @@ export default async function TripDetailPage({ params }: { params: Promise<{ id:
         {/* ① 기본 정보 */}
         <Sec title="① 기본 정보">
           <Row label="출장 구분" value={trip.type} />
-          <Row label="출장자" value={trip.userName} />
+          <Row label="출장자" value={(() => {
+              try {
+                const arr = JSON.parse((trip as any).travelersJson ?? '[]')
+                if (arr.length > 0) return arr.map((t: any) => t.userName).join(', ')
+              } catch {}
+              return trip.userName
+            })()} />
           <Row label="팀" value={trip.teamName} />
           <Row label="출장지" value={trip.destination} />
           <Row label="출장 기간" value={`${trip.startDate} ~ ${trip.endDate}`} />

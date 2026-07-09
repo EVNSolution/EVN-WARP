@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
-import { Plane, MapPin, Save, Send, X, Trash2, ChevronUp, ChevronDown } from 'lucide-react'
+import { Plane, MapPin, Save, Send, X, Trash2, ChevronUp, ChevronDown, UserPlus } from 'lucide-react'
 import TripDayTable from '@/components/TripDayTable'
 
 function addBullets(text: string): string {
@@ -147,6 +147,7 @@ const moneyInput = (value: number | null | undefined, onChange: (v: number | nul
 )
 
 interface Approver { userId: string; userName: string; order: number; status: string; comment: string | null; approvedAt: string | null }
+interface Traveler { userId: string; userName: string }
 
 export default function TripForm({ mode, initial, users, currentUserId }: Props) {
   const router = useRouter()
@@ -154,14 +155,31 @@ export default function TripForm({ mode, initial, users, currentUserId }: Props)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
-  // userId가 있는데 userName이 비어있으면 users 목록에서 자동 채움
-  useEffect(() => {
-    if (form.userId && !form.userName) {
-      const u = users.find(u => u.id === form.userId)
-      if (u) setForm(prev => ({ ...prev, userName: u.name ?? u.email ?? '' }))
+  // 다중 출장자 상태 (travelersJson → fallback: userId/userName)
+  const [travelers, setTravelers] = useState<Traveler[]>(() => {
+    try {
+      const arr = JSON.parse((initial as any).travelersJson ?? '[]')
+      if (arr.length > 0) return arr
+    } catch {}
+    if (initial.userId && initial.userName) {
+      return [{ userId: initial.userId, userName: initial.userName }]
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+    // 신규 생성 시 현재 로그인 사용자를 기본값으로
+    const me = users.find(u => u.id === (initial.userId || currentUserId))
+    return me ? [{ userId: me.id, userName: me.name ?? me.email }] : []
+  })
+  const [selectedTraveler, setSelectedTraveler] = useState('')
+
+  const addTraveler = () => {
+    if (!selectedTraveler) return
+    const u = users.find(u => u.id === selectedTraveler)
+    if (!u || travelers.some(t => t.userId === selectedTraveler)) return
+    setTravelers(prev => [...prev, { userId: u.id, userName: u.name ?? u.email }])
+    setSelectedTraveler('')
+  }
+  const removeTraveler = (userId: string) => {
+    setTravelers(prev => prev.filter(t => t.userId !== userId))
+  }
 
   // 다중 승인자 (approversJson 파싱)
   const initApprovers: Approver[] = (() => {
@@ -220,6 +238,10 @@ export default function TripForm({ mode, initial, users, currentUserId }: Props)
 
     const payload: any = {
       ...form,
+      // 다중 출장자: travelersJson 저장, userName은 이름 목록 문자열, userId는 첫 번째
+      travelersJson: JSON.stringify(travelers),
+      userName: travelers.map(t => t.userName).join(', ') || form.userName,
+      userId: travelers[0]?.userId ?? form.userId,
       approversJson: JSON.stringify(finalApprovers),
       // 첫 번째 승인자를 approverId/approverName에도 설정 (하위 호환)
       approverId: finalApprovers[0]?.userId ?? form.approverId,
@@ -340,17 +362,35 @@ export default function TripForm({ mode, initial, users, currentUserId }: Props)
             </select>
           </Field>
           <Field label="출장자" required>
-            <select className={inputCls} value={form.userId ?? ''}
-              onChange={e => {
-                const u = users.find(u => u.id === e.target.value)
-                set('userId', e.target.value)
-                set('userName', u ? u.name : '')
-              }}>
-              <option value="">-- 출장자 선택 --</option>
-              {users.map(u => (
-                <option key={u.id} value={u.id}>{u.name}</option>
-              ))}
-            </select>
+            <div className="space-y-2">
+              {travelers.length > 0 && (
+                <div className="flex flex-wrap gap-1.5">
+                  {travelers.map(t => (
+                    <span key={t.userId}
+                      className="flex items-center gap-1 px-2.5 py-1 bg-indigo-50 border border-indigo-200 rounded-full text-sm text-indigo-700 font-semibold">
+                      {t.userName}
+                      <button type="button" onClick={() => removeTraveler(t.userId)}
+                        className="text-indigo-300 hover:text-red-500 transition-colors">
+                        <X size={12} />
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              )}
+              <div className="flex gap-2">
+                <select className={inputCls} value={selectedTraveler}
+                  onChange={e => setSelectedTraveler(e.target.value)}>
+                  <option value="">-- 출장자 추가 --</option>
+                  {users.filter(u => !travelers.some(t => t.userId === u.id)).map(u => (
+                    <option key={u.id} value={u.id}>{u.name}</option>
+                  ))}
+                </select>
+                <button type="button" onClick={addTraveler} disabled={!selectedTraveler}
+                  className="shrink-0 flex items-center gap-1 px-3 py-2 text-sm font-semibold rounded-lg border border-indigo-200 text-indigo-600 hover:bg-indigo-50 disabled:opacity-40 disabled:cursor-not-allowed transition-all">
+                  <UserPlus size={14} />추가
+                </button>
+              </div>
+            </div>
           </Field>
         </div>
         <Field label="출장 제목" required>
