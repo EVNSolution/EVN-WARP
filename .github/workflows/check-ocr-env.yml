@@ -1,0 +1,50 @@
+name: Check OCR Environment on EC2
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  AWS_REGION: ${{ secrets.AWS_REGION }}
+  AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
+  EC2_INSTANCE_ID: ${{ secrets.EC2_INSTANCE_ID }}
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: ${{ env.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Check OCR env vars on EC2
+        id: ssm
+        run: |
+          COMMAND_ID=$(aws ssm send-command \
+            --instance-ids "$EC2_INSTANCE_ID" \
+            --document-name "AWS-RunShellScript" \
+            --parameters 'commands=[
+              "echo \"=== .env API key check ===\"",
+              "if grep -q \"^GOOGLE_API_KEY=\" /opt/evn-warp/.env; then echo \"GOOGLE_API_KEY: SET ($(grep GOOGLE_API_KEY /opt/evn-warp/.env | head -1 | cut -c1-30)...)\"; else echo \"GOOGLE_API_KEY: NOT FOUND\"; fi",
+              "if grep -q \"^ANTHROPIC_API_KEY=\" /opt/evn-warp/.env; then echo \"ANTHROPIC_API_KEY: SET ($(grep ANTHROPIC_API_KEY /opt/evn-warp/.env | head -1 | cut -c1-35)...)\"; else echo \"ANTHROPIC_API_KEY: NOT FOUND\"; fi",
+              "echo \"=== PM2 app environment ===\"",
+              "pm2 env 0 2>/dev/null | grep -E \"GOOGLE_API_KEY|ANTHROPIC_API_KEY\" || echo \"PM2 env: keys not found in process env\"",
+              "echo \"=== Recent OCR logs ===\"",
+              "pm2 logs --nostream --lines 50 2>/dev/null | grep -i -E \"OCR|gemini|claude|API|ocr\" | tail -30 || echo \"No recent OCR logs found\""
+            ]' \
+            --query "Command.CommandId" \
+            --output text)
+
+          echo "SSM Command ID: $COMMAND_ID"
+          sleep 15
+
+          aws ssm get-command-invocation \
+            --command-id "$COMMAND_ID" \
+            --instance-id "$EC2_INSTANCE_ID" \
+            --query "StandardOutputContent" \
+            --output text
