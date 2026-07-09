@@ -339,15 +339,6 @@ export default function TripActions({
               </div>
             )}
 
-            {/* 결재라인 확인 */}
-            {approvers.length > 0 && (
-              <div className="flex justify-end pt-2 mt-1 border-t border-slate-100">
-                <button onClick={() => saveApprovers(approvers)} disabled={savingApprovers}
-                  className="flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-lg border-2 border-indigo-300 text-indigo-600 hover:bg-indigo-50 disabled:opacity-50 transition-all">
-                  {savingApprovers ? '저장 중...' : <><Check size={13} />결재라인 확인</>}
-                </button>
-              </div>
-            )}
           </div>
 
           <div className="px-5 py-4 flex items-center justify-between">
