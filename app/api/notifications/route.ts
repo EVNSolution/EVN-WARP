@@ -19,19 +19,45 @@ export async function GET() {
   // 2. @멘션/공지 알림 (WorkActivity 테이블)
   let mentionNotifs: any[] = []
   if (userName) {
+    // 현재 사용자의 팀 이름 조회
+    const userRecord = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { team: { select: { name: true } } },
+    })
+    const teamName = (userRecord as any)?.team?.name ?? null
+
     const likePattern = `%@${userName}%`
-    const activities = await prisma.$queryRaw<any[]>`
-      SELECT id, title, date, mentions
-      FROM "WorkActivity"
-      WHERE mentions IS NOT NULL AND mentions != ''
-      AND (
-        mentions LIKE '%@전체%'
-        OR mentions LIKE '%@all%'
-        OR mentions LIKE ${likePattern}
-      )
-      ORDER BY date DESC
-      LIMIT 20
-    `
+    let activities: any[]
+    if (teamName) {
+      const teamPattern = `%@${teamName}%`
+      activities = await prisma.$queryRaw<any[]>`
+        SELECT id, title, date, mentions
+        FROM "WorkActivity"
+        WHERE mentions IS NOT NULL AND mentions != ''
+        AND (
+          mentions LIKE '%@전체%'
+          OR mentions LIKE '%@all%'
+          OR mentions LIKE ${likePattern}
+          OR mentions LIKE ${teamPattern}
+        )
+        ORDER BY date DESC
+        LIMIT 20
+      `
+    } else {
+      activities = await prisma.$queryRaw<any[]>`
+        SELECT id, title, date, mentions
+        FROM "WorkActivity"
+        WHERE mentions IS NOT NULL AND mentions != ''
+        AND (
+          mentions LIKE '%@전체%'
+          OR mentions LIKE '%@all%'
+          OR mentions LIKE ${likePattern}
+        )
+        ORDER BY date DESC
+        LIMIT 20
+      `
+    }
+
     mentionNotifs = activities.map((a: any) => {
       const isGlobal = a.mentions?.includes('@전체') || a.mentions?.includes('@all')
       return {

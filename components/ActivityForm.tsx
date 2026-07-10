@@ -8,7 +8,7 @@ import {
   Mail, Phone, FileText, UserPlus, Coffee, GraduationCap,
   Briefcase, Target, FileCheck, CalendarDays, HelpCircle, X,
   Code2, PenTool, Package, Wrench, Settings, ClipboardCheck,
-  PieChart, Landmark, Award,
+  PieChart, Landmark, Award, ChevronDown,
 } from 'lucide-react'
 import Link from 'next/link'
 
@@ -277,7 +277,12 @@ export default function ActivityForm({ teams, tasks, users = [], initial, mode, 
   const [type,         setType]         = useState<string>(initial?.type ?? '내부회의')
   const [title,        setTitle]        = useState(initial?.title     ?? '')
   const [content,      setContent]      = useState(initial?.content   ?? '')
-  const [mentions,     setMentions]     = useState(initial?.mentions  ?? '')
+  const [mentionChips, setMentionChips] = useState<string[]>(() => {
+    const raw = initial?.mentions ?? ''
+    if (!raw) return []
+    return raw.split(/[\s,]+/).filter(m => m.startsWith('@') && m.length > 1)
+  })
+  const [activePicker, setActivePicker] = useState<'team' | 'user' | null>(null)
   const [referenceUrl, setReferenceUrl] = useState(initial?.referenceUrl ?? '')
   const [kpiItemId,        setKpiItemId]        = useState(initial?.kpiItemId        ?? '')
   const [kpiWeek,          setKpiWeek]          = useState(initial?.kpiWeek          || currentWeekId)
@@ -388,7 +393,8 @@ export default function ActivityForm({ teams, tasks, users = [], initial, mode, 
       teamId: finalTeamId,
       ...(userId   && { userId }),
       ...(userName && { userName }),
-      date, type, title: finalTitle, content, mentions,
+      date, type, title: finalTitle, content,
+      mentions: mentionChips.length > 0 ? mentionChips.join(', ') : null,
       planStatus,
       referenceUrl: referenceUrl.trim() || null,
       countermeasureId: countermeasureId || null,
@@ -795,14 +801,111 @@ export default function ActivityForm({ teams, tasks, users = [], initial, mode, 
 
         {/* ⑦ @멘션 */}
         <div className="bg-white border border-slate-200 rounded-xl p-5">
-          <label className="block text-sm font-semibold text-slate-700 mb-1.5">
+          <label className="block text-sm font-semibold text-slate-700 mb-2">
             <AtSign size={13} className="inline mr-1 text-indigo-400" />
             업무협조 / 알림
-            <span className="ml-1.5 text-xs text-slate-400 font-normal">@전체 입력 시 대시보드 전체 공지로 표시</span>
           </label>
-          <input type="text" value={mentions} onChange={e => setMentions(e.target.value)}
-            placeholder="예: @전체, @홍길동"
-            className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm text-slate-800 placeholder-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-400" />
+
+          {/* 선택된 멘션 칩 */}
+          {mentionChips.length > 0 && (
+            <div className="flex flex-wrap gap-1.5 mb-3">
+              {mentionChips.map((chip, i) => (
+                <span key={i} className="flex items-center gap-1 px-2.5 py-1 bg-indigo-50 border border-indigo-200 rounded-full text-xs text-indigo-700 font-semibold">
+                  {chip}
+                  <button type="button"
+                    onClick={() => setMentionChips(prev => prev.filter((_, idx) => idx !== i))}
+                    className="text-indigo-400 hover:text-indigo-700 transition-colors ml-0.5">
+                    <X size={10} />
+                  </button>
+                </span>
+              ))}
+            </div>
+          )}
+
+          {/* 멘션 추가 버튼 */}
+          <div className="flex gap-2 flex-wrap">
+            {/* @전체 */}
+            <button type="button"
+              onClick={() => {
+                if (!mentionChips.includes('@전체')) setMentionChips(prev => [...prev, '@전체'])
+                setActivePicker(null)
+              }}
+              className="flex items-center gap-1 px-3 py-1.5 text-xs font-semibold rounded-lg border border-slate-200 text-slate-600 hover:border-indigo-300 hover:text-indigo-600 hover:bg-indigo-50 transition-colors">
+              @전체
+              <span className="ml-1 text-[10px] text-slate-400 font-normal">전사공지</span>
+            </button>
+
+            {/* @팀 */}
+            {teams.length > 0 && (
+              <div className="relative">
+                <button type="button"
+                  onClick={() => setActivePicker(v => v === 'team' ? null : 'team')}
+                  className={`flex items-center gap-1 px-3 py-1.5 text-xs font-semibold rounded-lg border transition-colors ${
+                    activePicker === 'team'
+                      ? 'border-indigo-400 text-indigo-600 bg-indigo-50'
+                      : 'border-slate-200 text-slate-600 hover:border-indigo-300 hover:text-indigo-600 hover:bg-indigo-50'
+                  }`}>
+                  @팀 <ChevronDown size={11} />
+                </button>
+                {activePicker === 'team' && (
+                  <div className="absolute top-full left-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-lg z-20 min-w-[120px] overflow-hidden">
+                    {teams.map(t => (
+                      <button key={t.id} type="button"
+                        onClick={() => {
+                          const chip = `@${t.name}`
+                          if (!mentionChips.includes(chip)) setMentionChips(prev => [...prev, chip])
+                          setActivePicker(null)
+                        }}
+                        className="block w-full text-left px-4 py-2 text-xs text-slate-700 hover:bg-indigo-50 hover:text-indigo-600 transition-colors">
+                        @{t.name}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* @개인 */}
+            {users.length > 0 && (
+              <div className="relative">
+                <button type="button"
+                  onClick={() => setActivePicker(v => v === 'user' ? null : 'user')}
+                  className={`flex items-center gap-1 px-3 py-1.5 text-xs font-semibold rounded-lg border transition-colors ${
+                    activePicker === 'user'
+                      ? 'border-indigo-400 text-indigo-600 bg-indigo-50'
+                      : 'border-slate-200 text-slate-600 hover:border-indigo-300 hover:text-indigo-600 hover:bg-indigo-50'
+                  }`}>
+                  @개인 <ChevronDown size={11} />
+                </button>
+                {activePicker === 'user' && (
+                  <div className="absolute top-full left-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-lg z-20 min-w-[140px] max-h-48 overflow-y-auto">
+                    {users.map(u => (
+                      <button key={u.id} type="button"
+                        onClick={() => {
+                          const chip = `@${u.name ?? u.email}`
+                          if (!mentionChips.includes(chip)) setMentionChips(prev => [...prev, chip])
+                          setActivePicker(null)
+                        }}
+                        className="block w-full text-left px-4 py-2 text-xs text-slate-700 hover:bg-indigo-50 hover:text-indigo-600 transition-colors">
+                        @{u.name ?? u.email}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          {mentionChips.length === 0 && (
+            <p className="mt-2 text-[11px] text-slate-400">
+              위 버튼으로 알림 받을 대상을 선택하세요. @전체는 전사 공지로 표시됩니다.
+            </p>
+          )}
+
+          {/* 드롭다운 외부 클릭 닫기 */}
+          {activePicker !== null && (
+            <div className="fixed inset-0 z-10" onClick={() => setActivePicker(null)} />
+          )}
         </div>
 
         {/* 고급 기능 플레이스홀더 */}
