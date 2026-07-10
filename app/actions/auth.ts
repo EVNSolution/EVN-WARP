@@ -15,5 +15,5 @@ export async function loginAction(prevState: string | undefined, formData: FormD
 }
 
 export async function logoutAction() {
-  await signOut({ redirectTo: '/login' })
+  await signOut({ redirect: false })
 }
