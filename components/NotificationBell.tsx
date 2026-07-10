@@ -35,8 +35,10 @@ export default function NotificationBell() {
       const data: Notif[] = await res.json()
 
       if (knownIds.current === null) {
-        // 첫 로드 시 기존 알림은 토스트 없이 초기화
+        // 첫 로드 시 미읽음 알림은 최대 3개까지 토스트로 표시
         knownIds.current = new Set(data.map(n => n.id))
+        const unread = data.filter(n => !n.read).slice(0, 3)
+        if (unread.length > 0) setToasts(unread)
       } else {
         // 이후 폴링에서 새로 온 미읽음 알림만 토스트로 표시
         const newUnread = data.filter(n => !n.read && !knownIds.current!.has(n.id))
