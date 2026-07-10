@@ -3,7 +3,7 @@ import Link from 'next/link'
 import {
   ChevronLeft, ChevronRight, Plus,
   Users, Building2, MapPin, Globe, Mail, Phone,
-  FileText, AtSign, BarChart2, BookOpen, Star, Briefcase, TrendingUp,
+  FileText, BarChart2, BookOpen, Star, Briefcase, TrendingUp,
   UserPlus, Coffee, Link2, GraduationCap,
   Target, FileCheck, CalendarDays, Code2, PenTool,
   Package, Wrench, Settings, ClipboardCheck,
@@ -246,7 +246,6 @@ export default async function NotesPage({ searchParams }: { searchParams: Promis
 
   // 업무노트 탭 섹션 데이터
   const meetings = activities.filter(a => a.type === '내부회의' || a.type === '외부미팅' || a.type === '외부회의')
-  const collab   = activities.filter(a => a.mentions?.trim())
 
   return (
     <div className="p-6" style={{ maxWidth: '1440px' }}>
@@ -435,47 +434,6 @@ export default async function NotesPage({ searchParams }: { searchParams: Promis
               </div>
             </div>
             <TripList items={tripReports} />
-          </section>
-
-          {/* ③ 업무협조 */}
-          <section className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
-            <div className="px-5 py-3 border-b border-violet-100 bg-violet-50/60 flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <AtSign size={14} className="text-violet-500" />
-                <h2 className="text-sm font-bold text-violet-900">업무협조</h2>
-                <span className="text-xs text-violet-500 bg-violet-100 px-1.5 py-0.5 rounded-full font-semibold">{collab.length}건</span>
-              </div>
-            </div>
-            {collab.length === 0
-              ? <div className="px-5 py-8 text-center text-xs text-slate-400">@멘션이 포함된 협조 요청이 없습니다.</div>
-              : (
-                <div className="divide-y divide-slate-100">
-                  {collab.map((act: any) => {
-                    const meta = TYPE_META[act.type]
-                    return (
-                      <div key={act.id} className="px-5 py-3 flex items-start gap-3">
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 mb-0.5">
-                            <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${meta?.bg ?? ''} ${meta?.text ?? ''}`}>{act.type}</span>
-                            {act.task && <span className="text-[10px] font-mono text-slate-400">{act.task.code}</span>}
-                            <span className="text-xs font-semibold text-slate-700 truncate">{act.title}</span>
-                          </div>
-                          <div className="flex items-center gap-1.5 text-[10px] text-violet-600">
-                            <AtSign size={10} /><span>{act.mentions}</span>
-                            <span className="text-slate-300 mx-1">·</span>
-                            <span className="text-slate-400">{act.date}</span>
-                          </div>
-                        </div>
-                        <Link href={`/notes/${act.id}/edit`}
-                          className="text-[10px] text-slate-400 hover:text-indigo-600 transition-colors shrink-0">
-                          보기
-                        </Link>
-                      </div>
-                    )
-                  })}
-                </div>
-              )
-            }
           </section>
 
         </div>
