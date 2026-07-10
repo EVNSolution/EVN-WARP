@@ -254,7 +254,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
                   <span className="ml-auto text-[9px] font-bold text-amber-600">{myPendingApprovals.length}건</span>
                 </div>
                 {myPendingApprovals.map((trip: any) => (
-                  <Link key={trip.id} href={`/trip/${trip.id}`}
+                  <Link key={trip.id} href={`/trip/${trip.id}/print`}
                     className="flex items-center gap-2.5 px-4 py-3 border-b border-amber-50/80 bg-amber-50/20 hover:bg-amber-50/60 transition-colors">
                     <div className={`w-5 h-5 rounded flex items-center justify-center shrink-0 ${trip.type === '해외출장' ? 'bg-red-100' : 'bg-orange-100'}`}>
                       {trip.type === '해외출장'

@@ -77,13 +77,19 @@ export default function NotificationBell() {
 
   const unread = notifs.filter(n => !n.read).length
 
+  const resolveLink = (notif: Notif): string | null => {
+    if (notif.type === 'approval_request' && notif.tripId) return `/trip/${notif.tripId}/print`
+    return notif.link
+  }
+
   const handleClick = async (notif: Notif) => {
     if (!notif.read) {
       await fetch(`/api/notifications/${notif.id}`, { method: 'PATCH' })
       setNotifs(prev => prev.map(n => n.id === notif.id ? { ...n, read: true } : n))
     }
     setOpen(false)
-    if (notif.link) router.push(notif.link)
+    const target = resolveLink(notif)
+    if (target) router.push(target)
   }
 
   const dismissToast = (id: string) => {
@@ -94,7 +100,8 @@ export default function NotificationBell() {
     dismissToast(toast.id)
     await fetch(`/api/notifications/${toast.id}`, { method: 'PATCH' })
     setNotifs(prev => prev.map(n => n.id === toast.id ? { ...n, read: true } : n))
-    if (toast.link) router.push(toast.link)
+    const target = resolveLink(toast)
+    if (target) router.push(target)
   }
 
   const markAllRead = async () => {
