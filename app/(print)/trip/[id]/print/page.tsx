@@ -166,7 +166,8 @@ export default async function TripPrintPage({ params }: { params: Promise<{ id: 
         .info-val { font-size: 9.5pt; padding: 4px 8px; }
         .approval-box { border: 1px solid #cbd5e1; text-align: center; padding: 0; vertical-align: top; }
         .approval-box .role { background: #f1f5f9; font-size: 8pt; font-weight: 600; padding: 3px; border-bottom: 1px solid #cbd5e1; }
-        .approval-box .name { font-size: 9pt; padding: 16px 8px; min-height: 32px; }
+        .approval-box .name { font-size: 9pt; padding: 10px 8px; height: 64px; box-sizing: border-box; overflow: hidden; }
+        .approval-box .footer { font-size: 7pt; color: #64748b; border-top: 1px solid #e2e8f0; padding: 3px 4px; }
         .cur-badge { font-size: 7pt; color: #2563eb; margin-right: 2px; font-weight: 600; }
       `}</style>
 
@@ -384,12 +385,13 @@ export default async function TripPrintPage({ params }: { params: Promise<{ id: 
               {/* 작성자 칸 */}
               <td className="approval-box" style={{ width: `${100 / (approvers.length > 0 ? approvers.length + 1 : 3)}%` }}>
                 <div className="role">작성자</div>
-                <div className="name" style={{ minHeight: 48 }}>{authorName}</div>
-                {trip.submittedAt && (
-                  <div style={{ fontSize: '7pt', color: '#64748b', borderTop: '1px solid #e2e8f0', padding: '3px 4px' }}>
-                    제출일: {fmt(trip.submittedAt instanceof Date ? trip.submittedAt.toISOString().slice(0,10) : String(trip.submittedAt).slice(0,10))}
-                  </div>
-                )}
+                <div className="name">{authorName}</div>
+                <div className="footer">
+                  {trip.submittedAt
+                    ? `제출일: ${fmt(trip.submittedAt instanceof Date ? trip.submittedAt.toISOString().slice(0,10) : String(trip.submittedAt).slice(0,10))}`
+                    : <span style={{ color: '#cbd5e1' }}>제출일: —</span>
+                  }
+                </div>
               </td>
 
               {approvers.length > 0 ? (
@@ -398,7 +400,7 @@ export default async function TripPrintPage({ params }: { params: Promise<{ id: 
                     <div className="role">
                       {a.type === '동의' ? '동의' : (i === approvers.length - 1 ? '최종결재' : `결재 ${i + 1}`)}
                     </div>
-                    <div className="name" style={{ minHeight: 48 }}>
+                    <div className="name">
                       {a.userName}
                       {a.status === '승인' && (
                         <div style={{ fontSize: '7.5pt', color: '#16a34a', marginTop: 4 }}>
@@ -412,11 +414,9 @@ export default async function TripPrintPage({ params }: { params: Promise<{ id: 
                         <div style={{ fontSize: '7.5pt', color: '#94a3b8', marginTop: 4 }}>미처리</div>
                       )}
                     </div>
-                    <div style={{ fontSize: '7pt', color: '#64748b', borderTop: '1px solid #e2e8f0', padding: '3px 4px' }}>
+                    <div className="footer">
                       {a.approvedAt
-                        ? <span style={{ fontWeight: 700, color: '#1e3a5f' }}>
-                            처리일: {fmt(String(a.approvedAt).slice(0, 10))}
-                          </span>
+                        ? <span style={{ fontWeight: 700, color: '#1e3a5f' }}>처리일: {fmt(String(a.approvedAt).slice(0, 10))}</span>
                         : <span style={{ color: '#cbd5e1' }}>처리일: —</span>
                       }
                     </div>
@@ -431,22 +431,20 @@ export default async function TripPrintPage({ params }: { params: Promise<{ id: 
                 <>
                   <td className="approval-box" style={{ width: '25%' }}>
                     <div className="role">검토</div>
-                    <div className="name" style={{ minHeight: 48 }} />
-                    <div style={{ fontSize: '7pt', color: '#cbd5e1', borderTop: '1px solid #e2e8f0', padding: '3px 4px' }}>처리일: —</div>
+                    <div className="name" />
+                    <div className="footer"><span style={{ color: '#cbd5e1' }}>처리일: —</span></div>
                   </td>
                   <td className="approval-box" style={{ width: '25%' }}>
                     <div className="role">최종결재</div>
-                    <div className="name" style={{ minHeight: 48 }}>
+                    <div className="name">
                       {trip.approverName ?? ''}
                       {trip.status === '승인' && (
                         <div style={{ fontSize: '7.5pt', color: '#16a34a', marginTop: 4 }}>✓ 승인완료</div>
                       )}
                     </div>
-                    <div style={{ fontSize: '7pt', color: '#64748b', borderTop: '1px solid #e2e8f0', padding: '3px 4px' }}>
+                    <div className="footer">
                       {trip.approvedAt
-                        ? <span style={{ fontWeight: 700, color: '#1e3a5f' }}>
-                            처리일: {fmt(trip.approvedAt instanceof Date ? trip.approvedAt.toISOString().slice(0,10) : String(trip.approvedAt).slice(0,10))}
-                          </span>
+                        ? <span style={{ fontWeight: 700, color: '#1e3a5f' }}>처리일: {fmt(trip.approvedAt instanceof Date ? trip.approvedAt.toISOString().slice(0,10) : String(trip.approvedAt).slice(0,10))}</span>
                         : <span style={{ color: '#cbd5e1' }}>처리일: —</span>
                       }
                     </div>
