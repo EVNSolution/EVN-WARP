@@ -1,12 +1,21 @@
 'use client'
 
-import { useActionState, useState } from 'react'
+import { useActionState, useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import { loginAction } from '@/app/actions/auth'
 
 export default function LoginPage() {
-  const [error, formAction, isPending] = useActionState(loginAction, undefined)
+  const [state, formAction, isPending] = useActionState(loginAction, undefined)
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const router = useRouter()
+
+  useEffect(() => {
+    if (state?.success) {
+      router.push('/')
+      router.refresh()
+    }
+  }, [state, router])
 
   return (
     <div className="w-full max-w-sm">
@@ -67,17 +76,17 @@ export default function LoginPage() {
           />
         </div>
 
-        {error && (
-          <p className="text-xs text-red-400 bg-red-950/40 px-3 py-2 rounded-lg">{error}</p>
+        {state?.error && (
+          <p className="text-xs text-red-400 bg-red-950/40 px-3 py-2 rounded-lg">{state.error}</p>
         )}
 
         <button
           type="submit"
-          disabled={isPending}
+          disabled={isPending || !!state?.success}
           className="w-full py-3 rounded-lg text-sm font-bold text-black transition-opacity disabled:opacity-50"
           style={{ backgroundColor: '#C5D42A' }}
         >
-          {isPending ? '로그인 중…' : '로그인'}
+          {isPending || state?.success ? '로그인 중…' : '로그인'}
         </button>
       </form>
 
