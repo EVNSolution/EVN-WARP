@@ -1,7 +1,8 @@
 import { prisma } from '@/lib/db'
+import { auth } from '@/auth'
 import { getWeekId, adjacentWeek, formatWeekLabel } from '@/lib/week'
 import Link from 'next/link'
-import { ChevronLeft, ChevronRight, TrendingUp, AtSign, Megaphone } from 'lucide-react'
+import { ChevronLeft, ChevronRight, TrendingUp, AtSign, Megaphone, ClipboardList, Globe, MapPin } from 'lucide-react'
 import KpiInputModal from '@/components/KpiInputModal'
 import KpiDashboardChart from '@/components/KpiDashboardChart'
 
@@ -18,8 +19,14 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
   const currentYear   = new Date().getFullYear()
   const currentMonth  = new Date().getMonth() + 1
 
+  const session = await auth()
+  const myId    = (session?.user as any)?.id as string | undefined
+  const myName  = session?.user?.name as string | undefined
+
   /* ── 데이터 조회 ── */
-  const [execTasks, weeklyUpdates, companyKpisRaw, announcements, linkedRows] = await Promise.all([
+  const likePattern = myName ? `%@${myName}%` : '%__NOMATCH__%'
+
+  const [execTasks, weeklyUpdates, companyKpisRaw, pendingTrips, myMentions, globalAnn, linkedRows] = await Promise.all([
     prisma.strategyTask.findMany({
       where:   { parentId: { not: null }, suspended: false },
       include: { team: true },
@@ -31,18 +38,46 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
       include: { entries: { where: { year: currentYear }, orderBy: { month: 'asc' } } },
       orderBy: [{ category: 'asc' }, { index: 'asc' }],
     }),
-    prisma.workActivity.findMany({
-      where:   { mentions: { not: null } },
-      include: { task: { select: { code: true, title: true } }, team: true },
-      orderBy: { date: 'desc' },
-      take: 30,
-    }),
+    // 승인요청 상태 출장보고 전체 (내 결재 대기 필터링용)
+    prisma.$queryRaw<any[]>`
+      SELECT id, title, type, "userName", "approversJson", "submittedAt"
+      FROM "TripReport"
+      WHERE status = '승인요청'
+      ORDER BY "submittedAt" DESC
+    `,
+    // 나를 @멘션한 업무활동 (전체공지 제외)
+    prisma.$queryRaw<any[]>`
+      SELECT id, title, date, type, mentions
+      FROM "WorkActivity"
+      WHERE mentions IS NOT NULL AND mentions != ''
+      AND mentions LIKE ${likePattern}
+      AND mentions NOT LIKE '%@전체%'
+      AND mentions NOT LIKE '%@all%'
+      ORDER BY date DESC
+      LIMIT 10
+    `,
+    // @전체 공지
+    prisma.$queryRaw<any[]>`
+      SELECT id, title, date, type, mentions
+      FROM "WorkActivity"
+      WHERE (mentions LIKE '%@전체%' OR mentions LIKE '%@all%')
+      ORDER BY date DESC
+      LIMIT 5
+    `,
     // linkedToFunnel은 raw SQL로 읽어야 libSQL adapter 호환
     prisma.$queryRaw<{ id: string }[]>`SELECT id FROM "CompanyKpi" WHERE "linkedToFunnel" = 1`,
   ])
 
   const linkedIds = new Set(linkedRows.map(r => r.id))
   const companyKpis = companyKpisRaw.map(k => ({ ...k, linkedToFunnel: linkedIds.has(k.id) }))
+
+  // 내가 결재해야 할 대기 건 필터링
+  const myPendingApprovals = myId ? pendingTrips.filter((trip: any) => {
+    try {
+      const approvers = JSON.parse(trip.approversJson ?? '[]')
+      return approvers.some((a: any) => a.userId === myId && (!a.status || a.status === '' || a.status === '대기'))
+    } catch { return false }
+  }) : []
 
   /* ── 집계 ── */
   const updateByTaskId = new Map(weeklyUpdates.map(u => [u.taskId, u]))
@@ -60,9 +95,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
   }
   const teamEntries = [...teamMap.values()]
 
-  const validAnn    = announcements.filter(a => a.mentions?.trim())
-  const globalAnn   = validAnn.filter(a => a.mentions?.includes('@전체') || a.mentions?.includes('@all'))
-  const mentionFeed = validAnn.filter(a => !a.mentions?.includes('@전체') && !a.mentions?.includes('@all'))
+  const totalPending = myPendingApprovals.length + myMentions.length + globalAnn.length
 
   return (
     <div className="p-5 bg-slate-100 h-[calc(100vh-64px)] flex flex-col overflow-hidden">
@@ -71,7 +104,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
       <div className="flex items-center justify-between mb-4 shrink-0">
         <div>
           <h1 className="text-xl font-black text-slate-900 tracking-tight">경영 대시보드</h1>
-          <p className="text-xs text-slate-500 mt-0.5">{currentYear}년 · 전략과제 실행현황 · 전사 KPI · 알림마당</p>
+          <p className="text-xs text-slate-500 mt-0.5">{currentYear}년 · 전략과제 실행현황 · 전사 KPI · 나의 대기 업무</p>
         </div>
         <div className="flex items-center bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
           <Link href={`/dashboard?week=${prevWeek}`}
@@ -192,49 +225,63 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
           </div>
         </section>
 
-        {/* ③ 알림마당 */}
+        {/* ③ 나의 대기 업무 */}
         <section className="bg-white rounded-2xl shadow-sm overflow-hidden flex flex-col">
           <div className="px-4 py-4 bg-[#111111] shrink-0">
             <div className="flex items-center gap-2">
-              <Megaphone size={15} className="shrink-0" style={{ color: '#C5D42A' }} />
-              <h2 className="text-sm font-bold text-white">알림마당</h2>
+              <ClipboardList size={15} className="shrink-0" style={{ color: '#C5D42A' }} />
+              <h2 className="text-sm font-bold text-white">나의 대기 업무</h2>
+              {totalPending > 0 && (
+                <span className="ml-auto text-[10px] font-black px-1.5 py-0.5 rounded-full text-black"
+                  style={{ backgroundColor: '#C5D42A' }}>
+                  {totalPending}
+                </span>
+              )}
             </div>
-            <p className="text-[11px] mt-0.5" style={{ color: '#C5D42A' }}>4페이지 @멘션 연동</p>
+            <p className="text-[11px] mt-0.5" style={{ color: '#555' }}>
+              {myName ? `${myName} 기준` : '로그인 필요'}
+            </p>
           </div>
 
           <div className="flex-1 overflow-y-auto min-h-0">
-            {globalAnn.length > 0 && (
+
+            {/* 결재 대기 */}
+            {myPendingApprovals.length > 0 && (
               <div>
-                <div className="px-4 py-1.5 bg-amber-50 border-b border-amber-100 flex items-center gap-1.5">
-                  <Megaphone size={9} className="text-amber-500" />
-                  <span className="text-[9px] font-black text-amber-700 tracking-widest uppercase">전체공지</span>
+                <div className="px-4 py-1.5 bg-amber-50 border-b border-amber-100 flex items-center gap-1.5 sticky top-0">
+                  <ClipboardList size={9} className="text-amber-500" />
+                  <span className="text-[9px] font-black text-amber-700 tracking-widest uppercase">결재 대기</span>
+                  <span className="ml-auto text-[9px] font-bold text-amber-600">{myPendingApprovals.length}건</span>
                 </div>
-                {globalAnn.map(a => (
-                  <Link key={a.id} href={`/notes/${a.id}/edit`}
-                    className="block px-4 py-3 border-b border-amber-50/80 bg-amber-50/30 hover:bg-amber-50/70 transition-colors">
-                    <div className="flex items-center gap-1.5 mb-0.5">
-                      <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-amber-100 text-amber-700">{a.type}</span>
-                      <span className="text-[9px] text-slate-400 ml-auto">{a.date}</span>
+                {myPendingApprovals.map((trip: any) => (
+                  <Link key={trip.id} href={`/trip/${trip.id}`}
+                    className="flex items-center gap-2.5 px-4 py-3 border-b border-amber-50/80 bg-amber-50/20 hover:bg-amber-50/60 transition-colors">
+                    <div className={`w-5 h-5 rounded flex items-center justify-center shrink-0 ${trip.type === '해외출장' ? 'bg-red-100' : 'bg-orange-100'}`}>
+                      {trip.type === '해외출장'
+                        ? <Globe size={9} className="text-red-600" />
+                        : <MapPin size={9} className="text-orange-600" />}
                     </div>
-                    <p className="text-xs font-semibold text-slate-800 truncate">{a.title}</p>
-                    <div className="flex items-center gap-1 mt-0.5">
-                      <AtSign size={8} className="text-amber-500 shrink-0" />
-                      <span className="text-[9px] text-amber-600 truncate">{a.mentions}</span>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-semibold text-slate-800 truncate">{trip.title}</p>
+                      <p className="text-[10px] text-slate-400 mt-0.5">{trip.userName}</p>
                     </div>
+                    <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 shrink-0">대기</span>
                   </Link>
                 ))}
               </div>
             )}
 
-            {mentionFeed.length > 0 && (
+            {/* @멘션 협조 요청 */}
+            {myMentions.length > 0 && (
               <div>
-                <div className="px-4 py-1.5 bg-slate-50 border-b border-slate-100 flex items-center gap-1.5">
+                <div className="px-4 py-1.5 bg-indigo-50 border-b border-indigo-100 flex items-center gap-1.5 sticky top-0">
                   <AtSign size={9} className="text-indigo-400" />
-                  <span className="text-[9px] font-black text-slate-500 tracking-widest uppercase">멘션</span>
+                  <span className="text-[9px] font-black text-indigo-600 tracking-widest uppercase">@멘션</span>
+                  <span className="ml-auto text-[9px] font-bold text-indigo-500">{myMentions.length}건</span>
                 </div>
-                {mentionFeed.map(a => (
+                {myMentions.map((a: any) => (
                   <Link key={a.id} href={`/notes/${a.id}/edit`}
-                    className="block px-4 py-2.5 border-b border-slate-50 hover:bg-indigo-50/30 transition-colors">
+                    className="block px-4 py-2.5 border-b border-indigo-50/60 hover:bg-indigo-50/30 transition-colors">
                     <div className="flex items-center gap-1.5 mb-0.5">
                       <span className="text-[9px] font-bold px-1 py-0.5 rounded bg-slate-100 text-slate-500">{a.type}</span>
                       <span className="text-[9px] text-slate-400 ml-auto">{a.date}</span>
@@ -249,13 +296,31 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
               </div>
             )}
 
-            {validAnn.length === 0 && (
+            {/* @전체 공지 */}
+            {globalAnn.length > 0 && (
+              <div>
+                <div className="px-4 py-1.5 bg-slate-50 border-b border-slate-100 flex items-center gap-1.5 sticky top-0">
+                  <Megaphone size={9} className="text-slate-400" />
+                  <span className="text-[9px] font-black text-slate-500 tracking-widest uppercase">전체공지</span>
+                </div>
+                {globalAnn.map((a: any) => (
+                  <Link key={a.id} href={`/notes/${a.id}/edit`}
+                    className="block px-4 py-2.5 border-b border-slate-50 hover:bg-slate-50/70 transition-colors">
+                    <div className="flex items-center gap-1.5 mb-0.5">
+                      <span className="text-[9px] font-bold px-1 py-0.5 rounded bg-slate-100 text-slate-500">{a.type}</span>
+                      <span className="text-[9px] text-slate-400 ml-auto">{a.date}</span>
+                    </div>
+                    <p className="text-xs font-medium text-slate-700 truncate">{a.title}</p>
+                  </Link>
+                ))}
+              </div>
+            )}
+
+            {/* 모두 없을 때 */}
+            {totalPending === 0 && (
               <div className="flex flex-col items-center justify-center h-40 text-center px-4">
-                <Megaphone size={22} className="text-amber-200 mb-2" />
-                <p className="text-xs text-slate-400">4페이지 활동에서</p>
-                <p className="text-xs text-slate-400">
-                  <span className="font-mono font-bold text-amber-500">@전체</span>를 입력하면<br />공지로 표시됩니다.
-                </p>
+                <ClipboardList size={22} className="text-slate-200 mb-2" />
+                <p className="text-xs text-slate-400">대기 중인 업무가 없습니다</p>
               </div>
             )}
           </div>
