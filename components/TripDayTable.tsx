@@ -1,6 +1,7 @@
 ﻿'use client'
 
 import { useState, useEffect, useRef, useCallback } from 'react'
+import { Upload, FileText, X } from 'lucide-react'
 
 const FX_CURRENCIES = ['CNY', 'USD', 'EUR', 'JPY', 'THB', 'VND']
 
@@ -66,6 +67,33 @@ function AreaCell({ value, onCommit, placeholder, className }: {
       onCompositionStart={() => { composing.current = true }}
       onCompositionEnd={e => { composing.current = false; onCommit((e.target as HTMLTextAreaElement).value) }}
       onBlur={e => { if (!composing.current) onCommit(e.target.value) }}
+    />
+  )
+}
+
+function CostInput({ value, onChange, className }: {
+  value: number | null; onChange: (v: number | null) => void; className?: string
+}) {
+  const [focused, setFocused] = useState(false)
+  const [text, setText] = useState('')
+  const displayVal = focused
+    ? text
+    : (value != null && value > 0 ? value.toLocaleString('ko-KR') : '')
+  return (
+    <input
+      type="text"
+      inputMode="decimal"
+      value={displayVal}
+      placeholder="0"
+      className={className}
+      onFocus={() => { setFocused(true); setText(value?.toString() ?? '') }}
+      onChange={e => setText(e.target.value)}
+      onBlur={() => {
+        setFocused(false)
+        const raw = text.replace(/,/g, '').trim()
+        const parsed = raw ? Number(raw) : null
+        onChange(parsed != null && !isNaN(parsed) ? parsed : null)
+      }}
     />
   )
 }
@@ -428,23 +456,23 @@ export default function TripDayTable({
               return (
                 <tr key={date} className="hover:bg-slate-50/60">
                   {/* 일자 */}
-                  <td className="border border-slate-200 px-3 py-2 text-center text-sm font-semibold text-slate-700 whitespace-nowrap bg-slate-50">
+                  <td className="border border-slate-200 px-3 py-2 text-center text-sm font-semibold text-slate-700 whitespace-nowrap bg-slate-50 align-top">
                     {fmtDate(date)}
                   </td>
                   {/* 도시 */}
-                  <td className="border border-slate-200 p-1.5">
+                  <td className="border border-slate-200 p-1.5 align-top">
                     <TextCell value={row?.city ?? ''} onCommit={v => updateField(date, { city: v })}
                       placeholder="도시"
                       className="w-full text-xs px-2 py-1.5 rounded border border-transparent hover:border-slate-200 focus:border-indigo-300 focus:outline-none bg-transparent" />
                   </td>
                   {/* 업체명 */}
-                  <td className="border border-slate-200 p-1.5">
+                  <td className="border border-slate-200 p-1.5 align-top">
                     <TextCell value={row?.company ?? ''} onCommit={v => updateField(date, { company: v })}
                       placeholder="업체명"
                       className="w-full text-xs px-2 py-1.5 rounded border border-transparent hover:border-slate-200 focus:border-indigo-300 focus:outline-none bg-transparent" />
                   </td>
                   {/* 주요활동 */}
-                  <td className="border border-slate-200 p-1.5">
+                  <td className="border border-slate-200 p-1.5 align-top">
                     <AreaCell value={row?.activity ?? ''} onCommit={v => updateField(date, { activity: v })}
                       placeholder="주요활동"
                       className="w-full text-xs px-2 py-1.5 rounded border border-transparent hover:border-slate-200 focus:border-indigo-300 focus:outline-none bg-transparent resize-none" />
@@ -457,7 +485,7 @@ export default function TripDayTable({
                     const receiptUrl  = row?.[receiptKey] ?? null
                     return (
                       <td key={c.cost}
-                        className={`border border-slate-200 p-1.5 ${isDragOver ? 'bg-blue-50 border-blue-300' : ''}`}
+                        className={`border border-slate-200 p-1.5 align-top ${isDragOver ? 'bg-blue-50 border-blue-300' : ''}`}
                         onDragOver={e => { e.preventDefault(); setDragOver({ date, col: c.cost }) }}
                         onDragLeave={() => setDragOver(null)}
                         onDrop={async e => { e.preventDefault(); setDragOver(null); const f = e.dataTransfer.files[0]; if (f) uploadReceipt(date, c.cost, f) }}
@@ -468,19 +496,20 @@ export default function TripDayTable({
                           const isKrw = cellCur === 'KRW'
                           return (
                             <>
-                              {/* 금액 입력 + 📎 */}
+                              {/* 금액 입력 + 업로드 */}
                               <div className="flex items-center gap-0.5">
-                                <input type="number"
-                                  value={row?.[c.cost] ?? ''}
-                                  onChange={e => updateField(date, { [c.cost]: e.target.value ? Number(e.target.value) : null })}
-                                  className="w-full text-[11px] px-1 py-1 rounded border border-transparent hover:border-slate-200 focus:border-indigo-300 focus:outline-none bg-transparent text-right"
-                                  placeholder="0" />
+                                <CostInput
+                                  value={row?.[c.cost] ?? null}
+                                  onChange={v => updateField(date, { [c.cost]: v })}
+                                  className="w-full text-[11px] px-1 py-1 rounded border border-transparent hover:border-slate-200 focus:border-indigo-300 focus:outline-none bg-transparent text-right" />
                                 {isUploading ? (
                                   <span className="text-[9px] text-blue-400 shrink-0">…</span>
                                 ) : (
                                   <button onClick={() => { pendingUpload.current = { date, col: c.cost }; fileInputRef.current?.click() }}
-                                    className="text-[11px] leading-none shrink-0 text-slate-300 hover:text-blue-500 transition"
-                                    title="영수증 추가">📎</button>
+                                    className="shrink-0 text-slate-300 hover:text-blue-500 transition"
+                                    title="영수증 첨부">
+                                    <Upload size={12} />
+                                  </button>
                                 )}
                               </div>
                               {/* 통화 토글 + KRW 환산 (두 번째 줄) */}
@@ -513,16 +542,20 @@ export default function TripDayTable({
                         {receiptUrl && (
                           <div className="flex flex-wrap gap-x-1 mt-0.5">
                             {receiptUrl.split('|').map((url, i) => (
-                              <div key={i} className="flex items-center">
+                              <div key={i} className="flex items-center gap-0.5">
                                 <a href={url} target="_blank" rel="noopener noreferrer" title={`영수증 ${i+1} 보기`}
-                                  className="text-[10px] text-blue-500 hover:underline">📄{i+1}</a>
+                                  className="flex items-center gap-0.5 text-[10px] text-blue-500 hover:text-blue-700">
+                                  <FileText size={11} />{i+1}
+                                </a>
                                 <button onClick={() => {
                                   const urls = receiptUrl.split('|').filter((_, idx) => idx !== i)
                                   updateField(date, {
                                     [receiptKey]: urls.length > 0 ? urls.join('|') : null,
-                                    [c.cost]: null,  // 영수증 삭제 시 금액도 초기화
+                                    [c.cost]: null,
                                   })
-                                }} className="text-slate-300 hover:text-red-400 text-[9px] ml-0.5">✕</button>
+                                }} className="text-slate-300 hover:text-red-400 ml-0.5">
+                                  <X size={9} />
+                                </button>
                               </div>
                             ))}
                           </div>
@@ -600,7 +633,7 @@ export default function TripDayTable({
 
       <div className="mt-3">
         <p className="text-[11px] text-slate-400">
-          영수증을 비용 셀에 드래그하거나 📎를 클릭해 첨부하면 금액이 자동 인식됩니다.
+          영수증을 비용 셀에 드래그하거나 <Upload size={11} className="inline" />를 클릭해 첨부하면 금액이 자동 인식됩니다.
         </p>
       </div>
     </div>
