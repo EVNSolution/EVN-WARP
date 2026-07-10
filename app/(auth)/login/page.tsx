@@ -1,10 +1,12 @@
 'use client'
 
-import { useActionState } from 'react'
+import { useActionState, useState } from 'react'
 import { loginAction } from '@/app/actions/auth'
 
 export default function LoginPage() {
   const [error, formAction, isPending] = useActionState(loginAction, undefined)
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
 
   return (
     <div className="w-full max-w-sm">
@@ -31,7 +33,9 @@ export default function LoginPage() {
             name="email"
             type="email"
             required
-            autoComplete="email"
+            autoComplete="off"
+            value={email}
+            onChange={e => setEmail(e.target.value)}
             placeholder="example@evnsolution.com"
             className="w-full px-4 py-3 rounded-lg text-sm text-white placeholder:text-slate-600 outline-none transition-all"
             style={{
@@ -49,7 +53,9 @@ export default function LoginPage() {
             name="password"
             type="password"
             required
-            autoComplete="current-password"
+            autoComplete="off"
+            value={password}
+            onChange={e => setPassword(e.target.value)}
             placeholder="비밀번호 입력"
             className="w-full px-4 py-3 rounded-lg text-sm text-white placeholder:text-slate-600 outline-none transition-all"
             style={{
