@@ -167,13 +167,17 @@ export default async function TripPrintPage({ params }: { params: Promise<{ id: 
         .approval-box { border: 1px solid #cbd5e1; text-align: center; padding: 0; vertical-align: top; }
         .approval-box .role { background: #f1f5f9; font-size: 8pt; font-weight: 600; padding: 3px; border-bottom: 1px solid #cbd5e1; }
         .approval-box .name { font-size: 9pt; padding: 16px 8px; min-height: 32px; }
-        .cur-badge { font-size: 7pt; color: #2563eb; margin-left: 2px; font-weight: 600; }
+        .cur-badge { font-size: 7pt; color: #2563eb; margin-right: 2px; font-weight: 600; }
       `}</style>
 
       <div className="no-print fixed top-4 right-4 flex gap-2 z-50">
         <PrintButton />
         <a href={`/trip/${id}`}
-          className="px-4 py-2 text-sm rounded-lg border border-slate-300 text-slate-600 hover:bg-slate-50 bg-white shadow">
+          style={{ padding: '8px 16px', fontSize: 14, borderRadius: 8, border: '1px solid #cbd5e1', color: '#475569', background: 'white', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+          ✍ 결재 / 동의하러 가기
+        </a>
+        <a href={`/trip/${id}`}
+          style={{ padding: '8px 16px', fontSize: 14, borderRadius: 8, border: '1px solid #e2e8f0', color: '#94a3b8', background: 'white', textDecoration: 'none', display: 'inline-flex', alignItems: 'center' }}>
           ← 돌아가기
         </a>
       </div>
@@ -290,8 +294,7 @@ export default async function TripPrintPage({ params }: { params: Promise<{ id: 
                       <td key={col.key} style={{ textAlign: 'right', fontSize: '8.5pt' }}>
                         {val ? (
                           <>
-                            {num(val)}
-                            <span className="cur-badge">{cur}</span>
+                            <span className="cur-badge">{cur}</span>{num(val)}
                           </>
                         ) : ''}
                       </td>
@@ -316,11 +319,11 @@ export default async function TripPrintPage({ params }: { params: Promise<{ id: 
                 </td>
                 {COST_COLS.map(col => (
                   <td key={col.key} style={{ textAlign: 'right' }}>
-                    {colTotals[col.key].fx ? `${num(colTotals[col.key].fx)} ${fxCurrency}` : ''}
+                    {colTotals[col.key].fx ? `${fxCurrency} ${num(colTotals[col.key].fx)}` : ''}
                   </td>
                 ))}
                 <td style={{ textAlign: 'right', fontWeight: 600 }}>
-                  {num(totalFxRaw)} {fxCurrency}
+                  {fxCurrency} {num(totalFxRaw)}
                 </td>
               </tr>
             )}

@@ -83,7 +83,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
           tripId: id,
           type: 'approval_request',
           message: `[${trip.title}] 승인 요청이 도착했습니다`,
-          link: `/trip/${id}`,
+          link: `/trip/${id}/print`,
         })
       }
     }

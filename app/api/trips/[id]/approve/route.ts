@@ -122,7 +122,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         tripId: id,
         type: 'approval_request',
         message: `[${trip.title}] 승인 차례가 되었습니다`,
-        link: `/trip/${id}`,
+        link: `/trip/${id}/print`,
       })
     }
   }
