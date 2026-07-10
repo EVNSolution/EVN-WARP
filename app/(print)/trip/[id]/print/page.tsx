@@ -144,7 +144,7 @@ export default async function TripPrintPage({ params }: { params: Promise<{ id: 
     } catch {}
     return trip.userName ? [{ userId: trip.userId ?? '', userName: trip.userName }] : []
   })()
-  const authorName = travelersArr.map(t => t.userName).join(', ') || (session?.user as any)?.name || ''
+  const authorName = travelersArr.map(t => t.userName).join(', ') || trip.userName || ''
 
   return (
     <>
