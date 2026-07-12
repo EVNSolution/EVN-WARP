@@ -23,6 +23,7 @@ interface Analysis {
 }
 
 interface Props {
+  mode?: 'call' | 'meeting'
   onClose: () => void
   onApply: (data: {
     content: string
@@ -32,7 +33,8 @@ interface Props {
   }) => void
 }
 
-export default function CallAnalysisModal({ onClose, onApply }: Props) {
+export default function CallAnalysisModal({ mode = 'call', onClose, onApply }: Props) {
+  const isMeeting = mode === 'meeting'
   const [dragging,        setDragging]        = useState(false)
   const [loading,         setLoading]         = useState(false)
   const [error,           setError]           = useState<string | null>(null)
@@ -94,8 +96,14 @@ export default function CallAnalysisModal({ onClose, onApply }: Props) {
         {/* 헤더 */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 shrink-0">
           <div>
-            <h2 className="text-base font-bold text-slate-800">AI 통화 분석</h2>
-            <p className="text-xs text-slate-400">녹음 파일을 업로드하면 Gemini AI가 자동으로 분석합니다</p>
+            <h2 className="text-base font-bold text-slate-800">
+              {isMeeting ? 'AI 회의록 자동화' : 'AI 통화 분석'}
+            </h2>
+            <p className="text-xs text-slate-400">
+              {isMeeting
+                ? '음성 파일을 업로드하면 AI가 회의록을 자동으로 작성합니다'
+                : '녹음 파일을 업로드하면 Gemini AI가 자동으로 분석합니다'}
+            </p>
           </div>
           <button onClick={onClose} className="text-slate-400 hover:text-slate-700 transition p-1">
             <X size={18} />
@@ -124,7 +132,9 @@ export default function CallAnalysisModal({ onClose, onApply }: Props) {
                 onChange={e => { const f = e.target.files?.[0]; if (f) processFile(f) }}
               />
               <Mic size={32} className="mx-auto mb-3 text-slate-300" />
-              <p className="text-sm font-semibold text-slate-600">녹음 파일을 끌어다 놓거나 클릭하세요</p>
+              <p className="text-sm font-semibold text-slate-600">
+                {isMeeting ? '회의 녹음 파일을 끌어다 놓거나 클릭하세요' : '녹음 파일을 끌어다 놓거나 클릭하세요'}
+              </p>
               <p className="text-xs text-slate-400 mt-1">M4A · MP3 · WAV · AMR 등 · 최대 20MB</p>
               {fileName && (
                 <p className="mt-2 text-xs text-indigo-600 font-medium">{fileName}</p>
@@ -258,7 +268,7 @@ export default function CallAnalysisModal({ onClose, onApply }: Props) {
                 onClick={handleApply}
                 className="px-5 py-2 text-sm font-bold rounded-xl bg-indigo-600 text-white hover:bg-indigo-700 transition"
               >
-                이 내용으로 상담 기록 채우기
+                {isMeeting ? '이 내용으로 세부 내용 채우기' : '이 내용으로 상담 기록 채우기'}
               </button>
             </>
           ) : (

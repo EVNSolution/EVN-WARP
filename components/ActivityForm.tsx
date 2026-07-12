@@ -8,9 +8,10 @@ import {
   Mail, Phone, FileText, UserPlus, Coffee, GraduationCap,
   Briefcase, Target, FileCheck, CalendarDays, HelpCircle, X,
   Code2, PenTool, Package, Wrench, Settings, ClipboardCheck,
-  PieChart, Landmark, Award, ChevronDown,
+  PieChart, Landmark, Award, ChevronDown, Mic,
 } from 'lucide-react'
 import Link from 'next/link'
+import CallAnalysisModal from '@/components/CallAnalysisModal'
 
 /* ── 활동 유형 분류 가이드 (매뉴얼 기준) ── */
 const TYPE_GUIDE = [
@@ -291,9 +292,10 @@ export default function ActivityForm({ teams, tasks, users = [], initial, mode, 
     initial?.planStatus === '완료' ? '완료' : '계획'
   )
   const [actualStr,  setActualStr]  = useState('')
-  const [saving,     setSaving]     = useState(false)
-  const [error,      setError]      = useState('')
-  const [showGuide,  setShowGuide]  = useState(false)
+  const [saving,              setSaving]              = useState(false)
+  const [error,               setError]               = useState('')
+  const [showGuide,           setShowGuide]           = useState(false)
+  const [showMeetingAnalysis, setShowMeetingAnalysis] = useState(false)
 
   // 비용정산
   const [expenseTransport, setExpenseTransport] = useState<string>(initial?.expenseTransport ? String(initial.expenseTransport) : '')
@@ -796,6 +798,11 @@ export default function ActivityForm({ teams, tasks, users = [], initial, mode, 
             <textarea value={content} onChange={e => setContent(e.target.value)} rows={4}
               placeholder={meta.placeholder}
               className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm text-slate-800 placeholder-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-400 resize-none" />
+            <button type="button" onClick={() => setShowMeetingAnalysis(true)}
+              className="mt-2 flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-indigo-600 bg-indigo-50 border border-indigo-200 rounded-lg hover:bg-indigo-100 transition-colors">
+              <Mic size={12} />
+              음성 회의록으로 자동 작성
+            </button>
           </div>
         </div>
 
@@ -908,20 +915,6 @@ export default function ActivityForm({ teams, tasks, users = [], initial, mode, 
           )}
         </div>
 
-        {/* 고급 기능 플레이스홀더 */}
-        {(type === '내부회의' || type === '외부미팅') && (
-          <div className="bg-slate-50 border border-dashed border-slate-300 rounded-xl p-4">
-            <div className="flex items-center gap-2 mb-2">
-              <Paperclip size={13} className="text-slate-400" />
-              <p className="text-xs font-semibold text-slate-500">회의록 자동화 (준비 중)</p>
-            </div>
-            <p className="text-xs text-slate-400">녹음 파일을 업로드하면 AI가 회의록을 자동으로 작성합니다.</p>
-            <button type="button" disabled
-              className="mt-2 px-3 py-1.5 border border-slate-300 rounded-lg text-xs text-slate-400 cursor-not-allowed">
-              녹음 파일 업로드
-            </button>
-          </div>
-        )}
         {(type === '국내출장' || type === '해외출장') && (
           <div className="bg-slate-50 border border-dashed border-slate-300 rounded-xl p-4">
             <div className="flex items-center gap-2 mb-2">
@@ -1056,6 +1049,21 @@ export default function ActivityForm({ teams, tasks, users = [], initial, mode, 
           </div>
         </div>
       </form>
+
+      {/* ── 음성 회의록 자동화 모달 ── */}
+      {showMeetingAnalysis && (
+        <CallAnalysisModal
+          mode="meeting"
+          onClose={() => setShowMeetingAnalysis(false)}
+          onApply={({ content: c, result, nextAction }) => {
+            let text = c
+            if (result) text += `\n\n[결과] ${result}`
+            if (nextAction) text += `\n\n[다음 액션] ${nextAction}`
+            setContent(text)
+            setShowMeetingAnalysis(false)
+          }}
+        />
+      )}
 
       {/* ── 활동 유형 분류 가이드 모달 ── */}
       {showGuide && (
