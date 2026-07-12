@@ -6,7 +6,7 @@ type SearchParams = { taskId?: string; date?: string; type?: string }
 export default async function NewActivityPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
   const { taskId, date, type } = await searchParams
 
-  const [teams, tasks] = await Promise.all([
+  const [teams, tasks, users] = await Promise.all([
     prisma.team.findMany({ orderBy: { name: 'asc' } }),
     prisma.strategyTask.findMany({
       where:   { suspended: false },
@@ -15,6 +15,7 @@ export default async function NewActivityPage({ searchParams }: { searchParams: 
         countermeasures: { select: { id: true, index: true, description: true }, orderBy: { index: 'asc' } } },
       orderBy: [{ teamId: 'asc' }, { teamSeq: 'asc' }],
     }),
+    prisma.user.findMany({ select: { id: true, name: true, email: true }, orderBy: { name: 'asc' } }),
   ])
 
   const preTask = taskId ? tasks.find(t => t.id === taskId) : undefined
@@ -23,6 +24,7 @@ export default async function NewActivityPage({ searchParams }: { searchParams: 
     <ActivityForm
       teams={teams}
       tasks={tasks}
+      users={users}
       mode="new"
       initial={{
         taskId:  preTask?.id,
