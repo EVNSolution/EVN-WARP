@@ -7,7 +7,7 @@ import AgentPicker from './AgentPicker'
 import AssigneePicker from './AssigneePicker'
 
 /* ── 리드 발굴경로 (고객 유입경로와 별도 관리) ── */
-const LEAD_SOURCES = ['소개', '자체발굴', '인바운드', 'SNS', '전시회', '기타', '소개인']
+const LEAD_SOURCES = ['소개', '자체발굴', '인바운드', 'SNS', '전시회', '로드쇼', '기타', '소개인']
 const CUST_SOURCES = ['소개', '온라인', '전시장/이벤트', '직접방문', '기타']
 
 type Segment = 'B2C' | 'B2B'
@@ -491,18 +491,20 @@ export default function NewDealModal({ onClose, onCreated }: Props) {
                     차량모델 확정
                   </span>
                 </label>
-                {vehicleModelChecked && products.length > 0 && (
-                  <select
-                    value={vehicleModelProductId ?? ''}
-                    onChange={e => setVehicleModelProductId(e.target.value || null)}
-                    className="flex-1 min-w-0 text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-slate-300 bg-white">
-                    <option value="">모델 선택</option>
-                    {products.map(p => (
-                      <option key={p.id} value={p.id}>
-                        {p.code ? `${p.code} — ` : ''}{p.name}
-                      </option>
-                    ))}
-                  </select>
+                {vehicleModelChecked && (
+                  products.length > 0
+                    ? <select
+                        value={vehicleModelProductId ?? ''}
+                        onChange={e => setVehicleModelProductId(e.target.value || null)}
+                        className="flex-1 min-w-0 text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-slate-300 bg-white">
+                        <option value="">모델 선택</option>
+                        {products.map(p => (
+                          <option key={p.id} value={p.id}>
+                            {p.code ? `${p.code} — ` : ''}{p.name}
+                          </option>
+                        ))}
+                      </select>
+                    : <span className="flex-1 text-xs text-amber-500">관리자 페이지에서 제품을 먼저 등록해 주세요</span>
                 )}
               </div>
             </div>
