@@ -225,7 +225,7 @@ export default function LeadDetailClient({ deal, customer = null, products = [] 
 
   const [meetings,    setMeetings]    = useState<Meeting[]>([])
   const [showMtgForm, setShowMtgForm] = useState(false)
-  const [mtg, setMtg] = useState({ type: '통화', meetingAt: new Date().toISOString().slice(0, 16), duration: '', content: '', result: '', nextAction: '', assignee: '' })
+  const [mtg, setMtg] = useState({ type: '통화', meetingAt: new Date().toISOString().slice(0, 16), duration: '', content: '', result: '', nextAction: '', assignee: '', expenseTransport: '', expenseAccomm: '', expenseMeal: '', expenseOther: '', expenseNote: '' })
   const [mtgFiles,    setMtgFiles]    = useState<MFile[]>([])
   const [uploading,   setUploading]   = useState(false)
   const [savingMtg,   setSavingMtg]   = useState(false)
@@ -334,13 +334,17 @@ export default function LeadDetailClient({ deal, customer = null, products = [] 
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ...mtg,
-          duration:  mtg.duration ? parseInt(mtg.duration) : null,
-          filesJson: mtgFiles.length ? JSON.stringify(mtgFiles) : null,
+          duration:         mtg.duration         ? parseInt(mtg.duration)         : null,
+          expenseTransport: mtg.expenseTransport ? Number(mtg.expenseTransport) : null,
+          expenseAccomm:    mtg.expenseAccomm    ? Number(mtg.expenseAccomm)    : null,
+          expenseMeal:      mtg.expenseMeal      ? Number(mtg.expenseMeal)      : null,
+          expenseOther:     mtg.expenseOther     ? Number(mtg.expenseOther)     : null,
+          filesJson:        mtgFiles.length ? JSON.stringify(mtgFiles) : null,
         }),
       })
       const saved = await res.json()
       setMeetings(prev => [saved, ...prev])
-      setMtg({ type: '통화', meetingAt: new Date().toISOString().slice(0, 16), duration: '', content: '', result: '', nextAction: '', assignee: '' })
+      setMtg({ type: '통화', meetingAt: new Date().toISOString().slice(0, 16), duration: '', content: '', result: '', nextAction: '', assignee: '', expenseTransport: '', expenseAccomm: '', expenseMeal: '', expenseOther: '', expenseNote: '' })
       setMtgFiles([])
       setShowMtgForm(false)
     } finally {
@@ -1339,6 +1343,24 @@ export default function LeadDetailClient({ deal, customer = null, products = [] 
                   placeholder="예: 견적서 발송, 재방문 일정 확정"
                   className="w-full text-xs border border-slate-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-1 focus:ring-slate-300" />
               </div>
+              {/* 비용정산 */}
+              <div className="col-span-2 border border-slate-200 rounded-xl p-4 bg-white space-y-3">
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">비용정산 (선택)</p>
+                <div className="grid grid-cols-2 gap-3">
+                  {([['교통비', 'expenseTransport'], ['숙박비', 'expenseAccomm'], ['식비', 'expenseMeal'], ['기타', 'expenseOther']] as const).map(([label, key]) => (
+                    <div key={key} className="flex items-center gap-2">
+                      <span className="text-xs text-slate-500 w-12 shrink-0">{label}</span>
+                      <input type="number" value={(mtg as any)[key]} onChange={e => setMtg(m => ({ ...m, [key]: e.target.value }))}
+                        placeholder="0"
+                        className="flex-1 min-w-0 text-xs border border-slate-200 rounded-lg px-2 py-1.5 bg-slate-50 focus:outline-none focus:ring-1 focus:ring-slate-300 text-right" />
+                    </div>
+                  ))}
+                </div>
+                <input value={mtg.expenseNote} onChange={e => setMtg(m => ({ ...m, expenseNote: e.target.value }))}
+                  placeholder="비용 메모"
+                  className="w-full text-xs border border-slate-200 rounded-lg px-3 py-1.5 bg-slate-50 focus:outline-none focus:ring-1 focus:ring-slate-300" />
+              </div>
+
               {/* AI 음성파일 입력 + 회의록 등록 */}
               <div className="col-span-2">
                 <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">파일 첨부</label>

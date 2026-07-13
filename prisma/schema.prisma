@@ -316,6 +316,13 @@ model LeadMeeting {
 
   filesJson   String?   // JSON: [{name,path,size,mime}]
 
+  // 비용정산
+  expenseTransport  Float?   // 교통비 (원)
+  expenseAccomm     Float?   // 숙박비 (원)
+  expenseMeal       Float?   // 식비 (원)
+  expenseOther      Float?   // 기타 (원)
+  expenseNote       String?  // 비용 메모
+
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 }

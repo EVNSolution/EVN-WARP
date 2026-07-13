@@ -207,6 +207,11 @@ function QuickMeetingModal({
   const [nextAction, setNextAction] = useState('')
   const [saving,     setSaving]     = useState(false)
   const [error,      setError]      = useState('')
+  const [expTransport, setExpTransport] = useState('')
+  const [expAccomm,    setExpAccomm]    = useState('')
+  const [expMeal,      setExpMeal]      = useState('')
+  const [expOther,     setExpOther]     = useState('')
+  const [expNote,      setExpNote]      = useState('')
 
   const handleSave = async () => {
     if (!content.trim()) { setError('미팅 내용을 입력해 주세요.'); return }
@@ -217,11 +222,16 @@ function QuickMeetingModal({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           type,
-          meetingAt: meetingAt || undefined,
-          duration:  duration ? Number(duration) : null,
-          content:   content.trim() || null,
-          result:    result.trim()  || null,
-          nextAction: nextAction.trim() || null,
+          meetingAt:        meetingAt || undefined,
+          duration:         duration ? Number(duration) : null,
+          content:          content.trim()    || null,
+          result:           result.trim()     || null,
+          nextAction:       nextAction.trim() || null,
+          expenseTransport: expTransport ? Number(expTransport) : null,
+          expenseAccomm:    expAccomm    ? Number(expAccomm)    : null,
+          expenseMeal:      expMeal      ? Number(expMeal)      : null,
+          expenseOther:     expOther     ? Number(expOther)     : null,
+          expenseNote:      expNote.trim() || null,
         }),
       })
       if (!res.ok) { setError('저장 실패'); setSaving(false); return }
@@ -299,6 +309,22 @@ function QuickMeetingModal({
                 placeholder="예: 견적서 발송"
                 className="w-full text-xs border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-slate-300" />
             </div>
+          </div>
+
+          {/* 비용정산 */}
+          <div className="border border-slate-100 rounded-xl p-4 bg-slate-50 space-y-3">
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">비용정산 (선택)</p>
+            <div className="grid grid-cols-2 gap-2">
+              {([['교통비', expTransport, setExpTransport], ['숙박비', expAccomm, setExpAccomm], ['식비', expMeal, setExpMeal], ['기타', expOther, setExpOther]] as const).map(([label, val, setter]) => (
+                <div key={label} className="flex items-center gap-2">
+                  <span className="text-xs text-slate-500 w-12 shrink-0">{label}</span>
+                  <input type="number" value={val} onChange={e => setter(e.target.value)} placeholder="0"
+                    className="flex-1 min-w-0 text-xs border border-slate-200 rounded-lg px-2 py-1.5 bg-white focus:outline-none focus:ring-1 focus:ring-slate-300 text-right" />
+                </div>
+              ))}
+            </div>
+            <input value={expNote} onChange={e => setExpNote(e.target.value)} placeholder="비용 메모"
+              className="w-full text-xs border border-slate-200 rounded-lg px-3 py-1.5 bg-white focus:outline-none focus:ring-1 focus:ring-slate-300" />
           </div>
 
           {error && <p className="text-xs text-red-500">{error}</p>}
