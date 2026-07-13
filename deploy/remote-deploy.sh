@@ -108,7 +108,7 @@ NODE
   echo "Admin user ensured: $admin_email"
 fi
 
-npm run build
+NODE_OPTIONS="--max-old-space-size=3072" npm run build
 
 if pm2 describe "$PM2_APP_NAME" >/dev/null 2>&1; then
   pm2 reload "$PM2_APP_NAME" --update-env
