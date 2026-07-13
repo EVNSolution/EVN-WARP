@@ -87,12 +87,12 @@ export default function AdminClient({
 
   const handleAddProduct = async () => {
     setProdAddErr('')
-    if (!newProd.name.trim()) { setProdAddErr('제품명은 필수입니다.'); return }
+    if (!newProd.code.trim()) { setProdAddErr('모델명은 필수입니다.'); return }
     setProdAddLoading(true)
     try {
       const res  = await fetch('/api/products', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(newProd),
+        body: JSON.stringify({ ...newProd, name: newProd.name.trim() || newProd.code.trim() }),
       })
       const data = await res.json()
       if (!res.ok) { setProdAddErr(data.error ?? '생성 실패'); return }
@@ -395,46 +395,15 @@ export default function AdminClient({
               <p className="text-xs font-bold text-slate-600 mb-3">새 제품/모델 등록</p>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-xs text-slate-500 mb-1 block">제품명 *</label>
-                  <input value={newProd.name} onChange={e => setNewProd(p => ({ ...p, name: e.target.value }))}
-                    placeholder="예: 스테고Z 냉동 5톤"
-                    className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-slate-400" />
-                </div>
-                <div>
-                  <label className="text-xs text-slate-500 mb-1 block">모델 코드</label>
+                  <label className="text-xs text-slate-500 mb-1 block">모델명 *</label>
                   <input value={newProd.code} onChange={e => setNewProd(p => ({ ...p, code: e.target.value }))}
-                    placeholder="예: STG-Z-5T"
+                    placeholder="예: 스테고Z"
                     className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-slate-400" />
                 </div>
                 <div>
-                  <label className="text-xs text-slate-500 mb-1 block">카테고리</label>
-                  <div className="flex gap-1.5 flex-wrap">
-                    {PRODUCT_CATEGORIES.map(c => (
-                      <button key={c} type="button"
-                        onClick={() => setNewProd(p => ({ ...p, category: p.category === c ? '' : c }))}
-                        className={`px-2.5 py-1 rounded-lg text-xs font-semibold border transition
-                          ${newProd.category === c ? 'bg-slate-800 text-white border-slate-800' : 'bg-white border-slate-200 text-slate-500 hover:border-slate-400'}`}>
-                        {c}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-                <div>
-                  <label className="text-xs text-slate-500 mb-1 block">연식</label>
-                  <input type="number" value={newProd.year} onChange={e => setNewProd(p => ({ ...p, year: e.target.value }))}
-                    placeholder="예: 2025"
-                    className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-slate-400" />
-                </div>
-                <div>
-                  <label className="text-xs text-slate-500 mb-1 block">기준 출고가 (만원)</label>
-                  <input type="number" value={newProd.basePrice} onChange={e => setNewProd(p => ({ ...p, basePrice: e.target.value }))}
-                    placeholder="예: 8500"
-                    className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-slate-400" />
-                </div>
-                <div>
-                  <label className="text-xs text-slate-500 mb-1 block">원가 (만원)</label>
-                  <input type="number" value={newProd.costPrice} onChange={e => setNewProd(p => ({ ...p, costPrice: e.target.value }))}
-                    placeholder="예: 7200"
+                  <label className="text-xs text-slate-500 mb-1 block">등록명칭</label>
+                  <input value={newProd.name} onChange={e => setNewProd(p => ({ ...p, name: e.target.value }))}
+                    placeholder="예: 스테고Z 냉동 5톤 2025"
                     className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-slate-400" />
                 </div>
                 <div className="col-span-2">
@@ -467,11 +436,9 @@ export default function AdminClient({
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-slate-100 bg-slate-50">
-                    <th className="text-left px-4 py-2.5 text-xs font-semibold text-slate-500">제품명</th>
-                    <th className="text-left px-3 py-2.5 text-xs font-semibold text-slate-500">코드</th>
-                    <th className="text-left px-3 py-2.5 text-xs font-semibold text-slate-500">카테고리</th>
-                    <th className="text-right px-3 py-2.5 text-xs font-semibold text-slate-500">출고가(만)</th>
-                    <th className="text-right px-3 py-2.5 text-xs font-semibold text-slate-500">원가(만)</th>
+                    <th className="text-left px-4 py-2.5 text-xs font-semibold text-slate-500">모델명</th>
+                    <th className="text-left px-3 py-2.5 text-xs font-semibold text-slate-500">등록명칭</th>
+                    <th className="text-left px-3 py-2.5 text-xs font-semibold text-slate-500">메모</th>
                     <th className="px-3 py-2.5"></th>
                   </tr>
                 </thead>
@@ -479,24 +446,9 @@ export default function AdminClient({
                   {products.map(p => (
                     <>
                       <tr key={p.id} className="hover:bg-slate-50 transition">
-                        <td className="px-4 py-3 font-semibold text-slate-800">
-                          {p.name}
-                          {p.year && <span className="ml-1 text-xs text-slate-400">{p.year}년</span>}
-                        </td>
-                        <td className="px-3 py-3 text-xs text-slate-500">{p.code ?? '—'}</td>
-                        <td className="px-3 py-3">
-                          {p.category && (
-                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
-                              {p.category}
-                            </span>
-                          )}
-                        </td>
-                        <td className="px-3 py-3 text-right text-slate-600 tabular-nums">
-                          {p.basePrice != null ? p.basePrice.toLocaleString() : '—'}
-                        </td>
-                        <td className="px-3 py-3 text-right text-slate-600 tabular-nums">
-                          {p.costPrice != null ? p.costPrice.toLocaleString() : '—'}
-                        </td>
+                        <td className="px-4 py-3 font-semibold text-slate-800">{p.code ?? '—'}</td>
+                        <td className="px-3 py-3 text-slate-600">{p.name}</td>
+                        <td className="px-3 py-3 text-xs text-slate-400">{p.memo ?? ''}</td>
                         <td className="px-3 py-3">
                           <div className="flex items-center gap-1.5 justify-end">
                             {prodDelId === p.id ? (
@@ -515,7 +467,7 @@ export default function AdminClient({
                                 <button
                                   onClick={() => {
                                     setProdEditId(prodEditId === p.id ? null : p.id)
-                                    setProdEditVal({ name: p.name, code: p.code ?? '', category: p.category ?? '', year: p.year?.toString() ?? '', basePrice: p.basePrice?.toString() ?? '', costPrice: p.costPrice?.toString() ?? '', memo: p.memo ?? '' })
+                                    setProdEditVal({ name: p.name, code: p.code ?? '', category: '', year: '', basePrice: '', costPrice: '', memo: p.memo ?? '' })
                                     setProdDelId(null)
                                   }}
                                   className="flex items-center gap-1 px-2 py-1 text-xs font-semibold rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50 transition">
@@ -532,47 +484,19 @@ export default function AdminClient({
                       </tr>
                       {prodEditId === p.id && (
                         <tr key={`${p.id}-edit`}>
-                          <td colSpan={6} className="px-4 pb-4 pt-0 bg-slate-50">
-                            <div className="grid grid-cols-3 gap-3 mt-3">
+                          <td colSpan={4} className="px-4 pb-4 pt-0 bg-slate-50">
+                            <div className="grid grid-cols-2 gap-3 mt-3">
                               <div>
-                                <label className="text-xs text-slate-500 mb-1 block">제품명 *</label>
-                                <input value={prodEditVal.name} onChange={e => setProdEditVal(v => ({ ...v, name: e.target.value }))}
-                                  className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-slate-400" />
-                              </div>
-                              <div>
-                                <label className="text-xs text-slate-500 mb-1 block">모델 코드</label>
+                                <label className="text-xs text-slate-500 mb-1 block">모델명 *</label>
                                 <input value={prodEditVal.code} onChange={e => setProdEditVal(v => ({ ...v, code: e.target.value }))}
                                   className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-slate-400" />
                               </div>
                               <div>
-                                <label className="text-xs text-slate-500 mb-1 block">연식</label>
-                                <input type="number" value={prodEditVal.year} onChange={e => setProdEditVal(v => ({ ...v, year: e.target.value }))}
+                                <label className="text-xs text-slate-500 mb-1 block">등록명칭</label>
+                                <input value={prodEditVal.name} onChange={e => setProdEditVal(v => ({ ...v, name: e.target.value }))}
                                   className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-slate-400" />
                               </div>
-                              <div>
-                                <label className="text-xs text-slate-500 mb-1 block">카테고리</label>
-                                <div className="flex gap-1 flex-wrap">
-                                  {PRODUCT_CATEGORIES.map(c => (
-                                    <button key={c} type="button"
-                                      onClick={() => setProdEditVal(v => ({ ...v, category: v.category === c ? '' : c }))}
-                                      className={`px-2 py-0.5 rounded text-xs font-semibold border transition
-                                        ${prodEditVal.category === c ? 'bg-slate-800 text-white border-slate-800' : 'bg-white border-slate-200 text-slate-500 hover:border-slate-400'}`}>
-                                      {c}
-                                    </button>
-                                  ))}
-                                </div>
-                              </div>
-                              <div>
-                                <label className="text-xs text-slate-500 mb-1 block">출고가 (만원)</label>
-                                <input type="number" value={prodEditVal.basePrice} onChange={e => setProdEditVal(v => ({ ...v, basePrice: e.target.value }))}
-                                  className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-slate-400" />
-                              </div>
-                              <div>
-                                <label className="text-xs text-slate-500 mb-1 block">원가 (만원)</label>
-                                <input type="number" value={prodEditVal.costPrice} onChange={e => setProdEditVal(v => ({ ...v, costPrice: e.target.value }))}
-                                  className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-slate-400" />
-                              </div>
-                              <div className="col-span-3">
+                              <div className="col-span-2">
                                 <label className="text-xs text-slate-500 mb-1 block">메모</label>
                                 <input value={prodEditVal.memo} onChange={e => setProdEditVal(v => ({ ...v, memo: e.target.value }))}
                                   className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-slate-400" />

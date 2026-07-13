@@ -1242,7 +1242,7 @@ export default function LeadDetailClient({ deal, customer = null, products = [] 
                 <option value="">제품 선택 안 함</option>
                 {products.map(p => (
                   <option key={p.id} value={p.id}>
-                    {p.name}{p.code ? ` (${p.code})` : ''}{p.category ? ` · ${p.category}` : ''}
+                    {p.code ? `${p.code} — ` : ''}{p.name}
                   </option>
                 ))}
               </select>
