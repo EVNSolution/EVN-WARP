@@ -122,6 +122,17 @@ const TYPE_GUIDE = [
       { name: '실적추가', desc: '정량 KPI 달성 실적 — 간트 과제 연계 필수' },
     ],
   },
+  {
+    category: '근태',
+    color: 'bg-green-50 border-green-200',
+    labelColor: 'text-green-700 bg-green-100',
+    desc: '연차·반차 등 휴가 기록',
+    types: [
+      { name: '연차',      desc: '하루 전체 연차 사용' },
+      { name: '반차(오전)', desc: '오전 반차 (~오후 1시)' },
+      { name: '반차(오후)', desc: '오후 반차 (오후 1시~)' },
+    ],
+  },
 ] as const
 
 /* ── 활동 유형 8개 카테고리 ── */
@@ -136,6 +147,7 @@ const ACTIVITY_CATEGORIES = [
   { label: '관계·네트워킹',  types: ['인재영입', '외부 네트워킹', '파트너십 타진'] },
   { label: '투자·IR',        types: ['IR 발표', '투자자 미팅', '투자행사'] },
   { label: '실적',           types: ['실적추가'] },
+  { label: '근태',           types: ['연차', '반차(오전)', '반차(오후)'] },
 ] as const
 
 const TYPE_META: Record<string, { icon: React.ReactNode; color: string; activeColor: string; placeholder: string }> = {
@@ -166,6 +178,9 @@ const TYPE_META: Record<string, { icon: React.ReactNode; color: string; activeCo
   'IR 발표':        { icon: <PieChart size={13} />,       color: 'border-indigo-200  text-indigo-600  bg-indigo-50',  activeColor: 'bg-indigo-600  text-white border-indigo-600',  placeholder: '발표 대상 투자자/기관, 피칭 내용, 질의응답 주요 내용, 후속 조치 등을 기록하세요' },
   '투자자 미팅':    { icon: <Landmark size={13} />,       color: 'border-indigo-200  text-indigo-600  bg-indigo-50',  activeColor: 'bg-indigo-600  text-white border-indigo-600',  placeholder: '투자자/기관명, 미팅 목적, 주요 논의 내용, 다음 단계 등을 기록하세요' },
   '투자행사':       { icon: <Award size={13} />,          color: 'border-indigo-200  text-indigo-600  bg-indigo-50',  activeColor: 'bg-indigo-600  text-white border-indigo-600',  placeholder: '행사명, 참석 목적, 주요 만남·성과, 후속 연락 등을 기록하세요' },
+  '연차':       { icon: <CalendarDays size={13} />, color: 'border-green-200 text-green-700 bg-green-50', activeColor: 'bg-green-600  text-white border-green-600',  placeholder: '연차 사유 또는 일정을 입력하세요 (선택)' },
+  '반차(오전)': { icon: <CalendarDays size={13} />, color: 'border-green-200 text-green-700 bg-green-50', activeColor: 'bg-green-600  text-white border-green-600',  placeholder: '오전 반차 사유 또는 일정을 입력하세요 (선택)' },
+  '반차(오후)': { icon: <CalendarDays size={13} />, color: 'border-green-200 text-green-700 bg-green-50', activeColor: 'bg-green-600  text-white border-green-600',  placeholder: '오후 반차 사유 또는 일정을 입력하세요 (선택)' },
   // 레거시 (기존 데이터 표시용)
   '외부회의':  { icon: <Building2 size={13} />, color: 'border-purple-200 text-purple-600 bg-purple-50', activeColor: 'bg-purple-600 text-white border-purple-600', placeholder: '미팅 내용, 상대방 정보, 후속 조치 등을 기록하세요' },
   '발표/보고': { icon: <BarChart2 size={13} />, color: 'border-teal-200   text-teal-600   bg-teal-50',   activeColor: 'bg-teal-600   text-white border-teal-600',   placeholder: '발표 내용, 대상, 주요 피드백 등을 기록하세요' },
@@ -252,7 +267,8 @@ interface Props {
   expensePrintUrl?: string
 }
 
-const TRIP_TYPES = new Set(['국내출장', '해외출장'])
+const TRIP_TYPES  = new Set(['국내출장', '해외출장'])
+const LEAVE_TYPES = new Set(['연차', '반차(오전)', '반차(오후)'])
 
 export default function ActivityForm({ teams, tasks, users = [], initial, mode, returnUrl = '/notes', expensePrintUrl }: Props) {
   const router = useRouter()
@@ -384,12 +400,13 @@ export default function ActivityForm({ teams, tasks, users = [], initial, mode, 
         finalTitle = `${selectedKpi?.label ?? 'KPI'} 실적 — ${fmtComma(actualStr)}${unit} (${kpiWeek})`
       }
     }
+    if (LEAVE_TYPES.has(type) && !finalTitle) finalTitle = type
     if (!finalTitle) { setError('제목을 입력해주세요.'); return }
     setSaving(true); setError('')
 
     const actualNum = type === '실적추가' ? parseInt(digitsOnly(actualStr), 10) : undefined
     const isTrip = TRIP_TYPES.has(type)
-    const hasExpense = type !== '해외출장'
+    const hasExpense = type !== '해외출장' && !LEAVE_TYPES.has(type)
     const payload = {
       taskId: finalTaskId,
       teamId: finalTeamId,
@@ -782,7 +799,7 @@ export default function ActivityForm({ teams, tasks, users = [], initial, mode, 
           <div>
             <label className="block text-sm font-semibold text-slate-700 mb-1.5">
               제목
-              {type === '실적추가'
+              {(type === '실적추가' || LEAVE_TYPES.has(type))
                 ? <span className="ml-1.5 text-xs text-slate-400 font-normal">— 비워두면 자동 생성됩니다</span>
                 : linked
                   ? <span className="ml-1.5 text-xs text-slate-400 font-normal">— 3페이지 주간업무에 자동 표시됩니다</span>
@@ -929,8 +946,8 @@ export default function ActivityForm({ teams, tasks, users = [], initial, mode, 
           </div>
         )}
 
-        {/* ── 비용정산 (해외출장 제외) ── */}
-        {type !== '해외출장' && (
+        {/* ── 비용정산 (해외출장·근태 제외) ── */}
+        {type !== '해외출장' && !LEAVE_TYPES.has(type) && (
           <div className="bg-white border border-slate-200 rounded-xl p-5">
             <div className="flex items-center justify-between mb-3">
               <p className="text-sm font-semibold text-slate-700">
