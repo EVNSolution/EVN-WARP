@@ -49,9 +49,11 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
         ...(b.purchaseGoal     !== undefined && { purchaseGoal: b.purchaseGoal || null }),
         ...(b.keyFactors       !== undefined && { keyFactors: b.keyFactors || null }),
         ...(b.lostReason        !== undefined && { lostReason:        b.lostReason        || null }),
-        ...(b.stageCode         !== undefined && { stageCode:         b.stageCode         || null }),
+        ...(b.stageCode         !== undefined && { stageCode:         b.stageCode         || null,
+                                                                      stageChangedAt:     new Date() }),
         ...(b.checklistJson     !== undefined && { checklistJson:     b.checklistJson     || null }),
-        ...(b.salesStatus       !== undefined && { salesStatus:       b.salesStatus       || null }),
+        ...(b.salesStatus       !== undefined && { salesStatus:       b.salesStatus       || null,
+                                                   ...(['완료','이탈'].includes(b.salesStatus) && { closedAt: new Date() }) }),
         ...(b.customerId        !== undefined && { customerId:        b.customerId        || null }),
         // CRM 고객 세그먼트
         ...(b.customerSegment   !== undefined && { customerSegment:   b.customerSegment   || null }),

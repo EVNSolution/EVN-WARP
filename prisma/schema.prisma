@@ -344,8 +344,27 @@ model Agent {
   updatedAt  DateTime  @updatedAt
 }
 
+model Product {
+  id          String      @id @default(cuid())
+  name        String
+  code        String?
+  category    String?     // "냉동" | "상온" | "특장" | "기타"
+  year        Int?
+  basePrice   Float?      // 기준 출고가 (만원)
+  costPrice   Float?      // 원가 (만원)
+  active      Boolean     @default(true)
+  memo        String?
+  deals       SalesDeal[]
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+}
+
 model SalesDeal {
   id          String   @id @default(cuid())
+
+  // 판매 제품 연결
+  productId   String?
+  product     Product?  @relation(fields: [productId], references: [id], onDelete: SetNull)
 
   // 고객 마스터 연결
   customerId  String?
@@ -408,6 +427,10 @@ model SalesDeal {
   monthlyPayment   Int?       // 월납액 (만원)
   loanMonths       Int?       // 개월수
   deliveredAt      DateTime?  // 차량출고일
+
+  // 리포트용 날짜 추적
+  closedAt         DateTime?  // 수주/실주 확정 날짜
+  stageChangedAt   DateTime?  // 최근 단계 변경일
 
   // 공통
   assignee         String?
