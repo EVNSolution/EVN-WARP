@@ -1265,7 +1265,7 @@ export default function LeadDetailClient({ deal, customer = null }: { deal: Deal
           <div className="mb-5 p-5 bg-slate-50 rounded-xl border border-slate-200">
             <div className="grid grid-cols-2 gap-4">
               {/* 유형 */}
-              <div>
+              <div className="col-span-2">
                 <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">미팅 유형</label>
                 <div className="flex gap-1.5">
                   {['통화', '방문', '화상', '기타'].map(t => (
@@ -1276,16 +1276,6 @@ export default function LeadDetailClient({ deal, customer = null }: { deal: Deal
                     </button>
                   ))}
                 </div>
-              </div>
-              {/* AI 통화 분석 */}
-              <div>
-                <button
-                  type="button"
-                  onClick={() => setShowAnalysis(true)}
-                  className="w-full px-3 py-2 text-xs font-semibold rounded-lg border-2 border-dashed border-indigo-200 text-indigo-500 hover:bg-indigo-50 hover:border-indigo-400 transition"
-                >
-                  녹음 파일 AI 분석 → 자동 입력
-                </button>
               </div>
               {/* 일시 + 소요시간 */}
               <div className="flex gap-2">
@@ -1324,31 +1314,34 @@ export default function LeadDetailClient({ deal, customer = null }: { deal: Deal
                   placeholder="예: 견적서 발송, 재방문 일정 확정"
                   className="w-full text-xs border border-slate-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-1 focus:ring-slate-300" />
               </div>
-              {/* 파일 첨부 */}
+              {/* AI 음성파일 입력 + 회의록 등록 */}
               <div className="col-span-2">
-                <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">첨부파일 (녹음, 회의록 등)</label>
-                <div className="flex items-center gap-3">
-                  <input ref={fileRef} type="file" multiple
-                    accept=".mp3,.m4a,.wav,.pdf,.docx,.xlsx,.txt,.png,.jpg"
-                    onChange={handleFileUpload}
-                    className="hidden" />
-                  {/* docFileRef는 아래 항상 마운트된 위치로 이동 */}
-                  <button onClick={() => fileRef.current?.click()} disabled={uploading}
-                    className="px-3 py-1.5 text-xs rounded-lg border border-slate-300 text-slate-600 hover:bg-slate-100 transition disabled:opacity-40">
-                    {uploading ? '업로드 중...' : '파일 선택'}
+                <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">파일 첨부</label>
+                <input ref={fileRef} type="file" multiple
+                  accept=".mp3,.m4a,.wav,.pdf,.docx,.xlsx,.txt,.png,.jpg"
+                  onChange={handleFileUpload}
+                  className="hidden" />
+                <div className="flex gap-2">
+                  <button type="button" onClick={() => setShowAnalysis(true)}
+                    className="flex items-center justify-center gap-1.5 flex-1 px-3 py-2 text-xs font-semibold rounded-lg border-2 border-dashed border-indigo-200 text-indigo-500 hover:bg-indigo-50 hover:border-indigo-400 transition">
+                    🎙 AI 음성파일 입력
                   </button>
-                  {mtgFiles.length > 0 && (
-                    <div className="flex flex-wrap gap-1.5">
-                      {mtgFiles.map((f, i) => (
-                        <span key={i} className="flex items-center gap-1 px-2 py-0.5 bg-blue-50 text-blue-700 rounded text-[10px]">
-                          📎 {f.name}
-                          <button onClick={() => setMtgFiles(prev => prev.filter((_, j) => j !== i))}
-                            className="text-blue-400 hover:text-red-500 ml-1">×</button>
-                        </span>
-                      ))}
-                    </div>
-                  )}
+                  <button type="button" onClick={() => fileRef.current?.click()} disabled={uploading}
+                    className="flex items-center justify-center gap-1.5 flex-1 px-3 py-2 text-xs font-semibold rounded-lg border border-slate-300 text-slate-600 hover:bg-slate-100 transition disabled:opacity-40">
+                    📎 {uploading ? '업로드 중...' : '회의록 등록'}
+                  </button>
                 </div>
+                {mtgFiles.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5 mt-2">
+                    {mtgFiles.map((f, i) => (
+                      <span key={i} className="flex items-center gap-1 px-2 py-0.5 bg-blue-50 text-blue-700 rounded text-[10px]">
+                        📎 {f.name}
+                        <button onClick={() => setMtgFiles(prev => prev.filter((_, j) => j !== i))}
+                          className="text-blue-400 hover:text-red-500 ml-1">×</button>
+                      </span>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
             <div className="mt-4 flex justify-end">
