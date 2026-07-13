@@ -54,7 +54,8 @@ export default function NewDealModal({ onClose, onCreated }: Props) {
   const [agentValue,       setAgentValue]       = useState<{ id: string; name: string } | null>(null)
   const [assignee,         setAssignee]         = useState('')
   const [memo,             setMemo]             = useState('')
-  const [selectedProductId, setSelectedProductId] = useState<string | null>(null)
+  const [vehicleModelChecked,   setVehicleModelChecked]   = useState(false)
+  const [vehicleModelProductId, setVehicleModelProductId] = useState<string | null>(null)
   const [products, setProducts] = useState<{ id: string; name: string; code: string | null }[]>([])
   const [intentChecked,    setIntentChecked]    = useState(false)
   const [intentNote,       setIntentNote]       = useState('')
@@ -161,7 +162,7 @@ export default function NewDealModal({ onClose, onCreated }: Props) {
           companyName:     customer.companyName     || null,
           source:          dealSource               || null,
           agentId:         agentValue?.id           || null,
-          productId:       selectedProductId        || null,
+          productId:       vehicleModelProductId      || null,
           assignee:        assignee                 || null,
           memo:            memo                     || null,
           stageCode:       '1-1',
@@ -170,6 +171,8 @@ export default function NewDealModal({ onClose, onCreated }: Props) {
           checklistJson:   JSON.stringify({
             ...(intentChecked ? { '1-1-0': true } : {}),
             ...(intentNote.trim() ? { '1-1-0-note': intentNote.trim() } : {}),
+            ...(vehicleModelChecked ? { '1-1-1': true } : {}),
+            ...(vehicleModelChecked && vehicleModelProductId ? { '1-1-1-productId': vehicleModelProductId } : {}),
           }),
         }),
       })
@@ -445,11 +448,13 @@ export default function NewDealModal({ onClose, onCreated }: Props) {
               </button>
             </div>
 
-            {/* 배송업 의향확인 (1-1-0) */}
+            {/* 미성숙 리드 확인 항목 (1-1-0, 1-1-1) */}
             <div className="border border-slate-200 rounded-xl p-4 flex flex-col gap-3">
               <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-widest">
                 미성숙 리드 확인 항목
               </label>
+
+              {/* 배송업 의향확인 (1-1-0) */}
               <label className="flex items-center gap-3 cursor-pointer select-none">
                 <input
                   type="checkbox"
@@ -465,7 +470,6 @@ export default function NewDealModal({ onClose, onCreated }: Props) {
                 <div className="flex gap-3">
                   <div className="w-4 shrink-0" />
                   <input
-                    autoFocus
                     value={intentNote}
                     onChange={e => setIntentNote(e.target.value)}
                     placeholder="확인 방법 입력 (예: 전화 통화, 대면 상담 등)"
@@ -473,6 +477,34 @@ export default function NewDealModal({ onClose, onCreated }: Props) {
                   />
                 </div>
               )}
+
+              {/* 차량모델 확정 (1-1-1) */}
+              <div className="flex items-center gap-3">
+                <label className="flex items-center gap-3 cursor-pointer select-none shrink-0">
+                  <input
+                    type="checkbox"
+                    checked={vehicleModelChecked}
+                    onChange={e => { setVehicleModelChecked(e.target.checked); if (!e.target.checked) setVehicleModelProductId(null) }}
+                    className="w-4 h-4 rounded border-slate-300 accent-slate-700 cursor-pointer"
+                  />
+                  <span className={`text-sm font-semibold transition-colors ${vehicleModelChecked ? 'text-slate-800' : 'text-slate-400'}`}>
+                    차량모델 확정
+                  </span>
+                </label>
+                {vehicleModelChecked && products.length > 0 && (
+                  <select
+                    value={vehicleModelProductId ?? ''}
+                    onChange={e => setVehicleModelProductId(e.target.value || null)}
+                    className="flex-1 min-w-0 text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-slate-300 bg-white">
+                    <option value="">모델 선택</option>
+                    {products.map(p => (
+                      <option key={p.id} value={p.id}>
+                        {p.code ? `${p.code} — ` : ''}{p.name}
+                      </option>
+                    ))}
+                  </select>
+                )}
+              </div>
             </div>
 
             {/* 리드 발굴경로 */}
@@ -557,24 +589,6 @@ export default function NewDealModal({ onClose, onCreated }: Props) {
                 className="w-full text-sm border border-slate-200 rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-slate-300"
               />
             </div>
-
-            {/* 판매 제품 */}
-            {products.length > 0 && (
-              <div>
-                <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-widest mb-1">판매 제품</label>
-                <select
-                  value={selectedProductId ?? ''}
-                  onChange={e => setSelectedProductId(e.target.value || null)}
-                  className="w-full text-sm border border-slate-200 rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-slate-300 bg-white">
-                  <option value="">제품 선택 안 함</option>
-                  {products.map(p => (
-                    <option key={p.id} value={p.id}>
-                      {p.code ? `${p.code} — ` : ''}{p.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            )}
 
             {/* 메모 */}
             <div>
