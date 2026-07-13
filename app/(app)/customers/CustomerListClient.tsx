@@ -367,6 +367,7 @@ export default function CustomerListClient({ customers: initial }: Props) {
 
 /* ── 신규 고객 추가 모달 ── */
 function NewCustomerModal({ onClose, onCreated }: { onClose: () => void; onCreated: (c: Customer) => void }) {
+  const router = useRouter()
   const [name,    setName]    = useState('')
   const [phone,   setPhone]   = useState('')
   const [seg,     setSeg]     = useState<'B2C' | 'B2B'>('B2C')
@@ -374,6 +375,32 @@ function NewCustomerModal({ onClose, onCreated }: { onClose: () => void; onCreat
   const [company, setCompany] = useState('')
   const [saving,  setSaving]  = useState(false)
   const [error,   setError]   = useState('')
+
+  /* 기존 고객 중복 검색 */
+  type DupHit = { id: string; name: string; phone: string | null; customerSegment: string | null }
+  const [dupHits,   setDupHits]   = useState<DupHit[]>([])
+  const [searching, setSearching] = useState(false)
+  const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  useEffect(() => {
+    const phoneQ = phone.replace(/\D/g, '')
+    const nameQ  = name.trim()
+    const isPhone = phoneQ.length >= 4
+    const q    = isPhone ? phoneQ : nameQ
+    const mode = isPhone ? 'phone' : 'name'
+    if (q.length < 2) { setDupHits([]); return }
+    if (searchTimer.current) clearTimeout(searchTimer.current)
+    searchTimer.current = setTimeout(async () => {
+      setSearching(true)
+      try {
+        const res  = await fetch(`/api/customers?q=${encodeURIComponent(q)}&mode=${mode}`)
+        const list = await res.json()
+        setDupHits(Array.isArray(list) ? list.slice(0, 3) : [])
+      } finally {
+        setSearching(false)
+      }
+    }, 300)
+  }, [name, phone])
 
   const SOURCES = ['소개', '온라인', '전시장/이벤트', '직접방문', '기타']
 
@@ -429,10 +456,38 @@ function NewCustomerModal({ onClose, onCreated }: { onClose: () => void; onCreat
             {error && <p className="text-red-500 text-xs mt-1">{error}</p>}
           </div>
           <div>
-            <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-widest mb-1">연락처</label>
+            <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-widest mb-1">
+              연락처
+              {searching && <span className="ml-2 text-[10px] text-slate-400 font-normal">검색 중...</span>}
+            </label>
             <input value={phone} onChange={e => setPhone(formatPhone(e.target.value))} placeholder="010-0000-0000"
               className="w-full text-sm border border-slate-200 rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-slate-300" />
           </div>
+
+          {/* 기존 고객 중복 경고 */}
+          {dupHits.length > 0 && (
+            <div className="bg-amber-50 border border-amber-200 rounded-xl p-3">
+              <p className="text-xs font-bold text-amber-700 mb-2">⚠ 이미 등록된 고객이 있습니다</p>
+              <div className="space-y-1.5">
+                {dupHits.map(c => (
+                  <button key={c.id} type="button"
+                    onClick={() => { onClose(); router.push(`/customers/${c.id}`) }}
+                    className="w-full flex items-center gap-2 px-3 py-2 bg-white rounded-lg border border-amber-200 hover:border-amber-400 transition text-left">
+                    <div className="w-6 h-6 rounded-full bg-amber-100 flex items-center justify-center text-xs font-bold text-amber-800 shrink-0">
+                      {c.name.charAt(0)}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-semibold text-slate-800">{c.name}</p>
+                      <p className="text-[10px] text-slate-400">{c.phone ?? '연락처 없음'} · {c.customerSegment ?? 'B2C'}</p>
+                    </div>
+                    <span className="text-[10px] text-amber-600 font-semibold shrink-0">보기 →</span>
+                  </button>
+                ))}
+              </div>
+              <p className="text-[10px] text-amber-500 mt-2">해당 고객이 아닌 경우 계속 입력하여 신규 등록하세요.</p>
+            </div>
+          )}
+
           {seg === 'B2B' && (
             <div>
               <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-widest mb-1">회사명</label>
