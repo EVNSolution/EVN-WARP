@@ -135,7 +135,7 @@ export default function CallAnalysisModal({ mode = 'call', onClose, onApply }: P
               <p className="text-sm font-semibold text-slate-600">
                 {isMeeting ? '회의 녹음 파일을 끌어다 놓거나 클릭하세요' : '녹음 파일을 끌어다 놓거나 클릭하세요'}
               </p>
-              <p className="text-xs text-slate-400 mt-1">M4A · MP3 · WAV · AMR 등 · 최대 20MB</p>
+              <p className="text-xs text-slate-400 mt-1">M4A · MP3 · WAV · AMR 등 · 최대 50MB</p>
               {fileName && (
                 <p className="mt-2 text-xs text-indigo-600 font-medium">{fileName}</p>
               )}
