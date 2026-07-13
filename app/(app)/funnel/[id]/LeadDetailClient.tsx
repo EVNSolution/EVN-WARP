@@ -1231,10 +1231,10 @@ export default function LeadDetailClient({ deal, customer = null, products = [] 
               className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-slate-300" />
           </div>
 
-          {/* 판매 제품 */}
+          {/* 모델명 */}
           {products.length > 0 && (
             <div>
-              <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">판매 제품</label>
+              <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">모델명</label>
               <select
                 value={selectedProductId ?? ''}
                 onChange={e => { setSelectedProductId(e.target.value || null); setSaved(false) }}

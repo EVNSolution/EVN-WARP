@@ -26,6 +26,7 @@ export interface PipelineDeal {
   cargoType?: string | null
   deliveryRegion?: string | null
   purchaseTiming?: string | null
+  productName?: string | null
 }
 
 interface Props {
@@ -48,6 +49,7 @@ const LEAD_DEFS: ColDef[] = [
   { key: 'source',         label: '유입경로',   dw: 'sm' },
   { key: 'collectedAt',    label: '수집일',     dw: 'sm' },
   { key: 'assignee',       label: '담당자',     dw: 'sm' },
+  { key: 'productName',    label: '모델명',     dw: 'md' },
   { key: 'memo',           label: '메모',       dw: 'lg' },
   { key: 'record',         label: '기록',       dw: 'sm' },
   { key: 'detail',         label: '상세',       dw: 'sm' },
@@ -516,6 +518,15 @@ export default function PipelineView({ deals, salesTarget, linkedKpiLabel }: Pro
         return <td key={c.key} style={{ width: W_PX[c.width] }} className="px-3 py-2.5 text-slate-400">{fmtDate(d.collectedAt)}</td>
       case 'assignee':
         return <td key={c.key} style={{ width: W_PX[c.width] }} className="px-3 py-2.5 text-slate-500 truncate">{d.assignee ?? '—'}</td>
+      case 'productName':
+        return (
+          <td key={c.key} style={{ width: W_PX[c.width] }} className="px-3 py-2.5">
+            {d.productName
+              ? <span className="inline-block px-2 py-0.5 rounded text-[10px] font-semibold bg-slate-100 text-slate-600 truncate max-w-full">{d.productName}</span>
+              : <span className="text-slate-300 text-xs">—</span>
+            }
+          </td>
+        )
       case 'memo':
         return <td key={c.key} style={{ width: W_PX[c.width] }} className="px-3 py-2.5 text-slate-400 truncate max-w-0">{d.memo ?? ''}</td>
       case 'record':
