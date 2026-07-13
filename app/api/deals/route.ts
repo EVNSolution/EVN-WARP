@@ -169,13 +169,17 @@ export async function POST(req: NextRequest) {
       },
     })
 
-    // agentId: FK 관계 필드는 create 후 raw SQL로 별도 설정
+    // FK 관계 필드는 create 후 raw SQL로 별도 설정 (libSQL 어댑터 호환)
     const agentId = body.agentId || null
     if (agentId) {
       await prisma.$executeRaw`UPDATE "SalesDeal" SET "agentId" = ${agentId} WHERE id = ${deal.id}`
     }
+    const productId = body.productId || null
+    if (productId) {
+      await prisma.$executeRaw`UPDATE "SalesDeal" SET "productId" = ${productId} WHERE id = ${deal.id}`
+    }
 
-    return NextResponse.json({ ...deal, agentId }, { status: 201 })
+    return NextResponse.json({ ...deal, agentId, productId }, { status: 201 })
   } catch (e: any) {
     console.error('[deals POST] 에러:', e?.message, e?.code)
     return NextResponse.json({ error: e?.message ?? '생성 실패' }, { status: 500 })

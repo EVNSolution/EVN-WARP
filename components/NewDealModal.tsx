@@ -54,6 +54,8 @@ export default function NewDealModal({ onClose, onCreated }: Props) {
   const [agentValue,       setAgentValue]       = useState<{ id: string; name: string } | null>(null)
   const [assignee,         setAssignee]         = useState('')
   const [memo,             setMemo]             = useState('')
+  const [selectedProductId, setSelectedProductId] = useState<string | null>(null)
+  const [products, setProducts] = useState<{ id: string; name: string; code: string | null }[]>([])
   const [intentChecked,    setIntentChecked]    = useState(false)
   const [intentNote,       setIntentNote]       = useState('')
   const [showNewAgent,     setShowNewAgent]     = useState(false)
@@ -62,6 +64,11 @@ export default function NewDealModal({ onClose, onCreated }: Props) {
   const [newAgentCompany,  setNewAgentCompany]  = useState('')
   const [newAgentType,     setNewAgentType]     = useState<'내부' | '외부'>('외부')
   const [savingAgent,      setSavingAgent]      = useState(false)
+
+  /* 제품 목록 로드 */
+  useEffect(() => {
+    fetch('/api/products').then(r => r.json()).then(setProducts).catch(() => {})
+  }, [])
 
   /* 고객 검색 디바운스 */
   useEffect(() => {
@@ -154,6 +161,7 @@ export default function NewDealModal({ onClose, onCreated }: Props) {
           companyName:     customer.companyName     || null,
           source:          dealSource               || null,
           agentId:         agentValue?.id           || null,
+          productId:       selectedProductId        || null,
           assignee:        assignee                 || null,
           memo:            memo                     || null,
           stageCode:       '1-1',
@@ -549,6 +557,24 @@ export default function NewDealModal({ onClose, onCreated }: Props) {
                 className="w-full text-sm border border-slate-200 rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-slate-300"
               />
             </div>
+
+            {/* 판매 제품 */}
+            {products.length > 0 && (
+              <div>
+                <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-widest mb-1">판매 제품</label>
+                <select
+                  value={selectedProductId ?? ''}
+                  onChange={e => setSelectedProductId(e.target.value || null)}
+                  className="w-full text-sm border border-slate-200 rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-slate-300 bg-white">
+                  <option value="">제품 선택 안 함</option>
+                  {products.map(p => (
+                    <option key={p.id} value={p.id}>
+                      {p.code ? `${p.code} — ` : ''}{p.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
 
             {/* 메모 */}
             <div>
