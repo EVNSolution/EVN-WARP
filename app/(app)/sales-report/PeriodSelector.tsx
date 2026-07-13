@@ -7,7 +7,7 @@ const PERIODS = [
   { label: '이번 주',  key: 'week' },
   { label: '이번 달',  key: 'month' },
   { label: '올해',     key: 'year' },
-  { label: '직접 입력', key: 'custom' },
+  { label: '기간 지정', key: 'custom' },
 ]
 
 interface Props { from: string; to: string; period: string }
@@ -35,7 +35,7 @@ export default function PeriodSelector({ from, to, period }: Props) {
       {PERIODS.map(p => (
         <button
           key={p.key}
-          onClick={() => { if (p.key !== 'custom') go(p.key) }}
+          onClick={() => go(p.key)}
           className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition
             ${period === p.key
               ? 'bg-slate-800 text-white'
