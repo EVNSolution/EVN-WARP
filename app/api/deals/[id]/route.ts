@@ -98,13 +98,21 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
       },
     })
 
-    // agentId FK 필드: libSQL 어댑터 호환 — $executeRaw로 별도 처리
+    // FK 필드: libSQL 어댑터 호환 — $executeRaw로 별도 처리
     if (b.agentId !== undefined) {
       const agentId = b.agentId || null
       if (agentId) {
         await prisma.$executeRaw`UPDATE "SalesDeal" SET "agentId" = ${agentId} WHERE id = ${id}`
       } else {
         await prisma.$executeRaw`UPDATE "SalesDeal" SET "agentId" = NULL WHERE id = ${id}`
+      }
+    }
+    if (b.productId !== undefined) {
+      const productId = b.productId || null
+      if (productId) {
+        await prisma.$executeRaw`UPDATE "SalesDeal" SET "productId" = ${productId} WHERE id = ${id}`
+      } else {
+        await prisma.$executeRaw`UPDATE "SalesDeal" SET "productId" = NULL WHERE id = ${id}`
       }
     }
 

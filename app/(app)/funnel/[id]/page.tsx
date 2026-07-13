@@ -5,10 +5,14 @@ import LeadDetailClient, { type CustomerSnap } from './LeadDetailClient'
 
 export default async function LeadDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
-  const d = await prisma.salesDeal.findUnique({
-    where: { id },
-    include: { customer: true },
-  })
+  const [d, products] = await Promise.all([
+    prisma.salesDeal.findUnique({ where: { id }, include: { customer: true } }),
+    prisma.product.findMany({
+      where: { active: true },
+      select: { id: true, name: true, code: true, category: true },
+      orderBy: [{ category: 'asc' }, { name: 'asc' }],
+    }),
+  ])
   if (!d) notFound()
   const customer = d.customer ?? null
 
@@ -81,6 +85,7 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
 
   return (
     <LeadDetailClient
+      products={products}
       customer={customerSnap}
       deal={{
         id:              d.id,
@@ -161,6 +166,7 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
         workShift:     a.workShift     ?? null,
         monthlyIncome: a.monthlyIncome ?? null,
         cargoNote:     a.cargoNote     ?? null,
+        productId:     a.productId     ?? null,
       }}
     />
   )

@@ -125,6 +125,7 @@ interface Deal {
   workShift: string | null
   monthlyIncome: string | null
   cargoNote: string | null
+  productId: string | null
 }
 
 export type CustomerSnap = {
@@ -153,7 +154,9 @@ export type CustomerSnap = {
   monthlyIncome: string | null; cargoNote: string | null
 }
 
-export default function LeadDetailClient({ deal, customer = null }: { deal: Deal; customer?: CustomerSnap | null }) {
+export type ProductOption = { id: string; name: string; code: string | null; category: string | null }
+
+export default function LeadDetailClient({ deal, customer = null, products = [] }: { deal: Deal; customer?: CustomerSnap | null; products?: ProductOption[] }) {
   const router = useRouter()
   const [, startTransition] = useTransition()
 
@@ -193,6 +196,9 @@ export default function LeadDetailClient({ deal, customer = null }: { deal: Deal
     setF(prev => ({ ...prev, [key]: val }))
     setSaved(false)
   }
+
+  /* ── 판매 제품 ── */
+  const [selectedProductId, setSelectedProductId] = useState<string | null>(deal.productId ?? null)
 
   /* ── 소개인 Agent ── */
   const [agentValue, setAgentValue] = useState<{ id: string; name: string } | null>(
@@ -458,6 +464,7 @@ export default function LeadDetailClient({ deal, customer = null }: { deal: Deal
         phone:            f.phone            || null,
         source:           f.source           || null,
         agentId:          agentValue?.id     || null,
+        productId:        selectedProductId  || null,
         assignee:         f.assignee         || null,
         memo:             f.memo             || null,
         phoneConsultedAt: f.phoneConsultedAt  || null,
@@ -1223,6 +1230,24 @@ export default function LeadDetailClient({ deal, customer = null }: { deal: Deal
             <AssigneePicker value={f.assignee} onChange={v => setFv('assignee', v)}
               className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-slate-300" />
           </div>
+
+          {/* 판매 제품 */}
+          {products.length > 0 && (
+            <div>
+              <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">판매 제품</label>
+              <select
+                value={selectedProductId ?? ''}
+                onChange={e => { setSelectedProductId(e.target.value || null); setSaved(false) }}
+                className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-slate-300">
+                <option value="">제품 선택 안 함</option>
+                {products.map(p => (
+                  <option key={p.id} value={p.id}>
+                    {p.name}{p.code ? ` (${p.code})` : ''}{p.category ? ` · ${p.category}` : ''}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
 
           {/* 메모 */}
           <div className="col-span-2">
