@@ -127,7 +127,7 @@ export default function CallAnalysisModal({ mode = 'call', onClose, onApply }: P
             >
               <input
                 ref={fileRef} type="file"
-                accept=".m4a,.mp3,.wav,.ogg,.aac,.amr,.3gp,.mp4,.opus,.flac"
+                accept=".m4a,.mp3,.wav,.ogg,.aac,.amr,.3gp,.mp4,.opus,.flac,.txt"
                 className="hidden"
                 onChange={e => { const f = e.target.files?.[0]; if (f) processFile(f) }}
               />
@@ -136,6 +136,7 @@ export default function CallAnalysisModal({ mode = 'call', onClose, onApply }: P
                 {isMeeting ? '회의 녹음 파일을 끌어다 놓거나 클릭하세요' : '녹음 파일을 끌어다 놓거나 클릭하세요'}
               </p>
               <p className="text-xs text-slate-400 mt-1">M4A · MP3 · WAV · AMR 등 · 최대 50MB</p>
+              <p className="text-xs text-slate-300 mt-0.5">또는 텍스트 전사 파일(.txt)도 지원합니다</p>
               {fileName && (
                 <p className="mt-2 text-xs text-indigo-600 font-medium">{fileName}</p>
               )}
