@@ -16,6 +16,7 @@ const TEMP_TYPES     = ['저탑', '정탑', '하이탑']
 const FUND_METHODS   = ['캐피탈', '현금', '보조금+캐피탈', '보조금+현금']
 const BUY_TIMINGS    = ['즉시', '1개월 내', '3개월 내', '6개월 내', '미정']
 const BUY_TYPES      = ['개인', '법인', '개인사업자']
+const LOST_REASONS   = ['구매시점 미달', '가격', '캐피탈 미승인', '중고차구매', '기타']
 
 /* ── 단계별 입력 필드 정의 ── */
 type FType = 'text' | 'date' | 'number' | 'chips' | 'crm'
@@ -218,6 +219,11 @@ export default function LeadDetailClient({ deal, customer = null, products = [] 
   const [saved,       setSaved]       = useState(true)
   const [msg,         setMsg]         = useState('')
   const [expanded,    setExpanded]    = useState<Set<string>>(new Set())
+
+  /* ── 이탈 모달 ── */
+  const [showLostModal,    setShowLostModal]    = useState(false)
+  const [pendingLostReason, setPendingLostReason] = useState('')
+  const [pendingLostNote,   setPendingLostNote]   = useState('')
 
   /* ── 미팅 기록 ── */
   type MFile = { name: string; path: string; size: number; mime: string }
@@ -452,6 +458,26 @@ export default function LeadDetailClient({ deal, customer = null, products = [] 
     setSaved(false)
     setMsg(`[${stageCode}] 완료 → [${next}] 단계로 이동했습니다`)
     setTimeout(() => setMsg(''), 4000)
+  }
+
+  /* ── 이탈 처리 ── */
+  const handleMarkLost = async () => {
+    const reason = pendingLostReason === '기타' && pendingLostNote.trim()
+      ? `기타: ${pendingLostNote.trim()}`
+      : pendingLostReason
+    if (!reason) return
+    await fetch(`/api/deals/${deal.id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ salesStatus: '이탈', lostReason: reason }),
+    })
+    setSalesStatus('이탈')
+    setShowLostModal(false)
+    setPendingLostReason('')
+    setPendingLostNote('')
+    setMsg('이탈 처리되었습니다')
+    setTimeout(() => setMsg(''), 4000)
+    startTransition(() => router.refresh())
   }
 
   /* ── 저장 ── */
@@ -1090,6 +1116,12 @@ export default function LeadDetailClient({ deal, customer = null, products = [] 
                 : ''}
             </span>
             <div className="flex items-center gap-2 shrink-0">
+              {salesStatus !== '이탈' && salesStatus !== '완료' && (
+                <button onClick={() => setShowLostModal(true)}
+                  className="px-3 py-1.5 text-xs font-semibold rounded-lg border border-red-200 text-red-400 hover:bg-red-50 transition">
+                  구매의사 포기
+                </button>
+              )}
               <button onClick={scrollToMeetings}
                 className="px-3 py-1.5 text-xs font-semibold rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-100 transition">
                 미팅 / 상담 기록
@@ -1276,6 +1308,26 @@ export default function LeadDetailClient({ deal, customer = null, products = [] 
             </div>
           </div>
         ))}
+      </div>
+
+      {/* 이탈 */}
+      <div className="mt-2.5">
+        <p className="text-[10px] font-bold uppercase tracking-widest mb-2 text-red-500">이탈</p>
+        {salesStatus === '이탈' ? (
+          <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 flex items-center gap-3">
+            <span className="text-sm font-bold text-red-600">구매 포기</span>
+            <span className="text-xs text-red-400">{deal.lostReason || '원인 미기재'}</span>
+          </div>
+        ) : (
+          <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 flex items-center justify-between gap-3">
+            <span className="text-xs text-slate-400">모든 영업 단계에서 구매 의사를 포기한 경우 기록합니다</span>
+            <button
+              onClick={() => setShowLostModal(true)}
+              className="shrink-0 px-3 py-1.5 rounded-lg text-xs font-bold border border-red-200 text-red-500 hover:bg-red-50 transition">
+              구매의사 포기
+            </button>
+          </div>
+        )}
       </div>
 
       {/* ── 미팅 기록 ── */}
@@ -1490,6 +1542,49 @@ export default function LeadDetailClient({ deal, customer = null, products = [] 
             setShowMtgForm(true)
           }}
         />
+      )}
+
+      {/* 이탈 원인 모달 */}
+      {showLostModal && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
+          <div className="bg-white rounded-2xl shadow-xl p-6 w-full max-w-sm mx-4">
+            <h3 className="text-base font-bold text-slate-800 mb-1">구매의사 포기</h3>
+            <p className="text-xs text-slate-400 mb-4">이탈 원인을 선택해 주세요</p>
+            <div className="space-y-2">
+              {LOST_REASONS.map(r => (
+                <button key={r} onClick={() => setPendingLostReason(r)}
+                  className={`w-full text-left px-4 py-2.5 rounded-xl border text-sm transition
+                    ${pendingLostReason === r
+                      ? 'bg-red-50 border-red-300 text-red-700 font-semibold'
+                      : 'border-slate-200 text-slate-600 hover:border-slate-300 hover:bg-slate-50'}`}>
+                  {r}
+                </button>
+              ))}
+            </div>
+            {pendingLostReason === '기타' && (
+              <input
+                type="text"
+                value={pendingLostNote}
+                onChange={e => setPendingLostNote(e.target.value)}
+                placeholder="이탈 원인을 직접 입력해 주세요"
+                className="mt-3 w-full text-sm border border-slate-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-200"
+              />
+            )}
+            <div className="flex gap-2 mt-5">
+              <button
+                onClick={() => { setShowLostModal(false); setPendingLostReason(''); setPendingLostNote('') }}
+                className="flex-1 py-2 rounded-xl border border-slate-200 text-sm text-slate-600 hover:bg-slate-50 transition">
+                취소
+              </button>
+              <button
+                disabled={!pendingLostReason || (pendingLostReason === '기타' && !pendingLostNote.trim())}
+                onClick={handleMarkLost}
+                className="flex-1 py-2 rounded-xl bg-red-600 text-white text-sm font-bold hover:bg-red-700 disabled:opacity-40 disabled:cursor-not-allowed transition">
+                이탈 처리
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )
