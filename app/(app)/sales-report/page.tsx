@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/db'
 import { Suspense } from 'react'
+import Link from 'next/link'
 import PeriodSelector from './PeriodSelector'
 
 type SearchParams = { period?: string; from?: string; to?: string; view?: string }
@@ -232,13 +233,13 @@ export default async function SalesReportPage({
                     </thead>
                     <tbody>
                       {s.meetings.map((m: any) => (
-                        <tr key={m.id} className="border-b border-slate-50 hover:bg-slate-50">
+                        <ClickRow key={m.id} href={`/funnel/${m.dealId}#meetings`}>
                           <Td>{fmt(m.meetingAt)}</Td>
-                          <Td><a href={`/funnel/${m.dealId}`} className="text-indigo-600 hover:underline">{m.dealName}</a></Td>
+                          <Td><Link href={`/funnel/${m.dealId}#meetings`} className="font-medium text-indigo-600 hover:underline">{m.dealName}</Link></Td>
                           <Td><Badge text={m.type} /></Td>
                           <Td className="max-w-[160px] truncate">{m.result ?? '-'}</Td>
                           <Td className="max-w-[160px] truncate">{m.nextAction ?? '-'}</Td>
-                        </tr>
+                        </ClickRow>
                       ))}
                     </tbody>
                   </table>
@@ -260,11 +261,11 @@ export default async function SalesReportPage({
                     </thead>
                     <tbody>
                       {s.newDeals.map((d: any) => (
-                        <tr key={d.id} className="border-b border-slate-50 hover:bg-slate-50">
+                        <ClickRow key={d.id} href={`/funnel/${d.id}`}>
                           <Td>{fmt(d.createdAt)}</Td>
-                          <Td><a href={`/funnel/${d.id}`} className="text-indigo-600 hover:underline">{d.name}</a></Td>
+                          <Td><Link href={`/funnel/${d.id}`} className="font-medium text-indigo-600 hover:underline">{d.name}</Link></Td>
                           <Td><Badge text={STAGE_LABEL[d.stageCode] ?? d.stageCode ?? '-'} /></Td>
-                        </tr>
+                        </ClickRow>
                       ))}
                     </tbody>
                   </table>
@@ -380,13 +381,13 @@ export default async function SalesReportPage({
                   </thead>
                   <tbody>
                     {meetings.map((m: any) => (
-                      <tr key={m.id} className="border-b border-slate-50 hover:bg-slate-50">
+                      <ClickRow key={m.id} href={`/funnel/${m.dealId}#meetings`}>
                         <Td>{fmt(m.meetingAt)}</Td>
-                        <Td><a href={`/funnel/${m.dealId}`} className="text-indigo-600 hover:underline">{m.dealName}</a></Td>
+                        <Td><Link href={`/funnel/${m.dealId}#meetings`} className="font-medium text-indigo-600 hover:underline">{m.dealName}</Link></Td>
                         <Td><Badge text={m.type} /></Td>
                         <Td>{m.assignee ?? '-'}</Td>
                         <Td className="max-w-[120px] truncate">{m.result ?? '-'}</Td>
-                      </tr>
+                      </ClickRow>
                     ))}
                   </tbody>
                 </table>
@@ -405,12 +406,12 @@ export default async function SalesReportPage({
                   </thead>
                   <tbody>
                     {newDeals.map((d: any) => (
-                      <tr key={d.id} className="border-b border-slate-50 hover:bg-slate-50">
+                      <ClickRow key={d.id} href={`/funnel/${d.id}`}>
                         <Td>{fmt(d.createdAt)}</Td>
-                        <Td><a href={`/funnel/${d.id}`} className="text-indigo-600 hover:underline">{d.name}</a></Td>
+                        <Td><Link href={`/funnel/${d.id}`} className="font-medium text-indigo-600 hover:underline">{d.name}</Link></Td>
                         <Td><Badge text={STAGE_LABEL[d.stageCode] ?? d.stageCode ?? '-'} /></Td>
                         <Td>{d.assignee ?? '-'}</Td>
-                      </tr>
+                      </ClickRow>
                     ))}
                   </tbody>
                 </table>
@@ -429,14 +430,14 @@ export default async function SalesReportPage({
                   </thead>
                   <tbody>
                     {wonDeals.map((d: any) => (
-                      <tr key={d.id} className="border-b border-slate-50 hover:bg-slate-50">
+                      <ClickRow key={d.id} href={`/funnel/${d.id}`}>
                         <Td>{fmt(d.closedAt)}</Td>
-                        <Td><a href={`/funnel/${d.id}`} className="text-green-700 hover:underline font-medium">{d.name}</a></Td>
+                        <Td><Link href={`/funnel/${d.id}`} className="font-medium text-green-700 hover:underline">{d.name}</Link></Td>
                         <Td>{d.vehicleModel ?? '-'}</Td>
                         <Td>{d.vehicleCount ?? '-'}</Td>
                         <Td>{d.totalPrice ? `${Number(d.totalPrice).toLocaleString()}만` : '-'}</Td>
                         <Td>{d.assignee ?? '-'}</Td>
-                      </tr>
+                      </ClickRow>
                     ))}
                   </tbody>
                 </table>
@@ -455,12 +456,12 @@ export default async function SalesReportPage({
                   </thead>
                   <tbody>
                     {lostDeals.map((d: any) => (
-                      <tr key={d.id} className="border-b border-slate-50 hover:bg-slate-50">
+                      <ClickRow key={d.id} href={`/funnel/${d.id}`}>
                         <Td>{fmt(d.closedAt)}</Td>
-                        <Td><a href={`/funnel/${d.id}`} className="text-red-600 hover:underline">{d.name}</a></Td>
+                        <Td><Link href={`/funnel/${d.id}`} className="font-medium text-red-600 hover:underline">{d.name}</Link></Td>
                         <Td className="max-w-[150px] truncate">{d.lostReason ?? '-'}</Td>
                         <Td>{d.assignee ?? '-'}</Td>
-                      </tr>
+                      </ClickRow>
                     ))}
                   </tbody>
                 </table>
@@ -479,12 +480,12 @@ export default async function SalesReportPage({
               </thead>
               <tbody>
                 {stageChanged.map((d: any) => (
-                  <tr key={d.id} className="border-b border-slate-50 hover:bg-slate-50">
+                  <ClickRow key={d.id} href={`/funnel/${d.id}`}>
                     <Td>{fmt(d.stageChangedAt)}</Td>
-                    <Td><a href={`/funnel/${d.id}`} className="text-indigo-600 hover:underline">{d.name}</a></Td>
+                    <Td><Link href={`/funnel/${d.id}`} className="font-medium text-indigo-600 hover:underline">{d.name}</Link></Td>
                     <Td><Badge text={STAGE_LABEL[d.stageCode] ?? d.stageCode} /></Td>
                     <Td>{d.assignee ?? '-'}</Td>
-                  </tr>
+                  </ClickRow>
                 ))}
               </tbody>
             </table>
@@ -520,6 +521,16 @@ function Th({ children }: { children: React.ReactNode }) {
 }
 function Td({ children, className }: { children: React.ReactNode; className?: string }) {
   return <td className={`py-2 pr-3 text-slate-600 whitespace-nowrap ${className ?? ''}`}>{children}</td>
+}
+function ClickRow({ href, children }: { href: string; children: React.ReactNode }) {
+  return (
+    <tr className="border-b border-slate-50 hover:bg-indigo-50 cursor-pointer group">
+      {children}
+      <td className="py-2 pl-1 pr-2 w-6">
+        <Link href={href} className="block text-slate-300 group-hover:text-indigo-400 text-xs" tabIndex={-1}>→</Link>
+      </td>
+    </tr>
+  )
 }
 function Badge({ text }: { text: string }) {
   return <span className="inline-block px-2 py-0.5 bg-slate-100 text-slate-600 rounded-full text-[10px] font-semibold">{text}</span>

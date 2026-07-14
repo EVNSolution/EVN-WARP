@@ -1279,7 +1279,7 @@ export default function LeadDetailClient({ deal, customer = null, products = [] 
       </div>
 
       {/* ── 미팅 기록 ── */}
-      <div ref={mtgSectionRef} className="mt-8">
+      <div ref={mtgSectionRef} id="meetings" className="mt-8">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-sm font-bold text-slate-700">고객 미팅 기록</h2>
           <button onClick={() => setShowMtgForm(v => !v)}
