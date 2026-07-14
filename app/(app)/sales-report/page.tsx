@@ -2,13 +2,16 @@ import { prisma } from '@/lib/db'
 import { Suspense } from 'react'
 import PeriodSelector from './PeriodSelector'
 
-type SearchParams = { period?: string; from?: string; to?: string }
+type SearchParams = { period?: string; from?: string; to?: string; view?: string }
 
 /* ── 기간 계산 ── */
 function calcRange(period: string, fromParam?: string, toParam?: string) {
   const now   = new Date()
   const today = now.toISOString().slice(0, 10)
 
+  if (period === 'today') {
+    return { from: today, to: today }
+  }
   if (period === 'week') {
     const day = now.getDay() // 0=일
     const mon = new Date(now); mon.setDate(now.getDate() - (day === 0 ? 6 : day - 1))
@@ -51,6 +54,7 @@ export default async function SalesReportPage({
 }) {
   const sp     = await searchParams
   const period = sp.period ?? 'month'
+  const view   = sp.view   ?? 'summary'
   const range  = calcRange(period, sp.from, sp.to)
   const from   = new Date(range.from)
   const to     = new Date(range.to); to.setHours(23, 59, 59, 999)
@@ -104,7 +108,26 @@ export default async function SalesReportPage({
     ? Math.round((wonDeals.length / (wonDeals.length + lostDeals.length)) * 100)
     : null
 
-  const periodLabel = { week: '이번 주', month: '이번 달', year: '올해', custom: '직접 입력' }[period] ?? '이번 달'
+  const periodLabel = { today: '오늘', week: '이번 주', month: '이번 달', year: '올해', custom: '기간 지정' }[period] ?? '이번 달'
+
+  /* ── 담당자별 집계 ── */
+  type AssigneeStats = {
+    meetings: any[]; newDeals: any[]; stageChanged: any[]; wonDeals: any[]; lostDeals: any[]
+  }
+  const assigneeMap = new Map<string, AssigneeStats>()
+  const ensureKey = (key: string) => {
+    if (!assigneeMap.has(key)) assigneeMap.set(key, { meetings: [], newDeals: [], stageChanged: [], wonDeals: [], lostDeals: [] })
+    return assigneeMap.get(key)!
+  }
+  for (const m of meetings)      ensureKey(m.assignee ?? '미배정').meetings.push(m)
+  for (const d of newDeals)      ensureKey(d.assignee ?? '미배정').newDeals.push(d)
+  for (const d of stageChanged)  ensureKey(d.assignee ?? '미배정').stageChanged.push(d)
+  for (const d of wonDeals)      ensureKey(d.assignee ?? '미배정').wonDeals.push(d)
+  for (const d of lostDeals)     ensureKey(d.assignee ?? '미배정').lostDeals.push(d)
+  const assigneeRows = [...assigneeMap.entries()].sort((a, b) =>
+    (b[1].meetings.length + b[1].newDeals.length + b[1].wonDeals.length) -
+    (a[1].meetings.length + a[1].newDeals.length + a[1].wonDeals.length)
+  )
 
   return (
     <div className="flex-1 overflow-y-auto bg-slate-50 min-h-screen">
@@ -118,12 +141,147 @@ export default async function SalesReportPage({
             </p>
           </div>
           <Suspense>
-            <PeriodSelector from={range.from} to={range.to} period={period} />
+            <PeriodSelector from={range.from} to={range.to} period={period} view={view} />
           </Suspense>
         </div>
       </div>
 
       <div className="px-8 py-6 space-y-6">
+
+        {/* ══════════════════════════════════════════
+            담당자별 뷰
+        ══════════════════════════════════════════ */}
+        {view === 'assignee' && (
+          <div className="space-y-4">
+            {/* 담당자 요약 테이블 */}
+            <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+              <div className="px-5 py-4 border-b border-slate-100">
+                <h2 className="text-sm font-bold text-slate-700">담당자별 영업 활동 요약</h2>
+                <p className="text-[11px] text-slate-400 mt-0.5">{periodLabel} · {fmtFull(range.from)}{range.from !== range.to ? ` ~ ${fmtFull(range.to)}` : ''}</p>
+              </div>
+              {assigneeRows.length === 0 ? (
+                <div className="px-5 py-10 text-center text-xs text-slate-400">기간 내 활동이 없습니다</div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-xs">
+                    <thead>
+                      <tr className="border-b border-slate-100 bg-slate-50">
+                        <th className="text-left py-3 px-5 text-[10px] font-bold text-slate-400 uppercase tracking-wider">담당자</th>
+                        <th className="text-center py-3 px-4 text-[10px] font-bold text-slate-400 uppercase tracking-wider">미팅</th>
+                        <th className="text-center py-3 px-4 text-[10px] font-bold text-slate-400 uppercase tracking-wider">신규리드</th>
+                        <th className="text-center py-3 px-4 text-[10px] font-bold text-slate-400 uppercase tracking-wider">단계진전</th>
+                        <th className="text-center py-3 px-4 text-[10px] font-bold text-green-500 uppercase tracking-wider">수주</th>
+                        <th className="text-center py-3 px-4 text-[10px] font-bold text-red-400 uppercase tracking-wider">실주</th>
+                        <th className="text-center py-3 px-4 text-[10px] font-bold text-slate-400 uppercase tracking-wider">수주율</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {assigneeRows.map(([name, s]) => {
+                        const total = s.wonDeals.length + s.lostDeals.length
+                        const wr = total > 0 ? Math.round((s.wonDeals.length / total) * 100) : null
+                        const actTotal = s.meetings.length + s.newDeals.length + s.stageChanged.length + s.wonDeals.length + s.lostDeals.length
+                        return (
+                          <tr key={name} className="border-b border-slate-50 hover:bg-slate-50">
+                            <td className="py-3 px-5 font-semibold text-slate-800">
+                              {name}
+                              {actTotal === 0 && <span className="ml-2 text-[10px] text-slate-300">활동 없음</span>}
+                            </td>
+                            <td className="py-3 px-4 text-center">
+                              <span className={`font-bold ${s.meetings.length > 0 ? 'text-indigo-600' : 'text-slate-300'}`}>{s.meetings.length}</span>
+                            </td>
+                            <td className="py-3 px-4 text-center">
+                              <span className={`font-bold ${s.newDeals.length > 0 ? 'text-blue-600' : 'text-slate-300'}`}>{s.newDeals.length}</span>
+                            </td>
+                            <td className="py-3 px-4 text-center">
+                              <span className={`font-bold ${s.stageChanged.length > 0 ? 'text-violet-600' : 'text-slate-300'}`}>{s.stageChanged.length}</span>
+                            </td>
+                            <td className="py-3 px-4 text-center">
+                              <span className={`font-bold ${s.wonDeals.length > 0 ? 'text-green-600' : 'text-slate-300'}`}>{s.wonDeals.length}</span>
+                            </td>
+                            <td className="py-3 px-4 text-center">
+                              <span className={`font-bold ${s.lostDeals.length > 0 ? 'text-red-500' : 'text-slate-300'}`}>{s.lostDeals.length}</span>
+                            </td>
+                            <td className="py-3 px-4 text-center">
+                              {wr !== null
+                                ? <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-bold bg-green-50 text-green-700">{wr}%</span>
+                                : <span className="text-slate-300">-</span>
+                              }
+                            </td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+
+            {/* 담당자별 미팅 상세 */}
+            {assigneeRows.filter(([, s]) => s.meetings.length > 0).map(([name, s]) => (
+              <div key={name} className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+                <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100">
+                  <h2 className="text-sm font-bold text-slate-700">{name} — 미팅 기록</h2>
+                  <span className="text-xs font-bold text-indigo-600">{s.meetings.length}건</span>
+                </div>
+                <div className="overflow-x-auto px-5 py-3">
+                  <table className="w-full text-xs">
+                    <thead>
+                      <tr className="border-b border-slate-100">
+                        <Th>날짜</Th><Th>고객</Th><Th>유형</Th><Th>결과</Th><Th>다음 액션</Th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {s.meetings.map((m: any) => (
+                        <tr key={m.id} className="border-b border-slate-50 hover:bg-slate-50">
+                          <Td>{fmt(m.meetingAt)}</Td>
+                          <Td><a href={`/funnel/${m.dealId}`} className="text-indigo-600 hover:underline">{m.dealName}</a></Td>
+                          <Td><Badge text={m.type} /></Td>
+                          <Td className="max-w-[160px] truncate">{m.result ?? '-'}</Td>
+                          <Td className="max-w-[160px] truncate">{m.nextAction ?? '-'}</Td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            ))}
+
+            {/* 담당자별 신규 리드 */}
+            {assigneeRows.filter(([, s]) => s.newDeals.length > 0).map(([name, s]) => (
+              <div key={name} className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+                <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100">
+                  <h2 className="text-sm font-bold text-slate-700">{name} — 신규 리드</h2>
+                  <span className="text-xs font-bold text-blue-600">{s.newDeals.length}건</span>
+                </div>
+                <div className="overflow-x-auto px-5 py-3">
+                  <table className="w-full text-xs">
+                    <thead>
+                      <tr className="border-b border-slate-100"><Th>유입일</Th><Th>고객명</Th><Th>단계</Th></tr>
+                    </thead>
+                    <tbody>
+                      {s.newDeals.map((d: any) => (
+                        <tr key={d.id} className="border-b border-slate-50 hover:bg-slate-50">
+                          <Td>{fmt(d.createdAt)}</Td>
+                          <Td><a href={`/funnel/${d.id}`} className="text-indigo-600 hover:underline">{d.name}</a></Td>
+                          <Td><Badge text={STAGE_LABEL[d.stageCode] ?? d.stageCode ?? '-'} /></Td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            ))}
+
+            <p className="text-[10px] text-slate-300 text-center pb-4">
+              * 수주/실주 날짜는 상태를 변경한 시점부터 집계됩니다.
+            </p>
+          </div>
+        )}
+
+        {/* ══════════════════════════════════════════
+            전체 뷰 (기존)
+        ══════════════════════════════════════════ */}
+        {view !== 'assignee' && <>
 
         {/* ── 요약 카드 3개 ── */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -336,6 +494,7 @@ export default async function SalesReportPage({
         <p className="text-[10px] text-slate-300 text-center pb-4">
           * 수주/실주 날짜는 영업 파이프라인에서 상태를 변경한 시점부터 집계됩니다.
         </p>
+        </>}
       </div>
     </div>
   )
