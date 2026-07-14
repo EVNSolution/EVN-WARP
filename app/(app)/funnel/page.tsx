@@ -42,6 +42,7 @@ export default async function FunnelPage() {
       deliveryRegion:   a.deliveryRegion   ?? null,
       purchaseTiming:   d.purchaseTiming   ?? null,
       productName:      a.productId ? (productMap.get(a.productId) ?? null) : null,
+      lostReason:       a.lostReason ?? null,
     }
   })
 

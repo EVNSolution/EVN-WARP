@@ -27,6 +27,7 @@ export interface PipelineDeal {
   deliveryRegion?: string | null
   purchaseTiming?: string | null
   productName?: string | null
+  lostReason?: string | null
 }
 
 interface Props {
@@ -50,6 +51,7 @@ const LEAD_DEFS: ColDef[] = [
   { key: 'collectedAt',    label: '수집일',     dw: 'sm' },
   { key: 'assignee',       label: '담당자',     dw: 'sm' },
   { key: 'productName',    label: '모델명',     dw: 'md' },
+  { key: 'lostReason',    label: '이탈원인',   dw: 'md' },
   { key: 'memo',           label: '메모',       dw: 'lg' },
   { key: 'record',         label: '기록',       dw: 'sm' },
   { key: 'detail',         label: '상세',       dw: 'sm' },
@@ -553,6 +555,15 @@ export default function PipelineView({ deals, salesTarget, linkedKpiLabel }: Pro
             }
           </td>
         )
+      case 'lostReason':
+        return (
+          <td key={c.key} style={{ width: W_PX[c.width] }} className="px-3 py-2.5">
+            {d.lostReason
+              ? <span className="inline-block px-2 py-0.5 rounded text-[10px] font-semibold bg-red-50 text-red-600 truncate max-w-full">{d.lostReason}</span>
+              : <span className="text-slate-300 text-xs">—</span>
+            }
+          </td>
+        )
       case 'memo':
         return <td key={c.key} style={{ width: W_PX[c.width] }} className="px-3 py-2.5 text-slate-400 truncate max-w-0">{d.memo ?? ''}</td>
       case 'record':
@@ -782,6 +793,19 @@ export default function PipelineView({ deals, salesTarget, linkedKpiLabel }: Pro
             </div>
           )
         })}
+
+        {/* 이탈 */}
+        <button
+          onClick={() => setSelectedCode('이탈')}
+          className={`mt-1 w-full text-left px-3 py-2 rounded-lg text-xs font-semibold transition flex items-center justify-between
+            ${selectedCode === '이탈'
+              ? 'bg-red-600 text-white shadow-sm'
+              : 'bg-white border border-red-200 text-red-500 hover:bg-red-50'}`}>
+          <span>이탈</span>
+          <span className={`text-[11px] font-bold tabular-nums ${selectedCode === '이탈' ? 'text-white/80' : 'text-red-400'}`}>
+            {lostDeals.length}건
+          </span>
+        </button>
 
       </div>
 
