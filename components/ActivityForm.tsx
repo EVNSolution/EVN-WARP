@@ -417,7 +417,7 @@ export default function ActivityForm({ teams, tasks, users = [], initial, mode, 
       planStatus,
       referenceUrl: referenceUrl.trim() || null,
       countermeasureId: countermeasureId || null,
-      endDate: isTrip && endDate && endDate > date ? endDate : null,
+      endDate: (isTrip || LEAVE_TYPES.has(type)) && endDate && endDate > date ? endDate : null,
       ...(type === '실적추가' && { kpiItemId, kpiWeek, actualNum }),
       ...(hasExpense && {
         expenseTransport: expenseTransport ? Number(expenseTransport) : null,
@@ -636,16 +636,20 @@ export default function ActivityForm({ teams, tasks, users = [], initial, mode, 
           {/* 날짜 */}
           <div>
             <p className="text-sm font-semibold text-slate-700 mb-2">
-              {TRIP_TYPES.has(type) ? '출장 기간' : '날짜'}
+              {TRIP_TYPES.has(type) ? '출장 기간' : LEAVE_TYPES.has(type) ? '휴가 기간' : '날짜'}
             </p>
-            {TRIP_TYPES.has(type) ? (
-              <div className="flex items-center gap-2">
+            {(TRIP_TYPES.has(type) || LEAVE_TYPES.has(type)) ? (
+              <div className="flex items-center gap-2 flex-wrap">
                 <input type="date" value={date} onChange={e => setDate(e.target.value)}
                   className="border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-400" />
                 <span className="text-slate-400 text-sm">~</span>
                 <input type="date" value={endDate || date} onChange={e => setEndDate(e.target.value)}
                   min={date}
                   className="border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-400" />
+                {LEAVE_TYPES.has(type) && endDate && endDate > date && (() => {
+                  const days = Math.round((new Date(endDate).getTime() - new Date(date).getTime()) / 86400000) + 1
+                  return <span className="text-xs font-semibold text-green-600">{days}일</span>
+                })()}
               </div>
             ) : (
               <input type="date" value={date} onChange={e => setDate(e.target.value)}
