@@ -7,6 +7,8 @@ import VehicleForm, { VehicleData } from '@/components/VehicleForm'
 import { formatPhone } from '@/lib/format'
 import AssigneePicker from '@/components/AssigneePicker'
 
+const CONTACT_TITLES = ['대표이사', '사장', '부사장', '전무이사', '상무이사', '이사', '본부장', '실장', '부장', '차장', '과장', '팀장', '대리', '주임', '사원']
+
 /* ── 행정구역 ── */
 const REGIONS: Record<string, string[]> = {
   '서울특별시':    ['강남구','강동구','강북구','강서구','관악구','광진구','구로구','금천구','노원구','도봉구','동대문구','동작구','마포구','서대문구','서초구','성동구','성북구','송파구','양천구','영등포구','용산구','은평구','종로구','중구','중랑구'],
@@ -455,8 +457,12 @@ export default function NewLeadPage() {
               <Field label="업종 / 사업분야">
                 <TextInput value={industry} onChange={setIndustry} placeholder="예: 냉동물류, 식품유통" />
               </Field>
-              <Field label="담당자 직책">
-                <TextInput value={contactTitle} onChange={setContactTitle} placeholder="예: 대표이사, 구매팀장" />
+              <Field label="담당자 직위">
+                <select value={contactTitle} onChange={e => setContactTitle(e.target.value)}
+                  className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-slate-300 text-slate-700">
+                  <option value="">직위 선택</option>
+                  {CONTACT_TITLES.map(t => <option key={t} value={t}>{t}</option>)}
+                </select>
               </Field>
               <Field label="회사 대표전화">
                 <TextInput value={companyPhone} onChange={v => setCompanyPhone(formatPhone(v))} placeholder="02-0000-0000" />

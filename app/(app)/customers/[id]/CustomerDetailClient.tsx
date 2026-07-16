@@ -7,6 +7,7 @@ import { useRouter } from 'next/navigation'
 import { formatPhone } from '@/lib/format'
 
 const SOURCES  = ['소개', '온라인', '전시장/이벤트', '직접방문', '기타']
+const CONTACT_TITLES = ['대표이사', '사장', '부사장', '전무이사', '상무이사', '이사', '본부장', '실장', '부장', '차장', '과장', '팀장', '대리', '주임', '사원']
 const SHIPPER_PRESETS = ['컬리', '쿠팡', 'CJ대한통운']
 const REGIONS: Record<string, string[]> = {
   '서울특별시':    ['강남구','강동구','강북구','강서구','관악구','광진구','구로구','금천구','노원구','도봉구','동대문구','동작구','마포구','서대문구','서초구','성동구','성북구','송파구','양천구','영등포구','용산구','은평구','종로구','중구','중랑구'],
@@ -675,7 +676,14 @@ export default function CustomerDetailClient({ customer, returnTo }: { customer:
                   <div>{label('담당자명 *')}{input('name', '담당자 이름')}</div>
                   <div>{label('담당자 연락처')}{input('phone', '010-0000-0000')}</div>
                   <div>{label('이메일')}{input('email', 'example@email.com')}</div>
-                  <div>{label('담당자 직함')}{input('contactTitle', '예: 대표, 물류팀장')}</div>
+                  <div>
+                    {label('담당자 직위')}
+                    <select value={f.contactTitle ?? ''} onChange={e => setFv('contactTitle', e.target.value)}
+                      className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-1 focus:ring-slate-300 text-slate-700">
+                      <option value="">직위 선택</option>
+                      {CONTACT_TITLES.map(t => <option key={t} value={t}>{t}</option>)}
+                    </select>
+                  </div>
                   <div>{label('회사 / 법인명')}{input('companyName', '회사명')}</div>
                   <div>{label('사업자등록번호')}{input('businessRegNo', '000-00-00000')}</div>
                   <div>{label('업종')}{input('industry', '예: 식품제조, 물류')}</div>
