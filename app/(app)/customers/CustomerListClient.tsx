@@ -186,6 +186,9 @@ export default function CustomerListClient({ customers: initial }: Props) {
 
   const col = (key: string) => cols.find(c => c.key === key)
 
+  const b2cCount = useMemo(() => customers.filter(c => (c.customerSegment ?? 'B2C') === 'B2C').length, [customers])
+  const b2bCount = useMemo(() => customers.filter(c => c.customerSegment === 'B2B').length, [customers])
+
   const filtered = useMemo(() => {
     return customers.filter(c => {
       if (seg !== 'all' && (c.customerSegment ?? 'B2C') !== seg) return false
@@ -201,6 +204,33 @@ export default function CustomerListClient({ customers: initial }: Props) {
 
   return (
     <div className="flex flex-col flex-1 min-h-0 bg-white">
+      {/* 고객 수량 요약 */}
+      <div className="flex items-center gap-4 px-5 py-2.5 border-b border-slate-100 bg-white shrink-0">
+        <div className="flex items-baseline gap-1.5">
+          <span className="text-2xl font-black text-slate-800 tabular-nums">{customers.length}</span>
+          <span className="text-xs text-slate-400 font-medium">총 고객</span>
+        </div>
+        <div className="w-px h-6 bg-slate-200" />
+        <div className="flex items-baseline gap-1.5">
+          <span className="text-xl font-bold text-sky-600 tabular-nums">{b2cCount}</span>
+          <span className="text-xs text-sky-500 font-medium">B2C 개인</span>
+        </div>
+        <div className="w-px h-6 bg-slate-200" />
+        <div className="flex items-baseline gap-1.5">
+          <span className="text-xl font-bold text-violet-600 tabular-nums">{b2bCount}</span>
+          <span className="text-xs text-violet-500 font-medium">B2B 법인</span>
+        </div>
+        {filtered.length !== customers.length && (
+          <>
+            <div className="w-px h-6 bg-slate-200" />
+            <div className="flex items-baseline gap-1.5">
+              <span className="text-sm font-semibold text-slate-500 tabular-nums">{filtered.length}</span>
+              <span className="text-xs text-slate-400">필터 결과</span>
+            </div>
+          </>
+        )}
+      </div>
+
       {/* 툴바 */}
       <div className="flex items-center gap-3 px-5 py-2.5 border-b border-slate-200 bg-slate-50 shrink-0 flex-wrap">
         {/* B2C/B2B 필터 */}
