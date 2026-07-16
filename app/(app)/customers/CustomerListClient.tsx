@@ -40,6 +40,7 @@ const COL_DEFS: ColDef[] = [
   { key: 'phone',        label: '연락처',   dw: 'md' },
   { key: 'segment',      label: '세그먼트', dw: 'sm' },
   { key: 'companyName',  label: '회사명',   dw: 'md' },
+  { key: 'contactTitle', label: '직위',     dw: 'sm' },
   { key: 'source',       label: '유입경로', dw: 'sm' },
   { key: 'collectedAt',  label: '수집일',   dw: 'sm' },
   { key: 'assignee',     label: '담당자',   dw: 'sm' },
@@ -335,6 +336,8 @@ export default function CustomerListClient({ customers: initial }: Props) {
                           return <td key="segment" className="px-3 py-2.5 text-slate-400 truncate">{c.customerSegment ?? 'B2C'}</td>
                         case 'companyName':
                           return <td key="companyName" className="px-3 py-2.5 text-slate-500 truncate">{c.companyName ?? '—'}</td>
+                        case 'contactTitle':
+                          return <td key="contactTitle" className="px-3 py-2.5 text-slate-500 truncate">{c.contactTitle ?? '—'}</td>
                         case 'source':
                           return <td key="source" className="px-3 py-2.5 text-slate-400 truncate">{c.source ?? '—'}</td>
                         case 'collectedAt':
