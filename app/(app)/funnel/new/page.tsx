@@ -7,7 +7,7 @@ import VehicleForm, { VehicleData } from '@/components/VehicleForm'
 import { formatPhone } from '@/lib/format'
 import AssigneePicker from '@/components/AssigneePicker'
 
-const CONTACT_TITLES = ['대표이사', '사장', '부사장', '전무이사', '상무이사', '이사', '본부장', '실장', '부장', '차장', '과장', '팀장', '대리', '주임', '사원']
+const CONTACT_TITLES = ['대표이사', '사장', '부사장', '전무이사', '상무이사', '이사', '본부장', '실장', '부장', '차장', '과장', '팀장', '파트장', '대리', '책임', '주임', '사원']
 
 /* ── 행정구역 ── */
 const REGIONS: Record<string, string[]> = {

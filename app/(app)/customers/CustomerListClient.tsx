@@ -13,6 +13,7 @@ type Customer = {
   phone: string | null
   email: string | null
   customerSegment: string | null
+  contactTitle: string | null
   status: string
   grade: string | null
   source: string | null
