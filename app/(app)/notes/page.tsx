@@ -8,6 +8,7 @@ import {
   Target, FileCheck, CalendarDays, Code2, PenTool,
   Package, Wrench, Settings, ClipboardCheck,
   PieChart, Landmark, Award,
+  Building, Receipt, RefreshCw, Scale,
 } from 'lucide-react'
 import CalendarView, { type CalActivity } from '@/components/CalendarView'
 import { auth } from '@/auth'
@@ -42,6 +43,11 @@ const TYPE_META: Record<string, { icon: React.ReactNode; bg: string; text: strin
   'IR 발표':         { icon: <PieChart size={9} />,      bg: 'bg-indigo-100',  text: 'text-indigo-700' },
   '투자자 미팅':     { icon: <Landmark size={9} />,      bg: 'bg-indigo-100',  text: 'text-indigo-700' },
   '투자행사':        { icon: <Award size={9} />,         bg: 'bg-indigo-100',  text: 'text-indigo-700' },
+  '대관·신청':       { icon: <Building size={9} />,      bg: 'bg-stone-100',   text: 'text-stone-700' },
+  '세무·회계':       { icon: <Receipt size={9} />,       bg: 'bg-stone-100',   text: 'text-stone-700' },
+  '신고·갱신':       { icon: <RefreshCw size={9} />,     bg: 'bg-stone-100',   text: 'text-stone-700' },
+  '법무·계약':       { icon: <Scale size={9} />,          bg: 'bg-stone-100',   text: 'text-stone-700' },
+  '경영기획':        { icon: <BarChart2 size={9} />,     bg: 'bg-stone-100',   text: 'text-stone-700' },
   // 레거시 (기존 데이터 호환)
   '외부회의':  { icon: <Building2 size={9} />, bg: 'bg-purple-100', text: 'text-purple-700' },
   '발표/보고': { icon: <BarChart2 size={9} />, bg: 'bg-teal-100',   text: 'text-teal-700' },

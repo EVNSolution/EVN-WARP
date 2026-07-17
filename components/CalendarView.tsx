@@ -53,6 +53,11 @@ const TYPE_COLORS: Record<string, { bg: string; text: string }> = {
   'IR 발표':         { bg: 'bg-indigo-100',  text: 'text-indigo-700' },
   '투자자 미팅':     { bg: 'bg-indigo-100',  text: 'text-indigo-700' },
   '투자행사':        { bg: 'bg-indigo-100',  text: 'text-indigo-700' },
+  '대관·신청':       { bg: 'bg-stone-100',   text: 'text-stone-700' },
+  '세무·회계':       { bg: 'bg-stone-100',   text: 'text-stone-700' },
+  '신고·갱신':       { bg: 'bg-stone-100',   text: 'text-stone-700' },
+  '법무·계약':       { bg: 'bg-stone-100',   text: 'text-stone-700' },
+  '경영기획':        { bg: 'bg-stone-100',   text: 'text-stone-700' },
   // 레거시
   '외부회의':  { bg: 'bg-purple-100',  text: 'text-purple-700' },
   '발표/보고': { bg: 'bg-teal-100',    text: 'text-teal-700' },

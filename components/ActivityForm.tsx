@@ -9,6 +9,7 @@ import {
   Briefcase, Target, FileCheck, CalendarDays, HelpCircle, X,
   Code2, PenTool, Package, Wrench, Settings, ClipboardCheck,
   PieChart, Landmark, Award, ChevronDown, Mic,
+  Building, Receipt, RefreshCw, Scale,
 } from 'lucide-react'
 import Link from 'next/link'
 import CallAnalysisModal from '@/components/CallAnalysisModal'
@@ -123,6 +124,19 @@ const TYPE_GUIDE = [
     ],
   },
   {
+    category: '경영·행정',
+    color: 'bg-stone-50 border-stone-300',
+    labelColor: 'text-stone-700 bg-stone-100',
+    desc: '경영·재무·세무·법무·대관 행정 업무',
+    types: [
+      { name: '대관·신청', desc: '정부·공공기관·협회 등 대외기관 신청, 허가, 등록, 인가 업무' },
+      { name: '세무·회계', desc: '세금 신고, 부가세·법인세 납부, 재무제표 작성, 회계 처리' },
+      { name: '신고·갱신', desc: '각종 인허가·자격증·등록 갱신, 정기 신고, 만기 처리 업무' },
+      { name: '법무·계약', desc: '계약서 검토·체결, 법무 자문, 지식재산권, 분쟁 대응' },
+      { name: '경영기획',  desc: '이사회, 경영 계획 수립, 예산 편성, 내부 의사결정 지원' },
+    ],
+  },
+  {
     category: '근태',
     color: 'bg-green-50 border-green-200',
     labelColor: 'text-green-700 bg-green-100',
@@ -147,6 +161,7 @@ const ACTIVITY_CATEGORIES = [
   { label: '관계·네트워킹',  types: ['인재영입', '외부 네트워킹', '파트너십 타진'] },
   { label: '투자·IR',        types: ['IR 발표', '투자자 미팅', '투자행사'] },
   { label: '실적',           types: ['실적추가'] },
+  { label: '경영·행정',      types: ['대관·신청', '세무·회계', '신고·갱신', '법무·계약', '경영기획'] },
   { label: '근태',           types: ['연차', '반차(오전)', '반차(오후)'] },
 ] as const
 
@@ -178,6 +193,11 @@ const TYPE_META: Record<string, { icon: React.ReactNode; color: string; activeCo
   'IR 발표':        { icon: <PieChart size={13} />,       color: 'border-indigo-200  text-indigo-600  bg-indigo-50',  activeColor: 'bg-indigo-600  text-white border-indigo-600',  placeholder: '발표 대상 투자자/기관, 피칭 내용, 질의응답 주요 내용, 후속 조치 등을 기록하세요' },
   '투자자 미팅':    { icon: <Landmark size={13} />,       color: 'border-indigo-200  text-indigo-600  bg-indigo-50',  activeColor: 'bg-indigo-600  text-white border-indigo-600',  placeholder: '투자자/기관명, 미팅 목적, 주요 논의 내용, 다음 단계 등을 기록하세요' },
   '투자행사':       { icon: <Award size={13} />,          color: 'border-indigo-200  text-indigo-600  bg-indigo-50',  activeColor: 'bg-indigo-600  text-white border-indigo-600',  placeholder: '행사명, 참석 목적, 주요 만남·성과, 후속 연락 등을 기록하세요' },
+  '대관·신청':  { icon: <Building size={13} />,     color: 'border-stone-300  text-stone-700  bg-stone-50',   activeColor: 'bg-stone-600   text-white border-stone-600',   placeholder: '기관명, 신청 항목, 처리 결과 등을 기록하세요' },
+  '세무·회계':  { icon: <Receipt size={13} />,      color: 'border-stone-300  text-stone-700  bg-stone-50',   activeColor: 'bg-stone-600   text-white border-stone-600',   placeholder: '세목, 신고 기간, 납부 금액, 처리 기관 등을 기록하세요' },
+  '신고·갱신':  { icon: <RefreshCw size={13} />,    color: 'border-stone-300  text-stone-700  bg-stone-50',   activeColor: 'bg-stone-600   text-white border-stone-600',   placeholder: '신고·갱신 항목, 기한, 처리 결과 등을 기록하세요' },
+  '법무·계약':  { icon: <Scale size={13} />,         color: 'border-stone-300  text-stone-700  bg-stone-50',   activeColor: 'bg-stone-600   text-white border-stone-600',   placeholder: '계약 상대방, 계약 내용, 주요 조건, 처리 결과 등을 기록하세요' },
+  '경영기획':   { icon: <BarChart2 size={13} />,    color: 'border-stone-300  text-stone-700  bg-stone-50',   activeColor: 'bg-stone-600   text-white border-stone-600',   placeholder: '안건, 결정사항, 후속 조치 등을 기록하세요' },
   '연차':       { icon: <CalendarDays size={13} />, color: 'border-green-200 text-green-700 bg-green-50', activeColor: 'bg-green-600  text-white border-green-600',  placeholder: '연차 사유 또는 일정을 입력하세요 (선택)' },
   '반차(오전)': { icon: <CalendarDays size={13} />, color: 'border-green-200 text-green-700 bg-green-50', activeColor: 'bg-green-600  text-white border-green-600',  placeholder: '오전 반차 사유 또는 일정을 입력하세요 (선택)' },
   '반차(오후)': { icon: <CalendarDays size={13} />, color: 'border-green-200 text-green-700 bg-green-50', activeColor: 'bg-green-600  text-white border-green-600',  placeholder: '오후 반차 사유 또는 일정을 입력하세요 (선택)' },
