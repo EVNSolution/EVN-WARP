@@ -184,7 +184,7 @@ export default async function NotesPage({ searchParams }: { searchParams: Promis
   // CalendarView에 넘길 직렬화 데이터
   const calActivities: CalActivity[] = []
   for (const a of activities) {
-    const resolvedName = a.userName ?? a.user?.name ?? null
+    const resolvedName = a.userName ?? a.user?.name ?? myName ?? null
     const base: CalActivity = {
       id:           a.id,
       date:         a.date,

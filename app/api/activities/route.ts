@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { getWeekId } from '@/lib/week'
+import { auth } from '@/auth'
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url)
@@ -25,7 +26,7 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    const body = await req.json()
+    const [body, session] = await Promise.all([req.json(), auth()])
     const { taskId, teamId, date, endDate, type, title, content, mentions, kpiItemId, kpiWeek, actualNum, countermeasureId, userId, userName, planStatus, referenceUrl,
       expenseTransport, expenseAccomm, expenseMeal, expenseOther, expenseNote,
       expenseTransportReceipt, expenseAccommReceipt, expenseMealReceipt, expenseOtherReceipt } = body
@@ -42,6 +43,10 @@ export async function POST(req: NextRequest) {
       })
     }
 
+    const me = session?.user as any
+    const resolvedUserId   = userId   || me?.id   || null
+    const resolvedUserName = userName || me?.name  || null
+
     const week = getWeekId(new Date(date))
     const activity = await prisma.workActivity.create({
       data: {
@@ -56,8 +61,8 @@ export async function POST(req: NextRequest) {
         kpiItemId:        kpiItemId        || null,
         kpiWeek:          kpiWeek          || null,
         countermeasureId: countermeasureId || null,
-        userId:   userId   || null,
-        userName: userName || null,
+        userId:   resolvedUserId,
+        userName: resolvedUserName,
         expenseTransport:        expenseTransport        ?? null,
         expenseAccomm:           expenseAccomm           ?? null,
         expenseMeal:             expenseMeal             ?? null,
