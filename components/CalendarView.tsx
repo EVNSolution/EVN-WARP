@@ -62,6 +62,9 @@ const TYPE_COLORS: Record<string, { bg: string; text: string }> = {
 
 const DOW_KR = ['일', '월', '화', '수', '목', '금', '토']
 
+const LEAVE_TYPES = new Set(['연차', '반차', '오전반차', '오후반차', '공가'])
+const TRIP_TYPES  = new Set(['국내출장', '해외출장'])
+
 interface Props {
   weeks:      WeekDay[][]
   activities: CalActivity[]
@@ -124,27 +127,57 @@ export default function CalendarView({ weeks, activities, todayStr }: Props) {
                     </div>
 
                     {/* 활동 칩 — 클릭 시 모달 or 출장 페이지 */}
-                    <div className="space-y-0.5">
-                      {dayActs.map(act => {
-                        const c = TYPE_COLORS[act.type] ?? TYPE_COLORS['문서·자료작성']
-                        if (act.tripId) {
-                          return (
-                            <Link key={act.id + act.date} href={`/trip/${act.tripId}`}
-                              className={`flex items-center gap-0.5 text-[9px] font-medium px-1 py-0.5 rounded w-full text-left truncate hover:opacity-80 transition-opacity ${c.bg} ${c.text}`}>
-                              <span className="truncate">{act.title}</span>
-                            </Link>
-                          )
+                    {(() => {
+                      // 연차/반차 등 휴가 타입은 동일 날짜에 같은 타입끼리 그룹화
+                      const leaveGroups = new Map<string, { first: CalActivity; names: string[] }>()
+                      const otherActs: CalActivity[] = []
+                      for (const act of dayActs) {
+                        if (LEAVE_TYPES.has(act.type)) {
+                          if (!leaveGroups.has(act.type)) leaveGroups.set(act.type, { first: act, names: [] })
+                          const g = leaveGroups.get(act.type)!
+                          if (act.userName) g.names.push(act.userName)
+                        } else {
+                          otherActs.push(act)
                         }
-                        return (
-                          <button key={act.id} type="button"
-                            onClick={() => setSelected(act)}
-                            className={`flex items-center gap-0.5 text-[9px] font-medium px-1 py-0.5 rounded w-full text-left truncate hover:opacity-80 transition-opacity ${c.bg} ${c.text}`}>
-                            {act.type === '이메일' && <Mail size={8} className="shrink-0" />}
-                            <span className="truncate">{act.title}</span>
-                          </button>
-                        )
-                      })}
-                    </div>
+                      }
+                      return (
+                        <div className="space-y-0.5">
+                          {/* 휴가 그룹 칩 */}
+                          {[...leaveGroups.entries()].map(([type, { first, names }]) => {
+                            const c = TYPE_COLORS[type] ?? TYPE_COLORS['문서·자료작성']
+                            const label = names.length > 0 ? `${type}(${names.join(', ')})` : type
+                            return (
+                              <button key={`leave-${type}`} type="button"
+                                onClick={() => setSelected(first)}
+                                className={`flex items-center gap-0.5 text-[9px] font-medium px-1 py-0.5 rounded w-full text-left truncate hover:opacity-80 transition-opacity ${c.bg} ${c.text}`}>
+                                <span className="truncate">{label}</span>
+                              </button>
+                            )
+                          })}
+                          {/* 나머지 활동 칩 */}
+                          {otherActs.map(act => {
+                            const c = TYPE_COLORS[act.type] ?? TYPE_COLORS['문서·자료작성']
+                            const nameTag = TRIP_TYPES.has(act.type) && act.userName ? `(${act.userName})` : ''
+                            if (act.tripId) {
+                              return (
+                                <Link key={act.id + act.date} href={`/trip/${act.tripId}`}
+                                  className={`flex items-center gap-0.5 text-[9px] font-medium px-1 py-0.5 rounded w-full text-left truncate hover:opacity-80 transition-opacity ${c.bg} ${c.text}`}>
+                                  <span className="truncate">{act.title}{nameTag}</span>
+                                </Link>
+                              )
+                            }
+                            return (
+                              <button key={act.id} type="button"
+                                onClick={() => setSelected(act)}
+                                className={`flex items-center gap-0.5 text-[9px] font-medium px-1 py-0.5 rounded w-full text-left truncate hover:opacity-80 transition-opacity ${c.bg} ${c.text}`}>
+                                {act.type === '이메일' && <Mail size={8} className="shrink-0" />}
+                                <span className="truncate">{act.title}{nameTag}</span>
+                              </button>
+                            )
+                          })}
+                        </div>
+                      )
+                    })()}
                   </div>
                 )
               })}
