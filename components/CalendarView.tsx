@@ -157,7 +157,7 @@ export default function CalendarView({ weeks, activities, todayStr }: Props) {
                           {/* 나머지 활동 칩 */}
                           {otherActs.map(act => {
                             const c = TYPE_COLORS[act.type] ?? TYPE_COLORS['문서·자료작성']
-                            const nameTag = TRIP_TYPES.has(act.type) && act.userName ? `(${act.userName})` : ''
+                            const nameTag = act.userName ? `(${act.userName})` : ''
                             if (act.tripId) {
                               return (
                                 <Link key={act.id + act.date} href={`/trip/${act.tripId}`}
