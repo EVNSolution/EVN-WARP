@@ -18,16 +18,17 @@ model Team {
 }
 
 model User {
-  id           String   @id @default(cuid())
-  name         String
-  email        String   @unique
-  password     String
-  role         String   @default("user")  // "admin" | "user"
-  teamId       String?
-  team         Team?    @relation(fields: [teamId], references: [id])
-  agentProfile Agent?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id             String         @id @default(cuid())
+  name           String
+  email          String         @unique
+  password       String
+  role           String         @default("user")  // "admin" | "user"
+  teamId         String?
+  team           Team?          @relation(fields: [teamId], references: [id])
+  agentProfile   Agent?
+  workActivities WorkActivity[]
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
 }
 
 model StrategyTask {
@@ -161,6 +162,7 @@ model WorkActivity {
   teamId    String
   team      Team          @relation(fields: [teamId], references: [id])
   userId    String?      // 등록한 사용자 ID
+  user      User?        @relation(fields: [userId], references: [id])
   userName  String?      // 등록한 사용자 이름
   date      String       // "YYYY-MM-DD" (시작일)
   endDate   String?      // "YYYY-MM-DD" (종료일 — 출장 등 다일 활동)

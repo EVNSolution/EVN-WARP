@@ -108,6 +108,14 @@ NODE
   echo "Admin user ensured: $admin_email"
 fi
 
+# WorkActivity 중 userId가 있고 userName이 없는 기존 데이터 백필
+npx prisma db execute --stdin <<'BACKFILL_SQL'
+UPDATE "WorkActivity"
+SET "userName" = (SELECT "name" FROM "User" WHERE "User"."id" = "WorkActivity"."userId")
+WHERE "userName" IS NULL AND "userId" IS NOT NULL;
+BACKFILL_SQL
+echo "Backfilled WorkActivity userName from userId"
+
 NODE_OPTIONS="--max-old-space-size=3072" npm run build
 
 if pm2 describe "$PM2_APP_NAME" >/dev/null 2>&1; then
