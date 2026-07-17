@@ -151,16 +151,17 @@ export default async function NotesPage({ searchParams }: { searchParams: Promis
   const nextMonth = `${nextM.getUTCFullYear()}-${String(nextM.getUTCMonth() + 1).padStart(2, '0')}`
 
   /* ── DB 조회 ── */
-  const [activities, userRows, tripReports] = await Promise.all([
+  const [activities, userRows, tripReports, allUsers] = await Promise.all([
     prisma.workActivity.findMany({
       where: {
         date: { gte: calFromDate, lte: calToDate },
-        ...(userParam  ? { userName: userParam } : {}),
+        ...(userParam  ? { OR: [{ userName: userParam }, { user: { name: userParam } }] } : {}),
         ...(teamParam  ? { team: { name: teamParam } } : {}),
       },
       include: {
         task: { select: { id: true, code: true, title: true, strategy: true } },
         team: true,
+        user: { select: { id: true, name: true } },
       },
       orderBy: [{ date: 'asc' }],
     }),
@@ -177,12 +178,16 @@ export default async function NotesPage({ searchParams }: { searchParams: Promis
       },
       orderBy: { startDate: 'desc' },
     }),
+    prisma.user.findMany({ select: { id: true, name: true } }),
   ])
   const userNames = userRows.map(r => r.userName!).filter(Boolean)
+  // userId → name 룩업맵 (userName이 null인 기존 데이터 보완용)
+  const userIdToName = new Map(allUsers.map(u => [u.id, u.name ?? null]))
 
   // CalendarView에 넘길 직렬화 데이터
   const calActivities: CalActivity[] = []
   for (const a of activities) {
+    const resolvedName = a.userName ?? (a as any).user?.name ?? ((a as any).userId ? (userIdToName.get((a as any).userId) ?? null) : null)
     const base: CalActivity = {
       id:           a.id,
       date:         a.date,
@@ -195,7 +200,7 @@ export default async function NotesPage({ searchParams }: { searchParams: Promis
       taskTitle:    a.task?.title  ?? null,
       taskCode:     a.task?.code   ?? null,
       teamName:     a.team.name,
-      userName:     a.userName     ?? null,
+      userName:     resolvedName,
     }
     const actEndDate = (a as any).endDate as string | null
     if (actEndDate && actEndDate > a.date) {
