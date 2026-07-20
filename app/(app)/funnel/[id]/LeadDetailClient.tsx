@@ -1162,7 +1162,15 @@ export default function LeadDetailClient({ deal, customer = null, products = [] 
       {/* 헤더 */}
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-3">
-          <Link href="/funnel" className="text-slate-400 hover:text-slate-600 text-sm transition">← 목록</Link>
+          <div className="flex items-center gap-2">
+            <Link href="/funnel" className="text-slate-400 hover:text-slate-600 text-sm transition">← 리드 목록</Link>
+            {customer && (
+              <>
+                <span className="text-slate-300 text-sm">|</span>
+                <Link href="/customers" className="text-slate-400 hover:text-slate-600 text-sm transition">← 고객 목록</Link>
+              </>
+            )}
+          </div>
           <div>
             <h1 className="text-2xl font-bold text-slate-800">
               {(() => {
