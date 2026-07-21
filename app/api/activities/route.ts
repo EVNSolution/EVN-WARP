@@ -35,7 +35,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: '필수 항목을 입력해주세요.' }, { status: 400 })
     }
 
-    if (type === '실적추가' && kpiItemId && kpiWeek && actualNum != null && taskId) {
+    if ((type === '실적추가' || type === '세금계산서 발행') && kpiItemId && kpiWeek && actualNum != null && taskId) {
       await prisma.kpiActual.upsert({
         where:  { kpiItemId_week: { kpiItemId, week: kpiWeek } },
         create: { kpiItemId, taskId, week: kpiWeek, actual: String(actualNum), actualNum },

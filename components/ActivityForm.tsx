@@ -115,12 +115,15 @@ const TYPE_GUIDE = [
     ],
   },
   {
-    category: '실적',
-    color: 'bg-emerald-50 border-emerald-200',
-    labelColor: 'text-emerald-700 bg-emerald-100',
-    desc: 'KPI 수치 실적 입력',
+    category: '수주·발행',
+    color: 'bg-teal-50 border-teal-200',
+    labelColor: 'text-teal-700 bg-teal-100',
+    desc: '외부 발행 문서 및 수주 확정 — 세금계산서 발행 시 실적 자동 계상',
     types: [
-      { name: '실적추가', desc: '정량 KPI 달성 실적 — 간트 과제 연계 필수' },
+      { name: '견적서 발행', desc: '고객에게 공식 견적서 발송 (제안/견적 단계와 구분 — 문서 발행 시점 기록용)' },
+      { name: 'PO 발행',    desc: '외부 협력사·공급업체에 구매 주문서(Purchase Order) 발송' },
+      { name: '수주 확정',  desc: '고객으로부터 주문 확정 통보 수령 — 계약 체결 또는 발주서 수신 기준' },
+      { name: '세금계산서 발행', desc: '고객에게 세금계산서 발행 → 매출 실적 인식 (KPI 수치 연계 가능)' },
     ],
   },
   {
@@ -160,7 +163,7 @@ const ACTIVITY_CATEGORIES = [
   { label: '영업',           types: ['고객미팅', '신규영업', '제안/견적', '고객행사'] },
   { label: '관계·네트워킹',  types: ['인재영입', '외부 네트워킹', '파트너십 타진'] },
   { label: '투자·IR',        types: ['IR 발표', '투자자 미팅', '투자행사'] },
-  { label: '실적',           types: ['실적추가'] },
+  { label: '수주·발행',      types: ['견적서 발행', 'PO 발행', '수주 확정', '세금계산서 발행'] },
   { label: '경영·행정',      types: ['대관·신청', '세무·회계', '신고·갱신', '법무·계약', '경영기획'] },
   { label: '근태',           types: ['연차', '반차(오전)', '반차(오후)'] },
 ] as const
@@ -189,6 +192,10 @@ const TYPE_META: Record<string, { icon: React.ReactNode; color: string; activeCo
   '인재영입':       { icon: <UserPlus size={13} />,       color: 'border-teal-200   text-teal-600   bg-teal-50',      activeColor: 'bg-teal-600   text-white border-teal-600',    placeholder: '후보자 직무, 미팅 내용, 다음 단계 등을 기록하세요' },
   '외부 네트워킹':  { icon: <Coffee size={13} />,         color: 'border-green-200  text-green-600  bg-green-50',     activeColor: 'bg-green-600  text-white border-green-600',   placeholder: '상대방 소속/직위, 미팅 목적, 주요 대화 내용 등을 기록하세요' },
   '파트너십 타진':  { icon: <Link2 size={13} />,          color: 'border-emerald-200 text-emerald-600 bg-emerald-50', activeColor: 'bg-emerald-600 text-white border-emerald-600', placeholder: '상대 기업/기관, 협업 분야, 논의 내용, 다음 단계 등을 기록하세요' },
+  '견적서 발행':     { icon: <FileCheck size={13} />,     color: 'border-teal-200 text-teal-700 bg-teal-50',    activeColor: 'bg-teal-600 text-white border-teal-600',    placeholder: '고객사명, 견적 금액, 제품·서비스 내용, 유효기간 등을 기록하세요' },
+  'PO 발행':        { icon: <Package size={13} />,       color: 'border-teal-200 text-teal-700 bg-teal-50',    activeColor: 'bg-teal-600 text-white border-teal-600',    placeholder: '협력사명, 발주 품목, 수량, 납기일 등을 기록하세요' },
+  '수주 확정':      { icon: <ClipboardCheck size={13} />,color: 'border-teal-200 text-teal-700 bg-teal-50',    activeColor: 'bg-teal-600 text-white border-teal-600',    placeholder: '고객사명, 수주 금액, 납기, 특이 조건 등을 기록하세요' },
+  '세금계산서 발행': { icon: <Receipt size={13} />,      color: 'border-teal-200 text-teal-700 bg-teal-50',    activeColor: 'bg-teal-600 text-white border-teal-600',    placeholder: '고객사명, 발행 금액, 공급 내역 등을 기록하세요' },
   '실적추가':       { icon: <TrendingUp size={13} />,     color: 'border-emerald-200 text-emerald-600 bg-emerald-50', activeColor: 'bg-emerald-600 text-white border-emerald-600', placeholder: '실적 관련 메모, 특이사항 등을 기록하세요' },
   'IR 발표':        { icon: <PieChart size={13} />,       color: 'border-indigo-200  text-indigo-600  bg-indigo-50',  activeColor: 'bg-indigo-600  text-white border-indigo-600',  placeholder: '발표 대상 투자자/기관, 피칭 내용, 질의응답 주요 내용, 후속 조치 등을 기록하세요' },
   '투자자 미팅':    { icon: <Landmark size={13} />,       color: 'border-indigo-200  text-indigo-600  bg-indigo-50',  activeColor: 'bg-indigo-600  text-white border-indigo-600',  placeholder: '투자자/기관명, 미팅 목적, 주요 논의 내용, 다음 단계 등을 기록하세요' },
@@ -410,6 +417,7 @@ export default function ActivityForm({ teams, tasks, users = [], vehicles = [], 
   const selectedKpi  = taskKpiItems.find(k => k.id === kpiItemId)
 
   const meta = TYPE_META[type] ?? TYPE_META['문서·자료작성']
+  const IS_KPI_TYPE = type === '실적추가' || type === '세금계산서 발행'
 
   function handleParentSelect(pid: string) {
     setParentTaskId(pid)
@@ -425,7 +433,7 @@ export default function ActivityForm({ teams, tasks, users = [], vehicles = [], 
     if (!linked && !finalTeamId) { setError('팀을 선택해주세요.'); return }
 
     let finalTitle = title.trim()
-    if (type === '실적추가') {
+    if (IS_KPI_TYPE) {
       if (!kpiItemId) { setError('KPI 항목을 선택해주세요.'); return }
       if (!actualStr) { setError('실적 값을 입력해주세요.'); return }
       if (!finalTitle) {
@@ -437,7 +445,7 @@ export default function ActivityForm({ teams, tasks, users = [], vehicles = [], 
     if (!finalTitle) { setError('제목을 입력해주세요.'); return }
     setSaving(true); setError('')
 
-    const actualNum = type === '실적추가' ? parseInt(digitsOnly(actualStr), 10) : undefined
+    const actualNum = IS_KPI_TYPE ? parseInt(digitsOnly(actualStr), 10) : undefined
     const isTrip = TRIP_TYPES.has(type)
     const hasExpense = type !== '해외출장' && !LEAVE_TYPES.has(type)
     const payload = {
@@ -451,7 +459,7 @@ export default function ActivityForm({ teams, tasks, users = [], vehicles = [], 
       referenceUrl: referenceUrl.trim() || null,
       countermeasureId: countermeasureId || null,
       endDate: (isTrip || LEAVE_TYPES.has(type)) && endDate && endDate > date ? endDate : null,
-      ...(type === '실적추가' && { kpiItemId, kpiWeek, actualNum }),
+      ...(IS_KPI_TYPE && { kpiItemId, kpiWeek, actualNum }),
       ...(hasExpense && {
         expenseTransport: expenseTransport ? Number(expenseTransport) : null,
         expenseAccomm:    expenseAccomm    ? Number(expenseAccomm)    : null,
@@ -800,29 +808,29 @@ export default function ActivityForm({ teams, tasks, users = [], vehicles = [], 
           </div>
         )}
 
-        {/* ⑤-b 실적추가 전용 패널 */}
-        {type === '실적추가' && (
-          <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-5 space-y-4">
+        {/* ⑤-b 실적 KPI 패널 (실적추가·세금계산서 발행) */}
+        {IS_KPI_TYPE && (
+          <div className="bg-teal-50 border border-teal-200 rounded-xl p-5 space-y-4">
             <div className="flex items-center gap-2 mb-1">
-              <TrendingUp size={14} className="text-emerald-600" />
-              <p className="text-sm font-bold text-emerald-800">KPI 달성 실적 입력</p>
+              <Receipt size={14} className="text-teal-600" />
+              <p className="text-sm font-bold text-teal-800">매출 실적 입력 (KPI 연계)</p>
             </div>
 
             {!finalTaskId ? (
-              <p className="text-sm text-emerald-600">먼저 과제를 선택하세요.</p>
+              <p className="text-sm text-teal-600">먼저 과제를 선택하세요.</p>
             ) : taskKpiItems.length === 0 ? (
-              <p className="text-sm text-emerald-600">이 과제에 등록된 정량 KPI가 없습니다.</p>
+              <p className="text-sm text-teal-600">이 과제에 등록된 정량 KPI가 없습니다.</p>
             ) : (
               <>
                 <div>
-                  <label className="block text-xs font-semibold text-emerald-700 mb-2">KPI 항목</label>
+                  <label className="block text-xs font-semibold text-teal-700 mb-2">KPI 항목</label>
                   <div className="space-y-1.5">
                     {taskKpiItems.map(kpi => (
                       <button key={kpi.id} type="button" onClick={() => setKpiItemId(kpi.id)}
                         className={`w-full text-left px-3 py-2 rounded-lg border text-sm transition-colors ${
                           kpiItemId === kpi.id
-                            ? 'border-emerald-400 bg-white text-emerald-800 font-semibold'
-                            : 'border-emerald-200 bg-white/60 text-slate-700 hover:border-emerald-300'
+                            ? 'border-teal-400 bg-white text-teal-800 font-semibold'
+                            : 'border-teal-200 bg-white/60 text-slate-700 hover:border-teal-300'
                         }`}>
                         {kpi.label}
                         {kpi.unit && <span className="ml-1.5 text-xs text-slate-400">({kpi.unit})</span>}
@@ -832,16 +840,16 @@ export default function ActivityForm({ teams, tasks, users = [], vehicles = [], 
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-xs font-semibold text-emerald-700 mb-2">기준 주</label>
+                    <label className="block text-xs font-semibold text-teal-700 mb-2">기준 주</label>
                     <select value={kpiWeek} onChange={e => setKpiWeek(e.target.value)}
-                      className="w-full border border-emerald-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-emerald-400">
+                      className="w-full border border-teal-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-teal-400">
                       {WEEK_OPTIONS.map(o => (
                         <option key={o.value} value={o.value}>{o.label}</option>
                       ))}
                     </select>
                   </div>
                   <div>
-                    <label className="block text-xs font-semibold text-emerald-700 mb-2">
+                    <label className="block text-xs font-semibold text-teal-700 mb-2">
                       실적 값{selectedKpi?.unit ? ` (${selectedKpi.unit})` : ''}
                     </label>
                     <input
@@ -849,7 +857,7 @@ export default function ActivityForm({ teams, tasks, users = [], vehicles = [], 
                       value={fmtComma(actualStr)}
                       onChange={e => setActualStr(digitsOnly(e.target.value))}
                       placeholder="숫자 입력"
-                      className="w-full border border-emerald-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-emerald-400" />
+                      className="w-full border border-teal-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-teal-400" />
                   </div>
                 </div>
               </>
