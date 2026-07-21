@@ -8,7 +8,7 @@ import {
   Target, FileCheck, CalendarDays, Code2, PenTool,
   Package, Wrench, Settings, ClipboardCheck,
   PieChart, Landmark, Award,
-  Building, Receipt, RefreshCw, Scale,
+  Building, Receipt, RefreshCw, Scale, Car,
 } from 'lucide-react'
 import CalendarView, { type CalActivity } from '@/components/CalendarView'
 import { auth } from '@/auth'
@@ -157,7 +157,7 @@ export default async function NotesPage({ searchParams }: { searchParams: Promis
   const nextMonth = `${nextM.getUTCFullYear()}-${String(nextM.getUTCMonth() + 1).padStart(2, '0')}`
 
   /* ── DB 조회 ── */
-  const [activities, userRows, tripReports] = await Promise.all([
+  const [activities, userRows, tripReports, recentVehicleLogs] = await Promise.all([
     prisma.workActivity.findMany({
       where: {
         date: { gte: calFromDate, lte: calToDate },
@@ -183,6 +183,11 @@ export default async function NotesPage({ searchParams }: { searchParams: Promis
         ...(teamParam ? { teamName: teamParam } : {}),
       },
       orderBy: { startDate: 'desc' },
+    }),
+    prisma.vehicleLog.findMany({
+      include: { vehicle: { select: { name: true, plateNo: true } } },
+      orderBy: [{ date: 'desc' }, { createdAt: 'desc' }],
+      take: 5,
     }),
   ])
   const userNames = userRows.map(r => r.userName!).filter(Boolean)
@@ -444,6 +449,28 @@ export default async function NotesPage({ searchParams }: { searchParams: Promis
             <TripList items={tripReports} />
           </section>
 
+          {/* ③ 차량관리 */}
+          <section className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
+            <div className="px-5 py-3 border-b border-emerald-100 bg-emerald-50/60 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Car size={14} className="text-emerald-600" />
+                <h2 className="text-sm font-bold text-emerald-900">차량관리</h2>
+                <span className="text-xs text-emerald-600 bg-emerald-100 px-1.5 py-0.5 rounded-full font-semibold">{recentVehicleLogs.length}건 (최근)</span>
+              </div>
+              <div className="flex gap-2">
+                <Link href="/vehicle"
+                  className="flex items-center gap-1 text-xs text-emerald-700 hover:text-emerald-900 border border-emerald-200 px-2 py-1 rounded-lg bg-white transition-colors">
+                  <Car size={11} /> 운행일지 전체보기
+                </Link>
+                <Link href="/vehicle"
+                  className="flex items-center gap-1 text-xs text-indigo-600 hover:text-indigo-800 border border-indigo-200 px-2 py-1 rounded-lg bg-white transition-colors">
+                  <Plus size={11} /> 차량사용
+                </Link>
+              </div>
+            </div>
+            <VehicleLogList items={recentVehicleLogs} />
+          </section>
+
         </div>
       )}
     </div>
@@ -451,6 +478,46 @@ export default async function NotesPage({ searchParams }: { searchParams: Promis
 }
 
 /* ── 서브 컴포넌트 ── */
+function VehicleLogList({ items }: { items: any[] }) {
+  if (items.length === 0) {
+    return (
+      <div className="px-5 py-8 text-center">
+        <p className="text-xs text-slate-400 mb-2">차량 운행 기록이 없습니다.</p>
+        <Link href="/vehicle" className="text-xs text-indigo-500 hover:text-indigo-700 underline">운행일지 관리 →</Link>
+      </div>
+    )
+  }
+  return (
+    <div className="divide-y divide-slate-100">
+      {items.map((log: any) => (
+        <Link key={log.id} href="/vehicle"
+          className="flex items-center gap-3 px-5 py-3 hover:bg-slate-50 transition-colors group">
+          <div className="w-6 h-6 rounded-md flex items-center justify-center shrink-0 bg-emerald-50">
+            <Car size={10} className="text-emerald-600" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold text-slate-800 truncate group-hover:text-indigo-600 transition-colors">
+              {log.departure} → {log.destination}
+            </p>
+            <p className="text-[10px] text-slate-400 mt-0.5">
+              {log.vehicle?.name} · {log.date} · {log.distance}km
+            </p>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <span className="text-[10px] text-slate-400">{log.driverName}</span>
+            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${log.isBusinessUse ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-100 text-slate-500'}`}>
+              {log.isBusinessUse ? '업무용' : '개인'}
+            </span>
+          </div>
+        </Link>
+      ))}
+      <div className="px-5 py-2.5 text-center">
+        <Link href="/vehicle" className="text-xs text-slate-400 hover:text-indigo-600 transition-colors">전체 운행일지 보기 →</Link>
+      </div>
+    </div>
+  )
+}
+
 function NoteList({ items, emptyText }: { items: any[]; emptyText: string }) {
   if (items.length === 0) {
     return <div className="px-5 py-8 text-center text-xs text-slate-400">{emptyText}</div>

@@ -664,3 +664,37 @@ model WeeklyUpdate {
   createdAt DateTime     @default(now())
   updatedAt DateTime     @updatedAt
 }
+
+// ── 법인차량 관리 ─────────────────────────────────────────────────────────
+model Vehicle {
+  id          String       @id @default(cuid())
+  name        String       // 차량명 (니로, 아이오닉 등)
+  plateNo     String       // 차량번호
+  department  String?      // 관리부서
+  manager     String?      // 관리담당자
+  cardNo      String?      // 법인카드번호
+  hasCharge   Boolean      @default(false)  // 충전카드
+  hasHipass   Boolean      @default(false)  // 하이패스
+  active      Boolean      @default(true)
+  createdAt   DateTime     @default(now())
+  logs        VehicleLog[]
+}
+
+model VehicleLog {
+  id             String   @id @default(cuid())
+  vehicleId      String
+  vehicle        Vehicle  @relation(fields: [vehicleId], references: [id])
+  date           String   // YYYY-MM-DD
+  driverName     String   // 운전자
+  department     String?  // 소속
+  departure      String   // 출발지
+  destination    String   // 도착지
+  purpose        String   // 운행목적
+  odometerBefore Int      // 운행 전 주행거리(km)
+  odometerAfter  Int      // 운행 후 주행거리(km)
+  distance       Int      // 운행거리(km) = after - before
+  isBusinessUse  Boolean  @default(true)   // 업무용 여부
+  notes          String?  // 비고
+  activityId     String?  // 연결된 WorkActivity ID
+  createdAt      DateTime @default(now())
+}

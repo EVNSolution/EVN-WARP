@@ -5,7 +5,7 @@ import ActivityForm from '@/components/ActivityForm'
 export default async function EditActivityPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
 
-  const [activity, teams, tasks, users] = await Promise.all([
+  const [activity, teams, tasks, users, vehicles] = await Promise.all([
     prisma.workActivity.findUnique({ where: { id } }),
     prisma.team.findMany({ orderBy: { name: 'asc' } }),
     prisma.strategyTask.findMany({
@@ -16,6 +16,7 @@ export default async function EditActivityPage({ params }: { params: Promise<{ i
       orderBy: [{ teamId: 'asc' }, { teamSeq: 'asc' }],
     }),
     prisma.user.findMany({ select: { id: true, name: true, email: true }, orderBy: { name: 'asc' } }),
+    prisma.vehicle.findMany({ where: { active: true }, select: { id: true, name: true, plateNo: true }, orderBy: { name: 'asc' } }),
   ])
 
   if (!activity) notFound()
@@ -27,6 +28,7 @@ export default async function EditActivityPage({ params }: { params: Promise<{ i
       teams={teams}
       tasks={tasks}
       users={users}
+      vehicles={vehicles}
       mode="edit"
       expensePrintUrl={!isOverseas ? `/notes/${id}/expense-print` : undefined}
       initial={{
