@@ -29,7 +29,8 @@ export async function POST(req: NextRequest) {
     const [body, session] = await Promise.all([req.json(), auth()])
     const { taskId, teamId, date, endDate, type, title, content, mentions, kpiItemId, kpiWeek, actualNum, countermeasureId, userId, userName, planStatus, referenceUrl,
       expenseTransport, expenseAccomm, expenseMeal, expenseOther, expenseNote,
-      expenseTransportReceipt, expenseAccommReceipt, expenseMealReceipt, expenseOtherReceipt } = body
+      expenseTransportReceipt, expenseAccommReceipt, expenseMealReceipt, expenseOtherReceipt,
+      documentUrl } = body
 
     if (!teamId || !date || !type || !title?.trim()) {
       return NextResponse.json({ error: '필수 항목을 입력해주세요.' }, { status: 400 })
@@ -72,6 +73,7 @@ export async function POST(req: NextRequest) {
         expenseAccommReceipt:    expenseAccommReceipt    || null,
         expenseMealReceipt:      expenseMealReceipt      || null,
         expenseOtherReceipt:     expenseOtherReceipt     || null,
+        documentUrl:             documentUrl             || null,
       },
     })
     return NextResponse.json(activity, { status: 201 })

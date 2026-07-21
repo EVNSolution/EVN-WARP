@@ -9,7 +9,7 @@ import {
   Briefcase, Target, FileCheck, CalendarDays, HelpCircle, X,
   Code2, PenTool, Package, Wrench, Settings, ClipboardCheck,
   PieChart, Landmark, Award, ChevronDown, Mic,
-  Building, Receipt, RefreshCw, Scale,
+  Building, Receipt, RefreshCw, Scale, Upload, FileUp,
 } from 'lucide-react'
 import Link from 'next/link'
 import CallAnalysisModal from '@/components/CallAnalysisModal'
@@ -291,6 +291,7 @@ interface Props {
     expenseAccommReceipt?:    string | null
     expenseMealReceipt?:      string | null
     expenseOtherReceipt?:     string | null
+    documentUrl?:             string | null
   }
   mode:            'new' | 'edit'
   returnUrl?:      string
@@ -299,6 +300,7 @@ interface Props {
 
 const TRIP_TYPES  = new Set(['국내출장', '해외출장'])
 const LEAVE_TYPES = new Set(['연차', '반차(오전)', '반차(오후)'])
+const DOC_TYPES   = new Set(['견적서 발행', 'PO 발행', '수주 확정', '세금계산서 발행'])
 
 export default function ActivityForm({ teams, tasks, users = [], vehicles = [], initial, mode, returnUrl = '/notes', expensePrintUrl }: Props) {
   const router = useRouter()
@@ -352,6 +354,17 @@ export default function ActivityForm({ teams, tasks, users = [], vehicles = [], 
   const [vehOdomAfter,  setVehOdomAfter]  = useState('')
   const [vehBizUse,     setVehBizUse]     = useState(true)
   const [vehNotes,      setVehNotes]      = useState('')
+
+  // 비용정산 토글 (기존 비용 데이터가 있으면 열림)
+  const [useExpense, setUseExpense] = useState(() =>
+    !!(initial?.expenseTransport || initial?.expenseAccomm || initial?.expenseMeal || initial?.expenseOther)
+  )
+
+  // 문서 첨부
+  const [documentUrl,    setDocumentUrl]    = useState(initial?.documentUrl ?? '')
+  const [uploadingDoc,   setUploadingDoc]   = useState(false)
+  const [pendingDocFile, setPendingDocFile] = useState<File | null>(null)
+  const docInputRef = useRef<HTMLInputElement>(null)
 
   // 비용정산
   const [expenseTransport, setExpenseTransport] = useState<string>(initial?.expenseTransport ? String(initial.expenseTransport) : '')
@@ -407,6 +420,22 @@ export default function ActivityForm({ teams, tasks, users = [], vehicles = [], 
     }
   }
 
+  async function uploadDocument(file: File) {
+    if (!initial?.id) { setPendingDocFile(file); return }
+    setUploadingDoc(true)
+    try {
+      const fd = new FormData()
+      fd.append('file', file)
+      fd.append('date', date)
+      const res  = await fetch(`/api/activities/${initial.id}/documents`, { method: 'POST', body: fd })
+      const data = await res.json()
+      if (res.ok) setDocumentUrl(data.documentUrl ?? data.url)
+    } finally {
+      setUploadingDoc(false)
+    }
+  }
+
+
   const parentTasks  = tasks.filter(t => t.parentId === null)
   const childTasks   = tasks.filter(t => t.parentId === parentTaskId)
   const finalTaskId  = linked ? (childTaskId || parentTaskId || null) : null
@@ -460,7 +489,7 @@ export default function ActivityForm({ teams, tasks, users = [], vehicles = [], 
       countermeasureId: countermeasureId || null,
       endDate: (isTrip || LEAVE_TYPES.has(type)) && endDate && endDate > date ? endDate : null,
       ...(IS_KPI_TYPE && { kpiItemId, kpiWeek, actualNum }),
-      ...(hasExpense && {
+      ...(hasExpense && useExpense ? {
         expenseTransport: expenseTransport ? Number(expenseTransport) : null,
         expenseAccomm:    expenseAccomm    ? Number(expenseAccomm)    : null,
         expenseMeal:      expenseMeal      ? Number(expenseMeal)      : null,
@@ -470,7 +499,12 @@ export default function ActivityForm({ teams, tasks, users = [], vehicles = [], 
         expenseAccommReceipt:    expenseAccommReceipt    || null,
         expenseMealReceipt:      expenseMealReceipt      || null,
         expenseOtherReceipt:     expenseOtherReceipt     || null,
-      }),
+      } : hasExpense ? {
+        expenseTransport: null, expenseAccomm: null, expenseMeal: null, expenseOther: null,
+        expenseNote: null, expenseTransportReceipt: null, expenseAccommReceipt: null,
+        expenseMealReceipt: null, expenseOtherReceipt: null,
+      } : {}),
+      documentUrl: documentUrl || null,
     }
 
     try {
@@ -479,6 +513,14 @@ export default function ActivityForm({ teams, tasks, users = [], vehicles = [], 
       const res    = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
       const data   = await res.json()
       if (!res.ok) { setError(data.error ?? '저장 실패'); setSaving(false); return }
+
+      // 신규 저장 시 대기 중인 문서 파일 업로드
+      if (pendingDocFile && data.id && mode === 'new') {
+        const fd = new FormData()
+        fd.append('file', pendingDocFile)
+        fd.append('date', date)
+        await fetch(`/api/activities/${data.id}/documents`, { method: 'POST', body: fd })
+      }
 
       // 차량사용 체크된 경우 운행일지 생성
       if (useVehicle && vehId && mode === 'new') {
@@ -1108,11 +1150,14 @@ export default function ActivityForm({ teams, tasks, users = [], vehicles = [], 
         {/* ── 비용정산 (해외출장·근태 제외) ── */}
         {type !== '해외출장' && !LEAVE_TYPES.has(type) && (
           <div className="bg-white border border-slate-200 rounded-xl p-5">
-            <div className="flex items-center justify-between mb-3">
-              <p className="text-sm font-semibold text-slate-700">
-                비용정산 <span className="text-xs font-normal text-slate-400">(선택)</span>
-              </p>
-              {expensePrintUrl && expenseTotal > 0 && (
+            <div className="flex items-center justify-between">
+              <label className="flex items-center gap-2 cursor-pointer select-none">
+                <input type="checkbox" checked={useExpense} onChange={e => setUseExpense(e.target.checked)}
+                  className="w-4 h-4 rounded accent-indigo-600" />
+                <span className="text-sm font-semibold text-slate-700">비용정산</span>
+                <span className="text-xs font-normal text-slate-400">(선택)</span>
+              </label>
+              {expensePrintUrl && expenseTotal > 0 && useExpense && (
                 <a href={expensePrintUrl} target="_blank" rel="noopener noreferrer"
                   className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg border border-indigo-200 text-indigo-600 bg-indigo-50 hover:bg-indigo-100 transition-all">
                   🖨 비용신청품의서 인쇄
@@ -1120,6 +1165,7 @@ export default function ActivityForm({ teams, tasks, users = [], vehicles = [], 
               )}
             </div>
 
+            {useExpense && (<>
             {/* 숨겨진 파일 input */}
             <input ref={receiptInputRef} type="file" accept="image/*,application/pdf" className="hidden"
               onChange={e => {
@@ -1198,6 +1244,80 @@ export default function ActivityForm({ teams, tasks, users = [], vehicles = [], 
 
             {mode === 'new' && (
               <p className="text-[11px] text-slate-400 mt-2">💡 영수증 첨부는 저장 후 수정 화면에서 가능합니다.</p>
+            )}
+            </>)}
+          </div>
+        )}
+
+        {/* ── 문서 첨부 (수주·발행 유형) ── */}
+        {DOC_TYPES.has(type) && (
+          <div className="bg-white border border-slate-200 rounded-xl p-5">
+            <div className="flex items-center gap-2 mb-3">
+              <FileUp size={14} className="text-teal-600" />
+              <p className="text-sm font-semibold text-slate-700">문서 첨부</p>
+              <span className="text-xs font-normal text-slate-400">(PDF · 이미지 · Word · Excel · HWP)</span>
+            </div>
+
+            {/* 숨겨진 파일 input */}
+            <input ref={docInputRef} type="file"
+              accept=".pdf,.jpg,.jpeg,.png,.gif,.webp,.doc,.docx,.xls,.xlsx,.hwp"
+              className="hidden"
+              onChange={e => {
+                const f = e.target.files?.[0]
+                if (!f) return
+                uploadDocument(f)
+                e.target.value = ''
+              }} />
+
+            {/* 첨부된 파일 목록 */}
+            {documentUrl && (
+              <div className="flex flex-wrap gap-2 mb-3">
+                {documentUrl.split('|').map((url, i) => {
+                  const name = decodeURIComponent(url.split('/').pop() ?? `파일${i + 1}`)
+                  return (
+                    <div key={i} className="flex items-center gap-1 bg-teal-50 border border-teal-200 rounded-lg px-2.5 py-1.5">
+                      <a href={url} target="_blank" rel="noopener noreferrer"
+                        className="text-xs text-teal-700 hover:underline max-w-[160px] truncate">{name}</a>
+                      <button type="button" onClick={() => {
+                        const parts = documentUrl.split('|').filter((_, idx) => idx !== i)
+                        setDocumentUrl(parts.join('|'))
+                        if (initial?.id) {
+                          fetch(`/api/activities/${initial.id}`, {
+                            method: 'PUT',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ documentUrl: parts.join('|') || null }),
+                          })
+                        }
+                      }} className="text-slate-300 hover:text-red-400 ml-0.5">
+                        <X size={11} />
+                      </button>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+
+            {/* 새 파일 선택 (pending, 신규 저장 전) */}
+            {pendingDocFile && !initial?.id && (
+              <div className="flex items-center gap-1 bg-teal-50 border border-teal-200 rounded-lg px-2.5 py-1.5 mb-3 w-fit">
+                <span className="text-xs text-teal-700 max-w-[200px] truncate">{pendingDocFile.name}</span>
+                <button type="button" onClick={() => setPendingDocFile(null)}
+                  className="text-slate-300 hover:text-red-400 ml-0.5"><X size={11} /></button>
+              </div>
+            )}
+
+            <button type="button"
+              onClick={() => docInputRef.current?.click()}
+              disabled={uploadingDoc}
+              className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-teal-700 border border-teal-200 bg-teal-50 rounded-lg hover:bg-teal-100 transition-colors disabled:opacity-50">
+              {uploadingDoc ? (
+                <><span className="text-xs">업로드 중…</span></>
+              ) : (
+                <><Upload size={14} /><span>파일 업로드</span></>
+              )}
+            </button>
+            {mode === 'new' && !pendingDocFile && (
+              <p className="text-[11px] text-slate-400 mt-2">💡 파일을 선택하면 저장 시 자동으로 첨부됩니다.</p>
             )}
           </div>
         )}

@@ -197,6 +197,8 @@ model WorkActivity {
   expenseApprovedAt   DateTime? // 결재 처리일
   expenseApproverNote String?   // 결재 의견
 
+  documentUrl       String?   // 첨부 문서 URL (| 구분 다중)
+
   createdAt        DateTime       @default(now())
   updatedAt        DateTime       @updatedAt
 }
