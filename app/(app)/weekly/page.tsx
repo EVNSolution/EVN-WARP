@@ -287,10 +287,11 @@ export default async function WeeklyPage({ searchParams }: { searchParams: Promi
                   for (const [, { teamName, tasks: tt }] of teamEntries) {
                     for (const task of tt) {
                       const update    = updateByTaskId.get(task.id)
+                      const taskActs  = thisActByTask.get(task.id) ?? []
                       const activeCms = task.countermeasures.filter(cm =>
                         shouldShowInSection(cm, new Date(task.startDate), new Date(task.endDate), weekStartMs, weekEndMs)
+                        || taskActs.some((a: any) => a.countermeasureId === cm.id)
                       )
-                      const taskActs = thisActByTask.get(task.id) ?? []
                       if (activeCms.length === 0 && taskActs.length === 0 && !update?.completed?.trim()) continue
                       const sl = (task.strategy || (task.parent as any)?.strategy || '') as string
                       const key: 'A' | 'B' | '기타' = sl === 'A' ? 'A' : sl === 'B' ? 'B' : '기타'
@@ -434,10 +435,11 @@ export default async function WeeklyPage({ searchParams }: { searchParams: Promi
                   for (const [, { teamName, tasks: tt }] of teamEntries) {
                     for (const task of tt) {
                       const update    = updateByTaskId.get(task.id)
+                      const taskActs  = nextActByTask.get(task.id) ?? []
                       const activeCms = task.countermeasures.filter(cm =>
                         shouldShowInSection(cm, new Date(task.startDate), new Date(task.endDate), nextWeekStartMs, nextWeekEndMs)
+                        || taskActs.some((a: any) => a.countermeasureId === cm.id)
                       )
-                      const taskActs = nextActByTask.get(task.id) ?? []
                       if (activeCms.length === 0 && taskActs.length === 0 && !update?.planned?.trim()) continue
                       const sl = (task.strategy || (task.parent as any)?.strategy || '') as string
                       const key: 'A' | 'B' | '기타' = sl === 'A' ? 'A' : sl === 'B' ? 'B' : '기타'
