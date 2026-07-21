@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/db'
+import { auth } from '@/auth'
 import Link from 'next/link'
 import { getWeekId, getWeekStart, adjacentWeek, formatWeekLabel } from '@/lib/week'
 import { ChevronLeft, ChevronRight, CheckCircle, Clock } from 'lucide-react'
@@ -39,11 +40,12 @@ function shouldShowInSection(
   return ts < rangeEnd && te > rangeStart
 }
 
-type SearchParams = { week?: string; tab?: string }
+type SearchParams = { week?: string; tab?: string; view?: string }
 
 export default async function WeeklyPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
-  const { week: weekParam, tab } = await searchParams
-  const activeTab = tab === 'weekly' ? 'weekly' : 'gantt'
+  const { week: weekParam, tab, view: viewParam } = await searchParams
+  const activeTab  = tab === 'weekly' ? 'weekly' : 'gantt'
+  const activeView = (viewParam === 'team' || viewParam === 'personal') ? viewParam : 'company'
 
   const currentWeekId = getWeekId(new Date())
   const weekId        = weekParam ?? currentWeekId
@@ -76,6 +78,12 @@ export default async function WeeklyPage({ searchParams }: { searchParams: Promi
   const thisWeekToDate   = (() => {
     const d = getWeekStart(weekId); d.setUTCDate(d.getUTCDate() + 6); return d.toISOString().slice(0, 10)
   })()
+
+  const session   = await auth()
+  const me        = session?.user as any
+  const myUserId  = me?.id  as string | undefined
+  const dbUser    = myUserId ? await prisma.user.findUnique({ where: { id: myUserId }, select: { teamId: true } }) : null
+  const myTeamId  = dbUser?.teamId ?? null
 
   const [tasks, weeklyUpdates, prevWeekUpdates, thisWeekActivities, nextWeekActivities] = await Promise.all([
     prisma.strategyTask.findMany({
@@ -127,6 +135,19 @@ export default async function WeeklyPage({ searchParams }: { searchParams: Promi
   }
   const teamEntries = [...teamMap.entries()]
 
+  // ── 뷰 스코프 필터 ──
+  const myThisActTaskIds = new Set(thisWeekActivities.filter(a => a.userId === myUserId && a.taskId).map(a => a.taskId!))
+  const myNextActTaskIds = new Set(nextWeekActivities.filter(a => a.userId === myUserId && a.taskId).map(a => a.taskId!))
+
+  const viewTeamEntries = activeView === 'personal'
+    ? teamEntries.map(([tid, te]) => [tid, {
+        ...te,
+        tasks: te.tasks.filter(t => myThisActTaskIds.has(t.id) || myNextActTaskIds.has(t.id)),
+      }] as const).filter(([, te]) => te.tasks.length > 0)
+    : activeView === 'team'
+    ? teamEntries.filter(([tid]) => tid === myTeamId)
+    : teamEntries
+
   const todayMs  = Date.now()
   const todayPos = todayMs >= windowStart.getTime() && todayMs <= windowEnd.getTime()
     ? (todayMs - windowStart.getTime()) / 86400000 / windowDays * 100 : null
@@ -134,8 +155,8 @@ export default async function WeeklyPage({ searchParams }: { searchParams: Promi
   const weekDateRange     = formatWeekLabel(weekId).match(/\((.+)\)/)?.[1] ?? ''
   const nextWeekDateRange = formatWeekLabel(nextWeek).match(/\((.+)\)/)?.[1] ?? ''
 
-  /* GanttChart 클라이언트 컴포넌트에 넘길 직렬화 데이터 */
-  const ganttTeamEntries = teamEntries.map(([teamId, { teamName, tasks: tt }]) => ({
+  /* GanttChart 클라이언트 컴포넌트에 넘길 직렬화 데이터 — 뷰 스코프 적용 */
+  const ganttTeamEntries = viewTeamEntries.map(([teamId, { teamName, tasks: tt }]) => ({
     teamId,
     teamName,
     tasks: tt.map(t => ({
@@ -171,7 +192,7 @@ export default async function WeeklyPage({ searchParams }: { searchParams: Promi
         </div>
         <div className="flex items-center gap-3">
           <div className="flex items-center border border-white/20 rounded-lg overflow-hidden" style={{ backgroundColor: 'rgba(255,255,255,0.08)' }}>
-            <Link href={`/weekly?week=${prevWeek}&tab=${activeTab}`}
+            <Link href={`/weekly?week=${prevWeek}&tab=${activeTab}&view=${activeView}`}
               className="px-2.5 py-1.5 text-white/50 hover:text-white hover:bg-white/10 transition-colors border-r border-white/20">
               <ChevronLeft size={16} />
             </Link>
@@ -179,7 +200,7 @@ export default async function WeeklyPage({ searchParams }: { searchParams: Promi
               {formatWeekLabel(weekId)}
               {isCurrentWeek && <span className="ml-2 text-xs font-medium" style={{ color: '#C5D42A' }}>이번 주</span>}
             </span>
-            <Link href={`/weekly?week=${nextWeek}&tab=${activeTab}`}
+            <Link href={`/weekly?week=${nextWeek}&tab=${activeTab}&view=${activeView}`}
               className="px-2.5 py-1.5 text-white/50 hover:text-white hover:bg-white/10 transition-colors border-l border-white/20">
               <ChevronRight size={16} />
             </Link>
@@ -187,10 +208,41 @@ export default async function WeeklyPage({ searchParams }: { searchParams: Promi
         </div>
       </div>
 
+      {/* ── 스코프 바 ── */}
+      <div className="flex items-center gap-2 mb-3">
+        <span className="text-xs text-slate-400 font-medium">보기:</span>
+        {([
+          { v: 'company',  label: '전사' },
+          { v: 'team',     label: '내 팀' },
+          { v: 'personal', label: '개인' },
+        ] as const).map(({ v, label }) => (
+          <Link key={v}
+            href={`/weekly?week=${weekId}&tab=${activeTab}&view=${v}`}
+            className={`px-3 py-1 text-xs font-semibold rounded-full border transition-colors ${
+              activeView === v
+                ? 'bg-slate-800 text-white border-slate-800'
+                : 'bg-white text-slate-500 border-slate-200 hover:border-slate-400'
+            }`}>
+            {label}
+          </Link>
+        ))}
+        {activeView !== 'company' && !myTeamId && (
+          <span className="text-xs text-amber-500">
+            ⚠ <Link href="/account" className="underline hover:text-amber-700">내 계정</Link>에서 소속팀을 먼저 설정하세요
+          </span>
+        )}
+        {activeView === 'personal' && myTeamId && (
+          <span className="text-xs text-slate-400">내가 활동을 기록한 과제만 표시</span>
+        )}
+        {activeView === 'team' && myTeamId && (
+          <span className="text-xs text-slate-400">{teamMap.get(myTeamId)?.teamName ?? ''} 과제만 표시</span>
+        )}
+      </div>
+
       {/* ── 탭 네비게이션 ── */}
       <div className="flex gap-0 mb-4 border-b border-slate-200">
         <Link
-          href={`/weekly?week=${weekId}&tab=gantt`}
+          href={`/weekly?week=${weekId}&tab=gantt&view=${activeView}`}
           className={`px-6 py-2.5 text-sm font-semibold rounded-t-lg border-b-2 transition-colors ${
             activeTab === 'gantt'
               ? 'border-[#C5D42A] text-[#7a9200] bg-white'
@@ -200,7 +252,7 @@ export default async function WeeklyPage({ searchParams }: { searchParams: Promi
           간트
         </Link>
         <Link
-          href={`/weekly?week=${weekId}&tab=weekly`}
+          href={`/weekly?week=${weekId}&tab=weekly&view=${activeView}`}
           className={`px-6 py-2.5 text-sm font-semibold rounded-t-lg border-b-2 transition-colors ${
             activeTab === 'weekly'
               ? 'border-[#C5D42A] text-[#7a9200] bg-white'
@@ -284,7 +336,7 @@ export default async function WeeklyPage({ searchParams }: { searchParams: Promi
                   type RI = { teamName: string; task: typeof tasks[0]; update: (typeof weeklyUpdates)[0] | undefined; activeCms: typeof tasks[0]['countermeasures']; taskActs: typeof thisWeekActivities; lines: string[] }
                   const buckets: Record<'A' | 'B' | '기타', RI[]> = { A: [], B: [], '기타': [] }
 
-                  for (const [, { teamName, tasks: tt }] of teamEntries) {
+                  for (const [, { teamName, tasks: tt }] of viewTeamEntries) {
                     for (const task of tt) {
                       const update    = updateByTaskId.get(task.id)
                       const taskActs  = thisActByTask.get(task.id) ?? []
@@ -432,7 +484,7 @@ export default async function WeeklyPage({ searchParams }: { searchParams: Promi
                   type RI2 = { teamName: string; task: typeof tasks[0]; update: (typeof weeklyUpdates)[0] | undefined; activeCms: typeof tasks[0]['countermeasures']; taskActs: typeof nextWeekActivities; lines: string[] }
                   const buckets: Record<'A' | 'B' | '기타', RI2[]> = { A: [], B: [], '기타': [] }
 
-                  for (const [, { teamName, tasks: tt }] of teamEntries) {
+                  for (const [, { teamName, tasks: tt }] of viewTeamEntries) {
                     for (const task of tt) {
                       const update    = updateByTaskId.get(task.id)
                       const taskActs  = nextActByTask.get(task.id) ?? []
