@@ -421,7 +421,7 @@ export default async function WeeklyPage({ searchParams }: { searchParams: Promi
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <Clock size={14} className="text-slate-400" />
-                    <h2 className="text-sm font-bold text-slate-700">{isPastWeek ? 'Weekly Completed Works' : 'Weekly Planned Works'}</h2>
+                    <h2 className="text-sm font-bold text-slate-700">{nextWeek < currentWeekId ? 'Weekly Completed Works' : 'Weekly Planned Works'}</h2>
                   </div>
                   <span className="text-xs text-slate-400">{nextWeekDateRange}</span>
                 </div>
