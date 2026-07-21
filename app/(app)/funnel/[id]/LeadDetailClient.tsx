@@ -229,8 +229,9 @@ export default function LeadDetailClient({ deal, customer = null, products = [] 
   type MFile = { name: string; path: string; size: number; mime: string }
   type Meeting = { id: string; type: string; meetingAt: string; duration: number | null; content: string | null; result: string | null; nextAction: string | null; assignee: string | null; filesJson: string | null }
 
-  const [meetings,    setMeetings]    = useState<Meeting[]>([])
-  const [showMtgForm, setShowMtgForm] = useState(false)
+  const [meetings,       setMeetings]       = useState<Meeting[]>([])
+  const [expandedMtgIds, setExpandedMtgIds] = useState<Set<string>>(new Set())
+  const [showMtgForm,    setShowMtgForm]    = useState(false)
   const [mtg, setMtg] = useState({ type: '통화', meetingAt: new Date().toISOString().slice(0, 16), duration: '', content: '', result: '', nextAction: '', assignee: '', expenseTransport: '', expenseAccomm: '', expenseMeal: '', expenseOther: '', expenseNote: '' })
   const [mtgFiles,    setMtgFiles]    = useState<MFile[]>([])
   const [uploading,   setUploading]   = useState(false)
@@ -245,7 +246,13 @@ export default function LeadDetailClient({ deal, customer = null, products = [] 
   }
 
   useEffect(() => {
-    fetch(`/api/deals/${deal.id}/meetings`).then(r => r.json()).then(setMeetings).catch(() => {})
+    fetch(`/api/deals/${deal.id}/meetings`)
+      .then(r => r.json())
+      .then((data: Meeting[]) => {
+        setMeetings(data)
+        if (data.length > 0) setExpandedMtgIds(new Set([data[0].id]))
+      })
+      .catch(() => {})
   }, [deal.id])
 
   /* ── 인라인 딜 문서 ── */
@@ -350,6 +357,7 @@ export default function LeadDetailClient({ deal, customer = null, products = [] 
       })
       const saved = await res.json()
       setMeetings(prev => [saved, ...prev])
+      setExpandedMtgIds(new Set([saved.id]))
       setMtg({ type: '통화', meetingAt: new Date().toISOString().slice(0, 16), duration: '', content: '', result: '', nextAction: '', assignee: '', expenseTransport: '', expenseAccomm: '', expenseMeal: '', expenseOther: '', expenseNote: '' })
       setMtgFiles([])
       setShowMtgForm(false)
@@ -1460,65 +1468,114 @@ export default function LeadDetailClient({ deal, customer = null, products = [] 
           </div>
         )}
 
-        {/* 미팅 타임라인 */}
+        {/* 미팅 타임라인 — 아코디언 */}
         {meetings.length === 0 ? (
           <div className="text-center py-10 text-slate-300 text-sm border border-dashed border-slate-200 rounded-xl">
             아직 미팅 기록이 없습니다
           </div>
         ) : (
-          <div className="space-y-3">
-            {meetings.map(m => {
+          <div className="border border-slate-200 rounded-xl overflow-hidden divide-y divide-slate-100">
+            {/* 요약 헤더 */}
+            <div className="px-4 py-2 bg-slate-50 flex items-center gap-3 text-[11px] text-slate-400">
+              <span className="font-semibold text-slate-600">{meetings.length}건</span>
+              {meetings[0] && (
+                <span>최근: {new Date(meetings[0].meetingAt).toLocaleDateString('ko-KR', { month: 'long', day: 'numeric' })} ({meetings[0].type})</span>
+              )}
+            </div>
+            {meetings.map((m, idx) => {
               const files: { name: string; path: string; size: number; mime: string }[] = (() => {
                 try { return m.filesJson ? JSON.parse(m.filesJson) : [] } catch { return [] }
               })()
               const dt = new Date(m.meetingAt)
+              const isOpen = expandedMtgIds.has(m.id)
               const TYPE_COLOR: Record<string, string> = {
                 '통화': 'bg-blue-100 text-blue-700',
                 '방문': 'bg-green-100 text-green-700',
                 '화상': 'bg-violet-100 text-violet-700',
                 '기타': 'bg-slate-100 text-slate-500',
               }
-              return (
-                <div key={m.id} className="p-4 bg-white rounded-xl border border-slate-200 hover:border-slate-300 transition">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${TYPE_COLOR[m.type] ?? 'bg-slate-100 text-slate-500'}`}>
-                        {m.type}
-                      </span>
-                      <span className="text-xs font-semibold text-slate-700">
-                        {dt.toLocaleDateString('ko-KR', { month: 'long', day: 'numeric' })} {dt.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })}
-                      </span>
-                      {m.duration && <span className="text-[10px] text-slate-400">{m.duration}분</span>}
-                      {m.assignee && <span className="text-[10px] text-slate-400">· {m.assignee}</span>}
-                    </div>
-                    <button onClick={() => handleDeleteMeeting(m.id)}
-                      className="text-slate-300 hover:text-red-400 transition text-xs shrink-0">삭제</button>
-                  </div>
+              const toggleMtg = () => setExpandedMtgIds(prev => {
+                const next = new Set(prev)
+                next.has(m.id) ? next.delete(m.id) : next.add(m.id)
+                return next
+              })
+              // 요약용 첫 줄
+              const summary = m.result || (m.content ? m.content.split('\n')[0].slice(0, 60) : '')
 
-                  {m.content && (
-                    <p className="mt-2 text-xs text-slate-700 whitespace-pre-wrap">{m.content}</p>
-                  )}
-                  <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1">
-                    {m.result && (
-                      <span className="text-[11px] text-slate-500">
-                        <span className="font-semibold text-slate-400">결과 </span>{m.result}
+              return (
+                <div key={m.id} className="bg-white">
+                  {/* 헤더 행 — 항상 표시 */}
+                  <button type="button" onClick={toggleMtg}
+                    className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-slate-50 transition-colors group">
+                    {/* 타임라인 도트 */}
+                    <div className="flex flex-col items-center shrink-0">
+                      <div className={`w-2 h-2 rounded-full mt-0.5 ${idx === 0 ? 'bg-slate-700' : 'bg-slate-300'}`} />
+                    </div>
+                    {/* 유형 배지 */}
+                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold shrink-0 ${TYPE_COLOR[m.type] ?? 'bg-slate-100 text-slate-500'}`}>
+                      {m.type}
+                    </span>
+                    {/* 날짜 */}
+                    <span className="text-xs font-semibold text-slate-600 shrink-0 tabular-nums">
+                      {dt.toLocaleDateString('ko-KR', { month: '2-digit', day: '2-digit' })}
+                      <span className="text-slate-400 font-normal ml-1">
+                        {dt.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })}
+                      </span>
+                    </span>
+                    {m.duration && <span className="text-[10px] text-slate-400 shrink-0">{m.duration}분</span>}
+                    {/* 요약 */}
+                    {!isOpen && summary && (
+                      <span className="text-xs text-slate-500 truncate flex-1">{summary}</span>
+                    )}
+                    {isOpen && <span className="flex-1" />}
+                    {/* 다음 액션 칩 */}
+                    {!isOpen && m.nextAction && (
+                      <span className="text-[10px] text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full shrink-0 truncate max-w-[160px]">
+                        → {m.nextAction}
                       </span>
                     )}
-                    {m.nextAction && (
-                      <span className="text-[11px] text-blue-600">
-                        <span className="font-semibold">→ </span>{m.nextAction}
-                      </span>
-                    )}
-                  </div>
-                  {files.length > 0 && (
-                    <div className="mt-2 flex flex-wrap gap-1.5">
-                      {files.map((f, i) => (
-                        <a key={i} href={f.path} target="_blank" rel="noopener noreferrer"
-                          className="flex items-center gap-1 px-2 py-0.5 bg-slate-50 border border-slate-200 rounded text-[10px] text-slate-600 hover:text-blue-600 hover:border-blue-200 transition">
-                          {f.mime?.startsWith('audio') ? '🎙' : '📎'} {f.name}
-                          <span className="text-slate-300">{(f.size / 1024).toFixed(0)}KB</span>
-                        </a>
-                      ))}
+                    {/* 첨부 표시 */}
+                    {files.length > 0 && <span className="text-[10px] text-slate-400 shrink-0">📎{files.length}</span>}
+                    {/* 펼침 화살표 */}
+                    <span className={`text-slate-300 text-xs shrink-0 transition-transform ${isOpen ? 'rotate-180' : ''}`}>▾</span>
+                  </button>
+
+                  {/* 펼쳐진 상세 */}
+                  {isOpen && (
+                    <div className="px-4 pb-4 pt-1 border-t border-slate-50">
+                      {m.content && (
+                        <p className="text-xs text-slate-700 whitespace-pre-wrap leading-relaxed mb-3 bg-slate-50 rounded-lg px-3 py-2.5">
+                          {m.content}
+                        </p>
+                      )}
+                      <div className="flex flex-wrap gap-x-6 gap-y-1 mb-2">
+                        {m.result && (
+                          <span className="text-[11px] text-slate-500">
+                            <span className="font-semibold text-slate-400">결과 </span>{m.result}
+                          </span>
+                        )}
+                        {m.nextAction && (
+                          <span className="text-[11px] text-blue-600 font-semibold">
+                            → {m.nextAction}
+                          </span>
+                        )}
+                        {m.assignee && (
+                          <span className="text-[11px] text-slate-400">담당: {m.assignee}</span>
+                        )}
+                      </div>
+                      {files.length > 0 && (
+                        <div className="flex flex-wrap gap-1.5 mb-2">
+                          {files.map((f, i) => (
+                            <a key={i} href={f.path} target="_blank" rel="noopener noreferrer"
+                              className="flex items-center gap-1 px-2 py-0.5 bg-slate-50 border border-slate-200 rounded text-[10px] text-slate-600 hover:text-blue-600 hover:border-blue-200 transition">
+                              {f.mime?.startsWith('audio') ? '🎙' : '📎'} {f.name}
+                              <span className="text-slate-300">{(f.size / 1024).toFixed(0)}KB</span>
+                            </a>
+                          ))}
+                        </div>
+                      )}
+                      <button onClick={() => handleDeleteMeeting(m.id)}
+                        className="text-[11px] text-slate-300 hover:text-red-400 transition">삭제</button>
                     </div>
                   )}
                 </div>
