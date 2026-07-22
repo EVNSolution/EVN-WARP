@@ -166,7 +166,7 @@ export default function CalendarView({ weeks, activities, reservations, todayStr
 
                 return (
                   <div key={dateStr}
-                    className={`group relative min-h-[88px] p-1.5 ${
+                    className={`group relative min-h-[140px] p-1.5 ${
                       !inMonth ? 'bg-slate-50/60'
                       : dow === 0 ? 'bg-red-50/10'
                       : dow === 6 ? 'bg-blue-50/10'
