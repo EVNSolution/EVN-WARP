@@ -9,7 +9,18 @@ export default async function FunnelPage() {
   const currentYear  = new Date().getFullYear()
 
   const [rows, products, allMeetings] = await Promise.all([
-    prisma.salesDeal.findMany({ orderBy: { createdAt: 'asc' } }),
+    prisma.salesDeal.findMany({
+      orderBy: { createdAt: 'asc' },
+      include: {
+        customer: {
+          select: {
+            customerSegment: true, cargoType: true, companyName: true,
+            industry: true, shipperName: true, deliveryCity: true,
+            email: true, gender: true, maritalStatus: true, childrenCount: true,
+          },
+        },
+      },
+    }),
     prisma.product.findMany({ select: { id: true, name: true, code: true } }),
     prisma.leadMeeting.findMany({
       select: { dealId: true, type: true, meetingAt: true },
@@ -29,6 +40,7 @@ export default async function FunnelPage() {
 
   const deals: PipelineDeal[] = rows.map(d => {
     const a = d as any
+    const cust = a.customer  // linked Customer record (may be null)
     // stageCode: 저장된 값 우선, 없으면 구 stage 매핑
     const stageCode   = a.stageCode ?? getStageCode(d.stage)
     const salesStatus = a.salesStatus ?? (d.stage === '이탈' ? '이탈' : d.stage === '출고 완료' ? '완료' : '진행중')
@@ -44,21 +56,21 @@ export default async function FunnelPage() {
       assignee:         d.assignee,
       memo:             d.memo,
       checklistJson:    a.checklistJson    ?? null,
-      customerSegment:  a.customerSegment  ?? null,
-      // CRM 필드
-      email:            a.email            ?? null,
-      gender:           a.gender           ?? null,
-      maritalStatus:    a.maritalStatus    ?? null,
-      childrenCount:    a.childrenCount    ?? null,
-      companyName:      a.companyName      ?? null,
-      cargoType:        a.cargoType        ?? null,
+      // Customer 테이블 우선, SalesDeal 필드 fallback
+      customerSegment:  cust?.customerSegment ?? a.customerSegment  ?? null,
+      email:            cust?.email           ?? a.email            ?? null,
+      gender:           cust?.gender          ?? a.gender           ?? null,
+      maritalStatus:    cust?.maritalStatus   ?? a.maritalStatus    ?? null,
+      childrenCount:    cust?.childrenCount   ?? a.childrenCount    ?? null,
+      companyName:      cust?.companyName     ?? a.companyName      ?? null,
+      cargoType:        cust?.cargoType       ?? a.cargoType        ?? null,
       deliveryRegion:   a.deliveryRegion   ?? null,
       purchaseTiming:   d.purchaseTiming   ?? null,
       productName:      a.productId ? (productMap.get(a.productId) ?? null) : null,
       lostReason:       a.lostReason ?? null,
-      industry:         a.industry     ?? null,
-      shipperName:      a.shipperName  ?? null,
-      deliveryCity:     a.deliveryCity ?? null,
+      industry:         cust?.industry     ?? a.industry     ?? null,
+      shipperName:      cust?.shipperName  ?? a.shipperName  ?? null,
+      deliveryCity:     cust?.deliveryCity ?? a.deliveryCity ?? null,
       recentMeetings:   meetingsByDeal.get(d.id) ?? [],
     }
   })
