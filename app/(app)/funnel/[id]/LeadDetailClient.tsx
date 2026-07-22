@@ -1445,18 +1445,12 @@ export default function LeadDetailClient({ deal, customer = null, products = [] 
                   ))}
                 </div>
               </div>
-              {/* 일시 + 소요시간 */}
+              {/* 일시 */}
               <div className="flex gap-2">
                 <div className="flex-1">
                   <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">일시</label>
                   <input type="datetime-local" value={mtg.meetingAt}
                     onChange={e => setMtg(m => ({ ...m, meetingAt: e.target.value }))}
-                    className="w-full text-xs border border-slate-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-1 focus:ring-slate-300" />
-                </div>
-                <div className="w-20">
-                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">소요(분)</label>
-                  <input type="number" value={mtg.duration} placeholder="30"
-                    onChange={e => setMtg(m => ({ ...m, duration: e.target.value }))}
                     className="w-full text-xs border border-slate-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-1 focus:ring-slate-300" />
                 </div>
               </div>
