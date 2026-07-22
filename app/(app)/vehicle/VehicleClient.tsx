@@ -1,8 +1,9 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { Plus, ChevronLeft, ChevronRight, Car, X, Save, FileDown, Printer } from 'lucide-react'
+import { Plus, ChevronLeft, ChevronRight, Car, X, Save, FileDown, Printer, CalendarClock } from 'lucide-react'
 import * as XLSX from 'xlsx'
+import VehicleReservationModal from '@/components/VehicleReservationModal'
 
 export type VehicleRow = {
   id: string; name: string; plateNo: string
@@ -102,6 +103,7 @@ export default function VehicleClient({ vehicles, myName }: Props) {
   const [error,     setError]     = useState('')
 
   // 차량 등록 모달
+  const [showResv, setShowResv] = useState(false)
   const [addVehicle, setAddVehicle] = useState(false)
   const [vName, setVName]           = useState('')
   const [vPlate, setVPlate]         = useState('')
@@ -267,6 +269,11 @@ export default function VehicleClient({ vehicles, myName }: Props) {
           <p className="text-xs mt-0.5" style={{ color: '#C5D42A' }}>법인차량 운행일지</p>
         </div>
         <div className="flex items-center gap-3">
+          <button onClick={() => setShowResv(true)}
+            className="flex items-center gap-1.5 border border-white/20 px-3.5 py-2 rounded-lg text-sm font-medium transition-colors"
+            style={{ backgroundColor: '#C5D42A', color: '#111' }}>
+            <CalendarClock size={13} /> 차량 신청
+          </button>
           <button onClick={() => setAddVehicle(true)}
             className="flex items-center gap-1.5 text-white border border-white/20 px-3 py-1.5 rounded-lg text-sm hover:bg-white/10 transition-colors">
             <Car size={13} /> 차량 등록
@@ -586,6 +593,15 @@ export default function VehicleClient({ vehicles, myName }: Props) {
             </div>
           </div>
         </div>
+      )}
+
+      {/* ── 차량 신청 모달 ── */}
+      {showResv && (
+        <VehicleReservationModal
+          initialDate={today}
+          onClose={() => setShowResv(false)}
+          onSaved={() => setShowResv(false)}
+        />
       )}
 
       {/* ── 차량 등록 모달 ── */}

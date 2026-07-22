@@ -10,7 +10,7 @@ import {
   PieChart, Landmark, Award,
   Building, Receipt, RefreshCw, Scale, Car,
 } from 'lucide-react'
-import CalendarView, { type CalActivity } from '@/components/CalendarView'
+import CalendarView, { type CalActivity, type CalVehicleReservation } from '@/components/CalendarView'
 import { auth } from '@/auth'
 
 /* ── 상수 ── */
@@ -161,7 +161,7 @@ export default async function NotesPage({ searchParams }: { searchParams: Promis
   const nextMonth = `${nextM.getUTCFullYear()}-${String(nextM.getUTCMonth() + 1).padStart(2, '0')}`
 
   /* ── DB 조회 ── */
-  const [activities, userRows, tripReports, recentVehicleLogs] = await Promise.all([
+  const [activities, userRows, tripReports, recentVehicleLogs, rawReservations] = await Promise.all([
     prisma.workActivity.findMany({
       where: {
         date: { gte: calFromDate, lte: calToDate },
@@ -192,6 +192,16 @@ export default async function NotesPage({ searchParams }: { searchParams: Promis
       include: { vehicle: { select: { name: true, plateNo: true } } },
       orderBy: [{ date: 'desc' }, { createdAt: 'desc' }],
       take: 5,
+    }),
+    prisma.vehicleReservation.findMany({
+      where: {
+        AND: [
+          { startAt: { lte: new Date(calToDate + 'T23:59:59Z') } },
+          { endAt:   { gte: new Date(calFromDate + 'T00:00:00Z') } },
+        ],
+      },
+      include: { vehicle: { select: { name: true, plateNo: true } } },
+      orderBy: { startAt: 'asc' },
     }),
   ])
   const userNames = userRows.map(r => r.userName!).filter(Boolean)
@@ -260,6 +270,23 @@ export default async function NotesPage({ searchParams }: { searchParams: Promis
       cur.setDate(cur.getDate() + 1)
     }
   }
+
+  // CalVehicleReservation 직렬화
+  const calReservations: CalVehicleReservation[] = rawReservations.map((r: any) => ({
+    id:             r.id,
+    vehicleId:      r.vehicleId,
+    vehicleName:    r.vehicle?.name ?? '차량',
+    plateNo:        r.vehicle?.plateNo ?? null,
+    userName:       r.userName,
+    teamName:       r.teamName ?? null,
+    purpose:        r.purpose,
+    startAt:        r.startAt instanceof Date ? r.startAt.toISOString() : String(r.startAt),
+    endAt:          r.endAt   instanceof Date ? r.endAt.toISOString()   : String(r.endAt),
+    pickupLocation: r.pickupLocation ?? null,
+    returnLocation: r.returnLocation ?? null,
+    notes:          r.notes   ?? null,
+    status:         r.status,
+  }))
 
   // 업무노트 탭 섹션 데이터
   const meetings = activities.filter(a => a.type === '내부회의' || a.type === '외부미팅' || a.type === '외부회의')
@@ -399,7 +426,7 @@ export default async function NotesPage({ searchParams }: { searchParams: Promis
           캘린더 탭 — CalendarView 클라이언트 컴포넌트
       ══════════════════════════════════════ */}
       {activeTab === 'calendar' && (
-        <CalendarView weeks={weeks} activities={calActivities} todayStr={todayStr} />
+        <CalendarView weeks={weeks} activities={calActivities} reservations={calReservations} todayStr={todayStr} />
       )}
 
 

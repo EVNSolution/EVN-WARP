@@ -678,9 +678,30 @@ model Vehicle {
   cardNo      String?      // 법인카드번호
   hasCharge   Boolean      @default(false)  // 충전카드
   hasHipass   Boolean      @default(false)  // 하이패스
-  active      Boolean      @default(true)
-  createdAt   DateTime     @default(now())
-  logs        VehicleLog[]
+  active        Boolean               @default(true)
+  createdAt     DateTime              @default(now())
+  logs          VehicleLog[]
+  reservations  VehicleReservation[]
+}
+
+model VehicleReservation {
+  id             String   @id @default(cuid())
+  vehicleId      String
+  vehicle        Vehicle  @relation(fields: [vehicleId], references: [id])
+  userId         String?
+  userName       String
+  teamName       String?
+  purpose        String
+  startAt        DateTime // 사용 시작 일시
+  endAt          DateTime // 반납 예정 일시
+  pickupLocation String?  // 출발지
+  returnLocation String?  // 반납 장소
+  notes          String?
+  status         String   @default("신청") // 신청|승인|완료|취소
+  activityId     String?
+  vehicleLogId   String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 }
 
 model VehicleLog {
