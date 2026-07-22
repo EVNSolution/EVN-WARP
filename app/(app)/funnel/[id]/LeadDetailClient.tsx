@@ -248,6 +248,7 @@ export default function LeadDetailClient({ deal, customer = null, products = [] 
   const [savingMtg,   setSavingMtg]   = useState(false)
   const [showAnalysis, setShowAnalysis] = useState(false)
   const fileRef      = useRef<HTMLInputElement>(null)
+  const imgRef       = useRef<HTMLInputElement>(null)
   const mtgSectionRef = useRef<HTMLDivElement>(null)
 
   const scrollToMeetings = () => {
@@ -346,6 +347,23 @@ export default function LeadDetailClient({ deal, customer = null, products = [] 
     } finally {
       setUploading(false)
       if (fileRef.current) fileRef.current.value = ''
+    }
+  }
+
+  const handleImageUpload = async (e: ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files ?? [])
+    if (!files.length) return
+    setUploading(true)
+    try {
+      const fd = new FormData()
+      fd.append('dealId', deal.id)
+      files.forEach(f => fd.append('files', f))
+      const res = await fetch('/api/upload', { method: 'POST', body: fd })
+      const j = await res.json()
+      setMtgFiles(prev => [...prev, ...j.files])
+    } finally {
+      setUploading(false)
+      if (imgRef.current) imgRef.current.value = ''
     }
   }
 
@@ -1481,12 +1499,16 @@ export default function LeadDetailClient({ deal, customer = null, products = [] 
                   className="w-full text-xs border border-slate-200 rounded-lg px-3 py-1.5 bg-slate-50 focus:outline-none focus:ring-1 focus:ring-slate-300" />
               </div>
 
-              {/* AI 음성파일 입력 + 회의록 등록 */}
+              {/* AI 음성파일 입력 + 회의록 등록 + 이미지 등록 */}
               <div className="col-span-2">
                 <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">파일 첨부</label>
                 <input ref={fileRef} type="file" multiple
-                  accept=".mp3,.m4a,.wav,.pdf,.docx,.xlsx,.txt,.png,.jpg"
+                  accept=".mp3,.m4a,.wav,.pdf,.docx,.xlsx,.txt"
                   onChange={handleFileUpload}
+                  className="hidden" />
+                <input ref={imgRef} type="file" multiple
+                  accept=".jpg,.jpeg,.png,.gif,.webp,.heic"
+                  onChange={handleImageUpload}
                   className="hidden" />
                 <div className="flex gap-2">
                   <button type="button" onClick={() => setShowAnalysis(true)}
@@ -1497,14 +1519,19 @@ export default function LeadDetailClient({ deal, customer = null, products = [] 
                     className="flex items-center justify-center gap-1.5 flex-1 px-3 py-2 text-xs font-semibold rounded-lg border border-slate-300 text-slate-600 hover:bg-slate-100 transition disabled:opacity-40">
                     📎 {uploading ? '업로드 중...' : '회의록 등록'}
                   </button>
+                  <button type="button" onClick={() => imgRef.current?.click()} disabled={uploading}
+                    className="flex items-center justify-center gap-1.5 flex-1 px-3 py-2 text-xs font-semibold rounded-lg border border-emerald-200 text-emerald-600 hover:bg-emerald-50 transition disabled:opacity-40">
+                    📷 {uploading ? '업로드 중...' : '이미지 등록'}
+                  </button>
                 </div>
                 {mtgFiles.length > 0 && (
                   <div className="flex flex-wrap gap-1.5 mt-2">
                     {mtgFiles.map((f, i) => (
-                      <span key={i} className="flex items-center gap-1 px-2 py-0.5 bg-blue-50 text-blue-700 rounded text-[10px]">
-                        📎 {f.name}
+                      <span key={i} className={`flex items-center gap-1 px-2 py-0.5 rounded text-[10px]
+                        ${f.mime?.startsWith('image') ? 'bg-emerald-50 text-emerald-700' : 'bg-blue-50 text-blue-700'}`}>
+                        {f.mime?.startsWith('image') ? '📷' : '📎'} {f.name}
                         <button onClick={() => setMtgFiles(prev => prev.filter((_, j) => j !== i))}
-                          className="text-blue-400 hover:text-red-500 ml-1">×</button>
+                          className="text-slate-400 hover:text-red-500 ml-1">×</button>
                       </span>
                     ))}
                   </div>
@@ -1626,7 +1653,7 @@ export default function LeadDetailClient({ deal, customer = null, products = [] 
                           {files.map((f, i) => (
                             <a key={i} href={f.path} target="_blank" rel="noopener noreferrer"
                               className="flex items-center gap-1 px-2 py-0.5 bg-slate-50 border border-slate-200 rounded text-[10px] text-slate-600 hover:text-blue-600 hover:border-blue-200 transition">
-                              {f.mime?.startsWith('audio') ? '🎙' : '📎'} {f.name}
+                              {f.mime?.startsWith('audio') ? '🎙' : f.mime?.startsWith('image') ? '📷' : '📎'} {f.name}
                               <span className="text-slate-300">{(f.size / 1024).toFixed(0)}KB</span>
                             </a>
                           ))}
