@@ -1242,6 +1242,8 @@ export default function LeadDetailClient({ deal, customer = null, products = [] 
               <>
                 <span className="text-slate-300 text-sm">|</span>
                 <Link href="/customers" className="text-slate-400 hover:text-slate-600 text-sm transition">← 고객 목록</Link>
+                <span className="text-slate-300 text-sm">|</span>
+                <Link href={`/customers/${customer.id}`} className="text-slate-400 hover:text-slate-600 text-sm transition">고객 정보 →</Link>
               </>
             )}
           </div>
