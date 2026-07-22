@@ -300,18 +300,11 @@ function QuickMeetingModal({
             </div>
           </div>
 
-          {/* 일시 + 소요 */}
-          <div className="flex gap-3">
-            <div className="flex-1">
-              <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">일시</label>
-              <input type="datetime-local" value={meetingAt} onChange={e => setMeetingAt(e.target.value)}
-                className="w-full text-xs border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-slate-300" />
-            </div>
-            <div className="w-20">
-              <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">소요(분)</label>
-              <input type="number" value={duration} onChange={e => setDuration(e.target.value)} placeholder="30"
-                className="w-full text-xs border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-slate-300" />
-            </div>
+          {/* 일시 */}
+          <div>
+            <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">일시</label>
+            <input type="datetime-local" value={meetingAt} onChange={e => setMeetingAt(e.target.value)}
+              className="w-full text-xs border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-slate-300" />
           </div>
 
           {/* 내용 */}
@@ -320,38 +313,6 @@ function QuickMeetingModal({
             <textarea value={content} onChange={e => setContent(e.target.value)} rows={3}
               placeholder="상담 내용, 고객 요청사항 등..."
               className="w-full text-xs border border-slate-200 rounded-lg px-3 py-2 resize-none focus:outline-none focus:ring-1 focus:ring-slate-300" />
-          </div>
-
-          {/* 결과 + 다음 액션 */}
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">결과</label>
-              <input value={result} onChange={e => setResult(e.target.value)}
-                placeholder="예: 구매의향 확인"
-                className="w-full text-xs border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-slate-300" />
-            </div>
-            <div>
-              <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">다음 액션</label>
-              <input value={nextAction} onChange={e => setNextAction(e.target.value)}
-                placeholder="예: 견적서 발송"
-                className="w-full text-xs border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-slate-300" />
-            </div>
-          </div>
-
-          {/* 비용정산 */}
-          <div className="border border-slate-100 rounded-xl p-4 bg-slate-50 space-y-3">
-            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">비용정산 (선택)</p>
-            <div className="grid grid-cols-2 gap-2">
-              {([['교통비', expTransport, setExpTransport], ['숙박비', expAccomm, setExpAccomm], ['식비', expMeal, setExpMeal], ['기타', expOther, setExpOther]] as const).map(([label, val, setter]) => (
-                <div key={label} className="flex items-center gap-2">
-                  <span className="text-xs text-slate-500 w-12 shrink-0">{label}</span>
-                  <input type="number" value={val} onChange={e => setter(e.target.value)} placeholder="0"
-                    className="flex-1 min-w-0 text-xs border border-slate-200 rounded-lg px-2 py-1.5 bg-white focus:outline-none focus:ring-1 focus:ring-slate-300 text-right" />
-                </div>
-              ))}
-            </div>
-            <input value={expNote} onChange={e => setExpNote(e.target.value)} placeholder="비용 메모"
-              className="w-full text-xs border border-slate-200 rounded-lg px-3 py-1.5 bg-white focus:outline-none focus:ring-1 focus:ring-slate-300" />
           </div>
 
           {error && <p className="text-xs text-red-500">{error}</p>}
