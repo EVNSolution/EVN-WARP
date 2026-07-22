@@ -1,7 +1,8 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { Plus, ChevronLeft, ChevronRight, Car, X, Save } from 'lucide-react'
+import { Plus, ChevronLeft, ChevronRight, Car, X, Save, FileDown, Printer } from 'lucide-react'
+import * as XLSX from 'xlsx'
 
 export type VehicleRow = {
   id: string; name: string; plateNo: string
@@ -132,6 +133,69 @@ export default function VehicleClient({ vehicles, myName }: Props) {
   const firstOdom    = logs.length > 0 ? logs[0].odometerBefore : null
   const lastOdom     = logs.length > 0 ? logs[logs.length - 1].odometerAfter : null
 
+  function exportExcel() {
+    const headers = ['운행일자','운전자','소속','출발지','도착지','운행목적','운행 전(km)','운행 후(km)','운행거리(km)','업무용','비고']
+    const rows = logs.map(l => [
+      l.date, l.driverName, l.department ?? '', l.departure, l.destination, l.purpose,
+      l.odometerBefore, l.odometerAfter, l.distance,
+      l.isBusinessUse ? '업무용' : '개인', l.notes ?? '',
+    ])
+    const footer = ['합계', '', '', '', '', `${logs.length}건`,
+      firstOdom ?? '', lastOdom ?? '', totalDist, `업무용 ${bizDist}km`, '']
+    const ws = XLSX.utils.aoa_to_sheet([headers, ...rows, footer])
+    // 컬럼 너비 자동 조정
+    ws['!cols'] = [10,10,10,14,14,24,14,14,14,8,16].map(w => ({ wch: w }))
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, ws, '운행기록')
+    XLSX.writeFile(wb, `운행기록_${vehicle?.name ?? '차량'}_${label}.xlsx`)
+  }
+
+  function handlePrint() {
+    const vInfo = vehicle ? `${vehicle.name} (${vehicle.plateNo})` : ''
+    const rowsHtml = logs.map(l => `
+      <tr>
+        <td>${l.date}</td><td>${l.driverName}</td><td>${l.department ?? ''}</td>
+        <td>${l.departure}</td><td>${l.destination}</td><td>${l.purpose}</td>
+        <td style="text-align:right">${l.odometerBefore.toLocaleString()}</td>
+        <td style="text-align:right">${l.odometerAfter.toLocaleString()}</td>
+        <td style="text-align:right;font-weight:bold">${l.distance.toLocaleString()}</td>
+        <td style="text-align:center">${l.isBusinessUse ? '업무용' : '개인'}</td>
+        <td>${l.notes ?? ''}</td>
+      </tr>`).join('')
+    const html = `<!DOCTYPE html><html><head><meta charset="utf-8">
+      <title>운행기록 — ${vInfo} ${label}</title>
+      <style>
+        body { font-family: 'Malgun Gothic', sans-serif; font-size: 11px; margin: 20px; }
+        h2 { font-size: 14px; margin-bottom: 4px; }
+        p  { font-size: 11px; color: #555; margin: 0 0 10px; }
+        table { width: 100%; border-collapse: collapse; }
+        th, td { border: 1px solid #ccc; padding: 4px 6px; white-space: nowrap; }
+        th { background: #f5f5f5; font-weight: bold; }
+        tfoot td { background: #f9f9f9; font-weight: bold; }
+        @media print { @page { size: A4 landscape; margin: 12mm; } }
+      </style></head><body>
+      <h2>법인차량 운행일지</h2>
+      <p>${vInfo} &nbsp;|&nbsp; ${label}</p>
+      <table>
+        <thead><tr>
+          <th>운행일자</th><th>운전자</th><th>소속</th><th>출발지</th><th>도착지</th>
+          <th>운행목적</th><th>운행 전(km)</th><th>운행 후(km)</th><th>운행거리(km)</th><th>업무용</th><th>비고</th>
+        </tr></thead>
+        <tbody>${rowsHtml}</tbody>
+        <tfoot><tr>
+          <td colspan="6">합계 (${logs.length}건)</td>
+          <td style="text-align:right">${firstOdom?.toLocaleString() ?? '—'}</td>
+          <td style="text-align:right">${lastOdom?.toLocaleString() ?? '—'}</td>
+          <td style="text-align:right">${totalDist.toLocaleString()}</td>
+          <td colspan="2">업무용 ${bizDist.toLocaleString()}km</td>
+        </tr></tfoot>
+      </table>
+      <script>window.onload=()=>{window.print();window.close()}<\/script>
+      </body></html>`
+    const win = window.open('', '_blank')
+    if (win) { win.document.write(html); win.document.close() }
+  }
+
   async function handleSave() {
     if (!modal) return
     setError('')
@@ -261,16 +325,30 @@ export default function VehicleClient({ vehicles, myName }: Props) {
                 </button>
               ))}
             </div>
-            <div className="flex items-center gap-2">
-              <button onClick={() => setAnchor(a => shiftAnchor(period, a, -1))}
-                className="w-7 h-7 flex items-center justify-center rounded-lg border border-slate-200 text-slate-400 hover:bg-slate-50">
-                <ChevronLeft size={14} />
-              </button>
-              <span className="text-sm font-semibold text-slate-700 min-w-[120px] text-center">{label}</span>
-              <button onClick={() => setAnchor(a => shiftAnchor(period, a, 1))}
-                className="w-7 h-7 flex items-center justify-center rounded-lg border border-slate-200 text-slate-400 hover:bg-slate-50">
-                <ChevronRight size={14} />
-              </button>
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2">
+                <button onClick={() => setAnchor(a => shiftAnchor(period, a, -1))}
+                  className="w-7 h-7 flex items-center justify-center rounded-lg border border-slate-200 text-slate-400 hover:bg-slate-50">
+                  <ChevronLeft size={14} />
+                </button>
+                <span className="text-sm font-semibold text-slate-700 min-w-[120px] text-center">{label}</span>
+                <button onClick={() => setAnchor(a => shiftAnchor(period, a, 1))}
+                  className="w-7 h-7 flex items-center justify-center rounded-lg border border-slate-200 text-slate-400 hover:bg-slate-50">
+                  <ChevronRight size={14} />
+                </button>
+              </div>
+              {logs.length > 0 && (
+                <div className="flex items-center gap-2">
+                  <button onClick={exportExcel}
+                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold border border-slate-200 rounded-lg text-slate-600 hover:bg-slate-50 transition-colors">
+                    <FileDown size={13} /> 엑셀
+                  </button>
+                  <button onClick={handlePrint}
+                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold border border-slate-200 rounded-lg text-slate-600 hover:bg-slate-50 transition-colors">
+                    <Printer size={13} /> 인쇄
+                  </button>
+                </div>
+              )}
             </div>
           </div>
 
