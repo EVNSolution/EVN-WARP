@@ -9,6 +9,7 @@ import { formatPhone } from '@/lib/format'
 const SOURCES  = ['소개', '온라인', '전시장/이벤트', '직접방문', '기타']
 const CONTACT_TITLES = ['대표이사', '사장', '부사장', '전무이사', '상무이사', '이사', '본부장', '실장', '부장', '차장', '과장', '팀장', '파트장', '대리', '책임', '주임', '사원']
 const SHIPPER_PRESETS = ['컬리', '쿠팡', 'CJ대한통운']
+const INDUSTRY_CHIPS = ['화주', '운송사', '기타']
 const REGIONS: Record<string, string[]> = {
   '서울특별시':    ['강남구','강동구','강북구','강서구','관악구','광진구','구로구','금천구','노원구','도봉구','동대문구','동작구','마포구','서대문구','서초구','성동구','성북구','송파구','양천구','영등포구','용산구','은평구','종로구','중구','중랑구'],
   '부산광역시':    ['강서구','금정구','기장군','남구','동구','동래구','부산진구','북구','사상구','사하구','서구','수영구','연제구','영도구','중구','해운대구'],
@@ -195,6 +196,14 @@ export default function CustomerDetailClient({ customer, returnTo }: { customer:
   /* 리드 전환 */
   const [converting, setConverting] = useState(false)
 
+  /* 고객분류 칩 선택 */
+  const initIndustry = customer.industry ?? ''
+  const initIndustryChip = INDUSTRY_CHIPS.slice(0, 2).includes(initIndustry) ? initIndustry : initIndustry ? '기타' : ''
+  const [industryChip,   setIndustryChip]   = useState(initIndustryChip)
+  const [industryCustom, setIndustryCustom] = useState(
+    INDUSTRY_CHIPS.slice(0, 2).includes(initIndustry) ? '' : initIndustry
+  )
+
   /* 화주명 칩 선택 */
   const initShipperChip = customer.shipperName
     ? SHIPPER_PRESETS.includes(customer.shipperName) ? customer.shipperName : '직접입력'
@@ -259,7 +268,7 @@ export default function CustomerDetailClient({ customer, returnTo }: { customer:
           companyName:      f.companyName      || null,
           businessRegNo:    f.businessRegNo    || null,
           contactTitle:     f.contactTitle     || null,
-          industry:         f.industry         || null,
+          industry:         (industryChip === '기타' ? industryCustom : industryChip) || null,
           companyAddress:   f.companyAddress   || null,
           companyPhone:     f.companyPhone     || null,
           employeeCount:    f.employeeCount ? parseInt(f.employeeCount.replace(/,/g, ''), 10) : null,
@@ -686,7 +695,21 @@ export default function CustomerDetailClient({ customer, returnTo }: { customer:
                   </div>
                   <div>{label('회사 / 법인명')}{input('companyName', '회사명')}</div>
                   <div>{label('사업자등록번호')}{input('businessRegNo', '000-00-00000')}</div>
-                  <div>{label('업종')}{input('industry', '예: 식품제조, 물류')}</div>
+                  <div>
+                    {label('고객분류')}
+                    <div className="flex flex-wrap gap-1.5 mb-1.5">
+                      {INDUSTRY_CHIPS.map(opt => (
+                        <button key={opt} type="button" onClick={() => { setIndustryChip(opt); setSaved(false) }}
+                          className={`px-3 py-1 rounded-lg text-xs font-semibold border transition ${industryChip === opt ? 'bg-slate-800 text-white border-slate-800' : 'bg-white border-slate-200 text-slate-500 hover:border-slate-400'}`}>
+                          {opt}
+                        </button>
+                      ))}
+                    </div>
+                    {industryChip === '기타' && (
+                      <input value={industryCustom} onChange={e => { setIndustryCustom(e.target.value); setSaved(false) }}
+                        placeholder="직접 입력" className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-slate-300" />
+                    )}
+                  </div>
                   <div>{label('회사 전화')}{input('companyPhone', '02-0000-0000')}</div>
                   <div className="col-span-2">{label('회사 주소')}{input('companyAddress', '본사 주소')}</div>
                   <div>
