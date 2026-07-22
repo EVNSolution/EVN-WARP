@@ -52,7 +52,7 @@ export default async function FunnelPage() {
       name:             d.name,
       phone:            d.phone,
       source:           d.source,
-      collectedAt:      d.collectedAt?.toISOString() ?? null,
+      collectedAt:      d.collectedAt?.toISOString() ?? d.createdAt?.toISOString() ?? null,
       assignee:         d.assignee,
       memo:             d.memo,
       checklistJson:    a.checklistJson    ?? null,
