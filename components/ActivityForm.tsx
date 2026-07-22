@@ -13,6 +13,7 @@ import {
 } from 'lucide-react'
 import Link from 'next/link'
 import CallAnalysisModal from '@/components/CallAnalysisModal'
+import VehicleReservationModal from '@/components/VehicleReservationModal'
 
 /* ── 활동 유형 분류 가이드 (매뉴얼 기준) ── */
 const TYPE_GUIDE = [
@@ -346,16 +347,8 @@ export default function ActivityForm({ teams, tasks, users = [], vehicles = [], 
   const [showMeetingAnalysis, setShowMeetingAnalysis] = useState(false)
 
   // 차량사용
-  const [useVehicle,    setUseVehicle]    = useState(false)
-  const [vehId,         setVehId]         = useState(vehicles[0]?.id ?? '')
-  const [vehDeparture,  setVehDeparture]  = useState('')
-  const [vehDest,       setVehDest]       = useState('')
-  const [vehStartTime,  setVehStartTime]  = useState('09:00')
-  const [vehEndTime,    setVehEndTime]    = useState('18:00')
-  const [vehOdomBefore, setVehOdomBefore] = useState('')
-  const [vehOdomAfter,  setVehOdomAfter]  = useState('')
-  const [vehBizUse,     setVehBizUse]     = useState(true)
-  const [vehNotes,      setVehNotes]      = useState('')
+  const [showVehicleModal, setShowVehicleModal] = useState(false)
+  const [resvDone,         setResvDone]         = useState(false)
 
   // 비용정산 토글 (기존 비용 데이터가 있으면 열림)
   const [useExpense, setUseExpense] = useState(() =>
@@ -524,51 +517,7 @@ export default function ActivityForm({ teams, tasks, users = [], vehicles = [], 
         await fetch(`/api/activities/${data.id}/documents`, { method: 'POST', body: fd })
       }
 
-      // 차량사용 체크된 경우 — 계획: 예약 생성(캘린더 표시) / 완료: 운행일지 생성
-      if (useVehicle && vehId && vehDeparture && vehDest && mode === 'new') {
-        if (planStatus === '계획') {
-          // VehicleReservation 생성 → 캘린더에 표시됨
-          await fetch('/api/vehicle-reservations', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              vehicleId:      vehId,
-              purpose:        finalTitle,
-              startAt:        `${date}T${vehStartTime}:00`,
-              endAt:          `${date}T${vehEndTime}:00`,
-              pickupLocation: vehDeparture || null,
-              returnLocation: vehDest      || null,
-              notes:          vehNotes     || null,
-              userName,
-              activityId:     data.id ?? null,
-            }),
-          })
-        } else {
-          // VehicleLog 생성 (완료 운행기록)
-          const odomBefore = Number(vehOdomBefore) || 0
-          const odomAfter  = Number(vehOdomAfter)  || 0
-          if (odomBefore > 0 && odomAfter >= odomBefore) {
-            await fetch('/api/vehicle-logs', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                vehicleId:      vehId,
-                date,
-                driverName:     userName,
-                departure:      vehDeparture,
-                destination:    vehDest,
-                purpose:        finalTitle,
-                odometerBefore: odomBefore,
-                odometerAfter:  odomAfter,
-                isBusinessUse:  vehBizUse,
-                isPlan:         false,
-                notes:          vehNotes || null,
-                activityId:     data.id ?? null,
-              }),
-            })
-          }
-        }
-      }
+      // 차량사용 예약은 모달에서 이미 독립적으로 처리됨
 
       router.push(returnUrl)
       router.refresh()
@@ -586,7 +535,7 @@ export default function ActivityForm({ teams, tasks, users = [], vehicles = [], 
   }
 
   return (
-    <div className="p-8 max-w-2xl">
+    <div className="p-8 max-w-4xl">
       <div className="mb-6">
         <Link href={returnUrl} className="text-sm text-slate-400 hover:text-indigo-600 transition-colors mb-2 inline-block">
           ← 업무공간
@@ -1084,113 +1033,20 @@ export default function ActivityForm({ teams, tasks, users = [], vehicles = [], 
 
         {/* ── 차량사용 ── */}
         {vehicles.length > 0 && !LEAVE_TYPES.has(type) && (
-          <div className={`border rounded-xl p-5 ${planStatus === '계획' ? 'bg-lime-50/40 border-lime-200' : 'bg-white border-slate-200'}`}>
-            <div className="flex items-center justify-between mb-3">
-              <label className="flex items-center gap-2 cursor-pointer select-none">
-                <input type="checkbox" checked={useVehicle} onChange={e => setUseVehicle(e.target.checked)}
-                  className="w-4 h-4 rounded accent-indigo-600" />
-                <span className="text-sm font-semibold text-slate-700">차량사용</span>
-                <span className="text-xs font-normal text-slate-400">
-                  {planStatus === '계획' ? '(캘린더 예약 신청)' : '(운행일지 자동 기록)'}
-                </span>
-              </label>
-            </div>
-            {useVehicle && (
-              <div className="space-y-3 mt-3 pt-3 border-t border-slate-100">
-                {/* 차량 선택 */}
-                <div>
-                  <label className="block text-xs font-medium text-slate-500 mb-1">차량</label>
-                  <select value={vehId} onChange={e => setVehId(e.target.value)}
-                    className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300">
-                    {vehicles.map(v => <option key={v.id} value={v.id}>{v.name} ({v.plateNo})</option>)}
-                  </select>
-                </div>
-                {/* 출발지 / 도착지 */}
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs font-medium text-slate-500 mb-1">
-                      {planStatus === '계획' ? '픽업 장소' : '출발지'}
-                    </label>
-                    <input type="text" value={vehDeparture} onChange={e => setVehDeparture(e.target.value)}
-                      placeholder="예: 본사 주차장"
-                      className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300" />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-slate-500 mb-1">
-                      {planStatus === '계획' ? '반납 장소' : '도착지'}
-                    </label>
-                    <input type="text" value={vehDest} onChange={e => setVehDest(e.target.value)}
-                      placeholder="예: 본사 주차장"
-                      className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300" />
-                  </div>
-                </div>
-
-                {/* 계획: 사용 시작/반납 시간 */}
-                {planStatus === '계획' && (
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-xs font-medium text-slate-500 mb-1">사용 시작 시간</label>
-                      <input type="time" value={vehStartTime} onChange={e => setVehStartTime(e.target.value)}
-                        className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-lime-300" />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-medium text-slate-500 mb-1">반납 시간</label>
-                      <input type="time" value={vehEndTime} onChange={e => setVehEndTime(e.target.value)}
-                        className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-lime-300" />
-                    </div>
-                  </div>
-                )}
-
-                {/* 완료: 주행거리 입력 */}
-                {planStatus !== '계획' && (
-                  <>
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <label className="block text-xs font-medium text-slate-500 mb-1">운행 전 주행거리 (km)</label>
-                        <input type="number" value={vehOdomBefore} onChange={e => setVehOdomBefore(e.target.value)}
-                          placeholder="0"
-                          className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300" />
-                      </div>
-                      <div>
-                        <label className="block text-xs font-medium text-slate-500 mb-1">운행 후 주행거리 (km)</label>
-                        <input type="number" value={vehOdomAfter} onChange={e => setVehOdomAfter(e.target.value)}
-                          placeholder="0"
-                          className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300" />
-                      </div>
-                    </div>
-                    {vehOdomBefore && vehOdomAfter && Number(vehOdomAfter) >= Number(vehOdomBefore) && (
-                      <div className="bg-indigo-50 rounded-lg px-4 py-2 text-center">
-                        <span className="text-xs text-slate-500">운행거리: </span>
-                        <span className="text-sm font-bold text-indigo-600">
-                          {(Number(vehOdomAfter) - Number(vehOdomBefore)).toLocaleString()} km
-                        </span>
-                      </div>
-                    )}
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs font-medium text-slate-500">업무용 여부</span>
-                      {[true, false].map(v => (
-                        <button key={String(v)} type="button"
-                          onClick={() => setVehBizUse(v)}
-                          className={`px-3 py-1 rounded-full text-xs font-semibold border transition-colors ${
-                            vehBizUse === v
-                              ? v ? 'bg-emerald-500 text-white border-emerald-500' : 'bg-slate-500 text-white border-slate-500'
-                              : 'border-slate-200 text-slate-500 hover:bg-slate-50'
-                          }`}>
-                          {v ? '업무용' : '개인용'}
-                        </button>
-                      ))}
-                    </div>
-                  </>
-                )}
-
-                <div>
-                  <label className="block text-xs font-medium text-slate-500 mb-1">비고</label>
-                  <input type="text" value={vehNotes} onChange={e => setVehNotes(e.target.value)}
-                    placeholder="특이사항"
-                    className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300" />
-                </div>
-              </div>
-            )}
+          <div className={`border rounded-xl p-5 ${resvDone ? 'bg-lime-50 border-lime-200' : 'bg-white border-slate-200'}`}>
+            <label className="flex items-center gap-2 cursor-pointer select-none">
+              <input type="checkbox" checked={resvDone}
+                onChange={e => {
+                  if (e.target.checked) setShowVehicleModal(true)
+                  else setResvDone(false)
+                }}
+                className="w-4 h-4 rounded accent-lime-600" />
+              <span className="text-sm font-semibold text-slate-700">차량사용</span>
+              {resvDone
+                ? <span className="text-xs font-semibold text-lime-700 bg-lime-100 px-2 py-0.5 rounded-full">✓ 차량 예약 완료</span>
+                : <span className="text-xs font-normal text-slate-400">(체크 시 차량 신청 화면으로 이동)</span>
+              }
+            </label>
           </div>
         )}
 
@@ -1405,6 +1261,15 @@ export default function ActivityForm({ teams, tasks, users = [], vehicles = [], 
             setContent(text)
             setShowMeetingAnalysis(false)
           }}
+        />
+      )}
+
+      {/* ── 차량 신청 모달 ── */}
+      {showVehicleModal && (
+        <VehicleReservationModal
+          initialDate={date}
+          onClose={() => setShowVehicleModal(false)}
+          onSaved={() => { setResvDone(true); setShowVehicleModal(false) }}
         />
       )}
 
