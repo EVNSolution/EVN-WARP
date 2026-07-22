@@ -233,6 +233,7 @@ export default function LeadDetailClient({ deal, customer = null, products = [] 
   const [showLostModal,    setShowLostModal]    = useState(false)
   const [pendingLostReason, setPendingLostReason] = useState('')
   const [pendingLostNote,   setPendingLostNote]   = useState('')
+  const [lostReason,        setLostReason]        = useState(deal.lostReason)
 
   /* ── 미팅 기록 ── */
   type MFile = { name: string; path: string; size: number; mime: string }
@@ -544,6 +545,7 @@ export default function LeadDetailClient({ deal, customer = null, products = [] 
       body: JSON.stringify({ salesStatus: '이탈', lostReason: reason }),
     })
     setSalesStatus('이탈')
+    setLostReason(reason)
     setShowLostModal(false)
     setPendingLostReason('')
     setPendingLostNote('')
@@ -1396,7 +1398,22 @@ export default function LeadDetailClient({ deal, customer = null, products = [] 
         {salesStatus === '이탈' ? (
           <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 flex items-center gap-3">
             <span className="text-sm font-bold text-red-600">구매 포기</span>
-            <span className="text-xs text-red-400">{deal.lostReason || '원인 미기재'}</span>
+            <span className="text-xs text-red-400 flex-1">{lostReason || '원인 미기재'}</span>
+            <button
+              onClick={() => {
+                const cur = lostReason ?? ''
+                if (cur.startsWith('기타: ')) {
+                  setPendingLostReason('기타')
+                  setPendingLostNote(cur.slice(4))
+                } else {
+                  setPendingLostReason(cur)
+                  setPendingLostNote('')
+                }
+                setShowLostModal(true)
+              }}
+              className="text-[11px] text-red-400 hover:text-red-600 border border-red-200 hover:border-red-400 rounded-lg px-2 py-1 transition shrink-0">
+              수정
+            </button>
           </div>
         ) : (
           <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 flex items-center justify-between gap-3">
