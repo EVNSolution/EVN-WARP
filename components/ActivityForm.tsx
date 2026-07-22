@@ -523,10 +523,13 @@ export default function ActivityForm({ teams, tasks, users = [], vehicles = [], 
       }
 
       // 차량사용 체크된 경우 운행일지 생성
-      if (useVehicle && vehId && mode === 'new') {
-        const odomBefore = Number(vehOdomBefore)
-        const odomAfter  = Number(vehOdomAfter)
-        if (vehDeparture && vehDest && odomBefore && odomAfter && odomAfter >= odomBefore) {
+      if (useVehicle && vehId && vehDeparture && vehDest && mode === 'new') {
+        const odomBefore = Number(vehOdomBefore) || 0
+        const odomAfter  = Number(vehOdomAfter)  || 0
+        const isplan     = planStatus === '계획'
+        // 완료일 때만 주행거리 유효성 검사, 계획은 0 허용
+        const odomValid  = isplan || (odomBefore > 0 && odomAfter >= odomBefore)
+        if (odomValid) {
           await fetch('/api/vehicle-logs', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -540,6 +543,7 @@ export default function ActivityForm({ teams, tasks, users = [], vehicles = [], 
               odometerBefore: odomBefore,
               odometerAfter:  odomAfter,
               isBusinessUse:  vehBizUse,
+              isPlan:         isplan,
               notes:          vehNotes || null,
               activityId:     data.id ?? null,
             }),
