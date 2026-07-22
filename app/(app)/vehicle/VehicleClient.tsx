@@ -14,7 +14,7 @@ export type LogRow = {
   driverName: string; department: string | null
   departure: string; destination: string; purpose: string
   odometerBefore: number; odometerAfter: number; distance: number
-  isBusinessUse: boolean; notes: string | null
+  isBusinessUse: boolean; isPlan: boolean | number; notes: string | null
 }
 
 type Period = 'daily' | 'weekly' | 'monthly' | 'yearly'
@@ -78,21 +78,21 @@ interface ModalState {
   date: string; vehicleId: string; driverName: string; department: string
   departure: string; destination: string; purpose: string
   odometerBefore: string; odometerAfter: string
-  isBusinessUse: boolean; notes: string
+  isBusinessUse: boolean; isPlan: boolean; notes: string
 }
 
-const EMPTY_MODAL = (vehicleId: string, date: string, driverName: string): ModalState => ({
+const EMPTY_MODAL = (vehicleId: string, date: string, driverName: string, isPlan = false): ModalState => ({
   date, vehicleId, driverName, department: '',
   departure: '', destination: '', purpose: '',
   odometerBefore: '', odometerAfter: '',
-  isBusinessUse: true, notes: '',
+  isBusinessUse: true, isPlan, notes: '',
 })
 
 interface Props { vehicles: VehicleRow[]; myName: string }
 
 export default function VehicleClient({ vehicles, myName }: Props) {
   const today   = new Date().toISOString().slice(0, 10)
-  const [period,    setPeriod]    = useState<Period>('monthly')
+  const [period,    setPeriod]    = useState<Period>('monthly')  // 기본: 월간
   const [anchor,    setAnchor]    = useState(today)
   const [vehicleId, setVehicleId] = useState(vehicles[0]?.id ?? '')
   const [logs,      setLogs]      = useState<LogRow[]>([])
@@ -134,17 +134,24 @@ export default function VehicleClient({ vehicles, myName }: Props) {
   const lastOdom     = logs.length > 0 ? logs[logs.length - 1].odometerAfter : null
 
   function exportExcel() {
-    const headers = ['운행일자','운전자','소속','출발지','도착지','운행목적','운행 전(km)','운행 후(km)','운행거리(km)','업무용','비고']
-    const rows = logs.map(l => [
-      l.date, l.driverName, l.department ?? '', l.departure, l.destination, l.purpose,
-      l.odometerBefore, l.odometerAfter, l.distance,
-      l.isBusinessUse ? '업무용' : '개인', l.notes ?? '',
-    ])
-    const footer = ['합계', '', '', '', '', `${logs.length}건`,
+    const headers = ['구분','운행일자','운전자','소속','출발지','도착지','운행목적','운행 전(km)','운행 후(km)','운행거리(km)','업무용','비고']
+    const rows = logs.map(l => {
+      const plan = l.isPlan === 1 || l.isPlan === true
+      return [
+        plan ? '계획' : '완료',
+        l.date, l.driverName, l.department ?? '', l.departure, l.destination, l.purpose,
+        plan && !l.odometerBefore ? '' : l.odometerBefore,
+        plan && !l.odometerAfter  ? '' : l.odometerAfter,
+        plan && !l.distance ? '' : l.distance,
+        l.isBusinessUse ? '업무용' : '개인', l.notes ?? '',
+      ]
+    })
+    const doneCount = logs.filter(l => !(l.isPlan === 1 || l.isPlan === true)).length
+    const planCount = logs.length - doneCount
+    const footer = [`완료 ${doneCount}건 / 계획 ${planCount}건`, '', '', '', '', '',
       firstOdom ?? '', lastOdom ?? '', totalDist, `업무용 ${bizDist}km`, '']
     const ws = XLSX.utils.aoa_to_sheet([headers, ...rows, footer])
-    // 컬럼 너비 자동 조정
-    ws['!cols'] = [10,10,10,14,14,24,14,14,14,8,16].map(w => ({ wch: w }))
+    ws['!cols'] = [8,10,10,10,14,14,24,14,14,14,8,16].map(w => ({ wch: w }))
     const wb = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(wb, ws, '운행기록')
     XLSX.writeFile(wb, `운행기록_${vehicle?.name ?? '차량'}_${label}.xlsx`)
@@ -202,9 +209,9 @@ export default function VehicleClient({ vehicles, myName }: Props) {
     if (!modal.departure.trim() || !modal.destination.trim() || !modal.purpose.trim()) {
       setError('출발지, 도착지, 운행목적은 필수입니다.'); return
     }
-    const before = Number(modal.odometerBefore)
-    const after  = Number(modal.odometerAfter)
-    if (!before || !after || after < before) {
+    const before = Number(modal.odometerBefore) || 0
+    const after  = Number(modal.odometerAfter)  || 0
+    if (!modal.isPlan && (!modal.odometerBefore || !modal.odometerAfter || after < before)) {
       setError('주행거리를 올바르게 입력해주세요.'); return
     }
     setSaving(true)
@@ -222,6 +229,7 @@ export default function VehicleClient({ vehicles, myName }: Props) {
         odometerBefore: before,
         odometerAfter:  after,
         isBusinessUse:  modal.isBusinessUse,
+        isPlan:         modal.isPlan,
         notes:          modal.notes || null,
       }),
     })
@@ -264,7 +272,12 @@ export default function VehicleClient({ vehicles, myName }: Props) {
             <Car size={13} /> 차량 등록
           </button>
           <button
-            onClick={() => setModal(EMPTY_MODAL(vehicleId, today, myName))}
+            onClick={() => setModal(EMPTY_MODAL(vehicleId, today, myName, true))}
+            className="flex items-center gap-1.5 text-white border border-white/20 px-3.5 py-2 rounded-lg text-sm font-medium hover:bg-white/10 transition-colors">
+            <Plus size={14} /> 운행 신청
+          </button>
+          <button
+            onClick={() => setModal(EMPTY_MODAL(vehicleId, today, myName, false))}
             className="flex items-center gap-1.5 text-white border border-white/20 px-3.5 py-2 rounded-lg text-sm font-medium hover:bg-white/10 transition-colors">
             <Plus size={14} /> 운행 기록
           </button>
@@ -337,18 +350,16 @@ export default function VehicleClient({ vehicles, myName }: Props) {
                   <ChevronRight size={14} />
                 </button>
               </div>
-              {logs.length > 0 && (
-                <div className="flex items-center gap-2">
-                  <button onClick={exportExcel}
-                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold border border-slate-200 rounded-lg text-slate-600 hover:bg-slate-50 transition-colors">
-                    <FileDown size={13} /> 엑셀
-                  </button>
-                  <button onClick={handlePrint}
-                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold border border-slate-200 rounded-lg text-slate-600 hover:bg-slate-50 transition-colors">
-                    <Printer size={13} /> 인쇄
-                  </button>
-                </div>
-              )}
+              <div className="flex items-center gap-2">
+                <button onClick={exportExcel} disabled={logs.length === 0}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold border border-slate-200 rounded-lg text-slate-600 hover:bg-slate-50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
+                  <FileDown size={13} /> 엑셀
+                </button>
+                <button onClick={handlePrint} disabled={logs.length === 0}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold border border-slate-200 rounded-lg text-slate-600 hover:bg-slate-50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
+                  <Printer size={13} /> 인쇄
+                </button>
+              </div>
             </div>
           </div>
 
@@ -369,35 +380,45 @@ export default function VehicleClient({ vehicles, myName }: Props) {
                 <table className="w-full text-xs">
                   <thead>
                     <tr className="bg-slate-50 border-b border-slate-200">
-                      {['운행일자','운전자','소속','출발지','도착지','운행목적','운행 전(km)','운행 후(km)','운행거리(km)','업무용','비고'].map(h => (
+                      {['구분','운행일자','운전자','소속','출발지','도착지','운행목적','운행 전(km)','운행 후(km)','운행거리(km)','업무용','비고'].map(h => (
                         <th key={h} className="px-3 py-2.5 text-left font-semibold text-slate-500 whitespace-nowrap">{h}</th>
                       ))}
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
-                    {logs.map(log => (
-                      <tr key={log.id} className="hover:bg-slate-50 transition-colors">
-                        <td className="px-3 py-2.5 whitespace-nowrap text-slate-700">{log.date}</td>
-                        <td className="px-3 py-2.5 whitespace-nowrap text-slate-700">{log.driverName}</td>
-                        <td className="px-3 py-2.5 whitespace-nowrap text-slate-500">{log.department ?? '—'}</td>
-                        <td className="px-3 py-2.5 whitespace-nowrap text-slate-700">{log.departure}</td>
-                        <td className="px-3 py-2.5 whitespace-nowrap text-slate-700">{log.destination}</td>
-                        <td className="px-3 py-2.5 text-slate-700 max-w-[200px] truncate">{log.purpose}</td>
-                        <td className="px-3 py-2.5 text-right whitespace-nowrap text-slate-600 font-mono">{log.odometerBefore.toLocaleString()}</td>
-                        <td className="px-3 py-2.5 text-right whitespace-nowrap text-slate-600 font-mono">{log.odometerAfter.toLocaleString()}</td>
-                        <td className="px-3 py-2.5 text-right whitespace-nowrap font-bold text-indigo-600 font-mono">{log.distance.toLocaleString()}</td>
-                        <td className="px-3 py-2.5 text-center">
-                          <span className={`px-2 py-0.5 rounded-full font-semibold text-[10px] ${log.isBusinessUse ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-100 text-slate-500'}`}>
-                            {log.isBusinessUse ? '업무용' : '개인'}
-                          </span>
-                        </td>
-                        <td className="px-3 py-2.5 text-slate-500 max-w-[120px] truncate">{log.notes ?? '—'}</td>
-                      </tr>
-                    ))}
+                    {logs.map(log => {
+                      const plan = log.isPlan === 1 || log.isPlan === true
+                      return (
+                        <tr key={log.id} className={`transition-colors ${plan ? 'bg-blue-50/40 hover:bg-blue-50' : 'hover:bg-slate-50'}`}>
+                          <td className="px-3 py-2.5 text-center whitespace-nowrap">
+                            <span className={`px-2 py-0.5 rounded-full font-bold text-[10px] ${plan ? 'bg-blue-100 text-blue-700' : 'bg-emerald-100 text-emerald-700'}`}>
+                              {plan ? '계획' : '완료'}
+                            </span>
+                          </td>
+                          <td className="px-3 py-2.5 whitespace-nowrap text-slate-700">{log.date}</td>
+                          <td className="px-3 py-2.5 whitespace-nowrap text-slate-700">{log.driverName}</td>
+                          <td className="px-3 py-2.5 whitespace-nowrap text-slate-500">{log.department ?? '—'}</td>
+                          <td className="px-3 py-2.5 whitespace-nowrap text-slate-700">{log.departure}</td>
+                          <td className="px-3 py-2.5 whitespace-nowrap text-slate-700">{log.destination}</td>
+                          <td className="px-3 py-2.5 text-slate-700 max-w-[200px] truncate">{log.purpose}</td>
+                          <td className="px-3 py-2.5 text-right whitespace-nowrap text-slate-600 font-mono">{plan && !log.odometerBefore ? '—' : log.odometerBefore.toLocaleString()}</td>
+                          <td className="px-3 py-2.5 text-right whitespace-nowrap text-slate-600 font-mono">{plan && !log.odometerAfter ? '—' : log.odometerAfter.toLocaleString()}</td>
+                          <td className="px-3 py-2.5 text-right whitespace-nowrap font-bold font-mono text-indigo-600">{plan && !log.distance ? '—' : log.distance.toLocaleString()}</td>
+                          <td className="px-3 py-2.5 text-center">
+                            <span className={`px-2 py-0.5 rounded-full font-semibold text-[10px] ${log.isBusinessUse ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-100 text-slate-500'}`}>
+                              {log.isBusinessUse ? '업무용' : '개인'}
+                            </span>
+                          </td>
+                          <td className="px-3 py-2.5 text-slate-500 max-w-[120px] truncate">{log.notes ?? '—'}</td>
+                        </tr>
+                      )
+                    })}
                   </tbody>
                   <tfoot>
                     <tr className="bg-slate-50 border-t-2 border-slate-200 font-semibold">
-                      <td colSpan={6} className="px-3 py-2.5 text-slate-600">합계 ({logs.length}건)</td>
+                      <td colSpan={7} className="px-3 py-2.5 text-slate-600">
+                        합계 ({logs.filter(l => !(l.isPlan === 1 || l.isPlan === true)).length}건 완료 / {logs.filter(l => l.isPlan === 1 || l.isPlan === true).length}건 계획)
+                      </td>
                       <td className="px-3 py-2.5 text-right text-slate-600 font-mono">
                         {firstOdom !== null ? firstOdom.toLocaleString() : '—'}
                       </td>
@@ -437,7 +458,18 @@ export default function VehicleClient({ vehicles, myName }: Props) {
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40" onClick={() => setModal(null)}>
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between px-6 pt-5 pb-4 border-b border-slate-100">
-              <h2 className="text-sm font-bold text-slate-800">운행 기록 추가</h2>
+              <div className="flex items-center gap-3">
+                <h2 className="text-sm font-bold text-slate-800">운행 추가</h2>
+                <div className="flex gap-1">
+                  {[{ v: true, label: '신청 (계획)', cls: 'bg-blue-600 text-white' }, { v: false, label: '기록 (완료)', cls: 'bg-emerald-600 text-white' }].map(opt => (
+                    <button key={String(opt.v)} type="button"
+                      onClick={() => setModal(m => m && ({ ...m, isPlan: opt.v }))}
+                      className={`px-2.5 py-1 rounded-full text-[11px] font-bold transition-colors ${modal?.isPlan === opt.v ? opt.cls : 'bg-slate-100 text-slate-500'}`}>
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
               <button onClick={() => setModal(null)}><X size={16} className="text-slate-400 hover:text-slate-600" /></button>
             </div>
             <div className="px-6 py-4 space-y-3 max-h-[70vh] overflow-y-auto">
@@ -492,18 +524,22 @@ export default function VehicleClient({ vehicles, myName }: Props) {
                   placeholder="예: 고객사 미팅 및 제품 납품"
                   className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300" />
               </div>
-              {/* 주행거리 */}
+              {/* 주행거리 (완료일 때만 필수) */}
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-medium text-slate-500 mb-1">운행 전 주행거리 (km) *</label>
+                  <label className="block text-xs font-medium text-slate-500 mb-1">
+                    운행 전 주행거리 (km){modal.isPlan ? '' : ' *'}
+                  </label>
                   <input type="number" value={modal.odometerBefore} onChange={e => setModal(m => m && ({ ...m, odometerBefore: e.target.value }))}
-                    placeholder="0"
+                    placeholder={modal.isPlan ? '미정 시 비워두세요' : '0'}
                     className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300" />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-slate-500 mb-1">운행 후 주행거리 (km) *</label>
+                  <label className="block text-xs font-medium text-slate-500 mb-1">
+                    운행 후 주행거리 (km){modal.isPlan ? '' : ' *'}
+                  </label>
                   <input type="number" value={modal.odometerAfter} onChange={e => setModal(m => m && ({ ...m, odometerAfter: e.target.value }))}
-                    placeholder="0"
+                    placeholder={modal.isPlan ? '미정 시 비워두세요' : '0'}
                     className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300" />
                 </div>
               </div>
@@ -544,8 +580,8 @@ export default function VehicleClient({ vehicles, myName }: Props) {
               <button onClick={() => setModal(null)}
                 className="px-4 py-1.5 text-sm text-slate-500 border border-slate-200 rounded-lg hover:bg-slate-50">취소</button>
               <button onClick={handleSave} disabled={saving}
-                className="flex items-center gap-1.5 px-4 py-1.5 bg-indigo-600 text-white text-sm rounded-lg hover:bg-indigo-700 disabled:opacity-60">
-                <Save size={13} />{saving ? '저장 중...' : '저장'}
+                className={`flex items-center gap-1.5 px-4 py-1.5 text-white text-sm rounded-lg disabled:opacity-60 ${modal?.isPlan ? 'bg-blue-600 hover:bg-blue-700' : 'bg-emerald-600 hover:bg-emerald-700'}`}>
+                <Save size={13} />{saving ? '저장 중...' : modal?.isPlan ? '신청 등록' : '기록 저장'}
               </button>
             </div>
           </div>

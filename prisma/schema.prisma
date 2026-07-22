@@ -697,7 +697,9 @@ model VehicleLog {
   odometerAfter  Int      // 운행 후 주행거리(km)
   distance       Int      // 운행거리(km) = after - before
   isBusinessUse  Boolean  @default(true)   // 업무용 여부
+  isPlan         Boolean  @default(false)  // true = 운행 신청(계획), false = 운행 완료(기록)
   notes          String?  // 비고
   activityId     String?  // 연결된 WorkActivity ID
   createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 }

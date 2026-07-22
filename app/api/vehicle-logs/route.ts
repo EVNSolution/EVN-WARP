@@ -28,15 +28,18 @@ export async function POST(req: NextRequest) {
       vehicleId, date, driverName, department,
       departure, destination, purpose,
       odometerBefore, odometerAfter,
-      isBusinessUse, notes, activityId,
+      isBusinessUse, isPlan, notes, activityId,
     } = body
 
     if (!vehicleId || !date || !departure || !destination || !purpose) {
       return NextResponse.json({ error: '필수 항목을 입력해주세요.' }, { status: 400 })
     }
-    const odomBefore = Number(odometerBefore)
-    const odomAfter  = Number(odometerAfter)
-    if (isNaN(odomBefore) || isNaN(odomAfter) || odomAfter < odomBefore) {
+
+    const plan = isPlan ? 1 : 0
+    // 계획(신청)일 때는 주행거리 0 허용
+    const odomBefore = plan ? (Number(odometerBefore) || 0) : Number(odometerBefore)
+    const odomAfter  = plan ? (Number(odometerAfter)  || 0) : Number(odometerAfter)
+    if (!plan && (isNaN(odomBefore) || isNaN(odomAfter) || odomAfter < odomBefore)) {
       return NextResponse.json({ error: '주행거리를 확인해주세요.' }, { status: 400 })
     }
 
@@ -49,13 +52,13 @@ export async function POST(req: NextRequest) {
     await prisma.$executeRaw`
       INSERT INTO "VehicleLog"
         ("id","vehicleId","date","driverName","department","departure","destination","purpose",
-         "odometerBefore","odometerAfter","distance","isBusinessUse","notes","activityId","createdAt")
+         "odometerBefore","odometerAfter","distance","isBusinessUse","isPlan","notes","activityId","createdAt","updatedAt")
       VALUES
         (${id}, ${vehicleId}, ${date}, ${resolvedDriver}, ${department ?? null},
          ${departure}, ${destination}, ${purpose},
          ${odomBefore}, ${odomAfter}, ${distance},
-         ${isBusinessUse !== false ? 1 : 0},
-         ${notes ?? null}, ${activityId ?? null}, ${now})
+         ${isBusinessUse !== false ? 1 : 0}, ${plan},
+         ${notes ?? null}, ${activityId ?? null}, ${now}, ${now})
     `
     const rows = await prisma.$queryRaw<any[]>`SELECT * FROM "VehicleLog" WHERE id = ${id} LIMIT 1`
     return NextResponse.json(rows[0], { status: 201 })
