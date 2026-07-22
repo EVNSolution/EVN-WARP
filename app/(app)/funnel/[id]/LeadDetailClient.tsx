@@ -157,6 +157,15 @@ export type CustomerSnap = {
 
 export type ProductOption = { id: string; name: string; code: string | null; category: string | null }
 
+function localNow() {
+  const now = new Date()
+  return new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 16)
+}
+function toDatetimeLocal(isoStr: string) {
+  const d = new Date(isoStr)
+  return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16)
+}
+
 export default function LeadDetailClient({ deal, customer = null, products = [] }: { deal: Deal; customer?: CustomerSnap | null; products?: ProductOption[] }) {
   const router = useRouter()
   const [, startTransition] = useTransition()
@@ -232,7 +241,8 @@ export default function LeadDetailClient({ deal, customer = null, products = [] 
   const [meetings,       setMeetings]       = useState<Meeting[]>([])
   const [expandedMtgIds, setExpandedMtgIds] = useState<Set<string>>(new Set())
   const [showMtgForm,    setShowMtgForm]    = useState(false)
-  const [mtg, setMtg] = useState({ type: '통화', meetingAt: new Date().toISOString().slice(0, 16), duration: '', content: '', result: '', nextAction: '', assignee: '', expenseTransport: '', expenseAccomm: '', expenseMeal: '', expenseOther: '', expenseNote: '' })
+  const [editingMtgId,   setEditingMtgId]   = useState<string | null>(null)
+  const [mtg, setMtg] = useState({ type: '통화', meetingAt: localNow(), duration: '', content: '', result: '', nextAction: '', assignee: '', expenseTransport: '', expenseAccomm: '', expenseMeal: '', expenseOther: '', expenseNote: '' })
   const [mtgFiles,    setMtgFiles]    = useState<MFile[]>([])
   const [uploading,   setUploading]   = useState(false)
   const [savingMtg,   setSavingMtg]   = useState(false)
@@ -342,28 +352,59 @@ export default function LeadDetailClient({ deal, customer = null, products = [] 
   const handleSaveMeeting = async () => {
     setSavingMtg(true)
     try {
-      const res = await fetch(`/api/deals/${deal.id}/meetings`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ...mtg,
-          duration:         mtg.duration         ? parseInt(mtg.duration)         : null,
-          expenseTransport: mtg.expenseTransport ? Number(mtg.expenseTransport) : null,
-          expenseAccomm:    mtg.expenseAccomm    ? Number(mtg.expenseAccomm)    : null,
-          expenseMeal:      mtg.expenseMeal      ? Number(mtg.expenseMeal)      : null,
-          expenseOther:     mtg.expenseOther     ? Number(mtg.expenseOther)     : null,
-          filesJson:        mtgFiles.length ? JSON.stringify(mtgFiles) : null,
-        }),
-      })
-      const saved = await res.json()
-      setMeetings(prev => [saved, ...prev])
-      setExpandedMtgIds(new Set([saved.id]))
-      setMtg({ type: '통화', meetingAt: new Date().toISOString().slice(0, 16), duration: '', content: '', result: '', nextAction: '', assignee: '', expenseTransport: '', expenseAccomm: '', expenseMeal: '', expenseOther: '', expenseNote: '' })
+      const body = {
+        ...mtg,
+        duration:         mtg.duration         ? parseInt(mtg.duration)         : null,
+        expenseTransport: mtg.expenseTransport ? Number(mtg.expenseTransport) : null,
+        expenseAccomm:    mtg.expenseAccomm    ? Number(mtg.expenseAccomm)    : null,
+        expenseMeal:      mtg.expenseMeal      ? Number(mtg.expenseMeal)      : null,
+        expenseOther:     mtg.expenseOther     ? Number(mtg.expenseOther)     : null,
+        filesJson:        mtgFiles.length ? JSON.stringify(mtgFiles) : null,
+      }
+
+      if (editingMtgId) {
+        const res = await fetch(`/api/deals/${deal.id}/meetings/${editingMtgId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        })
+        const updated = await res.json()
+        setMeetings(prev => prev.map(m => m.id === editingMtgId ? { ...m, ...updated } : m))
+        setEditingMtgId(null)
+      } else {
+        const res = await fetch(`/api/deals/${deal.id}/meetings`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        })
+        const saved = await res.json()
+        setMeetings(prev => [saved, ...prev])
+        setExpandedMtgIds(new Set([saved.id]))
+      }
+
+      setMtg({ type: '통화', meetingAt: localNow(), duration: '', content: '', result: '', nextAction: '', assignee: '', expenseTransport: '', expenseAccomm: '', expenseMeal: '', expenseOther: '', expenseNote: '' })
       setMtgFiles([])
       setShowMtgForm(false)
     } finally {
       setSavingMtg(false)
     }
+  }
+
+  const handleEditMeeting = (m: Meeting) => {
+    setMtg({
+      type:       m.type,
+      meetingAt:  toDatetimeLocal(m.meetingAt),
+      duration:   m.duration != null ? String(m.duration) : '',
+      content:    m.content    ?? '',
+      result:     m.result     ?? '',
+      nextAction: m.nextAction ?? '',
+      assignee:   m.assignee   ?? '',
+      expenseTransport: '', expenseAccomm: '', expenseMeal: '', expenseOther: '', expenseNote: '',
+    })
+    setMtgFiles([])
+    setEditingMtgId(m.id)
+    setShowMtgForm(true)
+    setTimeout(() => mtgSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50)
   }
 
   const handleDeleteMeeting = async (mid: string) => {
@@ -1350,22 +1391,33 @@ export default function LeadDetailClient({ deal, customer = null, products = [] 
       <div ref={mtgSectionRef} id="meetings" className="mt-8">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-sm font-bold text-slate-700">고객 미팅 기록</h2>
-          <button onClick={() => setShowMtgForm(v => !v)}
+          <button onClick={() => {
+              if (showMtgForm) {
+                setShowMtgForm(false)
+                setEditingMtgId(null)
+                setMtg({ type: '통화', meetingAt: localNow(), duration: '', content: '', result: '', nextAction: '', assignee: '', expenseTransport: '', expenseAccomm: '', expenseMeal: '', expenseOther: '', expenseNote: '' })
+              } else {
+                setShowMtgForm(true)
+              }
+            }}
             className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition
               ${showMtgForm ? 'bg-slate-200 text-slate-600' : 'bg-slate-800 text-white hover:bg-slate-700'}`}>
             {showMtgForm ? '취소' : '+ 미팅 추가'}
           </button>
         </div>
 
-        {/* 미팅 추가 폼 */}
+        {/* 미팅 추가/수정 폼 */}
         {showMtgForm && (
           <div className="mb-5 p-5 bg-slate-50 rounded-xl border border-slate-200">
+            {editingMtgId && (
+              <p className="text-[10px] font-bold text-indigo-500 uppercase tracking-widest mb-3">미팅 기록 수정</p>
+            )}
             <div className="grid grid-cols-2 gap-4">
               {/* 유형 */}
               <div className="col-span-2">
                 <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">미팅 유형</label>
                 <div className="flex gap-1.5">
-                  {['통화', '방문', '화상', '기타'].map(t => (
+                  {['통화', '문자', '방문', '화상', '기타'].map(t => (
                     <button key={t} onClick={() => setMtg(m => ({ ...m, type: t }))}
                       className={`px-3 py-1 rounded-lg text-xs font-semibold border transition
                         ${mtg.type === t ? 'bg-slate-800 text-white border-slate-800' : 'bg-white border-slate-200 text-slate-500 hover:border-slate-400'}`}>
@@ -1462,7 +1514,7 @@ export default function LeadDetailClient({ deal, customer = null, products = [] 
             <div className="mt-4 flex justify-end">
               <button onClick={handleSaveMeeting} disabled={savingMtg}
                 className="px-5 py-2 text-xs font-bold rounded-lg bg-slate-800 text-white hover:bg-slate-700 transition disabled:opacity-40">
-                {savingMtg ? '저장 중...' : '기록 저장'}
+                {savingMtg ? '저장 중...' : editingMtgId ? '수정 저장' : '기록 저장'}
               </button>
             </div>
           </div>
@@ -1490,6 +1542,7 @@ export default function LeadDetailClient({ deal, customer = null, products = [] 
               const isOpen = expandedMtgIds.has(m.id)
               const TYPE_COLOR: Record<string, string> = {
                 '통화': 'bg-blue-100 text-blue-700',
+                '문자': 'bg-sky-100 text-sky-700',
                 '방문': 'bg-green-100 text-green-700',
                 '화상': 'bg-violet-100 text-violet-700',
                 '기타': 'bg-slate-100 text-slate-500',
@@ -1507,9 +1560,14 @@ export default function LeadDetailClient({ deal, customer = null, products = [] 
                   {/* 헤더 행 — 항상 표시 */}
                   <button type="button" onClick={toggleMtg}
                     className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-slate-50 transition-colors group">
-                    {/* 타임라인 도트 */}
+                    {/* 타임라인 도트 — 유형별 색상 */}
                     <div className="flex flex-col items-center shrink-0">
-                      <div className={`w-2 h-2 rounded-full mt-0.5 ${idx === 0 ? 'bg-slate-700' : 'bg-slate-300'}`} />
+                      <div className={`w-2 h-2 rounded-full mt-0.5 ${
+                        m.type === '통화' ? 'bg-blue-400' :
+                        m.type === '문자' ? 'bg-sky-400' :
+                        m.type === '방문' ? 'bg-green-400' :
+                        m.type === '화상' ? 'bg-violet-400' : 'bg-slate-400'
+                      }`} />
                     </div>
                     {/* 유형 배지 */}
                     <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold shrink-0 ${TYPE_COLOR[m.type] ?? 'bg-slate-100 text-slate-500'}`}>
@@ -1574,8 +1632,12 @@ export default function LeadDetailClient({ deal, customer = null, products = [] 
                           ))}
                         </div>
                       )}
-                      <button onClick={() => handleDeleteMeeting(m.id)}
-                        className="text-[11px] text-slate-300 hover:text-red-400 transition">삭제</button>
+                      <div className="flex items-center gap-3">
+                        <button onClick={() => handleEditMeeting(m)}
+                          className="text-[11px] text-slate-400 hover:text-indigo-500 transition">수정</button>
+                        <button onClick={() => handleDeleteMeeting(m.id)}
+                          className="text-[11px] text-slate-300 hover:text-red-400 transition">삭제</button>
+                      </div>
                     </div>
                   )}
                 </div>

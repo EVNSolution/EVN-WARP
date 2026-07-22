@@ -28,6 +28,7 @@ export interface PipelineDeal {
   purchaseTiming?: string | null
   productName?: string | null
   lostReason?: string | null
+  recentMeetings?: { type: string; meetingAt: string }[]
 }
 
 interface Props {
@@ -50,6 +51,7 @@ const LEAD_DEFS: ColDef[] = [
   { key: 'source',         label: '유입경로',   dw: 'sm' },
   { key: 'collectedAt',    label: '수집일',     dw: 'sm' },
   { key: 'assignee',       label: '담당자',     dw: 'sm' },
+  { key: 'meetings',       label: '최근 미팅',  dw: 'lg' },
   { key: 'productName',    label: '모델명',     dw: 'md' },
   { key: 'lostReason',    label: '이탈원인',   dw: 'md' },
   { key: 'memo',           label: '메모',       dw: 'lg' },
@@ -194,7 +196,7 @@ function QuickMeetingModal({
 }: {
   deal: PipelineDeal
   onClose: () => void
-  onSaved: () => void
+  onSaved: (meeting: { type: string; meetingAt: string }) => void
 }) {
   const leadName = (deal.customerSegment === 'B2B' && deal.companyName) ? deal.companyName : deal.name
 
@@ -236,8 +238,9 @@ function QuickMeetingModal({
           expenseNote:      expNote.trim() || null,
         }),
       })
+      const saved = await res.json()
       if (!res.ok) { setError('저장 실패'); setSaving(false); return }
-      onSaved()
+      onSaved({ type: saved.type, meetingAt: saved.meetingAt })
       onClose()
     } catch {
       setError('네트워크 오류')
@@ -265,7 +268,7 @@ function QuickMeetingModal({
           <div>
             <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">유형</label>
             <div className="flex gap-1.5">
-              {['통화', '방문', '화상', '기타'].map(t => (
+              {['통화', '문자', '방문', '화상', '기타'].map(t => (
                 <button key={t} type="button" onClick={() => setType(t)}
                   className={`px-3 py-1 rounded-lg text-xs font-semibold border transition
                     ${type === t ? 'bg-slate-800 text-white border-slate-800' : 'bg-white border-slate-200 text-slate-500 hover:border-slate-400'}`}>
@@ -385,6 +388,10 @@ const ALL_PROCESS_OPTIONS = PIPELINE.flatMap(ph =>
 function fmtDate(iso: string | null) {
   if (!iso) return '—'
   return iso.slice(2, 10).replace(/-/g, '.')
+}
+function fmtMtgDate(iso: string) {
+  const d = new Date(iso)
+  return `${d.getMonth() + 1}.${d.getDate()}`
 }
 
 
@@ -564,6 +571,29 @@ export default function PipelineView({ deals, salesTarget, linkedKpiLabel }: Pro
             }
           </td>
         )
+      case 'meetings': {
+        const mtgs = d.recentMeetings ?? []
+        if (!mtgs.length)
+          return <td key={c.key} style={{ width: W_PX[c.width] }} className="px-3 py-2.5 text-slate-300 text-xs">—</td>
+        return (
+          <td key={c.key} style={{ width: W_PX[c.width] }} className="px-3 py-2.5">
+            <div className="flex items-center gap-1.5 flex-wrap">
+              {mtgs.map((m, i) => (
+                <span key={i} className="flex items-center gap-0.5 whitespace-nowrap text-[10px]">
+                  {i > 0 && <span className="text-slate-200 mx-0.5">·</span>}
+                  <span className={
+                    m.type === '통화' ? 'font-semibold text-blue-500' :
+                    m.type === '문자' ? 'font-semibold text-sky-500' :
+                    m.type === '방문' ? 'font-semibold text-green-600' :
+                    m.type === '화상' ? 'font-semibold text-violet-500' : 'font-semibold text-slate-500'
+                  }>{m.type}</span>
+                  <span className="text-slate-400">{fmtMtgDate(m.meetingAt)}</span>
+                </span>
+              ))}
+            </div>
+          </td>
+        )
+      }
       case 'memo':
         return <td key={c.key} style={{ width: W_PX[c.width] }} className="px-3 py-2.5 text-slate-400 truncate max-w-0">{d.memo ?? ''}</td>
       case 'record':
@@ -964,7 +994,15 @@ export default function PipelineView({ deals, salesTarget, linkedKpiLabel }: Pro
       <QuickMeetingModal
         deal={quickMtgDeal}
         onClose={() => setQuickMtgDeal(null)}
-        onSaved={() => setQuickMtgDeal(null)}
+        onSaved={(meeting) => {
+          const dealId = quickMtgDeal.id
+          setLocalDeals(prev => prev.map(d => {
+            if (d.id !== dealId) return d
+            const prev2 = d.recentMeetings ?? []
+            return { ...d, recentMeetings: [meeting, ...prev2].slice(0, 2) }
+          }))
+          setQuickMtgDeal(null)
+        }}
       />
     )}
     </>

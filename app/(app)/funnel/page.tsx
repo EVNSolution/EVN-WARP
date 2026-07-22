@@ -8,11 +8,24 @@ export default async function FunnelPage() {
   const currentMonth = new Date().getMonth() + 1
   const currentYear  = new Date().getFullYear()
 
-  const [rows, products] = await Promise.all([
+  const [rows, products, allMeetings] = await Promise.all([
     prisma.salesDeal.findMany({ orderBy: { createdAt: 'asc' } }),
     prisma.product.findMany({ select: { id: true, name: true, code: true } }),
+    prisma.leadMeeting.findMany({
+      select: { dealId: true, type: true, meetingAt: true },
+      orderBy: { meetingAt: 'desc' },
+    }),
   ])
   const productMap = new Map(products.map(p => [p.id, p.code ?? p.name]))
+
+  const meetingsByDeal = new Map<string, { type: string; meetingAt: string }[]>()
+  for (const m of allMeetings) {
+    const list = meetingsByDeal.get(m.dealId) ?? []
+    if (list.length < 2) {
+      list.push({ type: m.type, meetingAt: (m.meetingAt as Date).toISOString() })
+      meetingsByDeal.set(m.dealId, list)
+    }
+  }
 
   const deals: PipelineDeal[] = rows.map(d => {
     const a = d as any
@@ -43,6 +56,7 @@ export default async function FunnelPage() {
       purchaseTiming:   d.purchaseTiming   ?? null,
       productName:      a.productId ? (productMap.get(a.productId) ?? null) : null,
       lostReason:       a.lostReason ?? null,
+      recentMeetings:   meetingsByDeal.get(d.id) ?? [],
     }
   })
 
