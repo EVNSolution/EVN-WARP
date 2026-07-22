@@ -15,7 +15,7 @@ export default async function FunnelPage() {
         customer: {
           select: {
             customerSegment: true, cargoType: true, companyName: true,
-            industry: true, shipperName: true, deliveryCity: true,
+            industry: true, shipperName: true, deliveryCity: true, deliveryDist: true,
             email: true, gender: true, maritalStatus: true, childrenCount: true,
           },
         },
@@ -71,6 +71,7 @@ export default async function FunnelPage() {
       industry:         cust?.industry     ?? a.industry     ?? null,
       shipperName:      cust?.shipperName  ?? a.shipperName  ?? null,
       deliveryCity:     cust?.deliveryCity ?? a.deliveryCity ?? null,
+      deliveryDist:     cust?.deliveryDist ?? a.deliveryDist ?? null,
       recentMeetings:   meetingsByDeal.get(d.id) ?? [],
     }
   })

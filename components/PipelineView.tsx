@@ -32,6 +32,7 @@ export interface PipelineDeal {
   industry?: string | null
   shipperName?: string | null
   deliveryCity?: string | null
+  deliveryDist?: string | null
 }
 
 interface Props {
@@ -590,7 +591,9 @@ export default function PipelineView({ deals, salesTarget, linkedKpiLabel }: Pro
           if (d.cargoType) chips.push({ label: d.cargoType, cls: 'bg-amber-50 text-amber-700 border-amber-200' })
         } else {
           if (d.shipperName) chips.push({ label: d.shipperName, cls: 'bg-orange-50 text-orange-600 border-orange-200' })
-          if (d.deliveryCity) chips.push({ label: d.deliveryCity, cls: 'bg-slate-100 text-slate-500 border-slate-200' })
+          const cityShort = d.deliveryCity?.replace(/특별시|광역시|특별자치시|특별자치도/, '').replace(/도$/, '') ?? ''
+          const areaLabel = [cityShort, d.deliveryDist].filter(Boolean).join(' ')
+          if (areaLabel) chips.push({ label: areaLabel, cls: 'bg-slate-100 text-slate-500 border-slate-200' })
         }
         if (!chips.length)
           return <td key={c.key} style={{ width: W_PX[c.width] }} className="px-3 py-2.5 text-slate-300 text-xs">—</td>
@@ -612,7 +615,7 @@ export default function PipelineView({ deals, salesTarget, linkedKpiLabel }: Pro
           return <td key={c.key} style={{ width: W_PX[c.width] }} className="px-3 py-2.5 text-slate-300 text-xs">—</td>
         return (
           <td key={c.key} style={{ width: W_PX[c.width] }} className="px-3 py-2.5">
-            <div className="flex items-center gap-1.5 flex-wrap">
+            <Link href={`/funnel/${d.id}`} className="flex items-center gap-1.5 flex-wrap hover:opacity-70 transition-opacity">
               {mtgs.map((m, i) => (
                 <span key={i} className="flex items-center gap-0.5 whitespace-nowrap text-[10px]">
                   {i > 0 && <span className="text-slate-200 mx-0.5">·</span>}
@@ -625,7 +628,7 @@ export default function PipelineView({ deals, salesTarget, linkedKpiLabel }: Pro
                   <span className="text-slate-400">{fmtMtgDate(m.meetingAt)}</span>
                 </span>
               ))}
-            </div>
+            </Link>
           </td>
         )
       }
