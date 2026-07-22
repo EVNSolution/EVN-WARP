@@ -56,6 +56,9 @@ export default async function FunnelPage() {
       purchaseTiming:   d.purchaseTiming   ?? null,
       productName:      a.productId ? (productMap.get(a.productId) ?? null) : null,
       lostReason:       a.lostReason ?? null,
+      industry:         a.industry     ?? null,
+      shipperName:      a.shipperName  ?? null,
+      deliveryCity:     a.deliveryCity ?? null,
       recentMeetings:   meetingsByDeal.get(d.id) ?? [],
     }
   })

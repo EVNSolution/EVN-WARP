@@ -29,6 +29,9 @@ export interface PipelineDeal {
   productName?: string | null
   lostReason?: string | null
   recentMeetings?: { type: string; meetingAt: string }[]
+  industry?: string | null
+  shipperName?: string | null
+  deliveryCity?: string | null
 }
 
 interface Props {
@@ -45,6 +48,7 @@ interface ColDef { key: string; label: string; dw: W }
 
 const LEAD_DEFS: ColDef[] = [
   { key: 'name',           label: '이름',       dw: 'md' },
+  { key: 'summary',        label: '고객 요약',  dw: 'md' },
   { key: 'phone',          label: '연락처',     dw: 'md' },
   { key: 'stage',          label: '단계 변경',  dw: 'lg' },
   { key: 'purchaseTiming', label: '구매예상',   dw: 'sm' },
@@ -571,6 +575,37 @@ export default function PipelineView({ deals, salesTarget, linkedKpiLabel }: Pro
             }
           </td>
         )
+      case 'summary': {
+        type Chip = { label: string; cls: string }
+        const chips: Chip[] = []
+        if (d.customerSegment === 'B2B') {
+          if (d.industry) {
+            const cls = d.industry === '화주'
+              ? 'bg-blue-50 text-blue-600 border-blue-200'
+              : d.industry === '운송사'
+              ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+              : 'bg-slate-100 text-slate-500 border-slate-200'
+            chips.push({ label: d.industry, cls })
+          }
+          if (d.cargoType) chips.push({ label: d.cargoType, cls: 'bg-amber-50 text-amber-700 border-amber-200' })
+        } else {
+          if (d.shipperName) chips.push({ label: d.shipperName, cls: 'bg-orange-50 text-orange-600 border-orange-200' })
+          if (d.deliveryCity) chips.push({ label: d.deliveryCity, cls: 'bg-slate-100 text-slate-500 border-slate-200' })
+        }
+        if (!chips.length)
+          return <td key={c.key} style={{ width: W_PX[c.width] }} className="px-3 py-2.5 text-slate-300 text-xs">—</td>
+        return (
+          <td key={c.key} style={{ width: W_PX[c.width] }} className="px-3 py-2.5">
+            <div className="flex items-center gap-1 flex-wrap">
+              {chips.map((chip, i) => (
+                <span key={i} className={`px-1.5 py-0.5 rounded border text-[10px] font-semibold ${chip.cls}`}>
+                  {chip.label}
+                </span>
+              ))}
+            </div>
+          </td>
+        )
+      }
       case 'meetings': {
         const mtgs = d.recentMeetings ?? []
         if (!mtgs.length)
