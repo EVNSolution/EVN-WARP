@@ -9,7 +9,7 @@ import {
   Briefcase, Target, FileCheck, CalendarDays, HelpCircle, X,
   Code2, PenTool, Package, Wrench, Settings, ClipboardCheck,
   PieChart, Landmark, Award, ChevronDown, Mic,
-  Building, Receipt, RefreshCw, Scale, Upload, FileUp,
+  Building, Receipt, RefreshCw, Scale, Upload, FileUp, Car,
 } from 'lucide-react'
 import Link from 'next/link'
 import CallAnalysisModal from '@/components/CallAnalysisModal'
@@ -349,6 +349,13 @@ export default function ActivityForm({ teams, tasks, users = [], vehicles = [], 
   // 차량사용
   const [showVehicleModal, setShowVehicleModal] = useState(false)
   const [resvDone,         setResvDone]         = useState(false)
+
+  // 하단 옵션 패널
+  const [openPanel, setOpenPanel] = useState<'mention' | 'expense' | null>(null)
+  function togglePanel(p: 'mention' | 'expense') {
+    setOpenPanel(v => v === p ? null : p)
+    if (p === 'expense') setUseExpense(true)
+  }
 
   // 비용정산 토글 (기존 비용 데이터가 있으면 열림)
   const [useExpense, setUseExpense] = useState(() =>
@@ -908,322 +915,257 @@ export default function ActivityForm({ teams, tasks, users = [], vehicles = [], 
           </div>
         </div>
 
-        {/* ⑦ @멘션 */}
-        <div className="bg-white border border-slate-200 rounded-xl p-5">
-          <label className="block text-sm font-semibold text-slate-700 mb-2">
-            <AtSign size={13} className="inline mr-1 text-indigo-400" />
-            업무협조 / 알림
-          </label>
+        {/* ── 숨겨진 파일 input들 ── */}
+        <input ref={receiptInputRef} type="file" accept="image/*,application/pdf" className="hidden"
+          onChange={e => {
+            const cat = pendingCat.current
+            if (!cat || !e.target.files?.[0]) return
+            uploadReceipt(cat, e.target.files[0])
+            e.target.value = ''
+          }} />
+        <input ref={docInputRef} type="file"
+          accept=".pdf,.jpg,.jpeg,.png,.gif,.webp,.doc,.docx,.xls,.xlsx,.hwp"
+          className="hidden"
+          onChange={e => {
+            const f = e.target.files?.[0]
+            if (!f) return
+            uploadDocument(f)
+            e.target.value = ''
+          }} />
 
-          {/* 선택된 멘션 칩 */}
-          {mentionChips.length > 0 && (
-            <div className="flex flex-wrap gap-1.5 mb-3">
-              {mentionChips.map((chip, i) => (
-                <span key={i} className="flex items-center gap-1 px-2.5 py-1 bg-indigo-50 border border-indigo-200 rounded-full text-xs text-indigo-700 font-semibold">
-                  {chip}
-                  <button type="button"
-                    onClick={() => setMentionChips(prev => prev.filter((_, idx) => idx !== i))}
-                    className="text-indigo-400 hover:text-indigo-700 transition-colors ml-0.5">
-                    <X size={10} />
-                  </button>
+        {/* ── 선택 추가 버튼 바 ── */}
+        <div className="bg-white border border-slate-200 rounded-xl overflow-visible">
+
+          {/* 버튼 바 */}
+          <div className="flex items-center gap-2 px-4 py-3 flex-wrap">
+            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mr-1 shrink-0">선택 추가</span>
+
+            {/* @알림 */}
+            <button type="button" onClick={() => togglePanel('mention')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg border transition-colors ${
+                mentionChips.length > 0 || openPanel === 'mention'
+                  ? 'bg-indigo-50 border-indigo-200 text-indigo-700'
+                  : 'border-slate-200 text-slate-500 hover:border-indigo-200 hover:text-indigo-600 hover:bg-indigo-50'
+              }`}>
+              <AtSign size={12} />알림
+              {mentionChips.length > 0 && (
+                <span className="bg-indigo-600 text-white rounded-full w-4 h-4 text-[9px] flex items-center justify-center shrink-0">
+                  {mentionChips.length}
                 </span>
-              ))}
-            </div>
-          )}
-
-          {/* 멘션 추가 버튼 */}
-          <div className="flex gap-2 flex-wrap">
-            {/* @전체 */}
-            <button type="button"
-              onClick={() => {
-                if (!mentionChips.includes('@전체')) setMentionChips(prev => [...prev, '@전체'])
-                setActivePicker(null)
-              }}
-              className="flex items-center gap-1 px-3 py-1.5 text-xs font-semibold rounded-lg border border-slate-200 text-slate-600 hover:border-indigo-300 hover:text-indigo-600 hover:bg-indigo-50 transition-colors">
-              @전체
-              <span className="ml-1 text-[10px] text-slate-400 font-normal">전사공지</span>
-            </button>
-
-            {/* @팀 */}
-            {teams.length > 0 && (
-              <div className="relative">
-                <button type="button"
-                  onClick={() => setActivePicker(v => v === 'team' ? null : 'team')}
-                  className={`flex items-center gap-1 px-3 py-1.5 text-xs font-semibold rounded-lg border transition-colors ${
-                    activePicker === 'team'
-                      ? 'border-indigo-400 text-indigo-600 bg-indigo-50'
-                      : 'border-slate-200 text-slate-600 hover:border-indigo-300 hover:text-indigo-600 hover:bg-indigo-50'
-                  }`}>
-                  @팀 <ChevronDown size={11} />
-                </button>
-                {activePicker === 'team' && (
-                  <div className="absolute top-full left-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-lg z-20 min-w-[120px] overflow-hidden">
-                    {teams.map(t => (
-                      <button key={t.id} type="button"
-                        onClick={() => {
-                          const chip = `@${t.name}`
-                          if (!mentionChips.includes(chip)) setMentionChips(prev => [...prev, chip])
-                          setActivePicker(null)
-                        }}
-                        className="block w-full text-left px-4 py-2 text-xs text-slate-700 hover:bg-indigo-50 hover:text-indigo-600 transition-colors">
-                        @{t.name}
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* @개인 */}
-            {users.length > 0 && (
-              <div className="relative">
-                <button type="button"
-                  onClick={() => setActivePicker(v => v === 'user' ? null : 'user')}
-                  className={`flex items-center gap-1 px-3 py-1.5 text-xs font-semibold rounded-lg border transition-colors ${
-                    activePicker === 'user'
-                      ? 'border-indigo-400 text-indigo-600 bg-indigo-50'
-                      : 'border-slate-200 text-slate-600 hover:border-indigo-300 hover:text-indigo-600 hover:bg-indigo-50'
-                  }`}>
-                  @개인 <ChevronDown size={11} />
-                </button>
-                {activePicker === 'user' && (
-                  <div className="absolute top-full left-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-lg z-20 min-w-[140px] max-h-48 overflow-y-auto">
-                    {users.map(u => (
-                      <button key={u.id} type="button"
-                        onClick={() => {
-                          const chip = `@${u.name ?? u.email}`
-                          if (!mentionChips.includes(chip)) setMentionChips(prev => [...prev, chip])
-                          setActivePicker(null)
-                        }}
-                        className="block w-full text-left px-4 py-2 text-xs text-slate-700 hover:bg-indigo-50 hover:text-indigo-600 transition-colors">
-                        @{u.name ?? u.email}
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-
-          {mentionChips.length === 0 && (
-            <p className="mt-2 text-[11px] text-slate-400">
-              위 버튼으로 알림 받을 대상을 선택하세요. @전체는 전사 공지로 표시됩니다.
-            </p>
-          )}
-
-          {/* 드롭다운 외부 클릭 닫기 */}
-          {activePicker !== null && (
-            <div className="fixed inset-0 z-10" onClick={() => setActivePicker(null)} />
-          )}
-        </div>
-
-        {(type === '국내출장' || type === '해외출장') && (
-          <div className="bg-slate-50 border border-dashed border-slate-300 rounded-xl p-4">
-            <div className="flex items-center gap-2 mb-2">
-              <Paperclip size={13} className="text-slate-400" />
-              <p className="text-xs font-semibold text-slate-500">출장비 정산 자동화 (준비 중)</p>
-            </div>
-            <p className="text-xs text-slate-400">출장 계획 및 비용 정산을 자동으로 처리합니다.</p>
-            <button type="button" disabled
-              className="mt-2 px-3 py-1.5 border border-slate-300 rounded-lg text-xs text-slate-400 cursor-not-allowed">
-              정산 시작
-            </button>
-          </div>
-        )}
-
-        {/* ── 차량사용 ── */}
-        {vehicles.length > 0 && !LEAVE_TYPES.has(type) && (
-          <div className={`border rounded-xl p-5 ${resvDone ? 'bg-lime-50 border-lime-200' : 'bg-white border-slate-200'}`}>
-            <label className="flex items-center gap-2 cursor-pointer select-none">
-              <input type="checkbox" checked={resvDone}
-                onChange={e => {
-                  if (e.target.checked) setShowVehicleModal(true)
-                  else setResvDone(false)
-                }}
-                className="w-4 h-4 rounded accent-lime-600" />
-              <span className="text-sm font-semibold text-slate-700">차량사용</span>
-              {resvDone
-                ? <span className="text-xs font-semibold text-lime-700 bg-lime-100 px-2 py-0.5 rounded-full">✓ 차량 예약 완료</span>
-                : <span className="text-xs font-normal text-slate-400">(체크 시 차량 신청 화면으로 이동)</span>
-              }
-            </label>
-          </div>
-        )}
-
-        {/* ── 비용정산 (해외출장·근태 제외) ── */}
-        {type !== '해외출장' && !LEAVE_TYPES.has(type) && (
-          <div className="bg-white border border-slate-200 rounded-xl p-5">
-            <div className="flex items-center justify-between">
-              <label className="flex items-center gap-2 cursor-pointer select-none">
-                <input type="checkbox" checked={useExpense} onChange={e => setUseExpense(e.target.checked)}
-                  className="w-4 h-4 rounded accent-indigo-600" />
-                <span className="text-sm font-semibold text-slate-700">비용정산</span>
-                <span className="text-xs font-normal text-slate-400">(선택)</span>
-              </label>
-              {expensePrintUrl && expenseTotal > 0 && useExpense && (
-                <a href={expensePrintUrl} target="_blank" rel="noopener noreferrer"
-                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg border border-indigo-200 text-indigo-600 bg-indigo-50 hover:bg-indigo-100 transition-all">
-                  🖨 비용신청품의서 인쇄
-                </a>
               )}
-            </div>
+            </button>
 
-            {useExpense && (<>
-            {/* 숨겨진 파일 input */}
-            <input ref={receiptInputRef} type="file" accept="image/*,application/pdf" className="hidden"
-              onChange={e => {
-                const cat = pendingCat.current
-                if (!cat || !e.target.files?.[0]) return
-                uploadReceipt(cat, e.target.files[0])
-                e.target.value = ''
-              }} />
+            {/* 🚗 차량 */}
+            {vehicles.length > 0 && !LEAVE_TYPES.has(type) && (
+              <button type="button"
+                onClick={() => resvDone ? setResvDone(false) : setShowVehicleModal(true)}
+                className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg border transition-colors ${
+                  resvDone
+                    ? 'bg-lime-50 border-lime-200 text-lime-700'
+                    : 'border-slate-200 text-slate-500 hover:border-lime-200 hover:text-lime-600 hover:bg-lime-50'
+                }`}>
+                <Car size={12} />차량
+                {resvDone && <span className="text-lime-600 text-[10px] font-bold">✓ 예약완료</span>}
+              </button>
+            )}
 
-            <div className="space-y-2 mb-3">
-              {EXPENSE_ROWS.map(row => {
-                const isUploading = uploadingCat === row.key
-                const receiptUrls = row.receipt ? row.receipt.split('|') : []
-                return (
-                  <div key={row.key} className="flex items-start gap-2">
-                    <label className="w-14 text-xs font-medium text-slate-500 pt-2.5 shrink-0">{row.label}</label>
-                    <div className="flex-1">
-                      <input
-                        type="text"
-                        inputMode="numeric"
-                        value={row.amount ? Number(row.amount).toLocaleString('ko-KR') : ''}
-                        onChange={e => {
-                          const raw = e.target.value.replace(/,/g, '')
-                          if (raw === '' || /^\d+$/.test(raw)) row.setAmount(raw)
-                        }}
-                        placeholder="0"
-                        className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm text-right focus:outline-none focus:ring-2 focus:ring-indigo-300"
-                      />
-                      {/* 첨부된 영수증 목록 */}
-                      {receiptUrls.length > 0 && (
-                        <div className="flex flex-wrap gap-1 mt-1">
-                          {receiptUrls.map((url, i) => (
-                            <div key={i} className="flex items-center gap-0.5">
-                              <a href={url} target="_blank" rel="noopener noreferrer"
-                                className="text-[10px] text-blue-500 hover:underline">📄{i + 1}</a>
-                              <button type="button" onClick={() => {
-                                const next = receiptUrls.filter((_, idx) => idx !== i)
-                                row.setReceipt(next.join('|'))
-                              }} className="text-[9px] text-slate-300 hover:text-red-400">✕</button>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                    {/* 영수증 업로드 버튼 (수정 모드만) */}
-                    {mode === 'edit' && initial?.id ? (
-                      isUploading ? (
-                        <span className="text-[10px] text-blue-400 pt-2.5">업로드중…</span>
-                      ) : (
-                        <button type="button"
-                          onClick={() => { pendingCat.current = row.key; receiptInputRef.current?.click() }}
-                          className="text-lg pt-1.5 text-slate-300 hover:text-blue-500 transition shrink-0"
-                          title="영수증 첨부 (OCR 자동인식)">📎</button>
-                      )
-                    ) : (
-                      <span className="w-6 shrink-0" />
+            {/* 💰 비용 */}
+            {type !== '해외출장' && !LEAVE_TYPES.has(type) && (
+              <button type="button" onClick={() => togglePanel('expense')}
+                className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg border transition-colors ${
+                  useExpense || openPanel === 'expense'
+                    ? 'bg-amber-50 border-amber-200 text-amber-700'
+                    : 'border-slate-200 text-slate-500 hover:border-amber-200 hover:text-amber-600 hover:bg-amber-50'
+                }`}>
+                💰 비용
+                {expenseTotal > 0 && (
+                  <span className="text-amber-700 text-[10px] font-bold">{expenseTotal.toLocaleString()}원</span>
+                )}
+              </button>
+            )}
+
+            {/* 📎 문서 */}
+            {DOC_TYPES.has(type) && (
+              <button type="button"
+                onClick={() => docInputRef.current?.click()}
+                disabled={uploadingDoc}
+                className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg border transition-colors disabled:opacity-50 ${
+                  documentUrl || pendingDocFile
+                    ? 'bg-teal-50 border-teal-200 text-teal-700'
+                    : 'border-slate-200 text-slate-500 hover:border-teal-200 hover:text-teal-600 hover:bg-teal-50'
+                }`}>
+                <Paperclip size={12} />
+                {uploadingDoc ? '업로드 중…' : '문서'}
+                {(documentUrl || pendingDocFile) && <span className="text-[10px] font-bold">✓</span>}
+              </button>
+            )}
+
+            {/* 비용신청품의서 인쇄 (비용 입력 시) */}
+            {expensePrintUrl && expenseTotal > 0 && useExpense && (
+              <a href={expensePrintUrl} target="_blank" rel="noopener noreferrer"
+                className="ml-auto flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg border border-indigo-200 text-indigo-600 bg-indigo-50 hover:bg-indigo-100 transition-all">
+                🖨 비용신청품의서
+              </a>
+            )}
+          </div>
+
+          {/* @알림 패널 */}
+          {openPanel === 'mention' && (
+            <div className="px-4 pb-4 pt-1 border-t border-slate-100 bg-indigo-50/30">
+              {mentionChips.length > 0 && (
+                <div className="flex flex-wrap gap-1.5 mb-3 pt-3">
+                  {mentionChips.map((chip, i) => (
+                    <span key={i} className="flex items-center gap-1 px-2.5 py-1 bg-indigo-50 border border-indigo-200 rounded-full text-xs text-indigo-700 font-semibold">
+                      {chip}
+                      <button type="button"
+                        onClick={() => setMentionChips(prev => prev.filter((_, idx) => idx !== i))}
+                        className="text-indigo-400 hover:text-indigo-700 transition-colors ml-0.5">
+                        <X size={10} />
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              )}
+              <div className="flex gap-2 flex-wrap pt-2">
+                <button type="button"
+                  onClick={() => {
+                    if (!mentionChips.includes('@전체')) setMentionChips(prev => [...prev, '@전체'])
+                    setActivePicker(null)
+                  }}
+                  className="flex items-center gap-1 px-3 py-1.5 text-xs font-semibold rounded-lg border border-slate-200 text-slate-600 hover:border-indigo-300 hover:text-indigo-600 hover:bg-indigo-50 transition-colors bg-white">
+                  @전체 <span className="ml-1 text-[10px] text-slate-400 font-normal">전사공지</span>
+                </button>
+                {teams.length > 0 && (
+                  <div className="relative">
+                    <button type="button"
+                      onClick={() => setActivePicker(v => v === 'team' ? null : 'team')}
+                      className={`flex items-center gap-1 px-3 py-1.5 text-xs font-semibold rounded-lg border transition-colors bg-white ${
+                        activePicker === 'team' ? 'border-indigo-400 text-indigo-600 bg-indigo-50' : 'border-slate-200 text-slate-600 hover:border-indigo-300 hover:text-indigo-600 hover:bg-indigo-50'
+                      }`}>
+                      @팀 <ChevronDown size={11} />
+                    </button>
+                    {activePicker === 'team' && (
+                      <div className="absolute top-full left-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-lg z-20 min-w-[120px] overflow-hidden">
+                        {teams.map(t => (
+                          <button key={t.id} type="button"
+                            onClick={() => { const c = `@${t.name}`; if (!mentionChips.includes(c)) setMentionChips(p => [...p, c]); setActivePicker(null) }}
+                            className="block w-full text-left px-4 py-2 text-xs text-slate-700 hover:bg-indigo-50 hover:text-indigo-600 transition-colors">
+                            @{t.name}
+                          </button>
+                        ))}
+                      </div>
                     )}
                   </div>
-                )
-              })}
-            </div>
-
-            {expenseTotal > 0 && (
-              <div className="flex justify-end items-center gap-2 py-2 border-t border-slate-100 mb-3">
-                <span className="text-xs text-slate-500">합계</span>
-                <span className="text-sm font-bold text-indigo-600">{expenseTotal.toLocaleString('ko-KR')}원</span>
+                )}
+                {users.length > 0 && (
+                  <div className="relative">
+                    <button type="button"
+                      onClick={() => setActivePicker(v => v === 'user' ? null : 'user')}
+                      className={`flex items-center gap-1 px-3 py-1.5 text-xs font-semibold rounded-lg border transition-colors bg-white ${
+                        activePicker === 'user' ? 'border-indigo-400 text-indigo-600 bg-indigo-50' : 'border-slate-200 text-slate-600 hover:border-indigo-300 hover:text-indigo-600 hover:bg-indigo-50'
+                      }`}>
+                      @개인 <ChevronDown size={11} />
+                    </button>
+                    {activePicker === 'user' && (
+                      <div className="absolute top-full left-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-lg z-20 min-w-[140px] max-h-48 overflow-y-auto">
+                        {users.map(u => (
+                          <button key={u.id} type="button"
+                            onClick={() => { const c = `@${u.name ?? u.email}`; if (!mentionChips.includes(c)) setMentionChips(p => [...p, c]); setActivePicker(null) }}
+                            className="block w-full text-left px-4 py-2 text-xs text-slate-700 hover:bg-indigo-50 hover:text-indigo-600 transition-colors">
+                            @{u.name ?? u.email}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
-            )}
-
-            <div>
-              <label className="block text-xs font-medium text-slate-500 mb-1">비용 메모</label>
-              <input type="text" value={expenseNote} onChange={e => setExpenseNote(e.target.value)}
-                placeholder="비용 관련 특이사항"
-                className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300" />
+              {mentionChips.length === 0 && (
+                <p className="mt-2 text-[11px] text-slate-400">알림 받을 대상을 선택하세요. @전체는 전사 공지로 표시됩니다.</p>
+              )}
+              {activePicker !== null && <div className="fixed inset-0 z-10" onClick={() => setActivePicker(null)} />}
             </div>
+          )}
 
-            {mode === 'new' && (
-              <p className="text-[11px] text-slate-400 mt-2">💡 영수증 첨부는 저장 후 수정 화면에서 가능합니다.</p>
-            )}
-            </>)}
-          </div>
-        )}
-
-        {/* ── 문서 첨부 (수주·발행 유형) ── */}
-        {DOC_TYPES.has(type) && (
-          <div className="bg-white border border-slate-200 rounded-xl p-5">
-            <div className="flex items-center gap-2 mb-3">
-              <FileUp size={14} className="text-teal-600" />
-              <p className="text-sm font-semibold text-slate-700">문서 첨부</p>
-              <span className="text-xs font-normal text-slate-400">(PDF · 이미지 · Word · Excel · HWP)</span>
-            </div>
-
-            {/* 숨겨진 파일 input */}
-            <input ref={docInputRef} type="file"
-              accept=".pdf,.jpg,.jpeg,.png,.gif,.webp,.doc,.docx,.xls,.xlsx,.hwp"
-              className="hidden"
-              onChange={e => {
-                const f = e.target.files?.[0]
-                if (!f) return
-                uploadDocument(f)
-                e.target.value = ''
-              }} />
-
-            {/* 첨부된 파일 목록 */}
-            {documentUrl && (
-              <div className="flex flex-wrap gap-2 mb-3">
-                {documentUrl.split('|').map((url, i) => {
-                  const name = decodeURIComponent(url.split('/').pop() ?? `파일${i + 1}`)
+          {/* 비용정산 패널 */}
+          {openPanel === 'expense' && (
+            <div className="px-4 pb-4 pt-3 border-t border-slate-100 bg-amber-50/20">
+              <div className="space-y-2 mb-3">
+                {EXPENSE_ROWS.map(row => {
+                  const isUploading = uploadingCat === row.key
+                  const receiptUrls = row.receipt ? row.receipt.split('|') : []
                   return (
-                    <div key={i} className="flex items-center gap-1 bg-teal-50 border border-teal-200 rounded-lg px-2.5 py-1.5">
-                      <a href={url} target="_blank" rel="noopener noreferrer"
-                        className="text-xs text-teal-700 hover:underline max-w-[160px] truncate">{name}</a>
-                      <button type="button" onClick={() => {
-                        const parts = documentUrl.split('|').filter((_, idx) => idx !== i)
-                        setDocumentUrl(parts.join('|'))
-                        if (initial?.id) {
-                          fetch(`/api/activities/${initial.id}`, {
-                            method: 'PUT',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ documentUrl: parts.join('|') || null }),
-                          })
-                        }
-                      }} className="text-slate-300 hover:text-red-400 ml-0.5">
-                        <X size={11} />
-                      </button>
+                    <div key={row.key} className="flex items-start gap-2">
+                      <label className="w-14 text-xs font-medium text-slate-500 pt-2.5 shrink-0">{row.label}</label>
+                      <div className="flex-1">
+                        <input type="text" inputMode="numeric"
+                          value={row.amount ? Number(row.amount).toLocaleString('ko-KR') : ''}
+                          onChange={e => { const raw = e.target.value.replace(/,/g, ''); if (raw === '' || /^\d+$/.test(raw)) row.setAmount(raw) }}
+                          placeholder="0"
+                          className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm text-right focus:outline-none focus:ring-2 focus:ring-amber-300 bg-white" />
+                        {receiptUrls.length > 0 && (
+                          <div className="flex flex-wrap gap-1 mt-1">
+                            {receiptUrls.map((url, i) => (
+                              <div key={i} className="flex items-center gap-0.5">
+                                <a href={url} target="_blank" rel="noopener noreferrer" className="text-[10px] text-blue-500 hover:underline">📄{i + 1}</a>
+                                <button type="button" onClick={() => { const next = receiptUrls.filter((_, idx) => idx !== i); row.setReceipt(next.join('|')) }} className="text-[9px] text-slate-300 hover:text-red-400">✕</button>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                      {mode === 'edit' && initial?.id ? (
+                        isUploading
+                          ? <span className="text-[10px] text-blue-400 pt-2.5">업로드중…</span>
+                          : <button type="button" onClick={() => { pendingCat.current = row.key; receiptInputRef.current?.click() }}
+                              className="text-lg pt-1.5 text-slate-300 hover:text-blue-500 transition shrink-0" title="영수증 첨부">📎</button>
+                      ) : <span className="w-6 shrink-0" />}
                     </div>
                   )
                 })}
               </div>
-            )}
-
-            {/* 새 파일 선택 (pending, 신규 저장 전) */}
-            {pendingDocFile && !initial?.id && (
-              <div className="flex items-center gap-1 bg-teal-50 border border-teal-200 rounded-lg px-2.5 py-1.5 mb-3 w-fit">
-                <span className="text-xs text-teal-700 max-w-[200px] truncate">{pendingDocFile.name}</span>
-                <button type="button" onClick={() => setPendingDocFile(null)}
-                  className="text-slate-300 hover:text-red-400 ml-0.5"><X size={11} /></button>
-              </div>
-            )}
-
-            <button type="button"
-              onClick={() => docInputRef.current?.click()}
-              disabled={uploadingDoc}
-              className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-teal-700 border border-teal-200 bg-teal-50 rounded-lg hover:bg-teal-100 transition-colors disabled:opacity-50">
-              {uploadingDoc ? (
-                <><span className="text-xs">업로드 중…</span></>
-              ) : (
-                <><Upload size={14} /><span>파일 업로드</span></>
+              {expenseTotal > 0 && (
+                <div className="flex justify-end items-center gap-2 py-2 border-t border-amber-100 mb-3">
+                  <span className="text-xs text-slate-500">합계</span>
+                  <span className="text-sm font-bold text-amber-700">{expenseTotal.toLocaleString('ko-KR')}원</span>
+                </div>
               )}
-            </button>
-            {mode === 'new' && !pendingDocFile && (
-              <p className="text-[11px] text-slate-400 mt-2">💡 파일을 선택하면 저장 시 자동으로 첨부됩니다.</p>
-            )}
-          </div>
-        )}
+              <input type="text" value={expenseNote} onChange={e => setExpenseNote(e.target.value)}
+                placeholder="비용 관련 특이사항"
+                className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-300 bg-white" />
+              {mode === 'new' && (
+                <p className="text-[11px] text-slate-400 mt-2">💡 영수증 첨부는 저장 후 수정 화면에서 가능합니다.</p>
+              )}
+            </div>
+          )}
+
+          {/* 문서 첨부 — 첨부된 파일 표시 */}
+          {DOC_TYPES.has(type) && (documentUrl || pendingDocFile) && (
+            <div className="px-4 pb-3 pt-1 border-t border-slate-100 bg-teal-50/30">
+              <div className="flex flex-wrap gap-2 pt-2">
+                {documentUrl && documentUrl.split('|').map((url, i) => {
+                  const name = decodeURIComponent(url.split('/').pop() ?? `파일${i + 1}`)
+                  return (
+                    <div key={i} className="flex items-center gap-1 bg-white border border-teal-200 rounded-lg px-2.5 py-1.5">
+                      <a href={url} target="_blank" rel="noopener noreferrer" className="text-xs text-teal-700 hover:underline max-w-[160px] truncate">{name}</a>
+                      <button type="button" onClick={() => {
+                        const parts = documentUrl.split('|').filter((_, idx) => idx !== i)
+                        setDocumentUrl(parts.join('|'))
+                        if (initial?.id) fetch(`/api/activities/${initial.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ documentUrl: parts.join('|') || null }) })
+                      }} className="text-slate-300 hover:text-red-400 ml-0.5"><X size={11} /></button>
+                    </div>
+                  )
+                })}
+                {pendingDocFile && !initial?.id && (
+                  <div className="flex items-center gap-1 bg-white border border-teal-200 rounded-lg px-2.5 py-1.5">
+                    <span className="text-xs text-teal-700 max-w-[200px] truncate">{pendingDocFile.name}</span>
+                    <button type="button" onClick={() => setPendingDocFile(null)} className="text-slate-300 hover:text-red-400 ml-0.5"><X size={11} /></button>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
 
         {error && (
           <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-sm text-red-700">{error}</div>
