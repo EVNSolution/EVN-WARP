@@ -210,6 +210,7 @@ function QuickMeetingModal({
   const now = new Date()
   const localIso = new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 16)
 
+  const [isPlan,     setIsPlan]     = useState(false)
   const [type,       setType]       = useState('통화')
   const [meetingAt,  setMeetingAt]  = useState(localIso)
   const [duration,   setDuration]   = useState('')
@@ -225,13 +226,14 @@ function QuickMeetingModal({
   const [expNote,      setExpNote]      = useState('')
 
   const handleSave = async () => {
-    if (!content.trim()) { setError('미팅 내용을 입력해 주세요.'); return }
+    if (!isPlan && !content.trim()) { setError('미팅 내용을 입력해 주세요.'); return }
     setSaving(true)
     try {
       const res = await fetch(`/api/deals/${deal.id}/meetings`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          isPlan,
           type,
           meetingAt:        meetingAt ? new Date(meetingAt).toISOString() : undefined,
           duration:         duration ? Number(duration) : null,
@@ -262,7 +264,16 @@ function QuickMeetingModal({
         {/* 헤더 */}
         <div className="flex items-start justify-between px-5 py-4 border-b border-slate-100">
           <div>
-            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-0.5">미팅 기록 추가</p>
+            <div className="flex items-center gap-1 bg-slate-100 rounded-lg p-0.5 mb-2">
+              <button type="button" onClick={() => setIsPlan(false)}
+                className={`px-3 py-1 rounded text-xs font-semibold transition ${!isPlan ? 'bg-white shadow-sm text-slate-800' : 'text-slate-500 hover:text-slate-700'}`}>
+                미팅 기록
+              </button>
+              <button type="button" onClick={() => setIsPlan(true)}
+                className={`px-3 py-1 rounded text-xs font-semibold transition ${isPlan ? 'bg-white shadow-sm text-blue-700' : 'text-slate-500 hover:text-slate-700'}`}>
+                미팅 계획
+              </button>
+            </div>
             <p className="text-sm font-bold text-slate-800">{leadName}</p>
             {deal.phone && <p className="text-xs text-slate-400 mt-0.5">{deal.phone}</p>}
           </div>
@@ -350,7 +361,7 @@ function QuickMeetingModal({
           </button>
           <button type="button" onClick={handleSave} disabled={saving}
             className="px-5 py-2 text-xs font-bold rounded-lg bg-slate-800 text-white hover:bg-slate-700 transition disabled:opacity-50">
-            {saving ? '저장 중...' : '기록 저장'}
+            {saving ? '저장 중...' : isPlan ? '계획 저장' : '기록 저장'}
           </button>
         </div>
       </div>
