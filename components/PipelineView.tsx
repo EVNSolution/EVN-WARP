@@ -226,7 +226,7 @@ function QuickMeetingModal({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           type,
-          meetingAt:        meetingAt || undefined,
+          meetingAt:        meetingAt ? new Date(meetingAt).toISOString() : undefined,
           duration:         duration ? Number(duration) : null,
           content:          content.trim()    || null,
           result:           result.trim()     || null,

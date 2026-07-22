@@ -372,6 +372,7 @@ export default function LeadDetailClient({ deal, customer = null, products = [] 
     try {
       const body = {
         ...mtg,
+        meetingAt:        mtg.meetingAt ? new Date(mtg.meetingAt).toISOString() : new Date().toISOString(),
         duration:         mtg.duration         ? parseInt(mtg.duration)         : null,
         expenseTransport: mtg.expenseTransport ? Number(mtg.expenseTransport) : null,
         expenseAccomm:    mtg.expenseAccomm    ? Number(mtg.expenseAccomm)    : null,
