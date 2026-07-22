@@ -27,7 +27,8 @@ export async function PATCH(
       content    = ${b.content    || null},
       result     = ${b.result     || null},
       nextAction = ${b.nextAction || null},
-      assignee   = ${b.assignee   || null}
+      assignee   = ${b.assignee   || null},
+      isPlan     = ${b.isPlan ? 1 : 0}
     WHERE id = ${mid}
   `
 

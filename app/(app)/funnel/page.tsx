@@ -8,7 +8,8 @@ export default async function FunnelPage() {
   const currentMonth = new Date().getMonth() + 1
   const currentYear  = new Date().getFullYear()
 
-  const [rows, products, allMeetings] = await Promise.all([
+  const nowIso = new Date().toISOString()
+  const [rows, products, allMeetings, planRows] = await Promise.all([
     prisma.salesDeal.findMany({
       orderBy: { createdAt: 'asc' },
       include: {
@@ -26,8 +27,21 @@ export default async function FunnelPage() {
       select: { dealId: true, type: true, meetingAt: true },
       orderBy: { meetingAt: 'desc' },
     }),
+    prisma.$queryRaw<{ dealId: string; type: string; meetingAt: Date }[]>`
+      SELECT dealId, type, meetingAt FROM LeadMeeting
+      WHERE isPlan = 1 AND meetingAt >= ${nowIso}
+      ORDER BY meetingAt ASC
+    `,
   ])
   const productMap = new Map(products.map(p => [p.id, p.code ?? p.name]))
+
+  // 다음 미팅 계획: 딜별 가장 빠른 1건
+  const nextMeetingByDeal = new Map<string, { type: string; meetingAt: string }>()
+  for (const p of planRows) {
+    if (!nextMeetingByDeal.has(p.dealId)) {
+      nextMeetingByDeal.set(p.dealId, { type: p.type, meetingAt: (p.meetingAt as Date).toISOString() })
+    }
+  }
 
   const meetingsByDeal = new Map<string, { type: string; meetingAt: string }[]>()
   for (const m of allMeetings) {
@@ -73,6 +87,7 @@ export default async function FunnelPage() {
       deliveryCity:     cust?.deliveryCity ?? a.deliveryCity ?? null,
       deliveryDist:     cust?.deliveryDist ?? a.deliveryDist ?? null,
       recentMeetings:   meetingsByDeal.get(d.id) ?? [],
+      nextMeeting:      nextMeetingByDeal.get(d.id) ?? null,
     }
   })
 

@@ -318,6 +318,7 @@ model LeadMeeting {
   nextAction  String?   // 다음 액션
   assignee    String?
 
+  isPlan      Boolean   @default(false)  // true = 미팅 계획, false = 미팅 기록
   filesJson   String?   // JSON: [{name,path,size,mime}]
 
   // 비용정산

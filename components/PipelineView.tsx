@@ -33,6 +33,7 @@ export interface PipelineDeal {
   shipperName?: string | null
   deliveryCity?: string | null
   deliveryDist?: string | null
+  nextMeeting?: { type: string; meetingAt: string } | null
 }
 
 interface Props {
@@ -57,6 +58,7 @@ const LEAD_DEFS: ColDef[] = [
   { key: 'collectedAt',    label: '수집일',     dw: 'sm' },
   { key: 'assignee',       label: '담당자',     dw: 'sm' },
   { key: 'meetings',       label: '최근 미팅',  dw: 'lg' },
+  { key: 'nextMeeting',   label: '다음 미팅',  dw: 'md' },
   { key: 'productName',    label: '모델명',     dw: 'md' },
   { key: 'lostReason',    label: '이탈원인',   dw: 'md' },
   { key: 'memo',           label: '메모',       dw: 'lg' },
@@ -628,6 +630,22 @@ export default function PipelineView({ deals, salesTarget, linkedKpiLabel }: Pro
                   <span className="text-slate-400">{fmtMtgDate(m.meetingAt)}</span>
                 </span>
               ))}
+            </Link>
+          </td>
+        )
+      }
+      case 'nextMeeting': {
+        const nm = d.nextMeeting
+        if (!nm)
+          return <td key={c.key} style={{ width: W_PX[c.width] }} className="px-3 py-2.5 text-slate-300 text-xs">—</td>
+        const nmDt = new Date(nm.meetingAt)
+        const typeColor = nm.type === '통화' ? 'text-blue-500' : nm.type === '문자' ? 'text-sky-500' : nm.type === '방문' ? 'text-green-600' : nm.type === '화상' ? 'text-violet-500' : 'text-slate-500'
+        return (
+          <td key={c.key} style={{ width: W_PX[c.width] }} className="px-3 py-2.5">
+            <Link href={`/funnel/${d.id}`} className="flex items-center gap-1 hover:opacity-70 transition-opacity">
+              <span className={`text-[10px] font-semibold ${typeColor}`}>{nm.type}</span>
+              <span className="text-[10px] text-slate-400 tabular-nums">{fmtMtgDate(nm.meetingAt)}</span>
+              <span className="text-[10px] text-blue-400 bg-blue-50 px-1 rounded ml-0.5">예정</span>
             </Link>
           </td>
         )

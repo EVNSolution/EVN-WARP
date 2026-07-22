@@ -236,12 +236,13 @@ export default function LeadDetailClient({ deal, customer = null, products = [] 
 
   /* ── 미팅 기록 ── */
   type MFile = { name: string; path: string; size: number; mime: string }
-  type Meeting = { id: string; type: string; meetingAt: string; duration: number | null; content: string | null; result: string | null; nextAction: string | null; assignee: string | null; filesJson: string | null }
+  type Meeting = { id: string; type: string; meetingAt: string; duration: number | null; content: string | null; result: string | null; nextAction: string | null; assignee: string | null; filesJson: string | null; isPlan?: number | boolean | null }
 
   const [meetings,       setMeetings]       = useState<Meeting[]>([])
   const [expandedMtgIds, setExpandedMtgIds] = useState<Set<string>>(new Set())
   const [showMtgForm,    setShowMtgForm]    = useState(false)
   const [editingMtgId,   setEditingMtgId]   = useState<string | null>(null)
+  const [mtgTab,         setMtgTab]         = useState<'record' | 'plan'>('record')
   const [mtg, setMtg] = useState({ type: '통화', meetingAt: localNow(), duration: '', content: '', result: '', nextAction: '', assignee: '', expenseTransport: '', expenseAccomm: '', expenseMeal: '', expenseOther: '', expenseNote: '' })
   const [mtgFiles,    setMtgFiles]    = useState<MFile[]>([])
   const [uploading,   setUploading]   = useState(false)
@@ -372,6 +373,9 @@ export default function LeadDetailClient({ deal, customer = null, products = [] 
     try {
       const body = {
         ...mtg,
+        isPlan:           editingMtgId
+                            ? (meetings.find(m => m.id === editingMtgId)?.isPlan ? true : false)
+                            : mtgTab === 'plan',
         meetingAt:        mtg.meetingAt ? new Date(mtg.meetingAt).toISOString() : new Date().toISOString(),
         duration:         mtg.duration         ? parseInt(mtg.duration)         : null,
         expenseTransport: mtg.expenseTransport ? Number(mtg.expenseTransport) : null,
@@ -1406,10 +1410,22 @@ export default function LeadDetailClient({ deal, customer = null, products = [] 
         )}
       </div>
 
-      {/* ── 미팅 기록 ── */}
+      {/* ── 미팅 기록 / 계획 ── */}
       <div ref={mtgSectionRef} id="meetings" className="mt-8">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-sm font-bold text-slate-700">고객 미팅 기록</h2>
+          {/* 탭 */}
+          <div className="flex items-center gap-1 bg-slate-100 rounded-lg p-1">
+            {(['record', 'plan'] as const).map(tab => {
+              const count = meetings.filter(m => tab === 'plan' ? (m.isPlan === 1 || m.isPlan === true) : !m.isPlan).length
+              return (
+                <button key={tab} onClick={() => { setMtgTab(tab); setShowMtgForm(false); setEditingMtgId(null) }}
+                  className={`px-3 py-1 rounded text-xs font-semibold transition ${mtgTab === tab ? 'bg-white shadow-sm text-slate-800' : 'text-slate-500 hover:text-slate-700'}`}>
+                  {tab === 'record' ? '기록' : '계획'}
+                  <span className="ml-1 text-slate-400 font-normal">({count})</span>
+                </button>
+              )
+            })}
+          </div>
           <button onClick={() => {
               if (showMtgForm) {
                 setShowMtgForm(false)
@@ -1421,7 +1437,7 @@ export default function LeadDetailClient({ deal, customer = null, products = [] 
             }}
             className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition
               ${showMtgForm ? 'bg-slate-200 text-slate-600' : 'bg-slate-800 text-white hover:bg-slate-700'}`}>
-            {showMtgForm ? '취소' : '+ 미팅 추가'}
+            {showMtgForm ? '취소' : mtgTab === 'plan' ? '+ 미팅 계획' : '+ 미팅 기록'}
           </button>
         </div>
 
@@ -1504,27 +1520,37 @@ export default function LeadDetailClient({ deal, customer = null, products = [] 
             <div className="mt-4 flex justify-end">
               <button onClick={handleSaveMeeting} disabled={savingMtg}
                 className="px-5 py-2 text-xs font-bold rounded-lg bg-slate-800 text-white hover:bg-slate-700 transition disabled:opacity-40">
-                {savingMtg ? '저장 중...' : editingMtgId ? '수정 저장' : '기록 저장'}
+                {savingMtg ? '저장 중...' : editingMtgId ? '수정 저장' : mtgTab === 'plan' ? '계획 저장' : '기록 저장'}
               </button>
             </div>
           </div>
         )}
 
         {/* 미팅 타임라인 — 아코디언 */}
-        {meetings.length === 0 ? (
+        {(() => {
+          const tabMeetings = meetings.filter(m =>
+            mtgTab === 'plan' ? (m.isPlan === 1 || m.isPlan === true) : !m.isPlan
+          )
+          const sortedMeetings = mtgTab === 'plan'
+            ? [...tabMeetings].sort((a, b) => new Date(a.meetingAt).getTime() - new Date(b.meetingAt).getTime())
+            : tabMeetings
+          return sortedMeetings.length === 0 ? (
           <div className="text-center py-10 text-slate-300 text-sm border border-dashed border-slate-200 rounded-xl">
-            아직 미팅 기록이 없습니다
+            {mtgTab === 'plan' ? '예정된 미팅 계획이 없습니다' : '아직 미팅 기록이 없습니다'}
           </div>
         ) : (
-          <div className="border border-slate-200 rounded-xl overflow-hidden divide-y divide-slate-100">
+          <div className={`border rounded-xl overflow-hidden divide-y divide-slate-100 ${mtgTab === 'plan' ? 'border-blue-200' : 'border-slate-200'}`}>
             {/* 요약 헤더 */}
-            <div className="px-4 py-2 bg-slate-50 flex items-center gap-3 text-[11px] text-slate-400">
-              <span className="font-semibold text-slate-600">{meetings.length}건</span>
-              {meetings[0] && (
-                <span>최근: {new Date(meetings[0].meetingAt).toLocaleDateString('ko-KR', { month: 'long', day: 'numeric' })} ({meetings[0].type})</span>
+            <div className={`px-4 py-2 flex items-center gap-3 text-[11px] text-slate-400 ${mtgTab === 'plan' ? 'bg-blue-50' : 'bg-slate-50'}`}>
+              <span className="font-semibold text-slate-600">{sortedMeetings.length}건</span>
+              {mtgTab === 'plan' && sortedMeetings[0] && (
+                <span>다음: {new Date(sortedMeetings[0].meetingAt).toLocaleDateString('ko-KR', { month: 'long', day: 'numeric' })} ({sortedMeetings[0].type})</span>
+              )}
+              {mtgTab === 'record' && sortedMeetings[0] && (
+                <span>최근: {new Date(sortedMeetings[0].meetingAt).toLocaleDateString('ko-KR', { month: 'long', day: 'numeric' })} ({sortedMeetings[0].type})</span>
               )}
             </div>
-            {meetings.map((m, idx) => {
+            {sortedMeetings.map((m, idx) => {
               const files: { name: string; path: string; size: number; mime: string }[] = (() => {
                 try { return m.filesJson ? JSON.parse(m.filesJson) : [] } catch { return [] }
               })()
@@ -1634,7 +1660,8 @@ export default function LeadDetailClient({ deal, customer = null, products = [] 
               )
             })}
           </div>
-        )}
+        )
+        })()}
       </div>
 
       {/* 증빙서류 업로드용 숨김 input — 항상 마운트되어야 docFileRef.current?.click() 작동 */}
