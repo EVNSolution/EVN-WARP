@@ -41,6 +41,8 @@ interface Props {
   deals: PipelineDeal[]
   salesTarget: number | null
   linkedKpiLabel: string | null
+  initialStage?: string | null
+  initialSeg?: string | null
 }
 
 /* ── 컬럼 설정 타입 ── */
@@ -418,14 +420,14 @@ function fmtMtgDate(iso: string) {
 type Tab = 'all' | 'b2c' | 'b2b'
 
 /* ── 메인 컴포넌트 ── */
-export default function PipelineView({ deals, salesTarget, linkedKpiLabel }: Props) {
-  const [selectedCode, setSelectedCode] = useState<string | null>(null)
-  const [showLost,     setShowLost]     = useState(false)
+export default function PipelineView({ deals, salesTarget, linkedKpiLabel, initialStage, initialSeg }: Props) {
+  const [selectedCode, setSelectedCode] = useState<string | null>(initialStage ?? null)
+  const [showLost,     setShowLost]     = useState(initialStage === '이탈')
   const [localDeals,   setLocalDeals]   = useState<PipelineDeal[]>(deals)
   const [crmView,      setCrmView]      = useState(false)
   const [showNewModal, setShowNewModal] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
-  const [activeTab,    setActiveTab]    = useState<Tab>('all')
+  const [activeTab,    setActiveTab]    = useState<Tab>((initialSeg as Tab | null) ?? 'all')
   const [searchQuery,  setSearchQuery]  = useState('')
   const [quickMtgDeal, setQuickMtgDeal] = useState<PipelineDeal | null>(null)
 
@@ -640,7 +642,7 @@ export default function PipelineView({ deals, salesTarget, linkedKpiLabel }: Pro
           return <td key={c.key} style={{ width: W_PX[c.width] }} className="px-3 py-2.5 text-slate-300 text-xs">—</td>
         return (
           <td key={c.key} style={{ width: W_PX[c.width] }} className="px-3 py-2.5">
-            <Link href={`/funnel/${d.id}`} className="flex items-center gap-1.5 flex-wrap hover:opacity-70 transition-opacity">
+            <Link href={`/funnel/${d.id}?from=${selectedCode ?? ''}&seg=${activeTab}`} className="flex items-center gap-1.5 flex-wrap hover:opacity-70 transition-opacity">
               {mtgs.map((m, i) => (
                 <span key={i} className="flex items-center gap-0.5 whitespace-nowrap text-[10px]">
                   {i > 0 && <span className="text-slate-200 mx-0.5">·</span>}
@@ -665,7 +667,7 @@ export default function PipelineView({ deals, salesTarget, linkedKpiLabel }: Pro
         const typeColor = nm.type === '통화' ? 'text-blue-500' : nm.type === '문자' ? 'text-sky-500' : nm.type === '방문' ? 'text-green-600' : nm.type === '화상' ? 'text-violet-500' : 'text-slate-500'
         return (
           <td key={c.key} style={{ width: W_PX[c.width] }} className="px-3 py-2.5">
-            <Link href={`/funnel/${d.id}`} className="flex items-center gap-1 hover:opacity-70 transition-opacity">
+            <Link href={`/funnel/${d.id}?from=${selectedCode ?? ''}&seg=${activeTab}`} className="flex items-center gap-1 hover:opacity-70 transition-opacity">
               <span className={`text-[10px] font-semibold ${typeColor}`}>{nm.type}</span>
               <span className="text-[10px] text-slate-400 tabular-nums">{fmtMtgDate(nm.meetingAt)}</span>
               <span className="text-[10px] text-blue-400 bg-blue-50 px-1 rounded ml-0.5">예정</span>
@@ -688,7 +690,7 @@ export default function PipelineView({ deals, salesTarget, linkedKpiLabel }: Pro
       case 'detail':
         return (
           <td key={c.key} style={{ width: W_PX[c.width] }} className="px-3 py-2.5 text-center">
-            <Link href={`/funnel/${d.id}`}
+            <Link href={`/funnel/${d.id}?from=${selectedCode ?? ''}&seg=${activeTab}`}
               className="inline-block px-2.5 py-1 rounded text-[10px] font-semibold bg-slate-100 text-slate-600 hover:bg-slate-200 transition">
               상세 →
             </Link>
@@ -733,7 +735,7 @@ export default function PipelineView({ deals, salesTarget, linkedKpiLabel }: Pro
       case 'detail':
         return (
           <td key={c.key} style={{ width: W_PX[c.width] }} className="px-3 py-2.5 text-center">
-            <Link href={`/funnel/${d.id}`}
+            <Link href={`/funnel/${d.id}?from=${selectedCode ?? ''}&seg=${activeTab}`}
               className="inline-block px-2.5 py-1 rounded text-[10px] font-semibold bg-slate-100 text-slate-600 hover:bg-slate-200 transition">
               상세 →
             </Link>

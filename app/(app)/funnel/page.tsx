@@ -4,7 +4,10 @@ import PipelineView, { type PipelineDeal } from '@/components/PipelineView'
 import ProcessGuideButton from '@/components/ProcessGuideButton'
 import ExcelImportExport from '@/components/ExcelImportExport'
 
-export default async function FunnelPage() {
+export default async function FunnelPage({ searchParams }: { searchParams: Promise<{ stage?: string; seg?: string }> }) {
+  const sp = await searchParams
+  const initialStage = sp.stage ?? null
+  const initialSeg   = sp.seg   ?? null
   const currentMonth = new Date().getMonth() + 1
   const currentYear  = new Date().getFullYear()
 
@@ -145,6 +148,8 @@ export default async function FunnelPage() {
         deals={deals}
         salesTarget={salesTarget}
         linkedKpiLabel={linkedKpi ? `${linkedKpi.label}${linkedKpi.unit ? ` (${linkedKpi.unit})` : ''}` : null}
+        initialStage={initialStage}
+        initialSeg={initialSeg}
       />
     </div>
   )

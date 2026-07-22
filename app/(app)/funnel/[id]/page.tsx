@@ -3,8 +3,17 @@ import { notFound } from 'next/navigation'
 import { PIPELINE, getStageCode } from '@/lib/pipeline'
 import LeadDetailClient, { type CustomerSnap } from './LeadDetailClient'
 
-export default async function LeadDetailPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function LeadDetailPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>
+  searchParams: Promise<{ from?: string; seg?: string }>
+}) {
   const { id } = await params
+  const sp = await searchParams
+  const fromStage = sp.from || null
+  const fromSeg   = sp.seg  || null
   const [d, products] = await Promise.all([
     prisma.salesDeal.findUnique({ where: { id }, include: { customer: true } }),
     prisma.product.findMany({
@@ -87,6 +96,8 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
     <LeadDetailClient
       products={products}
       customer={customerSnap}
+      fromStage={fromStage}
+      fromSeg={fromSeg}
       deal={{
         id:              d.id,
         name:            d.name,

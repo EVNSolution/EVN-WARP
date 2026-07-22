@@ -166,7 +166,7 @@ function toDatetimeLocal(isoStr: string) {
   return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16)
 }
 
-export default function LeadDetailClient({ deal, customer = null, products = [] }: { deal: Deal; customer?: CustomerSnap | null; products?: ProductOption[] }) {
+export default function LeadDetailClient({ deal, customer = null, products = [], fromStage, fromSeg }: { deal: Deal; customer?: CustomerSnap | null; products?: ProductOption[]; fromStage?: string | null; fromSeg?: string | null }) {
   const router = useRouter()
   const [, startTransition] = useTransition()
 
@@ -1237,7 +1237,10 @@ export default function LeadDetailClient({ deal, customer = null, products = [] 
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-2">
-            <Link href="/funnel" className="text-slate-400 hover:text-slate-600 text-sm transition">← 리드 목록</Link>
+            <Link
+              href={fromStage ? `/funnel?stage=${fromStage}&seg=${fromSeg ?? 'all'}` : '/funnel'}
+              className="text-slate-400 hover:text-slate-600 text-sm transition"
+            >← 리드 목록</Link>
             {customer && (
               <>
                 <span className="text-slate-300 text-sm">|</span>

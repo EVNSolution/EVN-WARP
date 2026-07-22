@@ -80,6 +80,7 @@ export const PIPELINE: PipelinePhase[] = [
         checksB2B: [
           { key: '1-3-0', label: '구매예상시점 확정', opts: ['3개월 이내', '6개월 이내', '1년 이내'] },
           { key: '1-3-4', label: '자금조달방법 확인',   opts: ['여유자금', '캐피탈', '중고차매각', '직접입력'] },
+          { key: '1-3-b2b-vc', label: '대수 확정' },
           { key: '1-3-1', label: '차량 / 특장 옵션 확정', extLink: 'buildup-ev' },
           { key: '1-3-2', label: '견적서 발행' },
           { key: '2-1-0', label: '특장 계약서 작성' },
