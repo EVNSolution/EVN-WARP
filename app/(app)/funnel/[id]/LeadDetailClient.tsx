@@ -1369,6 +1369,20 @@ export default function LeadDetailClient({ deal, customer = null, products = [] 
             </div>
           )}
 
+          {/* 예상 대수 — B2B 전용 */}
+          {(customer?.customerSegment ?? deal.customerSegment) === 'B2B' && (
+            <div>
+              <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">예상 대수</label>
+              <div className="flex items-center gap-2">
+                <input type="number" min="1" value={f.vehicleCount}
+                  onChange={e => setFv('vehicleCount', e.target.value)}
+                  placeholder="미확정"
+                  className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-slate-300" />
+                <span className="text-xs text-slate-400 shrink-0">대</span>
+              </div>
+            </div>
+          )}
+
           {/* 메모 */}
           <div className="col-span-2">
             <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">메모</label>

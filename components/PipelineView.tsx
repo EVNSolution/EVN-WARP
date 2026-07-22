@@ -34,6 +34,7 @@ export interface PipelineDeal {
   deliveryCity?: string | null
   deliveryDist?: string | null
   nextMeeting?: { type: string; meetingAt: string } | null
+  vehicleCount?: number | null
 }
 
 interface Props {
@@ -51,6 +52,7 @@ interface ColDef { key: string; label: string; dw: W }
 const LEAD_DEFS: ColDef[] = [
   { key: 'name',           label: '이름',       dw: 'md' },
   { key: 'summary',        label: '고객 요약',  dw: 'md' },
+  { key: 'vehicleCount',  label: '대수',       dw: 'sm' },
   { key: 'phone',          label: '연락처',     dw: 'md' },
   { key: 'stage',          label: '단계 변경',  dw: 'lg' },
   { key: 'purchaseTiming', label: '구매예상',   dw: 'sm' },
@@ -587,6 +589,16 @@ export default function PipelineView({ deals, salesTarget, linkedKpiLabel }: Pro
               ? <span className="inline-block px-2 py-0.5 rounded text-[10px] font-semibold bg-red-50 text-red-600 truncate max-w-full">{d.lostReason}</span>
               : <span className="text-slate-300 text-xs">—</span>
             }
+          </td>
+        )
+      case 'vehicleCount':
+        if (d.customerSegment !== 'B2B')
+          return <td key={c.key} style={{ width: W_PX[c.width] }} className="px-3 py-2.5 text-slate-200 text-xs text-center">—</td>
+        return (
+          <td key={c.key} style={{ width: W_PX[c.width] }} className="px-3 py-2.5 text-center">
+            {d.vehicleCount
+              ? <span className="text-sm font-bold text-slate-700">{d.vehicleCount}<span className="text-xs font-normal text-slate-400 ml-0.5">대</span></span>
+              : <span className="text-xs text-slate-300">미확정</span>}
           </td>
         )
       case 'summary': {
