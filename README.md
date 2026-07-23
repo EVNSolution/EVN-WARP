@@ -56,6 +56,9 @@ DATABASE_URL="file:./dev.db"
 TURSO_DATABASE_URL="libsql://..."
 TURSO_AUTH_TOKEN="..."
 
+# 로컬 DB 경로 override (선택)
+WARP_DB_PATH="./dev.db"
+
 # NextAuth
 AUTH_SECRET="..."
 NEXTAUTH_URL="http://localhost:3000"
@@ -63,7 +66,64 @@ NEXTAUTH_URL="http://localhost:3000"
 # AI (선택)
 ANTHROPIC_API_KEY="..."
 GOOGLE_AI_API_KEY="..."
+
+# CLEVER HQ 메일 파일럿 (선택)
+# 기본값은 비활성화입니다. 기능 검증/운영 적용 시에만 true로 켭니다.
+CLEVER_HQ_MAIL_ENABLED="false"
+# 전용 HQ MachineClient는 mail.send scope 하나만 부여합니다.
+CLEVER_HQ_BASE_URL="http://127.0.0.1:3000"
+CLEVER_HQ_AUTHORIZATION="Bearer <client_key>.<secret>"
 ```
+
+---
+
+## CLEVER HQ 출장 결재 메일 파일럿
+
+출장 결재 알림은 기존 WARP 인앱 `Notification`을 계속 생성하면서, `CLEVER_HQ_MAIL_ENABLED=true`이고 대상 사용자의 내부 회사 이메일이 있으면 CLEVER HQ 메일 요청도 내구 큐에 적재합니다. 큐 레코드는 `Notification.id`를 기준으로 하나만 생성되며 HQ idempotency key는 `warp.notification.<notification_id>`입니다. HQ credential은 `.env`의 `CLEVER_HQ_AUTHORIZATION`에서만 읽고 DB에는 저장하지 않습니다.
+
+동작 경계:
+
+- 대상 `User.email`이 `@evnsolution.com` 내부 주소일 때만 큐에 적재합니다. 외부 발송 scope는 사용하지 않습니다.
+- HQ 메일 파일럿은 기본 비활성화입니다. `CLEVER_HQ_MAIL_ENABLED=true`일 때만 `HqMailRequest` 테이블에 접근합니다.
+- `Notification`과 HQ 큐 적재는 같은 Prisma transaction에서 처리합니다.
+- 즉시 1건 best-effort dispatch를 시도하지만, HQ 네트워크 오류·5xx·429·설정 누락은 큐에 남깁니다.
+- 발송 중인 큐 row는 짧은 `processing` lease로 claim하여 동시 drain 중복 발송을 막고, worker가 죽으면 같은 idempotency key로 재처리됩니다.
+- HQ `202 accepted` 또는 `200 replayed`는 WARP 큐의 terminal 상태이며 `operation_id`를 저장합니다. 이 시점부터 실제 메일 전달 추적과 장애 조사는 HQ의 메일 작업 상태/로그/재conciliation 화면에서 확인합니다.
+- 영구 4xx와 `idempotency_conflict`는 `held`로 멈추고 자동 재시도하지 않습니다.
+- WARP는 HQ 수락 이후 SMTP, Graph, 다른 provider로 우회하지 않고 HQ provider 상태를 polling하지 않습니다.
+
+HQ 전용 클라이언트 발급:
+
+```bash
+python manage.py clever_machine_client_create --system-key warp --client-key warp-mail-pilot --name "WARP mail pilot" --scope mail.send
+```
+
+이 명령은 secret을 1회만 출력합니다. 출력값은 WARP 배포 secret manager 또는 로컬 `.env`의 `CLEVER_HQ_AUTHORIZATION`에만 넣고, repo·문서·DB에는 저장하지 않습니다.
+
+큐 스키마 적용:
+
+```bash
+npx prisma migrate deploy
+```
+
+마이그레이션을 쓰는 배포 환경은 기능 활성화 전에 위 명령으로 `HqMailRequest` 테이블을 먼저 적용합니다. 로컬 개발의 기존 `npx prisma db push` 흐름은 위의 Prisma 섹션 그대로 유지합니다.
+
+수동 복구:
+
+```bash
+npm run hq-mail:drain -- --limit 10
+npm run hq-mail:drain -- --limit 10 --force  # 장애 복구 직후 지연 대기열까지 수동 처리
+```
+
+수동 drain은 앱 런타임과 동일한 DB 선택 규칙을 사용합니다: `TURSO_DATABASE_URL` + `TURSO_AUTH_TOKEN`이 있으면 Turso/libSQL, 없으면 `WARP_DB_PATH`, 없으면 `DATABASE_URL`, 없으면 루트 `dev.db`입니다. Turso token은 출력하지 않습니다.
+
+검증:
+
+```bash
+npm run test:hq-mail
+```
+
+루트 `env.template`에 HQ 파일럿 환경 변수 키만 남겨 두었습니다. 실제 secret 값은 문서·로그·DB가 아니라 `.env` 또는 배포 secret manager에만 둡니다.
 
 ---
 

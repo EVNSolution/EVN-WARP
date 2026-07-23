@@ -61,3 +61,6 @@ dev.db-journal
 # Uploaded files (stored outside public/ to avoid Turbopack scanning)
 /public/uploads/
 /uploads/
+
+# Local Codex/OMX workflow state
+/.omx/

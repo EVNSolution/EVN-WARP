@@ -6,7 +6,9 @@
     "dev": "next dev --webpack",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test:hq-mail": "node --disable-warning=ExperimentalWarning --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --loader ./scripts/ts-extension-loader.mjs --experimental-strip-types --test test/hqMailCore.test.mjs test/hqMailQueuePrisma.test.mjs",
+    "hq-mail:drain": "node --disable-warning=ExperimentalWarning --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --loader ./scripts/ts-extension-loader.mjs --experimental-strip-types scripts/drain-hq-mail-queue.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.105.0",
