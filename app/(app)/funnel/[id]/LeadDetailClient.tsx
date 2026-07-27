@@ -954,10 +954,12 @@ export default function LeadDetailClient({ deal, customer = null, products = [],
 
                 /* ── 칩 선택형 항목 (구매예상시점, 자금조달 등) ── */
                 if (c.opts) {
+                  const isMulti      = !!c.multiSelect
                   const selectedVal  = String(checks[c.key] ?? '')
+                  const selectedVals = isMulti ? selectedVal.split(',').filter(Boolean) : (selectedVal ? [selectedVal] : [])
                   const atKey        = `${c.key}-at`
                   const noteKey      = `${c.key}-note`
-                  const needsNote    = selectedVal === '직접입력'
+                  const needsNote    = selectedVals.includes('직접입력')
                   const optDate      = fmtDate(checks[atKey])
                   return (
                     <div key={c.key} className={`${containerCls} space-y-2`}>
@@ -977,6 +979,15 @@ export default function LeadDetailClient({ deal, customer = null, products = [],
                             <button key={opt} type="button"
                               onClick={() => {
                                 setChecks(prev => {
+                                  if (isMulti) {
+                                    const cur = String(prev[c.key] ?? '').split(',').filter(Boolean)
+                                    const next = cur.includes(opt) ? cur.filter(v => v !== opt) : [...cur, opt]
+                                    return {
+                                      ...prev,
+                                      [c.key]: next.join(','),
+                                      [atKey]: next.length > 0 ? new Date().toISOString() : '',
+                                    }
+                                  }
                                   const selecting = prev[c.key] !== opt
                                   return {
                                     ...prev,
@@ -987,7 +998,7 @@ export default function LeadDetailClient({ deal, customer = null, products = [],
                                 setSaved(false)
                               }}
                               className={`px-2 py-0.5 rounded text-[11px] font-semibold border transition-all ${
-                                selectedVal === opt
+                                selectedVals.includes(opt)
                                   ? 'bg-slate-800 text-white border-slate-800'
                                   : 'bg-white border-slate-200 text-slate-500 hover:border-slate-400'
                               }`}>

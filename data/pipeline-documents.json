@@ -2,9 +2,11 @@
   "1-1": [],
   "1-2": [],
   "1-3": [
-    { "key": "business_reg_1_3",  "label": "사업자등록증" },
-    { "key": "quotation",         "label": "견적서" },
-    { "key": "special_contract",  "label": "특장계약서" }
+    { "key": "business_reg_1_3",    "label": "사업자등록증" },
+    { "key": "driver_license",      "label": "운전면허증" },
+    { "key": "cargo_qualification", "label": "화물운송종사자격증" },
+    { "key": "quotation",           "label": "견적서" },
+    { "key": "special_contract",    "label": "특장계약서" }
   ],
   "2-1": [
     { "key": "evn_deposit_slip",  "label": "EV& 계약금 송금 내역" },
