@@ -476,6 +476,9 @@ export default function LeadDetailClient({ deal, customer = null, products = [],
       const v = String(checks['1-2-2'] ?? '')
       return !!v && v !== '미정'
     }
+    if (field === 'vehicleCount') {
+      return !!f.vehicleCount && Number(f.vehicleCount) > 0
+    }
     return false
   }
 
@@ -901,6 +904,33 @@ export default function LeadDetailClient({ deal, customer = null, products = [],
                 const containerCls = `rounded-lg border px-3 py-2.5 transition-colors ${
                   checked ? 'bg-green-50 border-green-200' : 'bg-white border-slate-200'
                 }`
+
+                /* ── 대수 확정 (리드 기본 정보의 '대수' 입력과 동일 값 공유) ── */
+                if (c.field === 'vehicleCount') {
+                  return (
+                    <div key={c.key} className={containerCls}>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className={`text-sm shrink-0 ${checked ? 'text-green-500' : 'text-slate-300'}`}>
+                          {checked ? '✓' : '○'}
+                        </span>
+                        <span className={`text-xs font-medium shrink-0 ${checked ? 'text-green-700' : 'text-slate-600'}`}>
+                          {c.label}
+                        </span>
+                        <div className="flex-1" />
+                        <div className="flex items-center gap-1.5">
+                          <input type="number" min="1" value={f.vehicleCount}
+                            onChange={e => setFv('vehicleCount', e.target.value)}
+                            placeholder="1"
+                            className="w-16 text-xs text-center border border-slate-200 rounded-lg px-2 py-1 focus:outline-none focus:ring-1 focus:ring-blue-300 text-slate-700" />
+                          <span className="text-[11px] text-slate-400">대</span>
+                        </div>
+                      </div>
+                      {!checked && (
+                        <p className="text-[10px] text-amber-600 mt-1">미입력 시 1대로 간주됩니다</p>
+                      )}
+                    </div>
+                  )
+                }
 
                 /* ── 고객 데이터 연동 항목 (차량정보, 화주정보, 구매예상시점) ── */
                 if (c.field) {

@@ -2,6 +2,7 @@ import { prisma } from '@/lib/db'
 import { Suspense } from 'react'
 import Link from 'next/link'
 import PeriodSelector from './PeriodSelector'
+import TodayTodoButton from './TodayTodoButton'
 import { computeCallDue, type CallCadenceDeal, type CallDueLead } from '@/lib/callCadence'
 
 type SearchParams = { period?: string; from?: string; to?: string; view?: string; mode?: string }
@@ -226,11 +227,18 @@ export default async function SalesReportPage({
       {/* 헤더 */}
       <div className="bg-white border-b border-slate-200 px-8 py-5">
         <div className="flex flex-col gap-3">
-          <div>
-            <h1 className="text-xl font-bold text-slate-800">영업 리포트</h1>
-            <p className="text-xs text-slate-400 mt-0.5">
-              {fmtFull(range.from)} ~ {fmtFull(range.to)}
-            </p>
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-xl font-bold text-slate-800">영업 리포트</h1>
+              <p className="text-xs text-slate-400 mt-0.5">
+                {fmtFull(range.from)} ~ {fmtFull(range.to)}
+              </p>
+            </div>
+            <TodayTodoButton
+              dateLabel={fmtFull(todayStart.toISOString().slice(0, 10))}
+              assignees={allAssignees}
+              todoByAssignee={Object.fromEntries(todoByAssignee)}
+            />
           </div>
           <Suspense>
             <PeriodSelector from={range.from} to={range.to} period={period} view={view} mode={mode} />
@@ -239,49 +247,6 @@ export default async function SalesReportPage({
       </div>
 
       <div className="px-8 py-6 space-y-6">
-
-        {/* ══════════════════════════════════════════
-            오늘의 영업회의 (기간 필터와 무관, 항상 오늘 기준)
-            어제 한 일은 아래 "방문·미팅 목록"(실적 탭)에서 확인
-        ══════════════════════════════════════════ */}
-        <div className="bg-white rounded-2xl border-2 border-slate-800 overflow-hidden max-w-xl">
-          <div className="px-4 py-2.5 bg-slate-800 flex items-center justify-between">
-            <h2 className="text-[12px] font-bold text-white tracking-wide">오늘 할 일</h2>
-            <span className="text-[10px] text-slate-300">{fmtFull(todayStart.toISOString().slice(0, 10))}</span>
-          </div>
-          <div className="p-4 max-h-72 overflow-y-auto">
-            {allAssignees.length === 0 ? (
-              <p className="text-xs text-slate-400 py-2">진행 중인 리드가 없습니다</p>
-            ) : (
-              <div className="space-y-3">
-                {allAssignees.map(name => {
-                  const items = todoByAssignee.get(name) ?? []
-                  return (
-                    <div key={name}>
-                      <p className="text-xs font-bold text-slate-700 mb-1">{name}</p>
-                      {items.length === 0 ? (
-                        <p className="text-[11px] text-slate-300 pl-2">오늘 통화 없음</p>
-                      ) : (
-                        <ul className="space-y-1">
-                          {items.map(t => (
-                            <li key={t.dealId} className="text-[11px] text-slate-500 pl-2 flex items-center gap-1.5">
-                              <span className={`inline-block px-1.5 py-0.5 rounded-full text-[9px] font-bold
-                                ${t.label === '예정된 미팅' ? 'bg-indigo-50 text-indigo-600' : 'bg-amber-50 text-amber-700'}`}>
-                                {t.label}
-                              </span>
-                              <Link href={`/funnel/${t.dealId}`} className="text-indigo-600 hover:underline font-medium">{t.dealName}</Link>
-                              <span className="text-slate-400">— {t.detail}</span>
-                            </li>
-                          ))}
-                        </ul>
-                      )}
-                    </div>
-                  )
-                })}
-              </div>
-            )}
-          </div>
-        </div>
 
         {/* ══════════════════════════════════════════
             계획 탭

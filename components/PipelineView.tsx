@@ -437,8 +437,12 @@ export default function PipelineView({ deals, salesTarget, linkedKpiLabel, initi
   const lostDeals   = tabDeals.filter(d => d.salesStatus === '이탈')
   const doneDeals   = tabDeals.filter(d => d.salesStatus === '완료')
 
+  /* B2B는 리드당 대수(미입력 시 1대)를 합산, B2C는 리드 건수(1)로 카운트 */
   const countByCode: Record<string, number> = {}
-  for (const d of activeDeals) countByCode[d.stageCode] = (countByCode[d.stageCode] ?? 0) + 1
+  for (const d of activeDeals) {
+    const weight = (d.customerSegment ?? 'B2C') === 'B2B' ? (d.vehicleCount ?? 1) : 1
+    countByCode[d.stageCode] = (countByCode[d.stageCode] ?? 0) + weight
+  }
 
   const filteredDeals = (() => {
     const pool = selectedCode === '이탈' ? lostDeals
@@ -561,7 +565,7 @@ export default function PipelineView({ deals, salesTarget, linkedKpiLabel, initi
           <td key={c.key} style={{ width: W_PX[c.width] }} className="px-3 py-2.5 text-center">
             {d.vehicleCount
               ? <span className="text-sm font-bold text-slate-700">{d.vehicleCount}<span className="text-xs font-normal text-slate-400 ml-0.5">대</span></span>
-              : <span className="text-xs text-slate-300">미확정</span>}
+              : <span className="text-xs text-slate-300">1<span className="text-[10px] ml-0.5">대(기본)</span></span>}
           </td>
         )
       case 'summary': {
