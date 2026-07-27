@@ -44,7 +44,7 @@ export const PIPELINE: PipelinePhase[] = [
           { key: '1-1-0', label: '배송업 의향 확인 ("이 분은 계속 배송일은 하시겠네")' },
         ],
         checksB2B: [
-          { key: '1-1-b2b-0', label: '일반화물자동차운송업 확보' },
+          { key: '1-1-b2b-0', label: '일반화물자동차운송업 확보 ("이 회사는 전기차를 사서 자체 사용을 할 수 있음")' },
         ],
         documents: [],
         documentsB2B: [
@@ -61,10 +61,10 @@ export const PIPELINE: PipelinePhase[] = [
           { key: '1-2-2', label: '구매의향 확인', noteLabel: '구매의향 근거' },
         ],
         checksB2B: [
-          { key: '1-2-b2b-0', label: '담당자 신뢰 확보' },
+          { key: '1-2-b2b-0', label: '담당자 신뢰 확보 ("담당자와 친구가 되었음")' },
           { key: '1-2-b2b-1', label: '법인 매출 확인', field: 'b2bRevenue' },
-          { key: '1-2-b2b-2', label: 'EV& 회사소개 완료' },
-          { key: '1-2-b2b-3', label: '팀장 미팅' },
+          { key: '1-2-b2b-2', label: 'EV& 회사소개 완료 (팀장급)' },
+          { key: '1-2-b2b-4', label: '실물차량 소개' },
         ],
         documents: [],
       },

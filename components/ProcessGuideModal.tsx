@@ -7,7 +7,10 @@ import { PIPELINE } from '@/lib/pipeline'
 type ItemDef  = { key: string; label: string; field?: string }
 type ConfigMap = Record<string, ItemDef[]>
 
-const FIELD_LABELS: Record<string, string> = { vehicle: '차량정보', shipper: '화주정보' }
+const FIELD_LABELS: Record<string, string> = {
+  vehicle: '차량정보', shipper: '화주정보',
+  b2bRevenue: '법인매출', purchaseTiming: '구매예상시점', vehicleCount: '대수',
+}
 
 const PHASE_COLORS: Record<number, string> = {
   1: 'bg-blue-700',
@@ -306,8 +309,10 @@ export default function ProcessGuideModal({ onClose }: { onClose: () => void }) 
                                     <CheckCircle2 size={12} className="text-slate-300 shrink-0" />
                                     <span className="flex-1">{ck.label}</span>
                                     {ck.field && (
-                                      <span className="text-[10px] font-semibold bg-blue-50 text-blue-500 border border-blue-100 px-1.5 py-0.5 rounded shrink-0">
-                                        🔗 {FIELD_LABELS[ck.field] ?? ck.field}
+                                      <span
+                                        title="이 항목은 리드 상세 화면의 데이터 입력과 연동됩니다 (여기서는 클릭할 수 없어요)"
+                                        className="text-[10px] font-medium text-slate-400 shrink-0 cursor-help">
+                                        🔗 {FIELD_LABELS[ck.field] ?? ck.field} 연동
                                       </span>
                                     )}
                                     {editMode && !ck.field && (
