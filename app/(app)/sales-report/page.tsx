@@ -2,8 +2,9 @@ import { prisma } from '@/lib/db'
 import { Suspense } from 'react'
 import Link from 'next/link'
 import PeriodSelector from './PeriodSelector'
+import { computeCallDue, type CallCadenceDeal, type CallDueLead } from '@/lib/callCadence'
 
-type SearchParams = { period?: string; from?: string; to?: string; view?: string }
+type SearchParams = { period?: string; from?: string; to?: string; view?: string; mode?: string }
 
 /* ── 기간 계산 ── */
 function calcRange(period: string, fromParam?: string, toParam?: string) {
@@ -46,6 +47,15 @@ function fmtFull(d: string) {
   const [y, m, mo] = d.split('-')
   return `${y}.${m}.${mo}`
 }
+function groupByAssignee<T extends { assignee: string | null }>(items: T[]): Map<string, T[]> {
+  const map = new Map<string, T[]>()
+  for (const it of items) {
+    const key = it.assignee ?? '미배정'
+    if (!map.has(key)) map.set(key, [])
+    map.get(key)!.push(it)
+  }
+  return map
+}
 
 /* ── 메인 페이지 ── */
 export default async function SalesReportPage({
@@ -56,17 +66,27 @@ export default async function SalesReportPage({
   const sp     = await searchParams
   const period = sp.period ?? 'month'
   const view   = sp.view   ?? 'summary'
+  const mode   = sp.mode   ?? 'actual'
   const range  = calcRange(period, sp.from, sp.to)
   const from   = new Date(range.from)
   const to     = new Date(range.to); to.setHours(23, 59, 59, 999)
 
-  const [meetings, newDeals, wonDeals, lostDeals, stageChanged, allActive] = await Promise.all([
+  const now = new Date()
+  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  const todayEnd   = new Date(todayStart); todayEnd.setHours(23, 59, 59, 999)
+  const yesterdayStart = new Date(todayStart); yesterdayStart.setDate(todayStart.getDate() - 1)
+  const yesterdayEnd   = new Date(yesterdayStart); yesterdayEnd.setHours(23, 59, 59, 999)
+
+  const [
+    meetings, newDeals, wonDeals, lostDeals, stageChanged, allActive,
+    yesterdayMeetings, todayPlanned, plannedInRange, activeCadenceLeads, lastCallRows,
+  ] = await Promise.all([
     prisma.$queryRaw<any[]>`
       SELECT lm.id, lm.type, lm."meetingAt", lm.content, lm.result, lm.assignee,
              sd.name AS "dealName", sd.id AS "dealId"
       FROM "LeadMeeting" lm
       JOIN "SalesDeal" sd ON lm."dealId" = sd.id
-      WHERE lm."meetingAt" >= ${from} AND lm."meetingAt" <= ${to}
+      WHERE lm."isPlan" = 0 AND lm."meetingAt" >= ${from} AND lm."meetingAt" <= ${to}
       ORDER BY lm."meetingAt" DESC
     `,
     prisma.$queryRaw<any[]>`
@@ -100,6 +120,44 @@ export default async function SalesReportPage({
       WHERE ("salesStatus" = '진행중' OR "salesStatus" IS NULL) AND "stageCode" IS NOT NULL
       GROUP BY "stageCode" ORDER BY "stageCode"
     `,
+    /* ── 오늘의 영업회의: 어제 완료한 미팅/통화 ── */
+    prisma.$queryRaw<any[]>`
+      SELECT lm.id, lm.type, lm."meetingAt", lm.result, lm."nextAction", lm.assignee,
+             sd.name AS "dealName", sd.id AS "dealId"
+      FROM "LeadMeeting" lm
+      JOIN "SalesDeal" sd ON lm."dealId" = sd.id
+      WHERE lm."isPlan" = 0 AND lm."meetingAt" >= ${yesterdayStart} AND lm."meetingAt" <= ${yesterdayEnd}
+      ORDER BY lm."meetingAt" DESC
+    `,
+    /* ── 오늘의 영업회의: 오늘 계획된 미팅 ── */
+    prisma.$queryRaw<any[]>`
+      SELECT lm.id, lm.type, lm."meetingAt", lm.assignee, sd.name AS "dealName", sd.id AS "dealId"
+      FROM "LeadMeeting" lm
+      JOIN "SalesDeal" sd ON lm."dealId" = sd.id
+      WHERE lm."isPlan" = 1 AND lm."meetingAt" >= ${todayStart} AND lm."meetingAt" <= ${todayEnd}
+      ORDER BY lm."meetingAt" ASC
+    `,
+    /* ── 계획 탭: 선택 기간 내 예정된 미팅 ── */
+    prisma.$queryRaw<any[]>`
+      SELECT lm.id, lm.type, lm."meetingAt", lm.assignee, sd.name AS "dealName", sd.id AS "dealId"
+      FROM "LeadMeeting" lm
+      JOIN "SalesDeal" sd ON lm."dealId" = sd.id
+      WHERE lm."isPlan" = 1 AND lm."meetingAt" >= ${from} AND lm."meetingAt" <= ${to}
+      ORDER BY lm."meetingAt" ASC
+    `,
+    /* ── 통화주기 계산 대상: 진행중인 미성숙(1-1)/잠재(1-2) 리드 ── */
+    prisma.$queryRaw<CallCadenceDeal[]>`
+      SELECT id, name, assignee, "stageCode", "createdAt"
+      FROM "SalesDeal"
+      WHERE "stageCode" IN ('1-1', '1-2') AND ("salesStatus" = '진행중' OR "salesStatus" IS NULL)
+    `,
+    /* ── 딜별 마지막 완료 통화일 ── */
+    prisma.$queryRaw<{ dealId: string; lastCallAt: string | Date }[]>`
+      SELECT "dealId", MAX("meetingAt") AS "lastCallAt"
+      FROM "LeadMeeting"
+      WHERE type = '통화' AND "isPlan" = 0
+      GROUP BY "dealId"
+    `,
   ])
 
   const meetByType: Record<string, number> = {}
@@ -111,7 +169,7 @@ export default async function SalesReportPage({
 
   const periodLabel = { today: '오늘', week: '이번 주', month: '이번 달', year: '올해', custom: '기간 지정' }[period] ?? '이번 달'
 
-  /* ── 담당자별 집계 ── */
+  /* ── 담당자별 집계 (실적) ── */
   type AssigneeStats = {
     meetings: any[]; newDeals: any[]; stageChanged: any[]; wonDeals: any[]; lostDeals: any[]
   }
@@ -130,19 +188,65 @@ export default async function SalesReportPage({
     (a[1].meetings.length + a[1].newDeals.length + a[1].wonDeals.length)
   )
 
+  /* ── 통화주기 To-do 계산 ── */
+  const lastCallByDealId = new Map<string, Date>()
+  for (const r of lastCallRows) {
+    if (r.lastCallAt) lastCallByDealId.set(r.dealId, new Date(r.lastCallAt))
+  }
+  const callDueToday = computeCallDue(activeCadenceLeads, lastCallByDealId, now)
+  const callDueInRange = computeCallDue(activeCadenceLeads, lastCallByDealId, to)
+
+  /* ── 오늘의 영업회의: 오늘 할 일 (통화 필요 + 오늘 예정 미팅, dealId 중복 제거) ── */
+  type TodoItem = { dealId: string; dealName: string; assignee: string | null; label: string; detail: string }
+  const todayPlannedIds = new Set(todayPlanned.map((m: any) => m.dealId))
+  const todoToday: TodoItem[] = [
+    ...todayPlanned.map((m: any) => ({
+      dealId: m.dealId, dealName: m.dealName, assignee: m.assignee,
+      label: '예정된 미팅', detail: m.type,
+    })),
+    ...callDueToday
+      .filter(c => !todayPlannedIds.has(c.id))
+      .map(c => ({
+        dealId: c.id, dealName: c.name, assignee: c.assignee,
+        label: c.overdueDays > 0 ? `통화 필요 (${c.overdueDays}일 지남)` : '통화 필요',
+        detail: c.stageCode === '1-1' ? '미성숙리드 · 격주' : '잠재리드 · 매주',
+      })),
+  ]
+
+  const standupAssignees = new Set<string>()
+  for (const d of activeCadenceLeads) standupAssignees.add(d.assignee ?? '미배정')
+  for (const m of yesterdayMeetings)  standupAssignees.add(m.assignee ?? '미배정')
+  for (const t of todoToday)          standupAssignees.add(t.assignee ?? '미배정')
+  const allAssignees = [...standupAssignees].sort((a, b) => a.localeCompare(b))
+  const yesterdayByAssignee = groupByAssignee(yesterdayMeetings)
+  const todoByAssignee      = groupByAssignee(todoToday)
+
+  /* ── 계획 탭 담당자별 집계 ── */
+  type PlanAssigneeStats = { callDue: CallDueLead[]; planned: any[] }
+  const planAssigneeMap = new Map<string, PlanAssigneeStats>()
+  const ensurePlanKey = (key: string) => {
+    if (!planAssigneeMap.has(key)) planAssigneeMap.set(key, { callDue: [], planned: [] })
+    return planAssigneeMap.get(key)!
+  }
+  for (const c of callDueInRange) ensurePlanKey(c.assignee ?? '미배정').callDue.push(c)
+  for (const p of plannedInRange) ensurePlanKey(p.assignee ?? '미배정').planned.push(p)
+  const planAssigneeRows = [...planAssigneeMap.entries()].sort((a, b) =>
+    (b[1].callDue.length + b[1].planned.length) - (a[1].callDue.length + a[1].planned.length)
+  )
+
   return (
     <div className="flex-1 overflow-y-auto bg-slate-50 min-h-screen">
       {/* 헤더 */}
       <div className="bg-white border-b border-slate-200 px-8 py-5">
-        <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-          <div className="mr-6">
+        <div className="flex flex-col gap-3">
+          <div>
             <h1 className="text-xl font-bold text-slate-800">영업 리포트</h1>
             <p className="text-xs text-slate-400 mt-0.5">
               {fmtFull(range.from)} ~ {fmtFull(range.to)}
             </p>
           </div>
           <Suspense>
-            <PeriodSelector from={range.from} to={range.to} period={period} view={view} />
+            <PeriodSelector from={range.from} to={range.to} period={period} view={view} mode={mode} />
           </Suspense>
         </div>
       </div>
@@ -150,14 +254,226 @@ export default async function SalesReportPage({
       <div className="px-8 py-6 space-y-6">
 
         {/* ══════════════════════════════════════════
-            담당자별 뷰
+            오늘의 영업회의 (기간 필터와 무관, 항상 어제/오늘)
         ══════════════════════════════════════════ */}
-        {view === 'assignee' && (
+        <div className="bg-white rounded-2xl border-2 border-slate-800 overflow-hidden">
+          <div className="px-5 py-3 bg-slate-800">
+            <h2 className="text-[13px] font-bold text-white tracking-wide">오늘의 영업회의</h2>
+            <p className="text-[10px] text-slate-300 mt-0.5">{fmtFull(yesterdayStart.toISOString().slice(0, 10))} 실적 · {fmtFull(todayStart.toISOString().slice(0, 10))} 할 일</p>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-slate-100">
+            {/* 어제 한 일 */}
+            <div className="p-5">
+              <p className="text-[11px] font-bold text-indigo-600 uppercase tracking-widest mb-3">어제 한 일</p>
+              {allAssignees.length === 0 ? (
+                <p className="text-xs text-slate-400 py-2">진행 중인 리드가 없습니다</p>
+              ) : (
+                <div className="space-y-3">
+                  {allAssignees.map(name => {
+                    const items = yesterdayByAssignee.get(name) ?? []
+                    return (
+                      <div key={name}>
+                        <p className="text-xs font-bold text-slate-700 mb-1">{name}</p>
+                        {items.length === 0 ? (
+                          <p className="text-[11px] text-slate-300 pl-2">어제 활동 없음</p>
+                        ) : (
+                          <ul className="space-y-1">
+                            {items.map((m: any) => (
+                              <li key={m.id} className="text-[11px] text-slate-500 pl-2 flex items-center gap-1.5">
+                                <Badge text={m.type} />
+                                <Link href={`/funnel/${m.dealId}#meetings`} className="text-indigo-600 hover:underline font-medium">{m.dealName}</Link>
+                                {m.result && <span className="text-slate-400 truncate">— {m.result}</span>}
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* 오늘 할 일 */}
+            <div className="p-5">
+              <p className="text-[11px] font-bold text-amber-600 uppercase tracking-widest mb-3">오늘 할 일</p>
+              {allAssignees.length === 0 ? (
+                <p className="text-xs text-slate-400 py-2">진행 중인 리드가 없습니다</p>
+              ) : (
+                <div className="space-y-3">
+                  {allAssignees.map(name => {
+                    const items = todoByAssignee.get(name) ?? []
+                    return (
+                      <div key={name}>
+                        <p className="text-xs font-bold text-slate-700 mb-1">{name}</p>
+                        {items.length === 0 ? (
+                          <p className="text-[11px] text-slate-300 pl-2">오늘 통화 없음</p>
+                        ) : (
+                          <ul className="space-y-1">
+                            {items.map(t => (
+                              <li key={t.dealId} className="text-[11px] text-slate-500 pl-2 flex items-center gap-1.5">
+                                <span className={`inline-block px-1.5 py-0.5 rounded-full text-[9px] font-bold
+                                  ${t.label === '예정된 미팅' ? 'bg-indigo-50 text-indigo-600' : 'bg-amber-50 text-amber-700'}`}>
+                                  {t.label}
+                                </span>
+                                <Link href={`/funnel/${t.dealId}`} className="text-indigo-600 hover:underline font-medium">{t.dealName}</Link>
+                                <span className="text-slate-400">— {t.detail}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* ══════════════════════════════════════════
+            계획 탭
+        ══════════════════════════════════════════ */}
+        {mode === 'plan' && <>
+          {view === 'assignee' ? (
+            <div className="space-y-4">
+              <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+                <div className="px-5 py-4 border-b border-slate-100">
+                  <h2 className="text-[13px] font-bold text-slate-700">담당자별 계획 요약</h2>
+                  <p className="text-[11px] text-slate-400 mt-0.5">{periodLabel} · {fmtFull(range.from)}{range.from !== range.to ? ` ~ ${fmtFull(range.to)}` : ''} 까지</p>
+                </div>
+                {planAssigneeRows.length === 0 ? (
+                  <div className="px-5 py-10 text-center text-xs text-slate-400">기간 내 계획된 활동이 없습니다</div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-xs">
+                      <thead>
+                        <tr className="border-b border-slate-100 bg-slate-50">
+                          <th className="text-left py-3 px-5 text-[10px] font-bold text-slate-400 uppercase tracking-wider">담당자</th>
+                          <th className="text-center py-3 px-4 text-[10px] font-bold text-amber-600 uppercase tracking-wider">통화 필요</th>
+                          <th className="text-center py-3 px-4 text-[10px] font-bold text-indigo-600 uppercase tracking-wider">예정된 미팅</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {planAssigneeRows.map(([name, s]) => (
+                          <tr key={name} className="border-b border-slate-50 hover:bg-slate-50">
+                            <td className="py-3 px-5 font-semibold text-slate-800">{name}</td>
+                            <td className="py-3 px-4 text-center">
+                              <span className={`font-bold ${s.callDue.length > 0 ? 'text-amber-600' : 'text-slate-300'}`}>{s.callDue.length}</span>
+                            </td>
+                            <td className="py-3 px-4 text-center">
+                              <span className={`font-bold ${s.planned.length > 0 ? 'text-indigo-600' : 'text-slate-300'}`}>{s.planned.length}</span>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+
+              {planAssigneeRows.filter(([, s]) => s.callDue.length > 0).map(([name, s]) => (
+                <div key={name} className="bg-white rounded-2xl border border-slate-200 border-l-4 border-l-amber-400 overflow-hidden">
+                  <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100">
+                    <h2 className="text-[13px] font-bold text-slate-700">{name} — 통화 필요 리드</h2>
+                    <span className="text-xs font-bold text-amber-600">{s.callDue.length}건</span>
+                  </div>
+                  <div className="overflow-x-auto px-5 py-3">
+                    <table className="w-full text-xs">
+                      <thead>
+                        <tr className="border-b border-slate-100"><Th>고객명</Th><Th>단계</Th><Th>통화예정일</Th><Th>연체</Th></tr>
+                      </thead>
+                      <tbody>
+                        {s.callDue.map(c => (
+                          <ClickRow key={c.id} href={`/funnel/${c.id}`}>
+                            <Td><Link href={`/funnel/${c.id}`} className="font-medium text-indigo-600 hover:underline">{c.name}</Link></Td>
+                            <Td><Badge text={STAGE_LABEL[c.stageCode] ?? c.stageCode} /></Td>
+                            <Td>{fmt(c.dueAt)}</Td>
+                            <Td>{c.overdueDays > 0 ? <span className="text-red-500 font-semibold">{c.overdueDays}일</span> : '-'}</Td>
+                          </ClickRow>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="bg-white rounded-2xl border border-slate-200 p-5">
+                  <p className="text-[11px] font-bold text-amber-600 uppercase tracking-widest mb-3">통화 필요 리드</p>
+                  <p className="text-3xl font-black text-slate-800">{callDueInRange.length}<span className="text-base font-semibold text-slate-400 ml-1">건</span></p>
+                  <p className="text-[11px] text-slate-400 mt-1">미성숙(격주) · 잠재(매주) 통화주기 기준, {fmtFull(range.to)}까지 (연체 포함)</p>
+                </div>
+                <div className="bg-white rounded-2xl border border-slate-200 p-5">
+                  <p className="text-[11px] font-bold text-indigo-600 uppercase tracking-widest mb-3">예정된 미팅</p>
+                  <p className="text-3xl font-black text-slate-800">{plannedInRange.length}<span className="text-base font-semibold text-slate-400 ml-1">건</span></p>
+                  <p className="text-[11px] text-slate-400 mt-1">{periodLabel} 내 계획 등록된 미팅/통화</p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                <Section title="통화예정 리드 목록" count={callDueInRange.length} accent="amber">
+                  {callDueInRange.length === 0
+                    ? <Empty text="기간 내 통화 예정 리드가 없습니다" />
+                    : <table className="w-full text-xs">
+                        <thead>
+                          <tr className="border-b border-slate-100">
+                            <Th>고객명</Th><Th>단계</Th><Th>담당</Th><Th>통화예정일</Th><Th>연체</Th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {callDueInRange.map(c => (
+                            <ClickRow key={c.id} href={`/funnel/${c.id}`}>
+                              <Td><Link href={`/funnel/${c.id}`} className="font-medium text-indigo-600 hover:underline">{c.name}</Link></Td>
+                              <Td><Badge text={STAGE_LABEL[c.stageCode] ?? c.stageCode} /></Td>
+                              <Td>{c.assignee ?? '-'}</Td>
+                              <Td>{fmt(c.dueAt)}</Td>
+                              <Td>{c.overdueDays > 0 ? <span className="text-red-500 font-semibold">{c.overdueDays}일</span> : '-'}</Td>
+                            </ClickRow>
+                          ))}
+                        </tbody>
+                      </table>
+                  }
+                </Section>
+
+                <Section title="예정된 미팅 목록" count={plannedInRange.length} accent="indigo">
+                  {plannedInRange.length === 0
+                    ? <Empty text="기간 내 예정된 미팅이 없습니다" />
+                    : <table className="w-full text-xs">
+                        <thead>
+                          <tr className="border-b border-slate-100">
+                            <Th>일정</Th><Th>고객</Th><Th>유형</Th><Th>담당</Th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {plannedInRange.map((m: any) => (
+                            <ClickRow key={m.id} href={`/funnel/${m.dealId}#meetings`}>
+                              <Td>{fmt(m.meetingAt)}</Td>
+                              <Td><Link href={`/funnel/${m.dealId}#meetings`} className="font-medium text-indigo-600 hover:underline">{m.dealName}</Link></Td>
+                              <Td><Badge text={m.type} /></Td>
+                              <Td>{m.assignee ?? '-'}</Td>
+                            </ClickRow>
+                          ))}
+                        </tbody>
+                      </table>
+                  }
+                </Section>
+              </div>
+            </>
+          )}
+        </>}
+
+        {/* ══════════════════════════════════════════
+            실적 탭 · 담당자별 뷰
+        ══════════════════════════════════════════ */}
+        {mode === 'actual' && view === 'assignee' && (
           <div className="space-y-4">
             {/* 담당자 요약 테이블 */}
             <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
               <div className="px-5 py-4 border-b border-slate-100">
-                <h2 className="text-sm font-bold text-slate-700">담당자별 영업 활동 요약</h2>
+                <h2 className="text-[13px] font-bold text-slate-700">담당자별 영업 활동 요약</h2>
                 <p className="text-[11px] text-slate-400 mt-0.5">{periodLabel} · {fmtFull(range.from)}{range.from !== range.to ? ` ~ ${fmtFull(range.to)}` : ''}</p>
               </div>
               {assigneeRows.length === 0 ? (
@@ -221,7 +537,7 @@ export default async function SalesReportPage({
             {assigneeRows.filter(([, s]) => s.meetings.length > 0).map(([name, s]) => (
               <div key={name} className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
                 <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100">
-                  <h2 className="text-sm font-bold text-slate-700">{name} — 미팅 기록</h2>
+                  <h2 className="text-[13px] font-bold text-slate-700">{name} — 미팅 기록</h2>
                   <span className="text-xs font-bold text-indigo-600">{s.meetings.length}건</span>
                 </div>
                 <div className="overflow-x-auto px-5 py-3">
@@ -251,7 +567,7 @@ export default async function SalesReportPage({
             {assigneeRows.filter(([, s]) => s.newDeals.length > 0).map(([name, s]) => (
               <div key={name} className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
                 <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100">
-                  <h2 className="text-sm font-bold text-slate-700">{name} — 신규 리드</h2>
+                  <h2 className="text-[13px] font-bold text-slate-700">{name} — 신규 리드</h2>
                   <span className="text-xs font-bold text-blue-600">{s.newDeals.length}건</span>
                 </div>
                 <div className="overflow-x-auto px-5 py-3">
@@ -280,16 +596,16 @@ export default async function SalesReportPage({
         )}
 
         {/* ══════════════════════════════════════════
-            전체 뷰 (기존)
+            실적 탭 · 전체 뷰
         ══════════════════════════════════════════ */}
-        {view !== 'assignee' && <>
+        {mode === 'actual' && view !== 'assignee' && <>
 
         {/* ── 요약 카드 3개 ── */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
 
           {/* 고객 방문/미팅 */}
           <div className="bg-white rounded-2xl border border-slate-200 p-5">
-            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3">고객 방문/미팅</p>
+            <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-3">고객 방문/미팅</p>
             <p className="text-3xl font-black text-slate-800">{meetings.length}<span className="text-base font-semibold text-slate-400 ml-1">건</span></p>
             <div className="mt-3 grid grid-cols-2 gap-2">
               {(['방문','통화','화상','기타'] as const).map(t => (
@@ -303,7 +619,7 @@ export default async function SalesReportPage({
 
           {/* 리드 현황 */}
           <div className="bg-white rounded-2xl border border-slate-200 p-5">
-            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3">리드 현황</p>
+            <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-3">리드 현황</p>
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <span className="text-sm text-slate-600">신규 유입</span>
@@ -314,7 +630,7 @@ export default async function SalesReportPage({
                 <span className="text-xl font-black text-indigo-600">{stageChanged.length}<span className="text-xs font-semibold text-slate-400 ml-0.5">건</span></span>
               </div>
               <div className="h-px bg-slate-100 my-2" />
-              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">현재 파이프라인</p>
+              <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-1">현재 파이프라인</p>
               <div className="space-y-1">
                 {allActive.map((r: any) => (
                   <div key={r.stageCode} className="flex items-center gap-2">
@@ -335,7 +651,7 @@ export default async function SalesReportPage({
 
           {/* 수주/실주 */}
           <div className="bg-white rounded-2xl border border-slate-200 p-5">
-            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3">수주 / 실주</p>
+            <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-3">수주 / 실주</p>
             <div className="grid grid-cols-2 gap-3 mb-3">
               <div className="text-center p-3 bg-green-50 rounded-xl">
                 <p className="text-xs text-green-600 font-semibold mb-0.5">수주</p>
@@ -503,14 +819,20 @@ export default async function SalesReportPage({
 
 /* ── 헬퍼 컴포넌트 ── */
 function Section({ title, count, accent, children }: {
-  title: string; count: number; accent?: 'green' | 'red'; children: React.ReactNode
+  title: string; count: number; accent?: 'green' | 'red' | 'indigo' | 'amber'; children: React.ReactNode
 }) {
-  const color = accent === 'green' ? 'text-green-600' : accent === 'red' ? 'text-red-500' : 'text-indigo-600'
+  const palette: Record<string, { text: string; border: string }> = {
+    green:  { text: 'text-green-600',  border: 'border-l-green-400' },
+    red:    { text: 'text-red-500',    border: 'border-l-red-400' },
+    indigo: { text: 'text-indigo-600', border: 'border-l-indigo-400' },
+    amber:  { text: 'text-amber-600',  border: 'border-l-amber-400' },
+  }
+  const p = palette[accent ?? 'indigo']
   return (
-    <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+    <div className={`bg-white rounded-2xl border border-slate-200 border-l-4 ${p.border} overflow-hidden`}>
       <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100">
-        <h2 className="text-sm font-bold text-slate-700">{title}</h2>
-        <span className={`text-xs font-bold ${color}`}>{count}건</span>
+        <h2 className="text-[13px] font-bold text-slate-700">{title}</h2>
+        <span className={`text-xs font-bold ${p.text}`}>{count}건</span>
       </div>
       <div className="overflow-x-auto px-5 py-3">{children}</div>
     </div>
