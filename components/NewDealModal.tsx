@@ -7,7 +7,7 @@ import AgentPicker from './AgentPicker'
 import AssigneePicker from './AssigneePicker'
 
 /* ── 리드 발굴경로 (고객 유입경로와 별도 관리) ── */
-const LEAD_SOURCES = ['소개', '자체발굴', '인바운드', 'SNS', '전시회', '로드쇼', '기타', '소개인']
+const LEAD_SOURCES = ['자체발굴', '온라인', '오프라인', '소개인', '기타']
 const CUST_SOURCES = ['소개', '온라인', '전시장/이벤트', '직접방문', '기타']
 
 type Segment = 'B2C' | 'B2B'

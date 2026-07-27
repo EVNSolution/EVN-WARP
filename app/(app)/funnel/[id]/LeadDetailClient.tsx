@@ -1323,7 +1323,7 @@ export default function LeadDetailClient({ deal, customer = null, products = [],
           <div className="col-span-2">
             <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">유입경로</label>
             <div className="flex gap-1.5 flex-wrap">
-              {['소개', '자체발굴', '인바운드', 'SNS', '전시회', '기타', '소개인'].map(s => (
+              {['자체발굴', '온라인', '오프라인', '소개인', '기타'].map(s => (
                 <button key={s} type="button"
                   onClick={() => { setFv('source', f.source === s ? '' : s); if (s !== '소개인') setAgentValue(null) }}
                   className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all

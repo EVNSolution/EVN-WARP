@@ -40,7 +40,7 @@ export const PIPELINE: PipelinePhase[] = [
       {
         code: '1-1', name: '미성숙 리드', target: 20, conversionRate: 0.10,
         checks: [
-          { key: '1-1-0', label: '배송업 의향 확인' },
+          { key: '1-1-0', label: '배송업 의향 확인 ("이 분은 계속 배송일은 하시겠네")' },
         ],
         checksB2B: [
           { key: '1-1-b2b-0', label: '일반화물자동차운송업 확보' },
@@ -56,7 +56,7 @@ export const PIPELINE: PipelinePhase[] = [
         checks: [
           { key: '1-2-0', label: '차량정보 확보',   field: 'vehicle' },
           { key: '1-2-1', label: '화주정보 확보',   field: 'shipper' },
-          { key: '1-2-3', label: '연락 가능' },
+          { key: '1-2-3', label: '연락 가능 ("이 분과 친구가 되었음")' },
           { key: '1-2-2', label: '구매의향 확인', noteLabel: '구매의향 근거' },
         ],
         checksB2B: [

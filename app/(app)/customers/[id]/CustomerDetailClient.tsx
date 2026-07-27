@@ -410,12 +410,18 @@ export default function CustomerDetailClient({ customer, returnTo }: { customer:
             <h1 className="text-2xl font-bold text-slate-800">{customer.name}</h1>
             <div className="flex items-center gap-2 mt-0.5">
               {customer.phone && <span className="text-sm text-slate-500">{customer.phone}</span>}
-              <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full
+              <button type="button"
+                onClick={() => {
+                  if (!confirm(`고객 구분을 ${f.customerSegment === 'B2B' ? 'B2C 개인' : 'B2B 법인'}(으)로 변경할까요?`)) return
+                  setFv('customerSegment', f.customerSegment === 'B2B' ? 'B2C' : 'B2B')
+                }}
+                title="클릭하여 B2B/B2C 구분 변경"
+                className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full transition hover:ring-2 hover:ring-offset-1
                 ${f.customerSegment === 'B2B'
-                  ? 'bg-violet-100 text-violet-700'
-                  : 'bg-sky-100 text-sky-700'}`}>
+                  ? 'bg-violet-100 text-violet-700 hover:ring-violet-300'
+                  : 'bg-sky-100 text-sky-700 hover:ring-sky-300'}`}>
                 {f.customerSegment === 'B2B' ? 'B2B 법인' : 'B2C 개인'}
-              </span>
+              </button>
               <span className="text-[10px] text-slate-400">
                 등록 {new Date(customer.createdAt).toLocaleDateString('ko-KR')}
               </span>
