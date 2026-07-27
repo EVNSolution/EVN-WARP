@@ -50,11 +50,6 @@ git checkout -B deploy-target FETCH_HEAD
 git reset --hard FETCH_HEAD
 new_commit="$(git rev-parse --short HEAD)"
 
-# public/uploads가 영구 보존 디렉터리를 가리키도록 심볼릭 링크 재생성
-# (위에서 이관만 하고 링크를 걸지 않으면 배포 직후 업로드 파일이 404가 됨)
-mkdir -p "$UPLOADS_PERSIST"
-ln -sfn "$UPLOADS_PERSIST" public/uploads
-
 if [ -f dev.db ]; then
   cp dev.db "$BACKUP_DIR/dev-${ts}-${old_commit:-unknown}.db"
 fi
@@ -97,6 +92,7 @@ npx prisma generate
 npx tsx scripts/dedup-teams.ts
 npx prisma db push --accept-data-loss
 npx tsx scripts/migrate-lead-sources.ts
+npx tsx scripts/migrate-meeting-upload-paths.ts
 
 admin_email="$(node -e "const fs=require('fs');const dotenv=require('dotenv');const e=dotenv.parse(fs.readFileSync('.env'));process.stdout.write(e.ADMIN_EMAIL||'')")"
 admin_password="$(node -e "const fs=require('fs');const dotenv=require('dotenv');const e=dotenv.parse(fs.readFileSync('.env'));process.stdout.write(e.ADMIN_PASSWORD||'')")"

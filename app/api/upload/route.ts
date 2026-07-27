@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { writeFile, mkdir } from 'fs/promises'
 import path from 'path'
 
+const UPLOADS_DIR = process.env.UPLOADS_DIR ?? path.join(process.cwd(), 'uploads')
+
 export async function POST(req: NextRequest) {
   try {
     const form = await req.formData()
@@ -10,7 +12,7 @@ export async function POST(req: NextRequest) {
 
     if (!files.length) return NextResponse.json({ error: '파일 없음' }, { status: 400 })
 
-    const dir = path.join(process.cwd(), 'public', 'uploads', 'meetings', dealId ?? 'general')
+    const dir = path.join(UPLOADS_DIR, 'meetings', dealId ?? 'general')
     await mkdir(dir, { recursive: true })
 
     const saved: { name: string; path: string; size: number; mime: string }[] = []
@@ -22,7 +24,7 @@ export async function POST(req: NextRequest) {
       await writeFile(dest, buf)
       saved.push({
         name: file.name,
-        path: `/uploads/meetings/${dealId ?? 'general'}/${path.basename(dest)}`,
+        path: `/api/uploads/meetings/${dealId ?? 'general'}/${path.basename(dest)}`,
         size: file.size,
         mime: file.type,
       })

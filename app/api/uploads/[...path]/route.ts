@@ -7,8 +7,12 @@ const UPLOADS_DIR = process.env.UPLOADS_DIR ?? path.join(process.cwd(), 'uploads
 const MIME: Record<string, string> = {
   '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg',
   '.png': 'image/png', '.gif': 'image/gif',
-  '.webp': 'image/webp', '.bmp': 'image/bmp',
+  '.webp': 'image/webp', '.bmp': 'image/bmp', '.heic': 'image/heic',
   '.pdf': 'application/pdf',
+  '.mp3': 'audio/mpeg', '.m4a': 'audio/mp4', '.wav': 'audio/wav',
+  '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  '.txt': 'text/plain',
 }
 
 export async function GET(
