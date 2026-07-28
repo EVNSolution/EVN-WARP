@@ -1608,9 +1608,10 @@ export default function LeadDetailClient({ deal, customer = null, products = [],
           const tabMeetings = meetings.filter(m =>
             mtgTab === 'plan' ? (m.isPlan === 1 || m.isPlan === true) : !m.isPlan
           )
-          const sortedMeetings = mtgTab === 'plan'
-            ? [...tabMeetings].sort((a, b) => new Date(a.meetingAt).getTime() - new Date(b.meetingAt).getTime())
-            : tabMeetings
+          const sortedMeetings = [...tabMeetings].sort((a, b) => {
+            const diff = new Date(a.meetingAt).getTime() - new Date(b.meetingAt).getTime()
+            return mtgTab === 'plan' ? diff : -diff
+          })
           return sortedMeetings.length === 0 ? (
           <div className="text-center py-10 text-slate-300 text-sm border border-dashed border-slate-200 rounded-xl">
             {mtgTab === 'plan' ? '예정된 미팅 계획이 없습니다' : '아직 미팅 기록이 없습니다'}

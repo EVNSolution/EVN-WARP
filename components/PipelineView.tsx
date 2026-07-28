@@ -476,7 +476,7 @@ export default function PipelineView({ deals, salesTarget, linkedKpiLabel, initi
   }
 
   /* 리드 테이블 헤더/셀 렌더 */
-  const visLeadCols = leadCols.filter(c => c.visible && !(c.key === 'stage' && !!selectedProcess))
+  const visLeadCols = leadCols.filter(c => c.visible)
   const visCrmCols  = crmCols.filter(c => c.visible)
 
   const renderLeadTh = (c: ColCfg) => (
