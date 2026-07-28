@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
+import { logStageChange } from '@/lib/stageHistory'
 
 const HEADER_MAP: Record<string, string> = {
   'ID': 'id',
@@ -93,6 +94,9 @@ export async function POST(req: NextRequest) {
           continue
         }
         await prisma.salesDeal.update({ where: { id: rec.id }, data: dealData })
+        await logStageChange({
+          dealId: rec.id, fromStageCode: exists.stageCode, toStageCode: stageCode, changedBy: '엑셀 임포트',
+        })
         updated++
       } else {
         // 신규 딜 생성 — 전화번호로 기존 고객 연결
@@ -122,8 +126,11 @@ export async function POST(req: NextRequest) {
           })
         }
 
-        await prisma.salesDeal.create({
+        const newDeal = await prisma.salesDeal.create({
           data: { ...dealData, customerId: customer.id },
+        })
+        await logStageChange({
+          dealId: newDeal.id, fromStageCode: null, toStageCode: stageCode, changedBy: '엑셀 임포트',
         })
         created++
       }

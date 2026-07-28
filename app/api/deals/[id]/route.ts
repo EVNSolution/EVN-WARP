@@ -1,12 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
+import { auth } from '@/auth'
+import { logStageChange } from '@/lib/stageHistory'
 
 const toDate = (v: unknown) => (v ? new Date(v as string) : null)
 
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params
-    const b = await req.json()
+    const [b, session] = await Promise.all([req.json(), auth()])
+    const before = b.stageCode !== undefined
+      ? await prisma.salesDeal.findUnique({ where: { id }, select: { stageCode: true } })
+      : null
     const deal = await prisma.salesDeal.update({
       where: { id },
       data: {
@@ -114,6 +119,16 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
       } else {
         await prisma.$executeRaw`UPDATE "SalesDeal" SET "productId" = NULL WHERE id = ${id}`
       }
+    }
+
+    if (b.stageCode !== undefined && before && deal.stageCode) {
+      const me = session?.user as any
+      await logStageChange({
+        dealId: id,
+        fromStageCode: before.stageCode,
+        toStageCode: deal.stageCode,
+        changedBy: me?.name ?? null,
+      })
     }
 
     return NextResponse.json({ ...deal, agentId: b.agentId !== undefined ? (b.agentId || null) : undefined })

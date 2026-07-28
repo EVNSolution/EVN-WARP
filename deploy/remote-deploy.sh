@@ -93,6 +93,7 @@ npx tsx scripts/dedup-teams.ts
 npx prisma db push --accept-data-loss
 npx tsx scripts/migrate-lead-sources.ts
 npx tsx scripts/migrate-meeting-upload-paths.ts
+npx tsx scripts/backfill-stage-history.ts
 
 admin_email="$(node -e "const fs=require('fs');const dotenv=require('dotenv');const e=dotenv.parse(fs.readFileSync('.env'));process.stdout.write(e.ADMIN_EMAIL||'')")"
 admin_password="$(node -e "const fs=require('fs');const dotenv=require('dotenv');const e=dotenv.parse(fs.readFileSync('.env'));process.stdout.write(e.ADMIN_PASSWORD||'')")"

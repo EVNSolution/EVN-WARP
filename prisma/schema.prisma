@@ -332,6 +332,19 @@ model LeadMeeting {
   updatedAt   DateTime  @updatedAt
 }
 
+// 리드 단계(stageCode) 변경 이력
+model StageHistory {
+  id            String    @id @default(cuid())
+  dealId        String
+  deal          SalesDeal @relation(fields: [dealId], references: [id], onDelete: Cascade)
+
+  fromStageCode String?   // null = 최초 생성(리드 등록)
+  toStageCode   String
+  changedBy     String?   // 변경한 사용자 이름 (세션 없으면 null)
+
+  changedAt     DateTime  @default(now())
+}
+
 // ── 소개자(Agent) 마스터 ──────────────────────────────────────────────────────
 model Agent {
   id         String    @id @default(cuid())
@@ -387,6 +400,7 @@ model SalesDeal {
   agent       Agent?   @relation(fields: [agentId], references: [id], onDelete: SetNull)
 
   meetings    LeadMeeting[]
+  stageHistory StageHistory[]
 
   // 구 퍼널 단계 (하위호환)
   stage       String   @default("리드")

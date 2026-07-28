@@ -691,7 +691,7 @@ export default async function SalesReportPage({
                     {lostDeals.map((d: any) => (
                       <ClickRow key={d.id} href={`/funnel/${d.id}`}>
                         <Td>{fmt(d.closedAt)}</Td>
-                        <Td><Link href={`/funnel/${d.id}`} className="font-medium text-red-600 hover:underline">{d.name}</Link></Td>
+                        <Td><Link href={`/funnel/${d.id}`} className="font-medium text-slate-700 hover:underline">{d.name}</Link></Td>
                         <Td className="max-w-[150px] truncate">{d.lostReason ?? '-'}</Td>
                         <Td>{d.assignee ?? '-'}</Td>
                       </ClickRow>

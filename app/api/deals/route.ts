@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
+import { auth } from '@/auth'
+import { logStageChange } from '@/lib/stageHistory'
 
 export async function GET() {
   const deals = await prisma.salesDeal.findMany({ orderBy: { createdAt: 'asc' } })
@@ -8,7 +10,7 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   try {
-    const body = await req.json()
+    const [body, session] = await Promise.all([req.json(), auth()])
     if (!body.name?.trim()) return NextResponse.json({ error: '고객명은 필수입니다.' }, { status: 400 })
 
     // Customer CRM 레코드: 전화번호가 같은 기존 고객이 있으면 연결, 없으면 신규 생성
@@ -177,6 +179,16 @@ export async function POST(req: NextRequest) {
     const productId = body.productId || null
     if (productId) {
       await prisma.$executeRaw`UPDATE "SalesDeal" SET "productId" = ${productId} WHERE id = ${deal.id}`
+    }
+
+    if (deal.stageCode) {
+      const me = session?.user as any
+      await logStageChange({
+        dealId: deal.id,
+        fromStageCode: null,
+        toStageCode: deal.stageCode,
+        changedBy: me?.name ?? null,
+      })
     }
 
     return NextResponse.json({ ...deal, agentId, productId }, { status: 201 })

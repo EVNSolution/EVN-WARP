@@ -7,6 +7,7 @@ import { PIPELINE } from '@/lib/pipeline'
 import AgentPicker from '@/components/AgentPicker'
 import AssigneePicker from '@/components/AssigneePicker'
 import CallAnalysisModal from '@/components/CallAnalysisModal'
+import StageHistoryList from '@/components/StageHistoryList'
 
 /* ── 선택 옵션 ── */
 const SOURCES        = ['소개', '온라인', '전시장/이벤트', '직접방문', '기타']
@@ -243,7 +244,7 @@ export default function LeadDetailClient({ deal, customer = null, products = [],
   const [expandedMtgIds, setExpandedMtgIds] = useState<Set<string>>(new Set())
   const [showMtgForm,    setShowMtgForm]    = useState(false)
   const [editingMtgId,   setEditingMtgId]   = useState<string | null>(null)
-  const [mtgTab,         setMtgTab]         = useState<'record' | 'plan'>('record')
+  const [mtgTab,         setMtgTab]         = useState<'record' | 'plan' | 'history'>('record')
   const [mtg, setMtg] = useState({ type: '통화', meetingAt: localNow(), duration: '', content: '', result: '', nextAction: '', assignee: '', expenseTransport: '', expenseAccomm: '', expenseMeal: '', expenseOther: '', expenseNote: '' })
   const [mtgFiles,    setMtgFiles]    = useState<MFile[]>([])
   const [uploading,   setUploading]   = useState(false)
@@ -1492,34 +1493,38 @@ export default function LeadDetailClient({ deal, customer = null, products = [],
         <div className="flex items-center justify-between mb-4">
           {/* 탭 */}
           <div className="flex items-center gap-1 bg-slate-100 rounded-lg p-1">
-            {(['record', 'plan'] as const).map(tab => {
-              const count = meetings.filter(m => tab === 'plan' ? (m.isPlan === 1 || m.isPlan === true) : !m.isPlan).length
+            {(['record', 'plan', 'history'] as const).map(tab => {
+              const count = tab === 'history'
+                ? undefined
+                : meetings.filter(m => tab === 'plan' ? (m.isPlan === 1 || m.isPlan === true) : !m.isPlan).length
               return (
                 <button key={tab} onClick={() => { setMtgTab(tab); setShowMtgForm(false); setEditingMtgId(null) }}
                   className={`px-3 py-1 rounded text-xs font-semibold transition ${mtgTab === tab ? 'bg-white shadow-sm text-slate-800' : 'text-slate-500 hover:text-slate-700'}`}>
-                  {tab === 'record' ? '기록' : '계획'}
-                  <span className="ml-1 text-slate-400 font-normal">({count})</span>
+                  {tab === 'record' ? '기록' : tab === 'plan' ? '계획' : '이력'}
+                  {count !== undefined && <span className="ml-1 text-slate-400 font-normal">({count})</span>}
                 </button>
               )
             })}
           </div>
-          <button onClick={() => {
-              if (showMtgForm) {
-                setShowMtgForm(false)
-                setEditingMtgId(null)
-                setMtg({ type: '통화', meetingAt: localNow(), duration: '', content: '', result: '', nextAction: '', assignee: '', expenseTransport: '', expenseAccomm: '', expenseMeal: '', expenseOther: '', expenseNote: '' })
-              } else {
-                setShowMtgForm(true)
-              }
-            }}
-            className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition
-              ${showMtgForm ? 'bg-slate-200 text-slate-600' : 'bg-slate-800 text-white hover:bg-slate-700'}`}>
-            {showMtgForm ? '취소' : mtgTab === 'plan' ? '+ 미팅 계획' : '+ 미팅 기록'}
-          </button>
+          {mtgTab !== 'history' && (
+            <button onClick={() => {
+                if (showMtgForm) {
+                  setShowMtgForm(false)
+                  setEditingMtgId(null)
+                  setMtg({ type: '통화', meetingAt: localNow(), duration: '', content: '', result: '', nextAction: '', assignee: '', expenseTransport: '', expenseAccomm: '', expenseMeal: '', expenseOther: '', expenseNote: '' })
+                } else {
+                  setShowMtgForm(true)
+                }
+              }}
+              className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition
+                ${showMtgForm ? 'bg-slate-200 text-slate-600' : 'bg-slate-800 text-white hover:bg-slate-700'}`}>
+              {showMtgForm ? '취소' : mtgTab === 'plan' ? '+ 미팅 계획' : '+ 미팅 기록'}
+            </button>
+          )}
         </div>
 
         {/* 미팅 추가/수정 폼 */}
-        {showMtgForm && (
+        {showMtgForm && mtgTab !== 'history' && (
           <div className="mb-5 p-5 bg-slate-50 rounded-xl border border-slate-200">
             {editingMtgId && (
               <p className="text-[10px] font-bold text-indigo-500 uppercase tracking-widest mb-3">미팅 기록 수정</p>
@@ -1603,8 +1608,11 @@ export default function LeadDetailClient({ deal, customer = null, products = [],
           </div>
         )}
 
+        {/* 단계 변경 이력 */}
+        {mtgTab === 'history' && <StageHistoryList dealId={deal.id} />}
+
         {/* 미팅 타임라인 — 아코디언 */}
-        {(() => {
+        {mtgTab !== 'history' && (() => {
           const tabMeetings = meetings.filter(m =>
             mtgTab === 'plan' ? (m.isPlan === 1 || m.isPlan === true) : !m.isPlan
           )
