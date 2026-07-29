@@ -8,8 +8,9 @@ datasource db {
 }
 
 model Team {
-  id             String          @id @default(cuid())
-  name           String          @unique
+  id              String          @id @default(cuid())
+  name            String          @unique
+  strategySummary String?         // 팀 전략 1~2문장 요약
   strategyTasks  StrategyTask[]
   weeklyUpdates  WeeklyUpdate[]
   workActivities WorkActivity[]

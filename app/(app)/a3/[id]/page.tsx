@@ -3,6 +3,7 @@ import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { ArrowLeft, Edit, CheckCircle2, Plus, CornerDownRight, ChevronRight, Download, PauseCircle } from 'lucide-react'
 import SuspendTaskButton from '@/components/SuspendTaskButton'
+import DeleteTaskButton from '@/components/DeleteTaskButton'
 
 const STATUS_STYLE: Record<string, string> = {
   '진행중': 'bg-blue-100 text-blue-700',
@@ -181,6 +182,7 @@ export default async function A3DetailPage(props: PageProps<'/a3/[id]'>) {
             suspendedAt={task.suspendedAt?.toISOString()}
             suspendReason={task.suspendReason}
           />
+          <DeleteTaskButton taskId={task.id} hasSubTasks={task.subTasks.length > 0} />
         </div>
       </div>
 

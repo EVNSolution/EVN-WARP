@@ -28,7 +28,7 @@ export default async function AdminPage() {
       },
       orderBy: { name: 'asc' },
     }),
-    prisma.team.findMany({ select: { id: true, name: true }, orderBy: { name: 'asc' } }),
+    prisma.team.findMany({ select: { id: true, name: true, strategySummary: true }, orderBy: { name: 'asc' } }),
     prisma.product.findMany({ orderBy: [{ category: 'asc' }, { name: 'asc' }] }),
   ])
 

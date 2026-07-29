@@ -2,8 +2,14 @@ import { prisma } from '@/lib/db'
 
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
-  const { name } = await req.json()
-  const team = await prisma.team.update({ where: { id }, data: { name } })
+  const body = await req.json()
+  const team = await prisma.team.update({
+    where: { id },
+    data: {
+      ...(body.name !== undefined && { name: body.name }),
+      ...(body.strategySummary !== undefined && { strategySummary: body.strategySummary || null }),
+    },
+  })
   return Response.json(team)
 }
 

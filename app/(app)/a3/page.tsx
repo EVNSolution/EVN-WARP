@@ -53,10 +53,10 @@ export default async function A3ListPage() {
   })
 
   // 팀별 그룹
-  const teamMap = new Map<string, { teamName: string; tasks: typeof tasks }>()
+  const teamMap = new Map<string, { teamName: string; strategySummary: string | null; tasks: typeof tasks }>()
   for (const task of tasks) {
     if (!teamMap.has(task.teamId))
-      teamMap.set(task.teamId, { teamName: task.team.name, tasks: [] })
+      teamMap.set(task.teamId, { teamName: task.team.name, strategySummary: task.team.strategySummary, tasks: [] })
     teamMap.get(task.teamId)!.tasks.push(task)
   }
   const teamEntries = [...teamMap.values()]
@@ -81,16 +81,17 @@ export default async function A3ListPage() {
         </div>
       ) : (
         <div className="space-y-8">
-          {teamEntries.map(({ teamName, tasks: teamTasks }) => {
+          {teamEntries.map(({ teamName, strategySummary, tasks: teamTasks }) => {
             const active    = teamTasks.filter(t => !t.suspended)
             const suspended = teamTasks.filter(t => t.suspended)
             const cntDone   = active.filter(t => t.status === '완료').length
             const cntActive = active.filter(t => t.status !== '완료').length
 
             return (
-              <section key={teamName}>
+              <section key={teamName} className="bg-white border border-slate-200 rounded-2xl p-5 shadow-md"
+                style={{ borderTop: '4px solid #C5D42A' }}>
                 {/* 팀 헤더 */}
-                <div className="flex items-center gap-3 mb-3">
+                <div className="flex items-center gap-3">
                   <div className="w-[3px] h-5 rounded-full shrink-0" style={{ backgroundColor: '#C5D42A' }} />
                   <span className="text-sm font-bold text-slate-800">{teamName}</span>
                   <div className="flex items-center gap-2 text-xs">
@@ -108,8 +109,13 @@ export default async function A3ListPage() {
                   <span className="text-xs text-slate-400 font-medium shrink-0">{teamTasks.length}건</span>
                 </div>
 
+                {/* 팀 전략 요약 */}
+                {strategySummary && (
+                  <p className="text-xs text-slate-500 italic mt-1.5 mb-1 pl-[15px]">{strategySummary}</p>
+                )}
+
                 {/* 과제 카드들 */}
-                <div className="grid gap-3">
+                <div className="grid gap-3 mt-3">
                   {active.map(task => (
                     <TaskRow key={task.id} task={task} dimmed={task.status === '완료'} />
                   ))}
