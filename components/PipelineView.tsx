@@ -33,7 +33,7 @@ export interface PipelineDeal {
   shipperName?: string | null
   deliveryCity?: string | null
   deliveryDist?: string | null
-  nextMeeting?: { type: string; meetingAt: string } | null
+  nextMeeting?: { type: string; meetingAt: string; computed?: boolean } | null
   vehicleCount?: number | null
 }
 
@@ -559,8 +559,6 @@ export default function PipelineView({ deals, salesTarget, linkedKpiLabel, initi
           </td>
         )
       case 'vehicleCount':
-        if (d.customerSegment !== 'B2B')
-          return <td key={c.key} style={{ width: W_PX[c.width] }} className="px-3 py-2.5 text-slate-200 text-xs text-center">—</td>
         return (
           <td key={c.key} style={{ width: W_PX[c.width] }} className="px-3 py-2.5 text-center">
             {d.vehicleCount
@@ -628,7 +626,17 @@ export default function PipelineView({ deals, salesTarget, linkedKpiLabel, initi
         const nm = d.nextMeeting
         if (!nm)
           return <td key={c.key} style={{ width: W_PX[c.width] }} className="px-3 py-2.5 text-slate-300 text-xs">—</td>
-        const nmDt = new Date(nm.meetingAt)
+        if (nm.computed) {
+          return (
+            <td key={c.key} style={{ width: W_PX[c.width] }} className="px-3 py-2.5">
+              <Link href={`/funnel/${d.id}?from=${selectedCode ?? ''}&seg=${activeTab}`} className="hover:opacity-70 transition-opacity">
+                <span className="text-[10px] text-amber-600 font-semibold tabular-nums">
+                  {fmtMtgDate(nm.meetingAt)}, 통화 예정
+                </span>
+              </Link>
+            </td>
+          )
+        }
         const typeColor = nm.type === '통화' ? 'text-blue-500' : nm.type === '문자' ? 'text-sky-500' : nm.type === '방문' ? 'text-green-600' : nm.type === '화상' ? 'text-violet-500' : 'text-slate-500'
         return (
           <td key={c.key} style={{ width: W_PX[c.width] }} className="px-3 py-2.5">

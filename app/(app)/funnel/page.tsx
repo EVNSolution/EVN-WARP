@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/db'
 import { getStageCode, PIPELINE } from '@/lib/pipeline'
+import { nextCallDueDate } from '@/lib/callCadence'
 import PipelineView, { type PipelineDeal } from '@/components/PipelineView'
 import ProcessGuideButton from '@/components/ProcessGuideButton'
 import ExcelImportExport from '@/components/ExcelImportExport'
@@ -12,7 +13,7 @@ export default async function FunnelPage({ searchParams }: { searchParams: Promi
   const currentYear  = new Date().getFullYear()
 
   const nowIso = new Date().toISOString()
-  const [rows, products, allMeetings, planRows] = await Promise.all([
+  const [rows, products, allMeetings, planRows, lastCallRows] = await Promise.all([
     prisma.salesDeal.findMany({
       orderBy: { createdAt: 'asc' },
       include: {
@@ -35,11 +36,21 @@ export default async function FunnelPage({ searchParams }: { searchParams: Promi
       WHERE isPlan = 1 AND meetingAt >= ${nowIso}
       ORDER BY meetingAt ASC
     `,
+    prisma.$queryRaw<{ dealId: string; lastCallAt: string | Date }[]>`
+      SELECT "dealId", MAX("meetingAt") AS "lastCallAt"
+      FROM "LeadMeeting"
+      WHERE type = '통화' AND "isPlan" = 0
+      GROUP BY "dealId"
+    `,
   ])
   const productMap = new Map(products.map(p => [p.id, p.code ?? p.name]))
+  const lastCallByDealId = new Map<string, Date>()
+  for (const r of lastCallRows) {
+    if (r.lastCallAt) lastCallByDealId.set(r.dealId, new Date(r.lastCallAt))
+  }
 
   // 다음 미팅 계획: 딜별 가장 빠른 1건
-  const nextMeetingByDeal = new Map<string, { type: string; meetingAt: string }>()
+  const nextMeetingByDeal = new Map<string, { type: string; meetingAt: string; computed?: boolean }>()
   for (const p of planRows) {
     if (!nextMeetingByDeal.has(p.dealId)) {
       nextMeetingByDeal.set(p.dealId, { type: p.type, meetingAt: (p.meetingAt as Date).toISOString() })
@@ -61,6 +72,13 @@ export default async function FunnelPage({ searchParams }: { searchParams: Promi
     // stageCode: 저장된 값 우선, 없으면 구 stage 매핑
     const stageCode   = a.stageCode ?? getStageCode(d.stage)
     const salesStatus = a.salesStatus ?? (d.stage === '이탈' ? '이탈' : d.stage === '출고 완료' ? '완료' : '진행중')
+
+    // 다음 미팅: 실제 계획된 미팅 우선, 없으면 통화주기(1-1 격주/1-2 매주) 기준 계산값
+    let nextMeeting = nextMeetingByDeal.get(d.id) ?? null
+    if (!nextMeeting && salesStatus === '진행중') {
+      const dueDate = nextCallDueDate(stageCode, d.createdAt, lastCallByDealId.get(d.id) ?? null)
+      if (dueDate) nextMeeting = { type: '통화', meetingAt: dueDate.toISOString(), computed: true }
+    }
 
     return {
       id:               d.id,
@@ -91,7 +109,7 @@ export default async function FunnelPage({ searchParams }: { searchParams: Promi
       deliveryCity:     cust?.deliveryCity ?? a.deliveryCity ?? null,
       deliveryDist:     cust?.deliveryDist ?? a.deliveryDist ?? null,
       recentMeetings:   meetingsByDeal.get(d.id) ?? [],
-      nextMeeting:      nextMeetingByDeal.get(d.id) ?? null,
+      nextMeeting,
     }
   })
 

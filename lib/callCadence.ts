@@ -31,6 +31,21 @@ export type CallDueLead = {
 }
 
 /**
+ * 다음 통화 예정일 계산 (기준일 = 마지막 완료 통화, 없으면 생성일)
+ * stageCode가 통화주기 대상('1-1'/'1-2')이 아니면 null
+ */
+export function nextCallDueDate(
+  stageCode: string | null,
+  createdAt: Date | string,
+  lastCallAt?: Date | null,
+): Date | null {
+  const interval = stageCode ? CALL_INTERVAL_DAYS[stageCode] : undefined
+  if (!interval) return null
+  const baseline = lastCallAt ?? new Date(createdAt)
+  return new Date(baseline.getTime() + interval * DAY_MS)
+}
+
+/**
  * @param deals stageCode가 '1-1' 또는 '1-2'인 진행중 리드 목록
  * @param lastCallByDealId 딜별 마지막 완료 통화일(LeadMeeting type='통화' AND isPlan=false 중 최신)
  * @param today 기준 날짜 (기본값: 현재 시각)
@@ -44,12 +59,9 @@ export function computeCallDue(
 
   const result: CallDueLead[] = []
   for (const d of deals) {
-    const interval = d.stageCode ? CALL_INTERVAL_DAYS[d.stageCode] : undefined
-    if (!interval) continue
-
     const lastCall = lastCallByDealId.get(d.id) ?? null
-    const baseline = lastCall ?? new Date(d.createdAt)
-    const dueAt = new Date(baseline.getTime() + interval * DAY_MS)
+    const dueAt = nextCallDueDate(d.stageCode, d.createdAt, lastCall)
+    if (!dueAt) continue
 
     if (dueAt.getTime() <= todayStart.getTime() + DAY_MS - 1) {
       const overdueDays = Math.max(0, Math.floor((todayStart.getTime() - dueAt.getTime()) / DAY_MS))
