@@ -90,9 +90,7 @@ export async function POST(req: NextRequest) {
         customerId:       customer.id,
         customerSegment:  body.customerSegment  || null,
         customerCategory: body.customerCategory || null,
-        name:             (body.customerSegment === 'B2B' && body.companyName?.trim())
-                            ? body.companyName.trim()
-                            : body.name.trim(),
+        name:             body.name.trim(),
         phone:            body.phone            || null,
         birthYear:       body.birthYear       ?? null,
         regionCity:      body.regionCity      || null,
