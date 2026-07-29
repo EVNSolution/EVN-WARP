@@ -54,7 +54,7 @@ interface ColDef { key: string; label: string; dw: W }
 
 const LEAD_DEFS: ColDef[] = [
   { key: 'name',           label: '이름',       dw: 'md' },
-  { key: 'contactTitle',  label: '직위',       dw: 'sm' },
+  { key: 'contactTitle',  label: '거래처 담당자', dw: 'md' },
   { key: 'summary',        label: '고객 요약',  dw: 'md' },
   { key: 'vehicleCount',  label: '대수',       dw: 'sm' },
   { key: 'phone',          label: '연락처',     dw: 'md' },
@@ -469,6 +469,22 @@ export default function PipelineView({ deals, salesTarget, linkedKpiLabel, initi
   const selectedPhase = selectedCode
     ? PIPELINE.find(ph => ph.processes.some(p => p.code === selectedCode))
     : null
+
+  /* 확인사항: 탭(전체/B2C/B2B)에 따라 세그먼트별로 구분해서 보여줌 */
+  const checkRows: { label: string; checks: { key: string; label: string }[]; color: string }[] = (() => {
+    if (!selectedProcess) return []
+    const b2cChecks = selectedProcess.checks
+    const b2bChecks = selectedProcess.checksB2B ?? selectedProcess.checks
+    if (activeTab === 'b2c') return [{ label: '', checks: b2cChecks, color: '' }]
+    if (activeTab === 'b2b') return [{ label: '', checks: b2bChecks, color: '' }]
+    return selectedProcess.checksB2B
+      ? [
+          { label: 'B2C', checks: b2cChecks, color: 'text-sky-600 bg-sky-50' },
+          { label: 'B2B', checks: b2bChecks, color: 'text-violet-600 bg-violet-50' },
+        ]
+      : [{ label: '', checks: b2cChecks, color: '' }]
+  })()
+  const checkCount = checkRows.reduce((s, r) => s + r.checks.length, 0)
 
   const handleCreated = (deal: PipelineDeal) => {
     setLocalDeals(prev => [deal, ...prev])
@@ -915,7 +931,7 @@ export default function PipelineView({ deals, salesTarget, linkedKpiLabel, initi
                     <span className={`font-bold text-sm ${selectedPhase ? PHASE_ACCENT[selectedPhase.phase] : ''}`}>
                       [{selectedProcess.code}] {selectedProcess.name}
                     </span>
-                    <span className="text-xs text-slate-400">확인사항 {selectedProcess.checks.length}개</span>
+                    <span className="text-xs text-slate-400">확인사항 {checkCount}개</span>
                   </>
                 : <span className="font-bold text-sm text-slate-700">
                     {selectedCode === '이탈' ? '이탈 리드' : '전체 리드'}
@@ -988,11 +1004,18 @@ export default function PipelineView({ deals, salesTarget, linkedKpiLabel, initi
 
         {/* 확인사항 힌트 바 */}
         {selectedProcess && (
-          <div className="px-5 py-2 bg-slate-50 border-b border-slate-100 flex flex-wrap gap-x-4 gap-y-0.5 shrink-0">
-            {selectedProcess.checks.map((c, i) => (
-              <span key={c.key} className="text-[11px] text-slate-500">
-                <span className="text-slate-300 mr-1">{i + 1}.</span>{c.label}
-              </span>
+          <div className="px-5 py-2 bg-slate-50 border-b border-slate-100 flex flex-col gap-1 shrink-0">
+            {checkRows.map((r, ri) => (
+              <div key={ri} className="flex flex-wrap items-center gap-x-4 gap-y-0.5">
+                {r.label && (
+                  <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded shrink-0 ${r.color}`}>{r.label}</span>
+                )}
+                {r.checks.map((c, i) => (
+                  <span key={c.key} className="text-[11px] text-slate-500">
+                    <span className="text-slate-300 mr-1">{i + 1}.</span>{c.label}
+                  </span>
+                ))}
+              </div>
             ))}
           </div>
         )}
