@@ -4,6 +4,7 @@ import Link from 'next/link'
 import PeriodSelector from './PeriodSelector'
 import TodayTodoButton from './TodayTodoButton'
 import { computeCallDue, type CallCadenceDeal, type CallDueLead } from '@/lib/callCadence'
+import { PIPELINE } from '@/lib/pipeline'
 
 type SearchParams = { period?: string; from?: string; to?: string; view?: string; mode?: string }
 
@@ -34,11 +35,10 @@ function calcRange(period: string, fromParam?: string, toParam?: string) {
   return { from: `${y}-${mm}-01`, to: `${y}-${mm}-${last}` }
 }
 
-const STAGE_LABEL: Record<string, string> = {
-  '1-1': '리드',   '1-2': '관심',
-  '2-1': '전화상담', '2-2': '대면상담', '2-3': '심사',
-  '3-1': '계약', '3-2': '출고준비', '4-1': '출고완료',
-}
+// lib/pipeline.ts의 실제 단계명을 그대로 사용 (하드코딩된 별도 매핑은 구조 개편 시 어긋날 수 있음)
+const STAGE_LABEL: Record<string, string> = Object.fromEntries(
+  PIPELINE.flatMap(ph => ph.processes.map(p => [p.code, p.name]))
+)
 
 function fmt(d: string | Date | null | undefined) {
   if (!d) return '-'
@@ -256,7 +256,7 @@ export default async function SalesReportPage({
             <div className="space-y-4">
               <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
                 <div className="px-5 py-4 border-b border-slate-100">
-                  <h2 className="text-[13px] font-bold text-slate-700">담당자별 계획 요약</h2>
+                  <h2 className="text-[13px] font-bold text-slate-700">영업담당자별 계획 요약</h2>
                   <p className="text-[11px] text-slate-400 mt-0.5">{periodLabel} · {fmtFull(range.from)}{range.from !== range.to ? ` ~ ${fmtFull(range.to)}` : ''} 까지</p>
                 </div>
                 {planAssigneeRows.length === 0 ? (
@@ -266,7 +266,7 @@ export default async function SalesReportPage({
                     <table className="w-full text-xs">
                       <thead>
                         <tr className="border-b border-slate-100 bg-slate-50">
-                          <th className="text-left py-3 px-5 text-[10px] font-bold text-slate-400 uppercase tracking-wider">담당자</th>
+                          <th className="text-left py-3 px-5 text-[10px] font-bold text-slate-400 uppercase tracking-wider">영업담당</th>
                           <th className="text-center py-3 px-4 text-[10px] font-bold text-amber-600 uppercase tracking-wider">통화 필요</th>
                           <th className="text-center py-3 px-4 text-[10px] font-bold text-indigo-600 uppercase tracking-wider">예정된 미팅</th>
                         </tr>
@@ -390,7 +390,7 @@ export default async function SalesReportPage({
             {/* 담당자 요약 테이블 */}
             <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
               <div className="px-5 py-4 border-b border-slate-100">
-                <h2 className="text-[13px] font-bold text-slate-700">담당자별 영업 활동 요약</h2>
+                <h2 className="text-[13px] font-bold text-slate-700">영업담당자별 영업 활동 요약</h2>
                 <p className="text-[11px] text-slate-400 mt-0.5">{periodLabel} · {fmtFull(range.from)}{range.from !== range.to ? ` ~ ${fmtFull(range.to)}` : ''}</p>
               </div>
               {assigneeRows.length === 0 ? (
@@ -551,7 +551,7 @@ export default async function SalesReportPage({
               <div className="space-y-1">
                 {allActive.map((r: any) => (
                   <div key={r.stageCode} className="flex items-center gap-2">
-                    <span className="text-xs text-slate-500 w-20">{STAGE_LABEL[r.stageCode] ?? r.stageCode}</span>
+                    <span className="text-xs text-slate-500 w-20 shrink-0 truncate" title={STAGE_LABEL[r.stageCode] ?? r.stageCode}>{STAGE_LABEL[r.stageCode] ?? r.stageCode}</span>
                     <div className="flex-1 bg-slate-100 rounded-full h-1.5">
                       <div
                         className="bg-indigo-400 h-1.5 rounded-full"

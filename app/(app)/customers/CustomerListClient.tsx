@@ -43,7 +43,7 @@ const COL_DEFS: ColDef[] = [
   { key: 'contactTitle', label: '직위',     dw: 'sm' },
   { key: 'source',       label: '유입경로', dw: 'sm' },
   { key: 'collectedAt',  label: '수집일',   dw: 'sm' },
-  { key: 'assignee',     label: '담당자',   dw: 'sm' },
+  { key: 'assignee',     label: '영업담당', dw: 'sm' },
   { key: 'isAgent',      label: '소개인',   dw: 'sm' },
   { key: 'leads',        label: '리드',     dw: 'sm' },
   { key: 'lastActivity', label: '최근활동', dw: 'md' },
@@ -483,7 +483,7 @@ function NewCustomerModal({ onClose, onCreated }: { onClose: () => void; onCreat
         <div className="flex-1 overflow-y-auto px-6 py-5 flex flex-col gap-4">
           <div>
             <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-widest mb-1">
-              {seg === 'B2B' ? '담당자 이름' : '고객 이름'} <span className="text-red-400">*</span>
+              {seg === 'B2B' ? '거래처 담당자 이름' : '고객 이름'} <span className="text-red-400">*</span>
             </label>
             <input autoFocus value={name} onChange={e => setName(e.target.value)}
               className="w-full text-sm border border-slate-200 rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-slate-300" />

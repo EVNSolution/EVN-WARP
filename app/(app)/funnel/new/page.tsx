@@ -304,7 +304,7 @@ export default function NewLeadPage() {
           <div className="grid grid-cols-2 gap-x-4 gap-y-4">
             {/* 고객명 / 연락처 */}
             <Field label="고객명" required>
-              <TextInput value={name} onChange={setName} placeholder={isB2B ? '담당자 이름' : '고객 이름'} />
+              <TextInput value={name} onChange={setName} placeholder={isB2B ? '거래처 담당자 이름' : '고객 이름'} />
               {errors.name && <p className="text-red-400 text-xs mt-1">{errors.name}</p>}
             </Field>
             <Field label="연락처">
@@ -457,7 +457,7 @@ export default function NewLeadPage() {
               <Field label="업종 / 사업분야">
                 <TextInput value={industry} onChange={setIndustry} placeholder="예: 냉동물류, 식품유통" />
               </Field>
-              <Field label="담당자 직위">
+              <Field label="거래처 담당자 직위">
                 <select value={contactTitle} onChange={e => setContactTitle(e.target.value)}
                   className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-slate-300 text-slate-700">
                   <option value="">직위 선택</option>

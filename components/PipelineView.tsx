@@ -35,6 +35,7 @@ export interface PipelineDeal {
   deliveryDist?: string | null
   nextMeeting?: { type: string; meetingAt: string; computed?: boolean } | null
   vehicleCount?: number | null
+  contactTitle?: string | null
 }
 
 interface Props {
@@ -53,6 +54,7 @@ interface ColDef { key: string; label: string; dw: W }
 
 const LEAD_DEFS: ColDef[] = [
   { key: 'name',           label: '이름',       dw: 'md' },
+  { key: 'contactTitle',  label: '직위',       dw: 'sm' },
   { key: 'summary',        label: '고객 요약',  dw: 'md' },
   { key: 'vehicleCount',  label: '대수',       dw: 'sm' },
   { key: 'phone',          label: '연락처',     dw: 'md' },
@@ -60,7 +62,7 @@ const LEAD_DEFS: ColDef[] = [
   { key: 'purchaseTiming', label: '구매예상',   dw: 'sm' },
   { key: 'source',         label: '유입경로',   dw: 'sm' },
   { key: 'collectedAt',    label: '수집일',     dw: 'sm' },
-  { key: 'assignee',       label: '담당자',     dw: 'sm' },
+  { key: 'assignee',       label: '영업담당',   dw: 'sm' },
   { key: 'meetings',       label: '최근 미팅',  dw: 'lg' },
   { key: 'nextMeeting',   label: '다음 미팅',  dw: 'md' },
   { key: 'productName',    label: '모델명',     dw: 'md' },
@@ -370,11 +372,11 @@ const ALL_PROCESS_OPTIONS = PIPELINE.flatMap(ph =>
 
 function fmtDate(iso: string | null) {
   if (!iso) return '—'
-  return iso.slice(2, 10).replace(/-/g, '.')
+  return iso.slice(2, 10).replace(/-/g, '/')
 }
 function fmtMtgDate(iso: string) {
   const d = new Date(iso)
-  return `${d.getMonth() + 1}.${d.getDate()}`
+  return `${d.getMonth() + 1}/${d.getDate()}`
 }
 
 
@@ -558,11 +560,17 @@ export default function PipelineView({ deals, salesTarget, linkedKpiLabel, initi
             }
           </td>
         )
+      case 'contactTitle':
+        return (
+          <td key={c.key} style={{ width: W_PX[c.width] }} className="px-3 py-2.5 text-xs text-slate-500">
+            {d.customerSegment === 'B2B' ? (d.contactTitle ?? <span className="text-slate-300">—</span>) : <span className="text-slate-200">—</span>}
+          </td>
+        )
       case 'vehicleCount':
         return (
           <td key={c.key} style={{ width: W_PX[c.width] }} className="px-3 py-2.5 text-center">
             {d.vehicleCount
-              ? <span className="text-sm font-bold text-slate-700">{d.vehicleCount}<span className="text-xs font-normal text-slate-400 ml-0.5">대</span></span>
+              ? <span className="text-sm text-slate-700">{d.vehicleCount}<span className="text-xs font-normal text-slate-400 ml-0.5">대</span></span>
               : <span className="text-xs text-slate-300">1<span className="text-[10px] ml-0.5">대(기본)</span></span>}
           </td>
         )

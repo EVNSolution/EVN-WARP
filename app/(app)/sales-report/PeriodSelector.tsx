@@ -88,7 +88,7 @@ export default function PeriodSelector({ from, to, view, mode }: Props) {
           ))}
         </div>
         <div className="flex items-center border border-slate-200 rounded-lg overflow-hidden">
-          {([['summary', '전체'], ['assignee', '담당자별']] as const).map(([v, label]) => (
+          {([['summary', '전체'], ['assignee', '영업담당자별']] as const).map(([v, label]) => (
             <button
               key={v}
               onClick={() => setParam('view', v)}

@@ -45,6 +45,7 @@ export const PIPELINE: PipelinePhase[] = [
         ],
         checksB2B: [
           { key: '1-1-b2b-0', label: '일반화물자동차운송업 확보 ("이 회사는 전기차를 사서 자체 사용을 할 수 있음")' },
+          { key: '1-1-b2b-1', label: '자체 사용 니즈 ("자체적인 운송에 차가 필요함")' },
         ],
         documents: [],
         documentsB2B: [

@@ -1544,10 +1544,16 @@ export default function LeadDetailClient({ deal, customer = null, products = [],
               {/* 일시 */}
               <div className="flex gap-2">
                 <div className="flex-1">
-                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">일시</label>
-                  <input type="datetime-local" value={mtg.meetingAt}
-                    onChange={e => setMtg(m => ({ ...m, meetingAt: e.target.value }))}
-                    className="w-full text-xs border border-slate-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-1 focus:ring-slate-300" />
+                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">{mtgTab === 'plan' ? '날짜' : '일시'}</label>
+                  {mtgTab === 'plan' ? (
+                    <input type="date" value={mtg.meetingAt.slice(0, 10)}
+                      onChange={e => setMtg(m => ({ ...m, meetingAt: e.target.value }))}
+                      className="w-full text-xs border border-slate-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-1 focus:ring-slate-300" />
+                  ) : (
+                    <input type="datetime-local" value={mtg.meetingAt}
+                      onChange={e => setMtg(m => ({ ...m, meetingAt: e.target.value }))}
+                      className="w-full text-xs border border-slate-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-1 focus:ring-slate-300" />
+                  )}
                 </div>
               </div>
               {/* 내용 */}
@@ -1676,9 +1682,11 @@ export default function LeadDetailClient({ deal, customer = null, products = [],
                     {/* 날짜 */}
                     <span className="text-xs font-semibold text-slate-600 shrink-0 tabular-nums">
                       {dt.toLocaleDateString('ko-KR', { month: '2-digit', day: '2-digit' })}
-                      <span className="text-slate-400 font-normal ml-1">
-                        {dt.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })}
-                      </span>
+                      {mtgTab !== 'plan' && (
+                        <span className="text-slate-400 font-normal ml-1">
+                          {dt.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })}
+                        </span>
+                      )}
                     </span>
                     {m.duration && <span className="text-[10px] text-slate-400 shrink-0">{m.duration}분</span>}
                     {/* 요약 */}

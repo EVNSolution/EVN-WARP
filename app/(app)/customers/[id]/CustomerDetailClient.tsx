@@ -468,7 +468,7 @@ export default function CustomerDetailClient({ customer, returnTo }: { customer:
                   <div>{label('연락처')}{input('phone', '010-0000-0000')}</div>
                   <div>{label('이메일')}{input('email', 'example@email.com')}</div>
                   <div>
-                    {label('담당자')}
+                    {label('영업 담당자')}
                     <AssigneePicker value={f.assignee} onChange={v => setFv('assignee', v)}
                       className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-slate-300" />
                   </div>
@@ -688,11 +688,11 @@ export default function CustomerDetailClient({ customer, returnTo }: { customer:
                   <div className="flex-1 h-px bg-violet-100" />
                 </div>
                 <div className="grid grid-cols-2 gap-4">
-                  <div>{label('담당자명 *')}{input('name', '담당자 이름')}</div>
-                  <div>{label('담당자 연락처')}{input('phone', '010-0000-0000')}</div>
+                  <div>{label('거래처 담당자명 *')}{input('name', '거래처 담당자 이름')}</div>
+                  <div>{label('거래처 담당자 연락처')}{input('phone', '010-0000-0000')}</div>
                   <div>{label('이메일')}{input('email', 'example@email.com')}</div>
                   <div>
-                    {label('담당자 직위')}
+                    {label('거래처 담당자 직위')}
                     <select value={f.contactTitle ?? ''} onChange={e => setFv('contactTitle', e.target.value)}
                       className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-1 focus:ring-slate-300 text-slate-700">
                       <option value="">직위 선택</option>

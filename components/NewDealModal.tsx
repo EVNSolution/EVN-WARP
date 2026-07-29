@@ -382,7 +382,7 @@ export default function NewDealModal({ onClose, onCreated }: Props) {
                 autoFocus
                 value={newName}
                 onChange={e => setNewName(e.target.value)}
-                placeholder={newSegment === 'B2B' ? '담당자 이름' : '고객 이름'}
+                placeholder={newSegment === 'B2B' ? '거래처 담당자 이름' : '고객 이름'}
                 className="w-full text-sm border border-slate-200 rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-slate-300"
               />
               {error && <p className="text-red-500 text-xs mt-1">{error}</p>}
