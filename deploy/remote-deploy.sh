@@ -89,8 +89,8 @@ fi
 
 npm ci
 npx prisma generate
-npx tsx scripts/dedup-teams.ts
 npx prisma db push --accept-data-loss
+npx tsx scripts/dedup-teams.ts
 npx tsx scripts/migrate-lead-sources.ts
 npx tsx scripts/migrate-meeting-upload-paths.ts
 npx tsx scripts/backfill-stage-history.ts
