@@ -4,6 +4,10 @@ import { notFound } from 'next/navigation'
 import { ArrowLeft, Edit, CheckCircle2, Plus, CornerDownRight, ChevronRight, Download, PauseCircle } from 'lucide-react'
 import SuspendTaskButton from '@/components/SuspendTaskButton'
 import DeleteTaskButton from '@/components/DeleteTaskButton'
+import QuickTaskModal from '@/components/QuickTaskModal'
+import { CEO_TEAM_ID } from '@/lib/constants'
+import { rootAncestorTitle, stratColor } from '@/lib/a3'
+import { aggregateKpiItems, aggregateDateRange } from '@/lib/kpiAggregate'
 
 const STATUS_STYLE: Record<string, string> = {
   '진행중': 'bg-blue-100 text-blue-700',
@@ -19,7 +23,8 @@ const GANTT_COLORS = [
 ]
 
 
-function dDay(endDate: Date) {
+function dDay(endDate: Date | null | undefined) {
+  if (!endDate) return null
   const diff = Math.ceil((endDate.getTime() - Date.now()) / 86400000)
   if (diff < 0) return { label: `D+${Math.abs(diff)}`, cls: 'text-red-500' }
   if (diff === 0) return { label: 'D-day', cls: 'text-orange-500' }
@@ -87,9 +92,12 @@ function GanttSection({ taskStart, taskEnd, countermeasures }: {
             <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold text-white shrink-0 ${color}`}>
               {c.index}
             </span>
-            <p className="w-[22%] shrink-0 text-sm font-medium text-slate-800 leading-snug line-clamp-2">
-              {c.description}
-            </p>
+            <div className="w-[22%] shrink-0">
+              <p className="text-sm font-medium text-slate-800 leading-snug line-clamp-2">
+                {c.description}
+              </p>
+              {c.owner && <p className="text-[11px] text-slate-400 mt-0.5">담당 {c.owner}</p>}
+            </div>
             <div className="flex-1 min-w-0">
               <div className="relative h-5 bg-slate-100 rounded overflow-hidden">
                 {cols.map((col, j) => (
@@ -116,26 +124,42 @@ function GanttSection({ taskStart, taskEnd, countermeasures }: {
 
 export default async function A3DetailPage(props: PageProps<'/a3/[id]'>) {
   const { id } = await props.params
-  const task = await prisma.strategyTask.findUnique({
-    where: { id },
-    include: {
-      team: true,
-      parent: { include: { team: true } },
-      subTasks: {
-        include: { team: true },
-        orderBy: { subSeq: 'asc' },
+  const [task, teams] = await Promise.all([
+    prisma.strategyTask.findUnique({
+      where: { id },
+      include: {
+        team: true,
+        parent: { include: { team: true, parent: { include: { team: true } } } },
+        subTasks: {
+          include: { team: true, kpiItems: true },
+          orderBy: { subSeq: 'asc' },
+        },
+        kpiItems: { orderBy: { index: 'asc' } },
+        monthlyTargets: { orderBy: [{ year: 'asc' }, { month: 'asc' }] },
+        countermeasures: { orderBy: { index: 'asc' } },
       },
-      kpiItems: { orderBy: { index: 'asc' } },
-      monthlyTargets: { orderBy: [{ year: 'asc' }, { month: 'asc' }] },
-      countermeasures: { orderBy: { index: 'asc' } },
-    },
-  })
+    }),
+    prisma.team.findMany({ orderBy: { name: 'asc' } }),
+  ])
   if (!task) notFound()
 
-  const dd = dDay(new Date(task.endDate))
+  const depth = !task.parentId ? 0 : !task.parent?.parentId ? 1 : 2
+  const depthLabel = depth === 1 ? '팀과제' : depth === 2 ? '세부과제' : ''
+
+  // 팀과제(depth 1)가 자기 KPI/기간이 없으면 하위 세부과제에서 자동 취합
+  const hasOwnKpi   = task.kpiItems.length > 0
+  const displayKpis = hasOwnKpi ? task.kpiItems : (depth === 1 ? aggregateKpiItems(task.subTasks.flatMap(s => s.kpiItems)) : [])
+
+  const hasOwnDates = !!(task.startDate && task.endDate)
+  const aggregatedDates = (!hasOwnDates && depth === 1) ? aggregateDateRange(task.subTasks) : { startDate: null, endDate: null }
+  const effectiveStart = task.startDate ?? aggregatedDates.startDate
+  const effectiveEnd   = task.endDate   ?? aggregatedDates.endDate
+  const isAggregatedDates = !hasOwnDates && (effectiveStart != null || effectiveEnd != null)
+
+  const dd = dDay(effectiveEnd)
   const statusCls  = STATUS_STYLE[task.status] ?? 'bg-gray-100 text-gray-500'
-  const strategyLabel = task.strategy === 'A' ? '확장과 성장' : 'AI 기반 조직운영'
-  const isSubTask  = !!task.parentId
+  const strategyLabel = rootAncestorTitle(task)
+  const strat = stratColor(task.strategy)
 
   return (
     <div className="p-8">
@@ -145,6 +169,15 @@ export default async function A3DetailPage(props: PageProps<'/a3/[id]'>) {
           <Link href="/a3" className="text-slate-400 hover:text-slate-600 transition-colors">
             <ArrowLeft size={20} />
           </Link>
+          {depth === 2 && task.parent?.parent && (
+            <>
+              <Link href={`/a3/${task.parent.parent.id}`}
+                className="text-sm text-slate-400 hover:text-indigo-600 font-mono transition-colors">
+                {task.parent.parent.code}
+              </Link>
+              <ChevronRight size={14} className="text-slate-300" />
+            </>
+          )}
           {task.parent && (
             <>
               <Link href={`/a3/${task.parent.id}`}
@@ -157,7 +190,7 @@ export default async function A3DetailPage(props: PageProps<'/a3/[id]'>) {
           <div className="flex items-center gap-2">
             <span className="text-sm font-mono text-slate-500 font-semibold">{task.code}</span>
             <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${statusCls}`}>{task.status}</span>
-            <span className={`text-xs font-medium ${dd.cls}`}>{dd.label}</span>
+            {dd && <span className={`text-xs font-medium ${dd.cls}`}>{dd.label}</span>}
             {task.confirmed && (
               <span className="text-xs text-green-600 flex items-center gap-1">
                 <CheckCircle2 size={12} /> 위원회 확정
@@ -205,12 +238,12 @@ export default async function A3DetailPage(props: PageProps<'/a3/[id]'>) {
       {/* 과제 제목 */}
       <div className="mb-6">
         <div className="flex items-center gap-2 mb-1">
-          <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${task.strategy === 'A' ? 'bg-orange-100 text-orange-700' : 'bg-purple-100 text-purple-700'}`}>
+          <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${strat.light}`}>
             전략과제 {task.strategy} · {strategyLabel}
           </span>
-          {isSubTask && (
+          {depth > 0 && (
             <span className="text-xs text-indigo-500 flex items-center gap-1">
-              <CornerDownRight size={11} /> 하부 과제
+              <CornerDownRight size={11} /> {depthLabel}
             </span>
           )}
         </div>
@@ -225,23 +258,29 @@ export default async function A3DetailPage(props: PageProps<'/a3/[id]'>) {
         </div>
         <div>
           <span className="text-slate-400">과제 오너</span>
-          <p className="font-semibold text-slate-800 mt-0.5">{task.owner}</p>
+          <p className="font-semibold text-slate-800 mt-0.5">{task.owner ?? '미배정'}</p>
         </div>
         <div className="col-span-2">
           <span className="text-slate-400">기간</span>
           <p className="font-semibold text-slate-800 mt-0.5">
-            {new Date(task.startDate).toLocaleDateString('ko-KR')} ~ {new Date(task.endDate).toLocaleDateString('ko-KR')}
+            {effectiveStart && effectiveEnd
+              ? <>{new Date(effectiveStart).toLocaleDateString('ko-KR')} ~ {new Date(effectiveEnd).toLocaleDateString('ko-KR')}
+                  {isAggregatedDates && <span className="ml-1.5 text-xs font-normal text-slate-400">(세부과제 기간에서 자동 계산)</span>}</>
+              : '—'}
           </p>
         </div>
       </div>
 
       {/* KPI */}
-      {task.kpiItems.length > 0 && (
+      {displayKpis.length > 0 && (
         <section className="bg-white border border-slate-200 rounded-xl p-5 mb-5">
-          <h2 className="text-base font-semibold text-slate-800 mb-3">KPI</h2>
+          <h2 className="text-base font-semibold text-slate-800 mb-3">
+            KPI
+            {!hasOwnKpi && <span className="ml-1.5 text-xs font-normal text-slate-400">(세부과제에서 자동 취합)</span>}
+          </h2>
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-            {task.kpiItems.map((kpi: any) => (
-              <div key={kpi.id}
+            {displayKpis.map((kpi: any, i: number) => (
+              <div key={kpi.id ?? i}
                 className={`rounded-lg px-4 py-3 border ${kpi.type === '정량' ? 'bg-indigo-50 border-indigo-100' : 'bg-amber-50 border-amber-100'}`}>
                 <div className="flex items-center gap-1.5 mb-1">
                   <span className={`text-xs font-bold px-1.5 py-0.5 rounded ${kpi.type === '정량' ? 'bg-indigo-100 text-indigo-700' : 'bg-amber-100 text-amber-700'}`}>
@@ -259,8 +298,8 @@ export default async function A3DetailPage(props: PageProps<'/a3/[id]'>) {
         </section>
       )}
 
-      {/* 하부 과제 목록 (최상위 과제만) */}
-      {!isSubTask && (
+      {/* 하부 과제 목록 (전사과제/팀과제) */}
+      {depth < 2 && (
         <section className="bg-white border border-slate-200 rounded-xl p-5 mb-5">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-base font-semibold text-slate-800">
@@ -269,17 +308,27 @@ export default async function A3DetailPage(props: PageProps<'/a3/[id]'>) {
                 <span className="ml-2 text-sm font-normal text-slate-400">{task.subTasks.length}건</span>
               )}
             </h2>
-            <Link href={`/a3/new?parentId=${task.id}`}
-              className="flex items-center gap-1 text-sm text-indigo-600 hover:text-indigo-700 font-medium">
-              <Plus size={14} /> 하부 과제 추가
-            </Link>
+            {depth === 0 ? (
+              <QuickTaskModal
+                teams={teams}
+                ceoTeamId={CEO_TEAM_ID}
+                presetParentId={task.id}
+                buttonLabel="팀과제 추가"
+                buttonClassName="flex items-center gap-1 text-sm text-indigo-600 hover:text-indigo-700 font-medium"
+              />
+            ) : (
+              <Link href={`/a3/new?parentId=${task.id}`}
+                className="flex items-center gap-1 text-sm text-indigo-600 hover:text-indigo-700 font-medium">
+                <Plus size={14} /> 세부과제 추가
+              </Link>
+            )}
           </div>
           {task.subTasks.length === 0 ? (
             <p className="text-sm text-slate-400 py-2">등록된 하부 과제가 없습니다</p>
           ) : (
             <div className="space-y-2">
               {task.subTasks.map((sub: any) => {
-                const subDd = dDay(new Date(sub.endDate))
+                const subDd = dDay(sub.endDate)
                 const subStatusCls = STATUS_STYLE[sub.status] ?? 'bg-gray-100 text-gray-500'
                 return (
                   <Link key={sub.id} href={`/a3/${sub.id}`}
@@ -287,9 +336,9 @@ export default async function A3DetailPage(props: PageProps<'/a3/[id]'>) {
                     <CornerDownRight size={13} className="text-indigo-300 shrink-0" />
                     <span className="text-xs font-mono text-slate-400 w-40 shrink-0">{sub.code}</span>
                     <span className="flex-1 text-sm font-medium text-slate-800 truncate">{sub.title}</span>
-                    <span className="text-xs text-slate-400 shrink-0">오너 {sub.owner}</span>
+                    <span className="text-xs text-slate-400 shrink-0">오너 {sub.owner ?? '미배정'}</span>
                     <span className={`text-xs px-2 py-0.5 rounded-full shrink-0 ${subStatusCls}`}>{sub.status}</span>
-                    <span className={`text-xs shrink-0 ${subDd.cls}`}>{subDd.label}</span>
+                    {subDd && <span className={`text-xs shrink-0 ${subDd.cls}`}>{subDd.label}</span>}
                     <ChevronRight size={14} className="text-slate-300 group-hover:text-indigo-400 shrink-0" />
                   </Link>
                 )
@@ -333,12 +382,12 @@ export default async function A3DetailPage(props: PageProps<'/a3/[id]'>) {
       )}
 
       {/* 2. 대책과 실행안 (간트) */}
-      {task.countermeasures.length > 0 && (
+      {task.countermeasures.length > 0 && effectiveStart && effectiveEnd && (
         <section className="bg-white border border-slate-200 rounded-xl p-6 mb-5">
           <h2 className="text-base font-semibold text-slate-800 mb-4">2. 대책과 실행안</h2>
           <GanttSection
-            taskStart={new Date(task.startDate)}
-            taskEnd={new Date(task.endDate)}
+            taskStart={new Date(effectiveStart)}
+            taskEnd={new Date(effectiveEnd)}
             countermeasures={task.countermeasures}
           />
         </section>

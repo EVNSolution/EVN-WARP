@@ -2,8 +2,9 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Save, Plus, Trash2, Info, ChevronUp, ChevronDown } from 'lucide-react'
+import { Save, Plus, Trash2, ChevronUp, ChevronDown } from 'lucide-react'
 import AssigneePicker from '@/components/AssigneePicker'
+import { stratColor } from '@/lib/a3'
 
 const MONTHS = ['1월','2월','3월','4월','5월','6월','7월','8월','9월','10월','11월','12월']
 
@@ -19,19 +20,22 @@ function digitsOnly(val: string): string {
 
 
 type Team       = { id: string; name: string }
-type ParentTask = { id: string; code: string; title: string; teamId: string; strategy: string }
+type PresetParent = {
+  id: string; code: string; title: string; teamId: string; strategy: string
+  parent?: { title: string; strategy: string } | null
+}
 type MonthlyTarget = {
   month: number; year: number
   revenueTarget: string
   budget: string
   personnel: string
 }
-type Countermeasure = { index: number; description: string; startDate: string; endDate: string }
+type Countermeasure = { index: number; description: string; owner: string; startDate: string; endDate: string }
 type KpiDraft = { type: '정량' | '정성'; subType: string; label: string; target: string; unit: string }
 
 interface Props {
   teams: Team[]
-  parentTasks: ParentTask[]
+  presetParent?: PresetParent | null
   ceoTeamId: string
   initial?: any
   mode: 'new' | 'edit'
@@ -40,15 +44,6 @@ interface Props {
 const KPI_SUBTYPES = ['금액', '일자', '인원수', '건수', '대수', '비율', '기타'] as const
 const FIXED_UNITS: Record<string, string> = { 인원수: '명', 건수: '건', 대수: '대', 비율: '%' }
 const AMOUNT_UNITS = ['만원', '억원', '달러']
-
-const STRATEGY_LABEL: Record<string, string> = {
-  A: '전략과제 A — 확장과 성장',
-  B: '전략과제 B — AI 기반 조직운영',
-}
-const STRATEGY_BADGE: Record<string, string> = {
-  A: 'bg-indigo-100 text-indigo-700',
-  B: 'bg-violet-100 text-violet-700',
-}
 
 const GANTT_COLORS = [
   'bg-indigo-500', 'bg-orange-500', 'bg-teal-500',
@@ -105,15 +100,15 @@ function GanttPreview({ taskStart, taskEnd, measures }: {
   )
 }
 
-export default function A3Form({ teams, parentTasks, ceoTeamId, initial, mode }: Props) {
+export default function A3Form({ teams, presetParent, ceoTeamId, initial, mode }: Props) {
   const router = useRouter()
   const year   = new Date().getFullYear()
   const selectableTeams = teams.filter(t => t.id !== ceoTeamId)
 
   const [form, setForm] = useState({
-    strategy:         initial?.strategy         ?? '',
+    strategy:         initial?.strategy         ?? presetParent?.strategy ?? '',
     title:            initial?.title            ?? '',
-    teamId:           initial?.teamId           ?? (selectableTeams[0]?.id ?? ''),
+    teamId:           initial?.teamId           ?? presetParent?.teamId  ?? (selectableTeams[0]?.id ?? ''),
     owner:            initial?.owner            ?? '',
     startDate:        initial?.startDate        ? initial.startDate.slice(0, 10) : '',
     endDate:          initial?.endDate          ? initial.endDate.slice(0, 10)   : '',
@@ -121,7 +116,7 @@ export default function A3Form({ teams, parentTasks, ceoTeamId, initial, mode }:
     confirmed:        initial?.confirmed        ?? false,
     problemStatement: initial?.problemStatement ?? '',
     goalStatement:    initial?.goalStatement    ?? '',
-    parentId:         initial?.parentId         ?? '',
+    parentId:         initial?.parentId         ?? presetParent?.id ?? '',
   })
 
   const [kpiItems, setKpiItems] = useState<KpiDraft[]>(
@@ -152,26 +147,21 @@ export default function A3Form({ teams, parentTasks, ceoTeamId, initial, mode }:
   const [measures, setMeasures] = useState<Countermeasure[]>(
     initial?.countermeasures?.length
       ? initial.countermeasures.map((c: any) => ({
-          index: c.index, description: c.description,
+          index: c.index, description: c.description, owner: c.owner ?? '',
           startDate: c.startDate ?? '', endDate: c.endDate ?? '',
         }))
       : [
-          { index: 1, description: '', startDate: '', endDate: '' },
-          { index: 2, description: '', startDate: '', endDate: '' },
-          { index: 3, description: '', startDate: '', endDate: '' },
+          { index: 1, description: '', owner: '', startDate: '', endDate: '' },
+          { index: 2, description: '', owner: '', startDate: '', endDate: '' },
+          { index: 3, description: '', owner: '', startDate: '', endDate: '' },
         ]
   )
 
   const [saving, setSaving] = useState(false)
   const [error,  setError]  = useState('')
 
-  const isCeoTask      = form.teamId === ceoTeamId
-  const selectedParent = parentTasks.find(p => p.id === form.parentId)
+  const isTopLevel = !presetParent
 
-  function handleParentChange(parentId: string) {
-    const parent = parentTasks.find(p => p.id === parentId)
-    setForm(prev => ({ ...prev, parentId, strategy: parent?.strategy ?? prev.strategy }))
-  }
   function setField(key: string, value: any) { setForm(prev => ({ ...prev, [key]: value })) }
 
   // ── KPI ─────────────────────────────────────────────────────────
@@ -197,7 +187,7 @@ export default function A3Form({ teams, parentTasks, ceoTeamId, initial, mode }:
     setMeasures(prev => prev.map((m, i) => i === idx ? { ...m, [key]: val } : m))
   }
   function addMeasure() {
-    setMeasures(prev => [...prev, { index: prev.length + 1, description: '', startDate: '', endDate: '' }])
+    setMeasures(prev => [...prev, { index: prev.length + 1, description: '', owner: '', startDate: '', endDate: '' }])
   }
   function removeMeasure(idx: number) {
     setMeasures(prev => prev.filter((_, i) => i !== idx).map((m, i) => ({ ...m, index: i + 1 })))
@@ -219,8 +209,8 @@ export default function A3Form({ teams, parentTasks, ceoTeamId, initial, mode }:
 
   // ── 저장 ─────────────────────────────────────────────────────────
   async function handleSave() {
-    if (!isCeoTask && !form.parentId) {
-      setError('상위 전략과제(A 또는 B)를 선택해주세요')
+    if (mode === 'new' && !presetParent) {
+      setError('세부과제는 팀과제 아래에서만 등록할 수 있습니다')
       return
     }
     if (!form.title || !form.teamId || !form.owner || !form.startDate || !form.endDate) {
@@ -308,65 +298,50 @@ export default function A3Form({ teams, parentTasks, ceoTeamId, initial, mode }:
         <h2 className="text-base font-semibold text-slate-800 mb-5">기본 정보</h2>
         <div className="grid grid-cols-2 gap-4">
 
-          {/* 상위 전략과제 */}
-          {!isCeoTask && (
+          {/* 상위 팀과제 */}
+          {presetParent && (
             <div className="col-span-2">
-              <label className="block text-sm font-medium text-slate-700 mb-1.5">
-                상위 전략과제 <span className="text-red-500">*</span>
-              </label>
-              {mode === 'new' ? (
-                <>
-                  <select value={form.parentId} onChange={e => handleParentChange(e.target.value)}
-                    className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300">
-                    <option value="">— 전략과제를 선택하세요 —</option>
-                    {parentTasks.map(p => (
-                      <option key={p.id} value={p.id}>{STRATEGY_LABEL[p.strategy] ?? `${p.code} · ${p.title}`}</option>
-                    ))}
-                  </select>
-                  <p className="mt-1.5 text-xs text-slate-400 flex items-center gap-1">
-                    <Info size={11} /> 모든 과제는 전략과제 A 또는 B의 하부과제로 등록됩니다
-                  </p>
-                  {form.parentId && form.strategy && (
-                    <div className="mt-2 flex items-center gap-2">
-                      <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${STRATEGY_BADGE[form.strategy] ?? 'bg-slate-100 text-slate-600'}`}>
-                        전략과제 {form.strategy}
-                      </span>
-                      <span className="text-sm text-slate-600">{STRATEGY_LABEL[form.strategy]}</span>
-                    </div>
-                  )}
-                </>
-              ) : (
-                <div className="flex items-center gap-2 px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg">
-                  {selectedParent ? (
-                    <>
-                      <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${STRATEGY_BADGE[selectedParent.strategy] ?? 'bg-slate-100 text-slate-600'}`}>
-                        전략과제 {selectedParent.strategy}
-                      </span>
-                      <span className="text-sm text-slate-700">{selectedParent.title}</span>
-                    </>
-                  ) : <span className="text-sm text-slate-400">상위 과제 없음</span>}
-                </div>
-              )}
+              <label className="block text-sm font-medium text-slate-700 mb-1.5">상위 팀과제</label>
+              <div className="flex items-center gap-2 flex-wrap px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg">
+                {presetParent.parent && (
+                  <>
+                    <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${stratColor(presetParent.parent.strategy).light}`}>
+                      전략과제 {presetParent.parent.strategy}
+                    </span>
+                    <span className="text-sm text-slate-500">{presetParent.parent.title}</span>
+                    <span className="text-slate-300">›</span>
+                  </>
+                )}
+                <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${stratColor(presetParent.strategy).light}`}>
+                  {presetParent.code}
+                </span>
+                <span className="text-sm text-slate-700">{presetParent.title}</span>
+              </div>
             </div>
           )}
 
           {/* 담당 팀 */}
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1.5">담당 팀 <span className="text-red-500">*</span></label>
-            <select value={form.teamId} onChange={e => setField('teamId', e.target.value)}
-              className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300">
-              {(isCeoTask ? teams : selectableTeams).map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
-            </select>
+            {presetParent ? (
+              <div className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-700">
+                {teams.find(t => t.id === form.teamId)?.name ?? '-'}
+                <span className="ml-1.5 text-xs text-slate-400">— 세부과제는 상위 팀과제와 같은 팀으로 등록됩니다</span>
+              </div>
+            ) : (
+              <select value={form.teamId} onChange={e => setField('teamId', e.target.value)}
+                className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300">
+                {teams.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+              </select>
+            )}
           </div>
 
-          {isCeoTask && (
+          {isTopLevel && (
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1.5">전략과제 구분 <span className="text-red-500">*</span></label>
-              <select value={form.strategy} onChange={e => setField('strategy', e.target.value)}
-                className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300">
-                <option value="A">전략과제 A — 확장과 성장</option>
-                <option value="B">전략과제 B — AI 기반 조직운영</option>
-              </select>
+              <label className="block text-sm font-medium text-slate-700 mb-1.5">전략과제 코드</label>
+              <input value={form.strategy} onChange={e => setField('strategy', e.target.value)}
+                placeholder="예: A, B, C..."
+                className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300" />
             </div>
           )}
 
@@ -524,8 +499,9 @@ export default function A3Form({ teams, parentTasks, ceoTeamId, initial, mode }:
         {/* 컬럼 헤더 */}
         <div className="grid grid-cols-[auto_1fr_auto] gap-3 px-3 mb-1">
           <span className="w-6" />
-          <div className="grid grid-cols-[3fr_2fr] gap-3">
+          <div className="grid grid-cols-[3fr_1.4fr_2fr] gap-3">
             <span className="text-xs text-slate-400 font-medium">실행안 내용</span>
+            <span className="text-xs text-slate-400 font-medium">담당자</span>
             <div className="grid grid-cols-2 gap-2">
               <span className="text-xs text-slate-400 font-medium">시작일</span>
               <span className="text-xs text-slate-400 font-medium">완료일</span>
@@ -540,10 +516,12 @@ export default function A3Form({ teams, parentTasks, ceoTeamId, initial, mode }:
               <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold shrink-0 mt-2 text-white ${GANTT_COLORS[i % GANTT_COLORS.length]}`}>
                 {m.index}
               </span>
-              <div className="flex-1 grid grid-cols-[3fr_2fr] gap-3">
+              <div className="flex-1 grid grid-cols-[3fr_1.4fr_2fr] gap-3">
                 <textarea value={m.description} onChange={e => setMeasureField(i, 'description', e.target.value)}
                   placeholder="실행안 내용을 입력하세요" rows={2}
                   className="border border-slate-200 rounded-md px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-300 resize-none" />
+                <AssigneePicker value={m.owner} onChange={v => setMeasureField(i, 'owner', v)}
+                  className="w-full border border-slate-200 rounded-md px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-300 h-fit" />
                 <div className="grid grid-cols-2 gap-2 items-start">
                   <input type="date" value={m.startDate} onChange={e => setMeasureField(i, 'startDate', e.target.value)}
                     className="w-full border border-slate-200 rounded-md px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-300" />

@@ -40,9 +40,9 @@ model StrategyTask {
   title            String
   teamId           String
   team             Team             @relation(fields: [teamId], references: [id])
-  owner            String
-  startDate        DateTime
-  endDate          DateTime
+  owner            String?
+  startDate        DateTime?
+  endDate          DateTime?
   status           String           @default("진행중")
   confirmed        Boolean          @default(false)
   problemStatement String?
@@ -91,6 +91,7 @@ model Countermeasure {
   task           StrategyTask   @relation(fields: [taskId], references: [id], onDelete: Cascade)
   index          Int
   description    String
+  owner          String?        // 실행안 담당자
   startDate      String?        // 간트 시작일 "YYYY-MM-DD"
   endDate        String?        // 간트 완료일 "YYYY-MM-DD"
   workActivities WorkActivity[]

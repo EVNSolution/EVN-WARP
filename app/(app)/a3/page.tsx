@@ -2,28 +2,7 @@ import { prisma } from '@/lib/db'
 import Link from 'next/link'
 import { Plus, ChevronRight, PauseCircle } from 'lucide-react'
 import A3SubTaskGroups from '@/components/A3SubTaskGroups'
-import { STATUS_STYLE, dDay } from '@/lib/a3'
-
-const STRAT: Record<string, {
-  container: string; border: string; leftBar: string
-  badge: string; hoverParent: string
-}> = {
-  A: {
-    container:   'bg-indigo-50/50 border-indigo-200',
-    border:      'border-indigo-200',
-    leftBar:     'border-l-indigo-500',
-    badge:       'bg-indigo-600 text-white',
-    hoverParent: 'hover:bg-indigo-50',
-  },
-  B: {
-    container:   'bg-emerald-50/50 border-emerald-200',
-    border:      'border-emerald-200',
-    leftBar:     'border-l-emerald-500',
-    badge:       'bg-emerald-600 text-white',
-    hoverParent: 'hover:bg-emerald-50',
-  },
-}
-const STRAT_DEFAULT = STRAT.A
+import { STATUS_STYLE, dDay, stratColor } from '@/lib/a3'
 
 export default async function A3ListPage() {
   const tasks = await prisma.strategyTask.findMany({
@@ -116,9 +95,9 @@ export default async function A3ListPage() {
 /* ── 서브 컴포넌트 ──────────────────────────────── */
 
 function TaskRow({ task, dimmed }: { task: any; dimmed?: boolean }) {
-  const s       = STRAT[task.strategy] ?? STRAT_DEFAULT
+  const s       = stratColor(task.strategy)
   const hasSubs = task.subTasks?.length > 0
-  const dd      = dDay(new Date(task.endDate))
+  const dd      = dDay(task.endDate)
   const stCls   = STATUS_STYLE[task.status] ?? 'bg-gray-100 text-gray-500'
 
   return (
@@ -129,18 +108,18 @@ function TaskRow({ task, dimmed }: { task: any; dimmed?: boolean }) {
         className={`flex items-center gap-3 bg-white border-l-[5px] ${s.leftBar} px-4 py-3.5 ${s.hoverParent} transition-colors group`}>
 
         {/* 전략 + 과제명 통합 pill */}
-        <span className={`text-sm font-bold px-3 py-1 rounded-lg flex-1 min-w-0 truncate ${s.badge}`}>
+        <span className={`text-sm font-bold px-3 py-1 rounded-lg flex-1 min-w-0 truncate ${s.bold}`}>
           {task.strategy}. {task.title}
         </span>
 
         {/* 메타 */}
         <span className="text-xs text-slate-400 font-medium shrink-0">{task.team?.name}</span>
-        <span className="text-xs text-slate-400 font-medium shrink-0">오너 {task.owner}</span>
+        <span className="text-xs text-slate-400 font-medium shrink-0">오너 {task.owner ?? '미배정'}</span>
         <span className={`text-xs font-medium px-2 py-0.5 rounded-full shrink-0 ${stCls}`}>
           {task.status}
         </span>
         {task.confirmed && <span className="text-xs text-green-500 shrink-0">✓확정</span>}
-        <span className={`text-xs font-medium shrink-0 ${dd.cls}`}>{dd.label}</span>
+        {dd && <span className={`text-xs font-medium shrink-0 ${dd.cls}`}>{dd.label}</span>}
         <ChevronRight size={15} className="text-slate-300 group-hover:text-indigo-400 transition-colors shrink-0" />
       </Link>
 

@@ -8,12 +8,14 @@ import {
   Mail, Phone, FileText, UserPlus, Coffee, GraduationCap,
   Briefcase, Target, FileCheck, CalendarDays, HelpCircle, X,
   Code2, PenTool, Package, Wrench, Settings, ClipboardCheck,
-  PieChart, Landmark, Award, ChevronDown, Mic,
+  PieChart, Landmark, Award, ChevronDown, ChevronRight, Mic,
   Building, Receipt, RefreshCw, Scale, Upload, FileUp, Car,
 } from 'lucide-react'
 import Link from 'next/link'
 import CallAnalysisModal from '@/components/CallAnalysisModal'
 import VehicleReservationModal from '@/components/VehicleReservationModal'
+import { teamOrderIndex } from '@/lib/teamOrder'
+import { stratColor } from '@/lib/a3'
 
 /* ── 활동 유형 분류 가이드 (매뉴얼 기준) ── */
 const TYPE_GUIDE = [
@@ -249,11 +251,12 @@ function digitsOnly(v: string) { return v.replace(/[^0-9]/g, '') }
 
 type Team    = { id: string; name: string }
 type KpiItem = { id: string; label: string; unit: string | null; taskId: string }
-type CmItem  = { id: string; index: number; description: string }
+type CmItem  = { id: string; index: number; description: string; owner?: string | null }
 type Task    = {
   id: string; code: string; title: string
   teamId: string; strategy: string
   parentId: string | null
+  team?: { name: string } | null
   kpiItems: KpiItem[]
   countermeasures: CmItem[]
 }
@@ -312,14 +315,20 @@ export default function ActivityForm({ teams, tasks, users = [], vehicles = [], 
   const [userName, setUserName] = useState(initial?.userName ?? '')
   const [linked, setLinked] = useState<boolean>(initial?.taskId != null ? true : false)
 
-  const initTask = initial?.taskId ? tasks.find(t => t.id === initial.taskId) : null
+  const initTask       = initial?.taskId ? tasks.find(t => t.id === initial.taskId) : null
+  const initTaskParent = initTask?.parentId ? tasks.find(t => t.id === initTask.parentId) : null
+  // 0=전사과제, 1=팀과제, 2=세부과제
+  const initDepth = !initTask ? -1 : !initTask.parentId ? 0 : !initTaskParent?.parentId ? 1 : 2
   const initParentId = initTask
-    ? (initTask.parentId ?? initTask.id)
+    ? (initDepth === 0 ? initTask.id : initDepth === 1 ? initTask.parentId! : initTaskParent!.parentId!)
     : ''
-  const initChildId = initTask?.parentId != null ? initTask.id : ''
+  const initChildId      = initDepth >= 1 ? (initDepth === 1 ? initTask!.id : initTask!.parentId!) : ''
+  const initGrandchildId = initDepth === 2 ? initTask!.id : ''
 
-  const [parentTaskId, setParentTaskId] = useState(initParentId)
-  const [childTaskId,  setChildTaskId]  = useState(initChildId)
+  const [parentTaskId,     setParentTaskId]     = useState(initParentId)
+  const [childTaskId,      setChildTaskId]      = useState(initChildId)
+  const [grandchildTaskId, setGrandchildTaskId] = useState(initGrandchildId)
+  const [expandedTeams,    setExpandedTeams]    = useState<Set<string>>(new Set(initChildId ? [tasks.find(t => t.id === initChildId)?.teamId ?? ''] : []))
   const [teamId,       setTeamId]       = useState(initial?.teamId ?? teams[0]?.id ?? '')
 
   const [date,         setDate]         = useState(initial?.date    ?? new Date().toISOString().slice(0, 10))
@@ -438,14 +447,34 @@ export default function ActivityForm({ teams, tasks, users = [], vehicles = [], 
   }
 
 
-  const parentTasks  = tasks.filter(t => t.parentId === null)
-  const childTasks   = tasks.filter(t => t.parentId === parentTaskId)
-  const finalTaskId  = linked ? (childTaskId || parentTaskId || null) : null
+  const parentTasks     = tasks.filter(t => t.parentId === null)
+  const childTasks      = tasks.filter(t => t.parentId === parentTaskId)
+  const grandchildTasks = tasks.filter(t => t.parentId === childTaskId)
+  const finalTaskId  = linked ? (grandchildTaskId || childTaskId || parentTaskId || null) : null
   const finalTask    = finalTaskId ? tasks.find(t => t.id === finalTaskId) : null
   const finalTeamId  = linked ? (finalTask?.teamId ?? teamId) : teamId
   const taskKpiItems = finalTask?.kpiItems ?? []
   const taskCms      = finalTask?.countermeasures ?? []
   const selectedKpi  = taskKpiItems.find(k => k.id === kpiItemId)
+
+  // 팀과제(childTasks)를 팀별로 그룹핑 — 3단계 피커에서 아코디언으로 접어서 보여주기 위함
+  const childTaskGroups = (() => {
+    const groups = new Map<string, { teamName: string; items: Task[] }>()
+    for (const t of childTasks) {
+      if (!groups.has(t.teamId)) groups.set(t.teamId, { teamName: t.team?.name ?? '미배정', items: [] })
+      groups.get(t.teamId)!.items.push(t)
+    }
+    return [...groups.entries()].sort((a, b) => teamOrderIndex(a[1].teamName) - teamOrderIndex(b[1].teamName))
+  })()
+
+  function toggleTeamGroup(teamId: string) {
+    setExpandedTeams(prev => {
+      const next = new Set(prev)
+      if (next.has(teamId)) next.delete(teamId)
+      else next.add(teamId)
+      return next
+    })
+  }
 
   const meta = TYPE_META[type] ?? TYPE_META['문서·자료작성']
   const IS_KPI_TYPE = type === '실적추가' || type === '세금계산서 발행'
@@ -453,6 +482,20 @@ export default function ActivityForm({ teams, tasks, users = [], vehicles = [], 
   function handleParentSelect(pid: string) {
     setParentTaskId(pid)
     setChildTaskId('')
+    setGrandchildTaskId('')
+    setKpiItemId('')
+    setCountermeasureId('')
+  }
+
+  function handleChildSelect(cid: string) {
+    setChildTaskId(cid)
+    setGrandchildTaskId('')
+    setKpiItemId('')
+    setCountermeasureId('')
+  }
+
+  function handleGrandchildSelect(gid: string) {
+    setGrandchildTaskId(gid)
     setKpiItemId('')
     setCountermeasureId('')
   }
@@ -569,7 +612,7 @@ export default function ActivityForm({ teams, tasks, users = [], vehicles = [], 
               과제 연계
             </button>
             <button type="button"
-              onClick={() => { setLinked(false); setParentTaskId(''); setChildTaskId(''); setKpiItemId('') }}
+              onClick={() => { setLinked(false); setParentTaskId(''); setChildTaskId(''); setGrandchildTaskId(''); setKpiItemId(''); setCountermeasureId('') }}
               className={`flex items-center gap-2 px-4 py-2.5 rounded-lg border text-sm font-medium transition-colors ${
                 !linked
                   ? 'border-slate-500 bg-slate-600 text-white'
@@ -604,9 +647,7 @@ export default function ActivityForm({ teams, tasks, users = [], vehicles = [], 
                             ? 'border-indigo-400 bg-indigo-50'
                             : 'border-slate-200 hover:border-slate-300 hover:bg-slate-50'
                         }`}>
-                        <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded mr-2 ${
-                          task.strategy === 'A' ? 'bg-indigo-100 text-indigo-600' : 'bg-emerald-100 text-emerald-600'
-                        }`}>{task.strategy}</span>
+                        <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded mr-2 ${stratColor(task.strategy).light}`}>{task.strategy}</span>
                         <span className="text-xs font-mono text-slate-400 mr-2">{task.code}</span>
                         <span className="text-sm font-medium text-slate-800">{task.title}</span>
                       </button>
@@ -619,12 +660,12 @@ export default function ActivityForm({ teams, tasks, users = [], vehicles = [], 
             {parentTaskId && childTasks.length > 0 && (
               <div>
                 <p className="text-sm font-semibold text-slate-700 mb-2">
-                  세부과제
-                  <span className="ml-1.5 text-xs text-slate-400 font-normal">— 선택 시 해당 세부과제 아래 표시됩니다</span>
+                  팀과제
+                  <span className="ml-1.5 text-xs text-slate-400 font-normal">— 선택 시 해당 팀과제 아래 표시됩니다</span>
                 </p>
                 <div className="space-y-1.5">
                   <button type="button"
-                    onClick={() => { setChildTaskId(''); setKpiItemId(''); setCountermeasureId('') }}
+                    onClick={() => handleChildSelect('')}
                     className={`w-full text-left px-4 py-2 rounded-lg border text-xs transition-colors ${
                       childTaskId === ''
                         ? 'border-slate-400 bg-slate-100 text-slate-700 font-semibold'
@@ -632,11 +673,60 @@ export default function ActivityForm({ teams, tasks, users = [], vehicles = [], 
                     }`}>
                     전략과제에 직접 연계
                   </button>
-                  {childTasks.map(task => (
+                  {childTaskGroups.map(([tid, { teamName, items }]) => {
+                    const isOpen = expandedTeams.has(tid) || items.some(t => t.id === childTaskId)
+                    return (
+                      <div key={tid} className="border border-slate-200 rounded-lg overflow-hidden">
+                        <button type="button" onClick={() => toggleTeamGroup(tid)}
+                          className="w-full flex items-center gap-2 px-4 py-2 bg-slate-50 hover:bg-slate-100 transition-colors">
+                          <ChevronRight size={13} className={`text-slate-400 transition-transform duration-200 shrink-0 ${isOpen ? 'rotate-90' : ''}`} />
+                          <span className="text-sm font-semibold text-slate-700">{teamName}</span>
+                          <span className="text-xs text-slate-400">{items.length}건</span>
+                        </button>
+                        {isOpen && (
+                          <div className="p-1.5 space-y-1.5 bg-white border-t border-slate-100">
+                            {items.map(task => (
+                              <button key={task.id} type="button"
+                                onClick={() => handleChildSelect(task.id)}
+                                className={`w-full text-left px-4 py-2.5 rounded-lg border transition-colors ${
+                                  childTaskId === task.id
+                                    ? 'border-indigo-400 bg-indigo-50'
+                                    : 'border-slate-200 hover:border-slate-300 hover:bg-slate-50'
+                                }`}>
+                                <span className="text-xs text-slate-400 mr-2">{task.code}</span>
+                                <span className="text-sm font-medium text-slate-800">{task.title}</span>
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
+
+            {childTaskId && grandchildTasks.length > 0 && (
+              <div>
+                <p className="text-sm font-semibold text-slate-700 mb-2">
+                  세부과제
+                  <span className="ml-1.5 text-xs text-slate-400 font-normal">— 선택 시 해당 세부과제 아래 표시됩니다</span>
+                </p>
+                <div className="space-y-1.5">
+                  <button type="button"
+                    onClick={() => handleGrandchildSelect('')}
+                    className={`w-full text-left px-4 py-2 rounded-lg border text-xs transition-colors ${
+                      grandchildTaskId === ''
+                        ? 'border-slate-400 bg-slate-100 text-slate-700 font-semibold'
+                        : 'border-slate-200 text-slate-500 hover:border-slate-300 hover:bg-slate-50'
+                    }`}>
+                    팀과제에 직접 연계
+                  </button>
+                  {grandchildTasks.map(task => (
                     <button key={task.id} type="button"
-                      onClick={() => { setChildTaskId(task.id); setKpiItemId(''); setCountermeasureId('') }}
+                      onClick={() => handleGrandchildSelect(task.id)}
                       className={`w-full text-left px-4 py-2.5 rounded-lg border transition-colors ${
-                        childTaskId === task.id
+                        grandchildTaskId === task.id
                           ? 'border-indigo-400 bg-indigo-50'
                           : 'border-slate-200 hover:border-slate-300 hover:bg-slate-50'
                       }`}>
@@ -651,7 +741,7 @@ export default function ActivityForm({ teams, tasks, users = [], vehicles = [], 
             {finalTaskId && taskCms.length > 0 && (
               <div>
                 <p className="text-sm font-semibold text-slate-700 mb-2">
-                  간트 실행안
+                  대책과 실행안
                   <span className="ml-1.5 text-xs text-slate-400 font-normal">— 선택 시 해당 실행안 아래 표시됩니다</span>
                 </p>
                 <div className="space-y-1.5">
@@ -674,6 +764,7 @@ export default function ActivityForm({ teams, tasks, users = [], vehicles = [], 
                       }`}>
                       <span className="text-indigo-400 mr-2 text-xs">●</span>
                       <span className="text-sm text-slate-700">{cm.description}</span>
+                      {cm.owner && <span className="ml-2 text-xs text-slate-400">담당 {cm.owner}</span>}
                     </button>
                   ))}
                 </div>

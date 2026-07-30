@@ -13,8 +13,9 @@ export default async function NewActivityPage({ searchParams }: { searchParams: 
     prisma.strategyTask.findMany({
       where:   { suspended: false },
       select:  { id: true, code: true, title: true, teamId: true, strategy: true, parentId: true,
+        team: { select: { name: true } },
         kpiItems:        { where: { type: '정량' }, select: { id: true, label: true, unit: true, taskId: true }, orderBy: { index: 'asc' } },
-        countermeasures: { select: { id: true, index: true, description: true }, orderBy: { index: 'asc' } } },
+        countermeasures: { select: { id: true, index: true, description: true, owner: true }, orderBy: { index: 'asc' } } },
       orderBy: [{ teamId: 'asc' }, { teamSeq: 'asc' }],
     }),
     prisma.user.findMany({ select: { id: true, name: true, email: true }, orderBy: { name: 'asc' } }),

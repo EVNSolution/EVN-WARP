@@ -4,15 +4,14 @@ import Link from 'next/link'
 import { getWeekId, getWeekStart, adjacentWeek, formatWeekLabel } from '@/lib/week'
 import { ChevronLeft, ChevronRight, CheckCircle, Clock } from 'lucide-react'
 import GanttChart from '@/components/GanttChart'
+import { teamOrderIndex } from '@/lib/teamOrder'
+import { stratColor } from '@/lib/a3'
+import { aggregateDateRange } from '@/lib/kpiAggregate'
 
 const STATUS_BADGE: Record<string, string> = {
   '정상':    'bg-green-100  text-green-700  border-green-200',
   '지연':    'bg-yellow-100 text-yellow-700 border-yellow-200',
   '조치필요': 'bg-red-100    text-red-700   border-red-200',
-}
-const STRATEGY_BADGE: Record<string, string> = {
-  A: 'bg-indigo-600 text-white',
-  B: 'bg-emerald-600 text-white',
 }
 
 function isCmActive(
@@ -28,13 +27,14 @@ function isCmActive(
 
 function shouldShowInSection(
   cm: { startDate: string | null; endDate: string | null; description: string },
-  taskStart: Date,
-  taskEnd: Date,
+  taskStart: Date | null,
+  taskEnd: Date | null,
   rangeStart: number,
   rangeEnd: number,
 ): boolean {
   if (!cm.description.trim()) return false
   if (cm.startDate && cm.endDate) return isCmActive(cm, rangeStart, rangeEnd)
+  if (!taskStart || !taskEnd) return false
   const ts = taskStart.getTime()
   const te = taskEnd.getTime() + 86400000
   return ts < rangeEnd && te > rangeStart
@@ -87,11 +87,12 @@ export default async function WeeklyPage({ searchParams }: { searchParams: Promi
 
   const [tasks, weeklyUpdates, prevWeekUpdates, thisWeekActivities, nextWeekActivities] = await Promise.all([
     prisma.strategyTask.findMany({
-      where: { parentId: { not: null }, suspended: false },
+      where: { parentId: { not: null }, parent: { parentId: null }, suspended: false },
       include: {
         team: true,
         countermeasures: { orderBy: { index: 'asc' } },
         parent: { select: { id: true, title: true, code: true, strategy: true } },
+        subTasks: { select: { startDate: true, endDate: true } },
       },
       orderBy: [{ teamId: 'asc' }, { teamSeq: 'asc' }],
     }),
@@ -111,6 +112,17 @@ export default async function WeeklyPage({ searchParams }: { searchParams: Promi
       orderBy: [{ date: 'asc' }],
     }),
   ])
+
+  // 팀과제 자체 기간이 없으면(신규 경량 팀과제) 세부과제 기간에서 자동 계산
+  const effRangeByTaskId = new Map<string, { start: Date | null; end: Date | null }>()
+  for (const t of tasks) {
+    if (t.startDate && t.endDate) {
+      effRangeByTaskId.set(t.id, { start: t.startDate, end: t.endDate })
+    } else {
+      const agg = aggregateDateRange(t.subTasks)
+      effRangeByTaskId.set(t.id, { start: agg.startDate, end: agg.endDate })
+    }
+  }
 
   const updateByTaskId      = new Map(weeklyUpdates.map(u => [u.taskId, u]))
   const thisActByTask       = new Map<string, typeof thisWeekActivities>()
@@ -134,6 +146,7 @@ export default async function WeeklyPage({ searchParams }: { searchParams: Promi
     teamMap.get(task.teamId)!.tasks.push(task)
   }
   const teamEntries = [...teamMap.entries()]
+    .sort((a, b) => teamOrderIndex(a[1].teamName) - teamOrderIndex(b[1].teamName))
 
   // ── 뷰 스코프 필터 ──
   const myThisActTaskIds = new Set(thisWeekActivities.filter(a => a.userId === myUserId && a.taskId).map(a => a.taskId!))
@@ -159,18 +172,26 @@ export default async function WeeklyPage({ searchParams }: { searchParams: Promi
   const ganttTeamEntries = viewTeamEntries.map(([teamId, { teamName, tasks: tt }]) => ({
     teamId,
     teamName,
-    tasks: tt.map(t => ({
-      id: t.id, code: t.code, title: t.title, teamId: t.teamId,
-      strategy:    t.strategy || (t.parent as any)?.strategy || '',
-      parentTitle: (t.parent as any)?.title ?? null,
-      startDate: (t.startDate as Date).toISOString(),
-      endDate:   (t.endDate   as Date).toISOString(),
-      countermeasures: t.countermeasures.map(cm => ({
-        id: cm.id, index: cm.index, description: cm.description,
-        startDate: cm.startDate as string | null,
-        endDate:   cm.endDate   as string | null,
-      })),
-    })),
+    tasks: tt
+      .filter(t => {
+        const r = effRangeByTaskId.get(t.id)!
+        return r.start && r.end
+      })
+      .map(t => {
+        const r = effRangeByTaskId.get(t.id)!
+        return {
+          id: t.id, code: t.code, title: t.title, teamId: t.teamId,
+          strategy:    t.strategy || (t.parent as any)?.strategy || '',
+          parentTitle: (t.parent as any)?.title ?? null,
+          startDate: r.start!.toISOString(),
+          endDate:   r.end!.toISOString(),
+          countermeasures: t.countermeasures.map(cm => ({
+            id: cm.id, index: cm.index, description: cm.description, owner: cm.owner,
+            startDate: cm.startDate as string | null,
+            endDate:   cm.endDate   as string | null,
+          })),
+        }
+      }),
   }))
   const ganttUpdates: Record<string, { id: string; status: string; completed: string | null }> = {}
   for (const [tid, u] of updateByTaskId) {
@@ -334,28 +355,24 @@ export default async function WeeklyPage({ searchParams }: { searchParams: Promi
               <div className="divide-y divide-slate-100" style={{ minHeight: '100px' }}>
                 {(() => {
                   type RI = { teamName: string; task: typeof tasks[0]; update: (typeof weeklyUpdates)[0] | undefined; activeCms: typeof tasks[0]['countermeasures']; taskActs: typeof thisWeekActivities; lines: string[] }
-                  const buckets: Record<'A' | 'B' | '기타', RI[]> = { A: [], B: [], '기타': [] }
+                  const buckets = new Map<string, RI[]>()
 
                   for (const [, { teamName, tasks: tt }] of viewTeamEntries) {
                     for (const task of tt) {
                       const update    = updateByTaskId.get(task.id)
                       const taskActs  = thisActByTask.get(task.id) ?? []
+                      const taskRange = effRangeByTaskId.get(task.id)!
                       const activeCms = task.countermeasures.filter(cm =>
-                        shouldShowInSection(cm, new Date(task.startDate), new Date(task.endDate), weekStartMs, weekEndMs)
+                        shouldShowInSection(cm, taskRange.start, taskRange.end, weekStartMs, weekEndMs)
                         || taskActs.some((a: any) => a.countermeasureId === cm.id)
                       )
                       if (activeCms.length === 0 && taskActs.length === 0 && !update?.completed?.trim()) continue
                       const sl = (task.strategy || (task.parent as any)?.strategy || '') as string
-                      const key: 'A' | 'B' | '기타' = sl === 'A' ? 'A' : sl === 'B' ? 'B' : '기타'
-                      buckets[key].push({ teamName, task, update, activeCms, taskActs, lines: update?.completed?.split('\n').filter(l => l.trim()) ?? [] })
+                      const key = sl || '기타'
+                      if (!buckets.has(key)) buckets.set(key, [])
+                      buckets.get(key)!.push({ teamName, task, update, activeCms, taskActs, lines: update?.completed?.split('\n').filter(l => l.trim()) ?? [] })
                     }
                   }
-
-                  const STRAT_CFG = [
-                    { key: 'A'   as const, hdr: 'bg-indigo-800',  dot: 'text-indigo-400' },
-                    { key: 'B'   as const, hdr: 'bg-emerald-800', dot: 'text-emerald-400' },
-                    { key: '기타' as const, hdr: 'bg-slate-600',   dot: 'text-indigo-400' },
-                  ]
 
                   const renderTaskRow = (ri: RI, dotCls: string, num: number) => {
                     const { task, update, activeCms, taskActs, lines } = ri
@@ -376,7 +393,7 @@ export default async function WeeklyPage({ searchParams }: { searchParams: Promi
                             return (
                               <div key={cm.id}>
                                 <div className="flex items-center gap-1.5">
-                                  <span className={`${dotCls} shrink-0 text-xs`}>●</span>
+                                  <span className="shrink-0 text-xs" style={{ color: dotCls }}>●</span>
                                   <span className="text-xs font-medium text-slate-700">{cm.description}</span>
                                 </div>
                                 {cmActs.length > 0 && (
@@ -433,14 +450,17 @@ export default async function WeeklyPage({ searchParams }: { searchParams: Promi
                     )
                   }
 
-                  const totalCount = Object.values(buckets).reduce((s, b) => s + b.length, 0)
+                  const totalCount = [...buckets.values()].reduce((s, b) => s + b.length, 0)
                   if (totalCount === 0) {
                     return <div className="flex items-center justify-center h-20"><p className="text-xs text-slate-400">이번 주 완료사항이 없습니다.</p></div>
                   }
 
-                  return STRAT_CFG.flatMap(({ key, hdr, dot }) => {
-                    const items = buckets[key]
+                  const sortedKeys = [...buckets.keys()].sort((a, b) => a === '기타' ? 1 : b === '기타' ? -1 : a.localeCompare(b))
+                  return sortedKeys.flatMap(key => {
+                    const items = buckets.get(key)!
                     if (items.length === 0) return []
+                    const hdr = key === '기타' ? 'bg-slate-600' : stratColor(key).bold
+                    const dot = key === '기타' ? '#94a3b8' : stratColor(key).hex
                     /* 섹션 헤더 레이블: "{letter}. {전략명}" or "기타 과제" */
                     const parentTitle = items[0]?.task.parent?.title ?? items[0]?.task.title ?? ''
                     const headerLabel = key !== '기타' && parentTitle ? `${key}. ${parentTitle}` : '기타 과제'
@@ -482,28 +502,24 @@ export default async function WeeklyPage({ searchParams }: { searchParams: Promi
               <div className="divide-y divide-slate-100" style={{ minHeight: '100px' }}>
                 {(() => {
                   type RI2 = { teamName: string; task: typeof tasks[0]; update: (typeof weeklyUpdates)[0] | undefined; activeCms: typeof tasks[0]['countermeasures']; taskActs: typeof nextWeekActivities; lines: string[] }
-                  const buckets: Record<'A' | 'B' | '기타', RI2[]> = { A: [], B: [], '기타': [] }
+                  const buckets = new Map<string, RI2[]>()
 
                   for (const [, { teamName, tasks: tt }] of viewTeamEntries) {
                     for (const task of tt) {
                       const update    = updateByTaskId.get(task.id)
                       const taskActs  = nextActByTask.get(task.id) ?? []
+                      const taskRange = effRangeByTaskId.get(task.id)!
                       const activeCms = task.countermeasures.filter(cm =>
-                        shouldShowInSection(cm, new Date(task.startDate), new Date(task.endDate), nextWeekStartMs, nextWeekEndMs)
+                        shouldShowInSection(cm, taskRange.start, taskRange.end, nextWeekStartMs, nextWeekEndMs)
                         || taskActs.some((a: any) => a.countermeasureId === cm.id)
                       )
                       if (activeCms.length === 0 && taskActs.length === 0 && !update?.planned?.trim()) continue
                       const sl = (task.strategy || (task.parent as any)?.strategy || '') as string
-                      const key: 'A' | 'B' | '기타' = sl === 'A' ? 'A' : sl === 'B' ? 'B' : '기타'
-                      buckets[key].push({ teamName, task, update, activeCms, taskActs, lines: update?.planned?.split('\n').filter(l => l.trim()) ?? [] })
+                      const key = sl || '기타'
+                      if (!buckets.has(key)) buckets.set(key, [])
+                      buckets.get(key)!.push({ teamName, task, update, activeCms, taskActs, lines: update?.planned?.split('\n').filter(l => l.trim()) ?? [] })
                     }
                   }
-
-                  const STRAT_CFG = [
-                    { key: 'A'    as const, hdr: 'bg-indigo-800',  dot: 'text-sky-400' },
-                    { key: 'B'    as const, hdr: 'bg-emerald-800', dot: 'text-sky-400' },
-                    { key: '기타' as const, hdr: 'bg-slate-600',   dot: 'text-sky-400' },
-                  ]
 
                   const renderTaskRow = (ri: RI2, dotCls: string, num: number) => {
                     const { task, activeCms, taskActs, lines } = ri
@@ -519,7 +535,7 @@ export default async function WeeklyPage({ searchParams }: { searchParams: Promi
                             return (
                               <div key={cm.id}>
                                 <div className="flex items-center gap-1.5">
-                                  <span className={`${dotCls} shrink-0 text-xs`}>●</span>
+                                  <span className="shrink-0 text-xs" style={{ color: dotCls }}>●</span>
                                   <span className="text-xs font-medium text-slate-700">{cm.description}</span>
                                 </div>
                                 {cmActs.length > 0 && (
@@ -573,14 +589,17 @@ export default async function WeeklyPage({ searchParams }: { searchParams: Promi
                     )
                   }
 
-                  const totalCount = Object.values(buckets).reduce((s, b) => s + b.length, 0)
+                  const totalCount = [...buckets.values()].reduce((s, b) => s + b.length, 0)
                   if (totalCount === 0) {
                     return <div className="flex items-center justify-center h-20"><p className="text-xs text-slate-400">차주 계획이 없습니다.</p></div>
                   }
 
-                  return STRAT_CFG.flatMap(({ key, hdr, dot }) => {
-                    const items = buckets[key]
+                  const sortedKeys = [...buckets.keys()].sort((a, b) => a === '기타' ? 1 : b === '기타' ? -1 : a.localeCompare(b))
+                  return sortedKeys.flatMap(key => {
+                    const items = buckets.get(key)!
                     if (items.length === 0) return []
+                    const hdr = key === '기타' ? 'bg-slate-600' : stratColor(key).bold
+                    const dot = key === '기타' ? '#94a3b8' : stratColor(key).hex
                     const parentTitle = items[0]?.task.parent?.title ?? items[0]?.task.title ?? ''
                     const headerLabel = key !== '기타' && parentTitle ? `${key}. ${parentTitle}` : '기타 과제'
                     const teamOrder: string[] = []

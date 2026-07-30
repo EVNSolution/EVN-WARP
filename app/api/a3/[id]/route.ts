@@ -87,6 +87,7 @@ export async function PUT(req: NextRequest, ctx: RouteContext<'/api/a3/[id]'>) {
     await prisma.countermeasure.createMany({
       data: countermeasures.map((c: any) => ({
         taskId: id, index: c.index, description: c.description,
+        owner: c.owner || null,
         startDate: c.startDate ?? null,
         endDate:   c.endDate   ?? null,
       })),

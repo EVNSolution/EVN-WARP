@@ -15,7 +15,7 @@ export default async function NewWeeklyPage({ searchParams }: { searchParams: Pr
   const [teams, tasks, prevUpdate] = await Promise.all([
     prisma.team.findMany({ orderBy: { name: 'asc' } }),
     prisma.strategyTask.findMany({
-      where: { parentId: { not: null } },
+      where: { parentId: { not: null }, parent: { parentId: null } },
       select: { id: true, code: true, title: true, teamId: true },
       orderBy: [{ teamId: 'asc' }, { teamSeq: 'asc' }],
     }),

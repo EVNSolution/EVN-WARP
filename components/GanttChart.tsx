@@ -4,17 +4,15 @@ import { Fragment, useState, useMemo } from 'react'
 import Link from 'next/link'
 import GanttStatusToggle from './GanttStatusToggle'
 import { getWeekStart } from '@/lib/week'
+import { stratColor } from '@/lib/a3'
 
 const CM_COLORS = ['#818cf8', '#fb923c', '#2dd4bf', '#c084fc', '#4ade80', '#fb7185']
-const STRATEGY_BADGE: Record<string, string> = {
-  A: 'bg-indigo-600 text-white',
-  B: 'bg-emerald-600 text-white',
-}
 
 interface CmItem {
   id: string
   index: number
   description: string
+  owner?: string | null
   startDate: string | null
   endDate:   string | null
 }
@@ -80,31 +78,33 @@ export default function GanttChart({
         .map(t => t.id)
     ), [teamEntries])
 
-  /* 전략별 그룹 */
+  /* 전략별 그룹 — 전사과제 개수만큼 동적으로 버킷 생성 */
   const strategyGroups = useMemo(() => {
-    type SK = 'A' | 'B' | '기타'
-    const ORDER: SK[] = ['A', 'B', '기타']
-    const buckets: Record<SK, { teamId: string; teamName: string; tasks: TaskItem[] }[]> = { A: [], B: [], '기타': [] }
+    const buckets = new Map<string, { teamId: string; teamName: string; tasks: TaskItem[] }[]>()
 
     for (const { teamId, teamName, tasks } of teamEntries) {
-      const byStrat: Record<SK, TaskItem[]> = { A: [], B: [], '기타': [] }
+      const byStrat = new Map<string, TaskItem[]>()
       for (const task of tasks) {
-        const k: SK = task.strategy === 'A' ? 'A' : task.strategy === 'B' ? 'B' : '기타'
-        byStrat[k].push(task)
+        const k = task.strategy || '기타'
+        if (!byStrat.has(k)) byStrat.set(k, [])
+        byStrat.get(k)!.push(task)
       }
-      for (const k of ORDER) {
-        if (byStrat[k].length > 0) buckets[k].push({ teamId, teamName, tasks: byStrat[k] })
+      for (const [k, ts] of byStrat) {
+        if (!buckets.has(k)) buckets.set(k, [])
+        buckets.get(k)!.push({ teamId, teamName, tasks: ts })
       }
     }
 
-    return ORDER.filter(k => buckets[k].length > 0).map(k => {
-      const allTasks   = buckets[k].flatMap(t => t.tasks)
+    const keys = [...buckets.keys()].sort((a, b) => a === '기타' ? 1 : b === '기타' ? -1 : a.localeCompare(b))
+    return keys.map(k => {
+      const teams       = buckets.get(k)!
+      const allTasks    = teams.flatMap(t => t.tasks)
       const parentTitle = allTasks.find(t => t.parentTitle)?.parentTitle ?? ''
       return {
         stratKey: k,
         label:    k !== '기타' && parentTitle ? `${k}. ${parentTitle}` : k === '기타' ? '기타 과제' : `전략 ${k}`,
-        hdrCls:   k === 'A' ? 'bg-indigo-800' : k === 'B' ? 'bg-emerald-800' : 'bg-slate-600',
-        teams:    buckets[k],
+        hdrCls:   k === '기타' ? 'bg-slate-600' : stratColor(k).bold,
+        teams,
       }
     })
   }, [teamEntries])
@@ -238,9 +238,9 @@ export default function GanttChart({
             const renderTask = (task: TaskItem) => {
               const update         = updates[task.id]
               const milestonePos   = getMilestonePos(task.endDate)
-              const milestoneColor = task.strategy === 'A' ? '#6366f1' : '#059669'
+              const milestoneColor = stratColor(task.strategy).hex
               const cmWithDates    = task.countermeasures.filter(cm => cm.startDate && cm.endDate)
-              const stratBadgeCls  = STRATEGY_BADGE[task.strategy] ?? 'bg-slate-100 text-slate-500'
+              const stratBadgeCls  = stratColor(task.strategy).bold
               const isExpanded     = expanded.has(task.id)
               const bar            = getBar(task.startDate, task.endDate)
               const hasCMs         = task.countermeasures.length > 0
@@ -306,7 +306,9 @@ export default function GanttChart({
                           <div className="flex items-center gap-1.5">
                             <span className="w-3 h-3 rounded-full text-[7px] font-bold text-white shrink-0 flex items-center justify-center"
                               style={{ backgroundColor: cmColor, minWidth: '12px' }}>{cm.index}</span>
-                            <span className="text-[9px] text-slate-500 truncate" style={{ maxWidth: '190px' }}>{cm.description}</span>
+                            <span className="text-[9px] text-slate-500 truncate" style={{ maxWidth: '190px' }}>
+                              {cm.description}{cm.owner && <span className="text-slate-400"> · {cm.owner}</span>}
+                            </span>
                           </div>
                         </td>
                         <td colSpan={ganttWeeks.length} className="p-0 align-middle relative" style={{ height: '18px' }}>

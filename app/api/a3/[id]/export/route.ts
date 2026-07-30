@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/db'
 import PptxGenJS from 'pptxgenjs'
+import { rootAncestorTitle, stratColor } from '@/lib/a3'
 
 const SH = {
   RECTANGLE:         'rect',
@@ -49,7 +50,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
     where: { id },
     include: {
       team: true,
-      parent: true,
+      parent: { include: { parent: true } },
       kpiItems: { orderBy: { index: 'asc' } },
       monthlyTargets: { orderBy: [{ year: 'asc' }, { month: 'asc' }] },
       countermeasures: { orderBy: { index: 'asc' } },
@@ -63,10 +64,10 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   pptx.company = 'EV&Solution'
   pptx.title = `[${task.code}] ${task.title}`
 
-  const isA = task.strategy === 'A'
-  const accent = isA ? C.orange : C.purple
-  const accentLight = isA ? C.orangeLight : C.purpleLight
-  const stratLabel = isA ? '전략과제 A · 확장과 성장' : '전략과제 B · AI 기반 조직운영'
+  const strat = stratColor(task.strategy)
+  const accent = strat.hex.replace('#', '')
+  const accentLight = strat.hexLight
+  const stratLabel = `전략과제 ${task.strategy} · ${rootAncestorTitle(task)}`
 
   // ── Slide 1: 표지 ────────────────────────────────────────────
   {
@@ -101,8 +102,8 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
     const iy = 4.7
     const infoItems = [
       { label: '담당 팀', value: task.team.name, x: 0.45 },
-      { label: '과제 오너', value: task.owner, x: 3.5 },
-      { label: '기간', value: `${fmt(task.startDate)} ~ ${fmt(task.endDate)}`, x: 5.9 },
+      { label: '과제 오너', value: task.owner ?? '미배정', x: 3.5 },
+      { label: '기간', value: task.startDate && task.endDate ? `${fmt(task.startDate)} ~ ${fmt(task.endDate)}` : '미정', x: 5.9 },
       { label: '상태', value: task.status, x: 11.1 },
     ]
     infoItems.forEach(({ label, value, x }) => {

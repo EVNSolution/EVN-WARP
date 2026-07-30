@@ -4,6 +4,9 @@ import Link from 'next/link'
 import { ChevronLeft, ChevronRight, TrendingUp } from 'lucide-react'
 import KpiInputModal from '@/components/KpiInputModal'
 import KpiDashboardChart from '@/components/KpiDashboardChart'
+import QuickTaskModal from '@/components/QuickTaskModal'
+import { teamOrderIndex } from '@/lib/teamOrder'
+import { CEO_TEAM_ID } from '@/lib/constants'
 
 type SearchParams = { week?: string }
 
@@ -18,9 +21,9 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
   const currentYear   = new Date().getFullYear()
   const currentMonth  = new Date().getMonth() + 1
 
-  const [execTasks, weeklyUpdates, companyKpisRaw, linkedRows] = await Promise.all([
+  const [execTasks, weeklyUpdates, companyKpisRaw, linkedRows, teams, topTasks] = await Promise.all([
     prisma.strategyTask.findMany({
-      where:   { parentId: { not: null }, suspended: false },
+      where:   { parentId: { not: null }, parent: { parentId: null }, suspended: false },
       include: { team: true },
       orderBy: [{ teamId: 'asc' }, { teamSeq: 'asc' }],
     }),
@@ -32,6 +35,12 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
     }),
     // linkedToFunnel은 raw SQL로 읽어야 libSQL adapter 호환
     prisma.$queryRaw<{ id: string }[]>`SELECT id FROM "CompanyKpi" WHERE "linkedToFunnel" = 1`,
+    prisma.team.findMany({ orderBy: { name: 'asc' } }),
+    prisma.strategyTask.findMany({
+      where: { parentId: null },
+      select: { id: true, code: true, title: true, strategy: true },
+      orderBy: { teamSeq: 'asc' },
+    }),
   ])
 
   const linkedIds = new Set(linkedRows.map(r => r.id))
@@ -52,6 +61,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
     teamMap.get(task.teamId)!.tasks.push(task)
   }
   const teamEntries = [...teamMap.values()]
+    .sort((a, b) => teamOrderIndex(a.teamName) - teamOrderIndex(b.teamName))
 
   return (
     <div className="p-5 bg-slate-100 h-[calc(100vh-64px)] flex flex-col overflow-hidden">
@@ -102,9 +112,17 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
 
         {/* ② 전략과제 현황 */}
         <section className="bg-white rounded-2xl shadow-sm overflow-hidden flex flex-col">
-          <div className="px-5 py-4 bg-[#111111] shrink-0">
-            <h2 className="text-sm font-bold text-white">전략과제 현황</h2>
-            <p className="text-[11px] mt-0.5" style={{ color: '#C5D42A' }}>팀별 실행 상태 · {weekLabel}</p>
+          <div className="px-5 py-4 flex items-center gap-3 bg-[#111111] shrink-0">
+            <div className="flex-1 min-w-0">
+              <h2 className="text-sm font-bold text-white">전략과제 현황</h2>
+              <p className="text-[11px] mt-0.5" style={{ color: '#C5D42A' }}>팀별 실행 상태 · {weekLabel}</p>
+            </div>
+            <QuickTaskModal
+              teams={teams}
+              ceoTeamId={CEO_TEAM_ID}
+              topTasks={topTasks}
+              buttonClassName="flex items-center gap-1.5 text-xs font-semibold text-white border border-white/20 px-3 py-1.5 rounded-lg hover:bg-white/10 transition-colors"
+            />
           </div>
 
           <div className="grid grid-cols-4 divide-x divide-slate-100 border-b border-slate-100 shrink-0">

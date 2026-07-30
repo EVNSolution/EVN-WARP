@@ -36,6 +36,7 @@ export async function POST(req: NextRequest) {
   let code: string
   let teamSeq: number
   let subSeq: number | null = null
+  let strategyResolved: string = strategy
 
   if (parentId) {
     const [parent, lastByParent, lastByTeam] = await Promise.all([
@@ -55,6 +56,8 @@ export async function POST(req: NextRequest) {
     subSeq = (lastByParent?.subSeq ?? 0) + 1
     teamSeq = (lastByTeam?.teamSeq ?? 0) + 1
     code = `${team.name}-${String(teamSeq).padStart(2, '0')}`
+    // 팀과제/세부과제는 상위 과제의 strategy를 그대로 물려받는다 (경량 등록 시 클라이언트가 안 보내도 되도록)
+    if (!strategy) strategyResolved = parent.strategy
   } else {
     const last = await prisma.strategyTask.findFirst({
       where: { teamId, parentId: null },
@@ -62,14 +65,19 @@ export async function POST(req: NextRequest) {
     })
     teamSeq = (last?.teamSeq ?? 0) + 1
     code = `${team.name}-${String(teamSeq).padStart(2, '0')}`
+    // 신규 전사과제: strategy 미지정 시 다음 알파벳을 자동 채번 (A, B, C ...)
+    if (!strategy) {
+      const topCount = await prisma.strategyTask.count({ where: { parentId: null } })
+      strategyResolved = String.fromCharCode(65 + topCount)
+    }
   }
 
   const task = await prisma.strategyTask.create({
     data: {
       code, teamSeq, subSeq,
-      strategy, title, teamId, owner,
-      startDate: new Date(startDate),
-      endDate: new Date(endDate),
+      strategy: strategyResolved, title, teamId, owner: owner || null,
+      startDate: startDate ? new Date(startDate) : null,
+      endDate:   endDate   ? new Date(endDate)   : null,
       status: status ?? '진행중',
       confirmed: confirmed ?? false,
       problemStatement, goalStatement,
@@ -96,6 +104,7 @@ export async function POST(req: NextRequest) {
       countermeasures: {
         create: countermeasures.map((c: any) => ({
           index: c.index, description: c.description,
+          owner: c.owner || null,
           startDate: c.startDate ?? null,
           endDate:   c.endDate   ?? null,
         })),

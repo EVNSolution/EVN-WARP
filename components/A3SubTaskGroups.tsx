@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { ChevronRight, Pencil, X } from 'lucide-react'
 import { STATUS_STYLE, dDay } from '@/lib/a3'
+import { teamOrderIndex } from '@/lib/teamOrder'
 
 /* 팀 이름 해시 기반 고정 색상 — 같은 전사과제 안에서 팀별로 시각 구분 */
 const TEAM_PALETTE = [
@@ -19,13 +20,6 @@ function teamColor(name: string) {
   let hash = 0
   for (let i = 0; i < name.length; i++) hash = (hash * 31 + name.charCodeAt(i)) >>> 0
   return TEAM_PALETTE[hash % TEAM_PALETTE.length]
-}
-
-/* 팀 표시 순서 고정 — 목록에 없는 팀은 뒤에 원래 순서대로 붙는다 */
-const TEAM_ORDER = ['PM팀', '제조운영팀', 'CLEVER팀', '사업개발팀', '마케팅팀', '경영관리팀']
-function teamOrderIndex(name: string) {
-  const i = TEAM_ORDER.indexOf(name)
-  return i === -1 ? TEAM_ORDER.length : i
 }
 
 interface Props {
@@ -147,20 +141,20 @@ export default function A3SubTaskGroups({ subTasks, parentTaskId, teamSummaries 
               </div>
             </div>
 
-            {/* 세부과제 목록 */}
+            {/* 팀과제 목록 */}
             {isOpen && (
               <div className="pb-1.5">
                 {items.map((sub: any) => {
-                  const subDd = dDay(new Date(sub.endDate))
+                  const subDd = dDay(sub.endDate)
                   const subStCls = STATUS_STYLE[sub.status] ?? 'bg-gray-100 text-gray-500'
                   return (
                     <Link key={sub.id} href={`/a3/${sub.id}`}
                       className={`flex items-center gap-3 ml-20 mr-3 my-1 pl-3 pr-3 py-1.5 rounded-lg bg-white border border-l-[3px] border-slate-100 ${c.bar} hover:border-slate-200 hover:shadow-sm transition-all group`}>
                       <span className="flex-1 text-xs text-slate-700 font-medium truncate">{sub.title}</span>
-                      <span className="text-xs text-slate-400 font-medium shrink-0">오너 {sub.owner}</span>
+                      <span className="text-xs text-slate-400 font-medium shrink-0">오너 {sub.owner ?? '미배정'}</span>
                       <span className={`text-xs font-medium px-2 py-0.5 rounded-full shrink-0 ${subStCls}`}>{sub.status}</span>
                       {sub.confirmed && <span className="text-xs text-green-500 shrink-0">✓확정</span>}
-                      <span className={`text-xs font-medium shrink-0 ${subDd.cls}`}>{subDd.label}</span>
+                      {subDd && <span className={`text-xs font-medium shrink-0 ${subDd.cls}`}>{subDd.label}</span>}
                       <ChevronRight size={14} className="text-slate-300 group-hover:text-slate-500 transition-colors shrink-0" />
                     </Link>
                   )

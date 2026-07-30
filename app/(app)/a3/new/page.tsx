@@ -6,23 +6,26 @@ export default async function NewA3Page(props: PageProps<'/a3/new'>) {
   const searchParams = await props.searchParams
   const presetParentId = searchParams?.parentId as string | undefined
 
-  const [teams, parentTasks] = await Promise.all([
+  const [teams, presetParent] = await Promise.all([
     prisma.team.findMany({ orderBy: { name: 'asc' } }),
-    // 상위 과제 목록 = 경영진 팀의 최상위 과제 (전략과제 A, B)
-    prisma.strategyTask.findMany({
-      where: { teamId: CEO_TEAM_ID, parentId: null },
-      select: { id: true, code: true, title: true, teamId: true, strategy: true },
-      orderBy: { teamSeq: 'asc' },
-    }),
+    // 세부과제는 항상 팀과제 아래에만 등록된다
+    presetParentId
+      ? prisma.strategyTask.findUnique({
+          where: { id: presetParentId },
+          select: {
+            id: true, code: true, title: true, teamId: true, strategy: true,
+            parent: { select: { title: true, strategy: true } },
+          },
+        })
+      : null,
   ])
 
   return (
     <A3Form
       teams={teams}
-      parentTasks={parentTasks}
+      presetParent={presetParent}
       ceoTeamId={CEO_TEAM_ID}
       mode="new"
-      initial={presetParentId ? { parentId: presetParentId } : undefined}
     />
   )
 }
