@@ -143,7 +143,7 @@ export default async function FunnelPage({ searchParams }: { searchParams: Promi
       {/* ── 상단 헤더 ── */}
       <div className="flex items-center justify-between px-6 py-3 shrink-0" style={{ background: '#111111' }}>
         <div>
-          <h1 className="text-lg font-bold text-white leading-tight">STEGO K1 영업 파이프라인</h1>
+          <h1 className="text-lg font-bold text-white leading-tight">영업 파이프라인</h1>
           <p className="text-[11px] mt-0.5" style={{ color: '#C5D42A' }}>
             4단계 · 11 프로세스 통합 관리
           </p>

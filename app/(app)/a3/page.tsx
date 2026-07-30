@@ -1,17 +1,12 @@
 import { prisma } from '@/lib/db'
 import Link from 'next/link'
 import { Plus, ChevronRight, PauseCircle } from 'lucide-react'
-
-const STATUS_STYLE: Record<string, string> = {
-  '진행중': 'bg-blue-100 text-blue-700',
-  '완료':   'bg-green-100 text-green-700',
-  '보류':   'bg-gray-100 text-gray-500',
-  '지연':   'bg-red-100 text-red-600',
-}
+import A3SubTaskGroups from '@/components/A3SubTaskGroups'
+import { STATUS_STYLE, dDay } from '@/lib/a3'
 
 const STRAT: Record<string, {
   container: string; border: string; leftBar: string
-  badge: string; hoverParent: string; subHover: string
+  badge: string; hoverParent: string
 }> = {
   A: {
     container:   'bg-indigo-50/50 border-indigo-200',
@@ -19,7 +14,6 @@ const STRAT: Record<string, {
     leftBar:     'border-l-indigo-500',
     badge:       'bg-indigo-600 text-white',
     hoverParent: 'hover:bg-indigo-50',
-    subHover:    'hover:bg-indigo-50/40',
   },
   B: {
     container:   'bg-emerald-50/50 border-emerald-200',
@@ -27,17 +21,9 @@ const STRAT: Record<string, {
     leftBar:     'border-l-emerald-500',
     badge:       'bg-emerald-600 text-white',
     hoverParent: 'hover:bg-emerald-50',
-    subHover:    'hover:bg-emerald-50/40',
   },
 }
 const STRAT_DEFAULT = STRAT.A
-
-function dDay(endDate: Date) {
-  const diff = Math.ceil((endDate.getTime() - Date.now()) / 86400000)
-  if (diff < 0) return { label: `D+${Math.abs(diff)}`, cls: 'text-red-500' }
-  if (diff === 0) return { label: 'D-day', cls: 'text-orange-500' }
-  return { label: `D-${diff}`, cls: 'text-slate-400' }
-}
 
 export default async function A3ListPage() {
   const tasks = await prisma.strategyTask.findMany({
@@ -53,10 +39,10 @@ export default async function A3ListPage() {
   })
 
   // 팀별 그룹
-  const teamMap = new Map<string, { teamName: string; strategySummary: string | null; tasks: typeof tasks }>()
+  const teamMap = new Map<string, { teamName: string; tasks: typeof tasks }>()
   for (const task of tasks) {
     if (!teamMap.has(task.teamId))
-      teamMap.set(task.teamId, { teamName: task.team.name, strategySummary: task.team.strategySummary, tasks: [] })
+      teamMap.set(task.teamId, { teamName: task.team.name, tasks: [] })
     teamMap.get(task.teamId)!.tasks.push(task)
   }
   const teamEntries = [...teamMap.values()]
@@ -81,7 +67,7 @@ export default async function A3ListPage() {
         </div>
       ) : (
         <div className="space-y-8">
-          {teamEntries.map(({ teamName, strategySummary, tasks: teamTasks }) => {
+          {teamEntries.map(({ teamName, tasks: teamTasks }) => {
             const active    = teamTasks.filter(t => !t.suspended)
             const suspended = teamTasks.filter(t => t.suspended)
             const cntDone   = active.filter(t => t.status === '완료').length
@@ -108,11 +94,6 @@ export default async function A3ListPage() {
                   <div className="flex-1 h-px bg-slate-200" />
                   <span className="text-xs text-slate-400 font-medium shrink-0">{teamTasks.length}건</span>
                 </div>
-
-                {/* 팀 전략 요약 */}
-                {strategySummary && (
-                  <p className="text-xs text-slate-500 italic mt-1.5 mb-1 pl-[15px]">{strategySummary}</p>
-                )}
 
                 {/* 과제 카드들 */}
                 <div className="grid gap-3 mt-3">
@@ -153,8 +134,8 @@ function TaskRow({ task, dimmed }: { task: any; dimmed?: boolean }) {
         </span>
 
         {/* 메타 */}
-        <span className="text-sm text-slate-400 shrink-0">{task.team?.name}</span>
-        <span className="text-sm text-slate-400 shrink-0">오너 {task.owner}</span>
+        <span className="text-xs text-slate-400 font-medium shrink-0">{task.team?.name}</span>
+        <span className="text-xs text-slate-400 font-medium shrink-0">오너 {task.owner}</span>
         <span className={`text-xs font-medium px-2 py-0.5 rounded-full shrink-0 ${stCls}`}>
           {task.status}
         </span>
@@ -163,45 +144,8 @@ function TaskRow({ task, dimmed }: { task: any; dimmed?: boolean }) {
         <ChevronRight size={15} className="text-slate-300 group-hover:text-indigo-400 transition-colors shrink-0" />
       </Link>
 
-      {/* ─ 하부과제 목록 ─ */}
-      {hasSubs && task.subTasks.map((sub: any, idx: number) => {
-        const isLast  = idx === task.subTasks.length - 1
-        const subDd   = dDay(new Date(sub.endDate))
-        const subStCls = STATUS_STYLE[sub.status] ?? 'bg-gray-100 text-gray-500'
-
-        return (
-          <Link key={sub.id} href={`/a3/${sub.id}`}
-            className={`flex items-center gap-3 bg-white border-t border-slate-100 px-4 py-3 ${s.subHover} transition-colors group ${isLast ? 'rounded-b-xl' : ''}`}>
-
-            {/* 트리 커넥터 */}
-            <div className="flex items-center gap-1.5 pl-5 shrink-0">
-              <span className="text-slate-300 font-mono text-xs leading-none select-none">
-                {isLast ? '└' : '├'}
-              </span>
-            </div>
-
-            {/* 코드 */}
-            <span className="text-xs text-slate-300 shrink-0 w-32 truncate">
-              {sub.code}
-            </span>
-
-            {/* 제목 */}
-            <span className="flex-1 text-sm text-slate-700 truncate">
-              {sub.title}
-            </span>
-
-            {/* 메타 */}
-            <span className="text-xs text-slate-400 shrink-0">{sub.team?.name}</span>
-            <span className="text-xs text-slate-400 shrink-0">오너 {sub.owner}</span>
-            <span className={`text-xs font-medium px-2 py-0.5 rounded-full shrink-0 ${subStCls}`}>
-              {sub.status}
-            </span>
-            {sub.confirmed && <span className="text-xs text-green-500 shrink-0">✓확정</span>}
-            <span className={`text-xs font-medium shrink-0 ${subDd.cls}`}>{subDd.label}</span>
-            <ChevronRight size={15} className="text-slate-300 group-hover:text-slate-500 transition-colors shrink-0" />
-          </Link>
-        )
-      })}
+      {/* ─ 하부과제: 팀별 그룹 아코디언 ─ */}
+      {hasSubs && <A3SubTaskGroups subTasks={task.subTasks} />}
 
     </div>
   )
@@ -219,7 +163,7 @@ function SuspendedTaskCard({ task }: { task: any }) {
           <p className="text-xs text-orange-500 mt-0.5 truncate">사유: {task.suspendReason}</p>
         )}
       </div>
-      <span className="text-sm text-slate-400 shrink-0">{task.team?.name}</span>
+      <span className="text-xs text-slate-400 font-medium shrink-0">{task.team?.name}</span>
       {task.suspendedAt && (
         <span className="text-xs text-orange-400 shrink-0">
           {new Date(task.suspendedAt).toLocaleDateString('ko-KR')} 중단
