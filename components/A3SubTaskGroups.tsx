@@ -23,9 +23,11 @@ function teamColor(name: string) {
 
 interface Props {
   subTasks: any[]
+  parentTaskId: string
+  teamSummaries: Record<string, string>
 }
 
-export default function A3SubTaskGroups({ subTasks }: Props) {
+export default function A3SubTaskGroups({ subTasks, parentTaskId, teamSummaries }: Props) {
   const router = useRouter()
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
   const [editingTeamId, setEditingTeamId] = useState<string | null>(null)
@@ -33,11 +35,11 @@ export default function A3SubTaskGroups({ subTasks }: Props) {
   const [saving, setSaving] = useState(false)
 
   // 팀별 그룹
-  const groups = new Map<string, { teamName: string; strategySummary: string | null; items: any[] }>()
+  const groups = new Map<string, { teamName: string; items: any[] }>()
   for (const sub of subTasks) {
     const key = sub.teamId
     if (!groups.has(key))
-      groups.set(key, { teamName: sub.team?.name ?? '미배정', strategySummary: sub.team?.strategySummary ?? null, items: [] })
+      groups.set(key, { teamName: sub.team?.name ?? '미배정', items: [] })
     groups.get(key)!.items.push(sub)
   }
   const groupList = [...groups.entries()]
@@ -54,9 +56,9 @@ export default function A3SubTaskGroups({ subTasks }: Props) {
   const handleSaveSummary = async (teamId: string) => {
     setSaving(true)
     try {
-      const res = await fetch(`/api/teams/${teamId}`, {
+      const res = await fetch(`/api/a3/${parentTaskId}/team-summary`, {
         method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ strategySummary: editVal.trim() || null }),
+        body: JSON.stringify({ teamId, summary: editVal }),
       })
       if (res.ok) {
         setEditingTeamId(null)
@@ -67,60 +69,74 @@ export default function A3SubTaskGroups({ subTasks }: Props) {
 
   return (
     <div className="border-t border-slate-100 divide-y divide-slate-100 bg-slate-50/40">
-      {groupList.map(([teamId, { teamName, strategySummary, items }]) => {
+      {groupList.map(([teamId, { teamName, items }]) => {
         const isOpen = expanded.has(teamId)
         const c = teamColor(teamName)
         const doneCount = items.filter((i: any) => i.status === '완료').length
         const isEditing = editingTeamId === teamId
+        const strategySummary = teamSummaries[teamId] ?? ''
+        const summaryLines = strategySummary.split('\n').map(s => s.trim()).filter(Boolean)
 
         return (
           <div key={teamId}>
             {/* 팀 그룹 헤더 (클릭 시 펼침/접힘) */}
             <div
               onClick={() => !isEditing && toggle(teamId)}
-              className="w-full flex items-center gap-2.5 px-4 py-2.5 hover:bg-white transition-colors cursor-pointer">
+              className={`w-full flex gap-2.5 px-4 py-2.5 hover:bg-white transition-colors cursor-pointer ${isEditing ? 'items-start' : 'items-center'}`}>
               <ChevronRight size={13}
-                className={`text-slate-300 transition-transform duration-200 shrink-0 ${isOpen ? 'rotate-90' : ''}`} />
-              <span className={`inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full border shrink-0 ${c.chip}`}>
-                <span className={`w-1.5 h-1.5 rounded-full ${c.dot}`} />
-                {teamName}
-              </span>
-              <span className="text-xs text-slate-400 font-medium shrink-0">
-                {items.length}건{doneCount > 0 && ` · 완료 ${doneCount}`}
-              </span>
+                className={`${isEditing ? 'mt-1' : ''} text-slate-300 transition-transform duration-200 shrink-0 ${isOpen ? 'rotate-90' : ''}`} />
 
-              {isEditing ? (
-                <div className="flex items-center gap-1.5 flex-1 min-w-0" onClick={e => e.stopPropagation()}>
-                  <textarea
-                    value={editVal}
-                    onChange={e => setEditVal(e.target.value)}
-                    rows={1}
-                    placeholder="이 팀의 전략을 1~2문장으로 요약해주세요"
-                    className="flex-1 min-w-0 text-xs border border-slate-300 rounded-lg px-2 py-1 focus:outline-none focus:ring-1 focus:ring-slate-400 resize-none"
-                    autoFocus
-                  />
-                  <button type="button" onClick={() => handleSaveSummary(teamId)} disabled={saving}
-                    className="px-2 py-1 text-xs font-bold rounded-lg bg-slate-700 text-white hover:bg-slate-800 disabled:opacity-40 transition shrink-0">
-                    {saving ? '...' : '저장'}
-                  </button>
-                  <button type="button" onClick={() => setEditingTeamId(null)}
-                    className="p-1 text-slate-400 hover:text-slate-600 shrink-0">
-                    <X size={13} />
-                  </button>
-                </div>
-              ) : (
-                <>
-                  {strategySummary && (
-                    <span className="text-xs text-slate-400 italic truncate min-w-0" title={strategySummary}>{strategySummary}</span>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2.5">
+                  <span className={`inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full border shrink-0 ${c.chip}`}>
+                    <span className={`w-1.5 h-1.5 rounded-full ${c.dot}`} />
+                    {teamName}
+                  </span>
+                  <span className="text-xs text-slate-400 font-medium shrink-0">
+                    {items.length}건{doneCount > 0 && ` · 완료 ${doneCount}`}
+                  </span>
+                  {!isEditing && (
+                    <>
+                      <button type="button"
+                        onClick={e => { e.stopPropagation(); setEditingTeamId(teamId); setEditVal(strategySummary) }}
+                        className="p-1 text-slate-300 hover:text-slate-500 transition-colors shrink-0">
+                        <Pencil size={11} />
+                      </button>
+                      {summaryLines.length > 0 && (
+                        <span
+                          className="text-xs text-slate-400 italic truncate min-w-0"
+                          title={summaryLines.join('\n')}>
+                          {summaryLines.map(l => `• "${l}"`).join('   ')}
+                        </span>
+                      )}
+                    </>
                   )}
-                  <button type="button"
-                    onClick={e => { e.stopPropagation(); setEditingTeamId(teamId); setEditVal(strategySummary ?? '') }}
-                    className="p-1 text-slate-300 hover:text-slate-500 transition-colors shrink-0">
-                    <Pencil size={11} />
-                  </button>
                   <div className="flex-1" />
-                </>
-              )}
+                </div>
+
+                {isEditing && (
+                  <div className="mt-1.5 flex items-start gap-1.5" onClick={e => e.stopPropagation()}>
+                    <textarea
+                      value={editVal}
+                      onChange={e => setEditVal(e.target.value)}
+                      rows={3}
+                      placeholder={'이 팀의 전략을 줄바꿈으로 구분해 2~3줄로 요약해주세요'}
+                      className="flex-1 min-w-0 text-xs border border-slate-300 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-slate-400 resize-none"
+                      autoFocus
+                    />
+                    <div className="flex flex-col gap-1">
+                      <button type="button" onClick={() => handleSaveSummary(teamId)} disabled={saving}
+                        className="px-2.5 py-1 text-xs font-bold rounded-lg bg-slate-700 text-white hover:bg-slate-800 disabled:opacity-40 transition">
+                        {saving ? '...' : '저장'}
+                      </button>
+                      <button type="button" onClick={() => setEditingTeamId(null)}
+                        className="p-1 text-slate-400 hover:text-slate-600 self-center">
+                        <X size={13} />
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
 
             {/* 세부과제 목록 */}

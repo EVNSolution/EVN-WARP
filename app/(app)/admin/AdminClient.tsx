@@ -27,7 +27,7 @@ interface UserRow {
   createdAt: string
 }
 
-interface TeamRow { id: string; name: string; strategySummary: string | null }
+interface TeamRow { id: string; name: string }
 
 type CustInfo = { id: string; name: string; phone: string | null; status: string; leadCount: number; createdAt: string }
 type DupGroup = { phone: string | null; name: string; customers: CustInfo[] }

@@ -10,7 +10,6 @@ datasource db {
 model Team {
   id              String          @id @default(cuid())
   name            String          @unique
-  strategySummary String?         // 팀 전략 1~2문장 요약
   strategyTasks  StrategyTask[]
   weeklyUpdates  WeeklyUpdate[]
   workActivities WorkActivity[]
@@ -48,6 +47,7 @@ model StrategyTask {
   confirmed        Boolean          @default(false)
   problemStatement String?
   goalStatement    String?
+  teamSummaries    String?          // 최상위 과제에서만 사용: 팀별 전략 요약 JSON { [teamId]: string }
 
   // 부모-자식 관계
   parentId         String?

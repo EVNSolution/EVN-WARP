@@ -145,7 +145,13 @@ function TaskRow({ task, dimmed }: { task: any; dimmed?: boolean }) {
       </Link>
 
       {/* ─ 하부과제: 팀별 그룹 아코디언 ─ */}
-      {hasSubs && <A3SubTaskGroups subTasks={task.subTasks} />}
+      {hasSubs && (
+        <A3SubTaskGroups
+          subTasks={task.subTasks}
+          parentTaskId={task.id}
+          teamSummaries={task.teamSummaries ? JSON.parse(task.teamSummaries) : {}}
+        />
+      )}
 
     </div>
   )

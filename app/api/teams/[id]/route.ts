@@ -7,7 +7,6 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     where: { id },
     data: {
       ...(body.name !== undefined && { name: body.name }),
-      ...(body.strategySummary !== undefined && { strategySummary: body.strategySummary || null }),
     },
   })
   return Response.json(team)
