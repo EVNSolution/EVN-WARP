@@ -134,9 +134,6 @@ export default function AdminClient({
   const [teamRenameId,   setTeamRenameId]   = useState<string | null>(null)
   const [teamRenameVal,  setTeamRenameVal]  = useState('')
   const [teamRenameLoading, setTeamRenameLoading] = useState(false)
-  const [teamSummaryEditId,   setTeamSummaryEditId]   = useState<string | null>(null)
-  const [teamSummaryVal,      setTeamSummaryVal]      = useState('')
-  const [teamSummaryLoading,  setTeamSummaryLoading]  = useState(false)
 
   const handleRenameTeam = async (id: string) => {
     if (!teamRenameVal.trim()) return
@@ -151,20 +148,6 @@ export default function AdminClient({
         setTeamRenameId(null)
       }
     } finally { setTeamRenameLoading(false) }
-  }
-
-  const handleSaveTeamSummary = async (id: string) => {
-    setTeamSummaryLoading(true)
-    try {
-      const res = await fetch(`/api/teams/${id}`, {
-        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ strategySummary: teamSummaryVal.trim() || null }),
-      })
-      if (res.ok) {
-        setTeams(prev => prev.map(t => t.id === id ? { ...t, strategySummary: teamSummaryVal.trim() || null } : t))
-        setTeamSummaryEditId(null)
-      }
-    } finally { setTeamSummaryLoading(false) }
   }
 
   const handleAddTeam = async () => {
@@ -619,11 +602,6 @@ export default function AdminClient({
                               <Pencil size={11} /> 수정
                             </button>
                             <button
-                              onClick={() => { setTeamSummaryEditId(t.id); setTeamSummaryVal(t.strategySummary ?? ''); setTeamRenameId(null); setTeamDelId(null) }}
-                              className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50 transition">
-                              <Pencil size={11} /> 전략 요약
-                            </button>
-                            <button
                               onClick={() => { setTeamDelId(t.id); setTeamRenameId(null) }}
                               className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold rounded-lg border border-red-200 text-red-500 hover:bg-red-50 transition">
                               <Trash2 size={11} /> 삭제
@@ -634,35 +612,6 @@ export default function AdminClient({
                     </>
                   )}
                 </div>
-
-                {/* 팀 전략 요약 */}
-                {teamRenameId !== t.id && (
-                  teamSummaryEditId === t.id ? (
-                    <div className="mt-2 flex items-start gap-1.5">
-                      <textarea
-                        value={teamSummaryVal}
-                        onChange={e => setTeamSummaryVal(e.target.value)}
-                        rows={2}
-                        placeholder="이 팀의 전략을 1~2문장으로 요약해주세요"
-                        className="flex-1 text-xs border border-slate-300 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-slate-400 resize-none"
-                        autoFocus
-                      />
-                      <div className="flex flex-col gap-1">
-                        <button onClick={() => handleSaveTeamSummary(t.id)} disabled={teamSummaryLoading}
-                          className="px-2.5 py-1 text-xs font-bold rounded-lg bg-slate-700 text-white hover:bg-slate-800 disabled:opacity-40 transition">
-                          {teamSummaryLoading ? '...' : '저장'}
-                        </button>
-                        <button onClick={() => setTeamSummaryEditId(null)} className="p-1 text-slate-400 hover:text-slate-600 self-center">
-                          <X size={13} />
-                        </button>
-                      </div>
-                    </div>
-                  ) : (
-                    <p className="mt-1 text-xs text-slate-400 italic">
-                      {t.strategySummary || '요약 없음'}
-                    </p>
-                  )
-                )}
                 </div>
               ))}
             </div>

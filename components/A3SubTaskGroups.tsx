@@ -1,8 +1,9 @@
 'use client'
 
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { ChevronRight } from 'lucide-react'
+import { ChevronRight, Pencil, X } from 'lucide-react'
 import { STATUS_STYLE, dDay } from '@/lib/a3'
 
 /* 팀 이름 해시 기반 고정 색상 — 같은 전사과제 안에서 팀별로 시각 구분 */
@@ -25,7 +26,11 @@ interface Props {
 }
 
 export default function A3SubTaskGroups({ subTasks }: Props) {
+  const router = useRouter()
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
+  const [editingTeamId, setEditingTeamId] = useState<string | null>(null)
+  const [editVal, setEditVal] = useState('')
+  const [saving, setSaving] = useState(false)
 
   // 팀별 그룹
   const groups = new Map<string, { teamName: string; strategySummary: string | null; items: any[] }>()
@@ -46,19 +51,34 @@ export default function A3SubTaskGroups({ subTasks }: Props) {
     })
   }
 
+  const handleSaveSummary = async (teamId: string) => {
+    setSaving(true)
+    try {
+      const res = await fetch(`/api/teams/${teamId}`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ strategySummary: editVal.trim() || null }),
+      })
+      if (res.ok) {
+        setEditingTeamId(null)
+        router.refresh()
+      }
+    } finally { setSaving(false) }
+  }
+
   return (
     <div className="border-t border-slate-100 divide-y divide-slate-100 bg-slate-50/40">
       {groupList.map(([teamId, { teamName, strategySummary, items }]) => {
         const isOpen = expanded.has(teamId)
         const c = teamColor(teamName)
         const doneCount = items.filter((i: any) => i.status === '완료').length
+        const isEditing = editingTeamId === teamId
 
         return (
           <div key={teamId}>
             {/* 팀 그룹 헤더 (클릭 시 펼침/접힘) */}
-            <button type="button" onClick={() => toggle(teamId)}
-              title={strategySummary ?? undefined}
-              className="w-full flex items-center gap-2.5 px-4 py-2.5 hover:bg-white transition-colors">
+            <div
+              onClick={() => !isEditing && toggle(teamId)}
+              className="w-full flex items-center gap-2.5 px-4 py-2.5 hover:bg-white transition-colors cursor-pointer">
               <ChevronRight size={13}
                 className={`text-slate-300 transition-transform duration-200 shrink-0 ${isOpen ? 'rotate-90' : ''}`} />
               <span className={`inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full border shrink-0 ${c.chip}`}>
@@ -68,11 +88,40 @@ export default function A3SubTaskGroups({ subTasks }: Props) {
               <span className="text-xs text-slate-400 font-medium shrink-0">
                 {items.length}건{doneCount > 0 && ` · 완료 ${doneCount}`}
               </span>
-              {strategySummary && (
-                <span className="text-xs text-slate-400 italic truncate min-w-0">{strategySummary}</span>
+
+              {isEditing ? (
+                <div className="flex items-center gap-1.5 flex-1 min-w-0" onClick={e => e.stopPropagation()}>
+                  <textarea
+                    value={editVal}
+                    onChange={e => setEditVal(e.target.value)}
+                    rows={1}
+                    placeholder="이 팀의 전략을 1~2문장으로 요약해주세요"
+                    className="flex-1 min-w-0 text-xs border border-slate-300 rounded-lg px-2 py-1 focus:outline-none focus:ring-1 focus:ring-slate-400 resize-none"
+                    autoFocus
+                  />
+                  <button type="button" onClick={() => handleSaveSummary(teamId)} disabled={saving}
+                    className="px-2 py-1 text-xs font-bold rounded-lg bg-slate-700 text-white hover:bg-slate-800 disabled:opacity-40 transition shrink-0">
+                    {saving ? '...' : '저장'}
+                  </button>
+                  <button type="button" onClick={() => setEditingTeamId(null)}
+                    className="p-1 text-slate-400 hover:text-slate-600 shrink-0">
+                    <X size={13} />
+                  </button>
+                </div>
+              ) : (
+                <>
+                  {strategySummary && (
+                    <span className="text-xs text-slate-400 italic truncate min-w-0" title={strategySummary}>{strategySummary}</span>
+                  )}
+                  <button type="button"
+                    onClick={e => { e.stopPropagation(); setEditingTeamId(teamId); setEditVal(strategySummary ?? '') }}
+                    className="p-1 text-slate-300 hover:text-slate-500 transition-colors shrink-0">
+                    <Pencil size={11} />
+                  </button>
+                  <div className="flex-1" />
+                </>
               )}
-              <div className="flex-1" />
-            </button>
+            </div>
 
             {/* 세부과제 목록 */}
             {isOpen && (

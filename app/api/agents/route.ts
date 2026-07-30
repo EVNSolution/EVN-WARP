@@ -16,11 +16,12 @@ export async function GET(req: NextRequest) {
             { name:    { contains: q } },
             { phone:   { contains: q } },
             { company: { contains: q } },
+            { customer: { companyName: { contains: q } } },
           ],
         } : undefined,
         include: {
           user:     { select: { id: true, name: true, team: { select: { name: true } } } },
-          customer: { select: { id: true, name: true, phone: true } },
+          customer: { select: { id: true, name: true, phone: true, companyName: true, customerSegment: true } },
         },
         orderBy: { name: 'asc' },
       })
@@ -28,10 +29,16 @@ export async function GET(req: NextRequest) {
       console.error('[agents GET] agent.findMany error:', e?.message)
     }
 
-    const agentsMapped = existingAgents.map((a: any) => ({
-      ...a,
-      _count: { deals: 0 },
-    }))
+    // B2B 고객 연결 소개자는 "법인"으로 표시하고 이름도 회사명으로 노출
+    const agentsMapped = existingAgents.map((a: any) => {
+      const isCorp = a.type !== '내부' && a.customer?.customerSegment === 'B2B'
+      return {
+        ...a,
+        type: isCorp ? '법인' : a.type,
+        name: isCorp ? (a.customer?.companyName || a.name) : a.name,
+        _count: { deals: 0 },
+      }
+    })
 
     const regUserIds = new Set(existingAgents.map((a: any) => a.userId).filter(Boolean) as string[])
     const regCustIds = new Set(existingAgents.map((a: any) => a.customerId).filter(Boolean) as string[])
@@ -53,13 +60,16 @@ export async function GET(req: NextRequest) {
     // 3. isAgent 고객 — Agent 미등록 인원 (raw: libSQL Boolean)
     let unregCusts: any[] = []
     try {
-      type CRow = { id: string; name: string; phone: string | null; companyName: string | null }
+      type CRow = { id: string; name: string; phone: string | null; companyName: string | null; customerSegment: string | null }
       const allIsAgentCusts = await prisma.$queryRaw<CRow[]>`
-        SELECT id, name, phone, companyName FROM "Customer" WHERE isAgent = 1
+        SELECT id, name, phone, companyName, customerSegment FROM "Customer" WHERE isAgent = 1
       `
       unregCusts = allIsAgentCusts
         .filter((c: any) => !regCustIds.has(c.id))
-        .filter((c: any) => !ql || c.name.toLowerCase().includes(ql) || (c.phone ?? '').includes(q))
+        .filter((c: any) => !ql
+          || c.name.toLowerCase().includes(ql)
+          || (c.companyName ?? '').toLowerCase().includes(ql)
+          || (c.phone ?? '').includes(q))
     } catch (e: any) {
       console.error('[agents GET] isAgent $queryRaw error:', e?.message)
     }
@@ -79,19 +89,22 @@ export async function GET(req: NextRequest) {
       _count:      { deals: 0 },
     }))
 
-    const custCandidates = unregCusts.map((c: any) => ({
-      id:          `cust_${c.id}`,
-      _sourceType: 'customer',
-      _sourceId:   c.id,
-      name:        c.name,
-      phone:       c.phone,
-      email:       null,
-      company:     c.companyName,
-      type:        '외부',
-      user:        null,
-      customer:    { name: c.name, phone: c.phone },
-      _count:      { deals: 0 },
-    }))
+    const custCandidates = unregCusts.map((c: any) => {
+      const isCorp = c.customerSegment === 'B2B'
+      return {
+        id:          `cust_${c.id}`,
+        _sourceType: 'customer',
+        _sourceId:   c.id,
+        name:        isCorp ? (c.companyName || c.name) : c.name,
+        phone:       c.phone,
+        email:       null,
+        company:     c.companyName,
+        type:        isCorp ? '법인' : '외부',
+        user:        null,
+        customer:    { name: c.name, phone: c.phone },
+        _count:      { deals: 0 },
+      }
+    })
 
     const result = [...agentsMapped, ...userCandidates, ...custCandidates]
       .sort((a, b) => a.name.localeCompare(b.name, 'ko'))

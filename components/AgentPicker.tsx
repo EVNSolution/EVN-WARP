@@ -171,7 +171,7 @@ export default function AgentPicker({ value, onChange, onCreateNew }: Props) {
           className="w-full text-left px-4 py-3 hover:bg-slate-50 flex items-center gap-3 transition-colors border-b border-slate-50 last:border-b-0">
 
           <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 text-white text-xs font-bold
-            ${a.type === '내부' ? 'bg-indigo-500' : 'bg-teal-500'}`}>
+            ${a.type === '내부' ? 'bg-indigo-500' : a.type === '법인' ? 'bg-violet-500' : 'bg-teal-500'}`}>
             {a.type === '내부' ? <Users size={13} /> : <Building2 size={13} />}
           </div>
 
@@ -179,7 +179,7 @@ export default function AgentPicker({ value, onChange, onCreateNew }: Props) {
             <div className="flex items-center gap-2">
               <span className="text-sm font-semibold text-slate-800">{a.name}</span>
               <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full
-                ${a.type === '내부' ? 'bg-indigo-100 text-indigo-600' : 'bg-teal-100 text-teal-600'}`}>
+                ${a.type === '내부' ? 'bg-indigo-100 text-indigo-600' : a.type === '법인' ? 'bg-violet-100 text-violet-600' : 'bg-teal-100 text-teal-600'}`}>
                 {a.type}
               </span>
               {a._sourceType && (
@@ -191,7 +191,9 @@ export default function AgentPicker({ value, onChange, onCreateNew }: Props) {
             <p className="text-xs text-slate-400 truncate">
               {a.type === '내부'
                 ? a.user?.team?.name ?? '팀 미배정'
-                : a.company ?? a.phone ?? a.customer?.phone ?? '—'}
+                : a.type === '법인'
+                  ? (a.phone ?? a.customer?.phone ?? '—')
+                  : a.company ?? a.phone ?? a.customer?.phone ?? '—'}
             </p>
           </div>
 
