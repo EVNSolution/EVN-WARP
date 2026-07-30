@@ -21,6 +21,13 @@ function teamColor(name: string) {
   return TEAM_PALETTE[hash % TEAM_PALETTE.length]
 }
 
+/* 팀 표시 순서 고정 — 목록에 없는 팀은 뒤에 원래 순서대로 붙는다 */
+const TEAM_ORDER = ['PM팀', '제조운영팀', 'CLEVER팀', '사업개발팀', '마케팅팀', '경영관리팀']
+function teamOrderIndex(name: string) {
+  const i = TEAM_ORDER.indexOf(name)
+  return i === -1 ? TEAM_ORDER.length : i
+}
+
 interface Props {
   subTasks: any[]
   parentTaskId: string
@@ -43,6 +50,7 @@ export default function A3SubTaskGroups({ subTasks, parentTaskId, teamSummaries 
     groups.get(key)!.items.push(sub)
   }
   const groupList = [...groups.entries()]
+    .sort((a, b) => teamOrderIndex(a[1].teamName) - teamOrderIndex(b[1].teamName))
 
   const toggle = (key: string) => {
     setExpanded(prev => {
