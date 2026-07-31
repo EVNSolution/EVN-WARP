@@ -159,7 +159,7 @@ export default function A3SubTaskGroups({ subTasks, parentTaskId, teamSummaries 
                   return (
                     <div key={sub.id}>
                       <Link href={`/a3/${sub.id}`}
-                        className={`flex items-center gap-3 ml-20 mr-3 my-1 pl-3 pr-3 py-1.5 rounded-lg bg-white border border-l-[3px] border-slate-100 ${c.bar} hover:border-slate-200 hover:shadow-sm transition-all group`}>
+                        className={`flex items-center gap-3 ml-20 mr-3 my-0.5 pl-3 pr-3 py-1 rounded-lg bg-white border border-l-[3px] border-slate-100 ${c.bar} hover:border-slate-200 hover:shadow-sm transition-all group`}>
                         <Layers size={12} className="text-slate-300 shrink-0" />
                         <span className="flex-1 text-xs text-slate-700 font-medium truncate">{sub.title}</span>
                         <span className="text-xs text-slate-400 font-medium shrink-0">오너 {sub.owner ?? '미배정'}</span>
@@ -173,7 +173,7 @@ export default function A3SubTaskGroups({ subTasks, parentTaskId, teamSummaries 
                         const leafStCls = STATUS_STYLE[leaf.status] ?? 'bg-gray-100 text-gray-500'
                         return (
                           <Link key={leaf.id} href={`/a3/${leaf.id}`}
-                            className={`flex items-center gap-3 ml-32 mr-3 my-1 pl-3 pr-3 py-1.5 rounded-lg bg-slate-50/70 border border-l-[3px] border-slate-100 ${c.bar} hover:bg-white hover:border-slate-200 hover:shadow-sm transition-all group`}>
+                            className={`flex items-center gap-3 ml-32 mr-3 my-0.5 pl-3 pr-3 py-1 rounded-lg bg-slate-50/70 border border-l-[3px] border-slate-100 ${c.bar} hover:bg-white hover:border-slate-200 hover:shadow-sm transition-all group`}>
                             <CornerDownRight size={11} className="text-slate-300 shrink-0" />
                             <span className="flex-1 text-xs text-slate-600 truncate">{leaf.title}</span>
                             <span className="text-xs text-slate-400 font-medium shrink-0">오너 {leaf.owner ?? '미배정'}</span>

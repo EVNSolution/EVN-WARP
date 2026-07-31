@@ -39,9 +39,9 @@ export default async function WeeklyPage({ searchParams }: { searchParams: Promi
   // 오늘이 포함된 주는 항상 "Weekly Completed Works"로 표시 (그 이전 주도 마찬가지, 이후 주만 Planned)
   const isPastWeek    = weekId <= currentWeekId
 
-  // 8주 윈도우: [weekId-1 … weekId+6]
+  // 7주 윈도우: [weekId-1 … weekId+5]
   const ganttWeeks: string[] = []
-  for (let i = -1; i < 7; i++) ganttWeeks.push(adjacentWeek(weekId, i))
+  for (let i = -1; i < 6; i++) ganttWeeks.push(adjacentWeek(weekId, i))
 
   const windowStart = getWeekStart(ganttWeeks[0])
   const windowEnd   = getWeekStart(ganttWeeks[ganttWeeks.length - 1])
@@ -294,7 +294,7 @@ export default async function WeeklyPage({ searchParams }: { searchParams: Promi
           {/* 범례 */}
           <div className="flex items-center justify-between px-5 py-3 border-b border-slate-100 bg-slate-50">
             <div className="flex items-center gap-5">
-              <h2 className="text-sm font-bold text-slate-700">전략과제 실행계획 · 8주</h2>
+              <h2 className="text-sm font-bold text-slate-700">전략과제 실행계획 · 7주</h2>
               <div className="flex items-center gap-4 text-[11px] text-slate-400">
                 <span className="flex items-center gap-1.5">
                   <span className="inline-block w-3 h-3 rounded-full bg-green-500" />정상
