@@ -274,26 +274,27 @@ export default function GanttChart({
                             {task.title}
                           </div>
                         </Link>
-                        {task.hasOwnStatus && (
-                          <div className="shrink-0">
+                        {/* 상태 원 + 펼치기 버튼: 존재 여부와 무관하게 항상 같은 폭(오른쪽 정렬)에 위치 */}
+                        <div className="shrink-0 flex items-center justify-end gap-1 w-24">
+                          {task.hasOwnStatus && (
                             <GanttStatusToggle
                               taskId={task.id}  teamId={task.teamId}
                               weekId={weekId}   weekStart={weekStartIso}
                               updateId={update?.id} currentStatus={update?.status}
                               prevStatus={prevUpdates[task.id]}
                             />
-                          </div>
-                        )}
-                        {hasSubItems && (
-                          <button onClick={() => toggle(task.id)}
-                            title={isExpanded ? '세부활동 접기' : '세부활동 펼치기'}
-                            className={`shrink-0 flex items-center gap-0.5 text-[9px] px-1 py-0.5 rounded transition-colors ${
-                              isExpanded ? 'bg-indigo-100 text-indigo-600' : 'bg-slate-100 text-slate-500 hover:bg-indigo-50 hover:text-indigo-500'
-                            }`}>
-                            <span>{isExpanded ? '▲' : '▼'}</span>
-                            <span>{subWithDates.length}</span>
-                          </button>
-                        )}
+                          )}
+                          {hasSubItems && (
+                            <button onClick={() => toggle(task.id)}
+                              title={isExpanded ? '세부활동 접기' : '세부활동 펼치기'}
+                              className={`shrink-0 flex items-center gap-0.5 text-[9px] px-1 py-0.5 rounded transition-colors ${
+                                isExpanded ? 'bg-indigo-100 text-indigo-600' : 'bg-slate-100 text-slate-500 hover:bg-indigo-50 hover:text-indigo-500'
+                              }`}>
+                              <span>{isExpanded ? '▲' : '▼'}</span>
+                              <span>{subWithDates.length}</span>
+                            </button>
+                          )}
+                        </div>
                       </div>
                     </td>
                     <td colSpan={ganttWeeks.length} className="p-0 align-middle relative" style={{ height: '36px' }}>
