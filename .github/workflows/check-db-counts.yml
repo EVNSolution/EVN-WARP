@@ -28,7 +28,7 @@ jobs:
           cat > /tmp/check.json << 'EOF'
           {"commands": [
             "cd /opt/evn-warp",
-            "node -e \"const {createClient}=require('@libsql/client');const c=createClient({url:'file:./dev.db'});const ts=['Team','StrategyTask','KpiItem','MonthlyTarget','Countermeasure','WorkActivity','WeeklyUpdate','CompanyKpi','CompanyKpiEntry'];Promise.all(ts.map(t=>c.execute('SELECT COUNT(*) as cnt FROM \\\"'+t+'\\\"').then(r=>t+': '+r.rows[0].cnt).catch(e=>t+': ERROR '+e.message))).then(rs=>rs.forEach(r=>console.log(r))).catch(e=>console.error(e));\""
+            "node -e \"const {createClient}=require('@libsql/client');const c=createClient({url:'file:./dev.db'});const origParentId='cmqg0lt0g0000ak1jke7t2rth';const origSubSeq=13;const taskId='cms8c40re00032xnrji92lfxj';c.execute({sql:'SELECT id, title, parentId, subSeq FROM StrategyTask WHERE id = ?', args:[taskId]}).then(before=>{console.log('BEFORE:', JSON.stringify(before.rows[0]));return c.execute({sql:'UPDATE StrategyTask SET parentId = ?, subSeq = ? WHERE id = ?', args:[origParentId, origSubSeq, taskId]});}).then(()=>c.execute({sql:'SELECT id, title, parentId, subSeq FROM StrategyTask WHERE id = ?', args:[taskId]})).then(after=>{console.log('AFTER:', JSON.stringify(after.rows[0]));}).catch(e=>console.error('ERR', e.message));\""
           ]}
           EOF
 
