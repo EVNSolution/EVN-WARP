@@ -1,11 +1,12 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { ChevronRight, Pencil, X, Layers, CornerDownRight } from 'lucide-react'
 import { STATUS_STYLE, dDay } from '@/lib/a3'
 import { teamOrderIndex } from '@/lib/teamOrder'
+import { useA3Expand } from '@/components/A3ExpandContext'
 
 /* 팀 이름 해시 기반 고정 색상 — 같은 전사과제 안에서 팀별로 시각 구분 */
 const TEAM_PALETTE = [
@@ -45,6 +46,13 @@ export default function A3SubTaskGroups({ subTasks, parentTaskId, teamSummaries 
   }
   const groupList = [...groups.entries()]
     .sort((a, b) => teamOrderIndex(a[1].teamName) - teamOrderIndex(b[1].teamName))
+
+  const expandCtx = useA3Expand()
+  useEffect(() => {
+    if (!expandCtx) return
+    setExpanded(expandCtx.expandAll ? new Set(groupList.map(([teamId]) => teamId)) : new Set())
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [expandCtx?.version])
 
   const toggle = (key: string) => {
     setExpanded(prev => {

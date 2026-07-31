@@ -189,7 +189,7 @@ export default function GanttChart({
       {todayPos !== null && (
         <div className="absolute top-0 bottom-0 pointer-events-none z-30"
           style={{
-            left: `calc(240px + (100% - 240px) * ${todayPos / 100})`,
+            left: `calc(264px + (100% - 264px) * ${todayPos / 100})`,
             width: '2px',
             backgroundColor: '#ef4444',
             opacity: 0.7,
@@ -199,7 +199,7 @@ export default function GanttChart({
       <table className="w-full text-xs border-collapse" style={{ minWidth: '960px', tableLayout: 'fixed' }}>
         <thead>
           <tr className="border-b border-slate-200 bg-slate-50/80">
-            <th className="text-left pl-4 pr-2 py-2 font-semibold text-slate-500 whitespace-nowrap" style={{ width: '240px' }}>
+            <th className="text-left pl-4 pr-2 py-2 font-semibold text-slate-500 whitespace-nowrap" style={{ width: '264px' }}>
               <div className="flex items-center justify-between gap-2">
                 {/* 보기 전환 토글 */}
                 <div className="flex border border-slate-200 rounded overflow-hidden">
@@ -239,7 +239,7 @@ export default function GanttChart({
                     : isNext  ? 'bg-sky-50/80 text-sky-700'
                     : 'text-slate-400'
                   }`}
-                  style={{ width: `calc((100% - 240px) / 8)` }}>
+                  style={{ width: `calc((100% - 264px) / 8)` }}>
                   <div className={`text-xs ${isCurrent || isNext ? 'font-bold' : ''}`}>W{wNum}</div>
                   <div className="text-[10px] opacity-60 mt-0.5">{mmdd}</div>
                 </th>
@@ -262,7 +262,7 @@ export default function GanttChart({
               return (
                 <Fragment key={task.id}>
                   <tr className={`hover:bg-slate-50/40 transition-colors group ${!hasSubItems || !isExpanded ? 'border-b border-slate-200' : ''}`}>
-                    <td className="pl-4 pr-2 py-1 align-top" style={{ width: '240px' }}>
+                    <td className="pl-8 pr-2 py-1 align-top" style={{ width: '264px' }}>
                       <div className="flex items-center gap-1">
                         <Link href={`/a3/${task.id}`} className="flex-1 min-w-0 hover:text-indigo-600 transition-colors">
                           <div className="text-[11px] font-bold text-slate-800 truncate">
@@ -317,7 +317,7 @@ export default function GanttChart({
                       const siUpdate = updates[si.id]
                       return (
                         <tr key={si.id} className={`bg-slate-50/40 ${isLast ? 'border-b border-slate-200' : 'border-b border-slate-100'}`}>
-                          <td className="pl-7 pr-2 py-1 align-middle" style={{ width: '240px' }}>
+                          <td className="pl-11 pr-2 py-1 align-middle" style={{ width: '264px' }}>
                             <div className="flex items-center gap-1.5">
                               <span className="w-3 h-3 rounded-full text-[7px] font-bold text-white shrink-0 flex items-center justify-center"
                                 style={{ backgroundColor: siColor, minWidth: '12px' }}>{siIdx + 1}</span>
@@ -352,7 +352,7 @@ export default function GanttChart({
 
                     return (
                       <tr key={si.id} className={`bg-slate-50/40 ${isLast ? 'border-b border-slate-200' : 'border-b border-slate-100'}`}>
-                        <td className="pl-7 pr-2 py-0.5 align-middle" style={{ width: '240px' }}>
+                        <td className="pl-11 pr-2 py-0.5 align-middle" style={{ width: '264px' }}>
                           <div className="flex items-center gap-1.5">
                             <span className="w-3 h-3 rounded-full text-[7px] font-bold text-white shrink-0 flex items-center justify-center"
                               style={{ backgroundColor: siColor, minWidth: '12px' }}>{si.index}</span>

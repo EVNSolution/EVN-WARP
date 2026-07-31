@@ -76,7 +76,7 @@ export default function GanttStatusToggle({
 
   return (
     <div
-      className={`flex gap-1.5 ${saving ? 'opacity-50 pointer-events-none' : ''}`}
+      className={`flex gap-1 ${saving ? 'opacity-50 pointer-events-none' : ''}`}
       title={inherited ? `이전 주 상태: ${inherited} (클릭하면 이번 주에 저장됩니다)` : undefined}
     >
       {STATUSES.map(s => {
@@ -87,7 +87,7 @@ export default function GanttStatusToggle({
             key={s}
             onClick={() => handleClick(s)}
             title={s}
-            className={`w-3.5 h-3.5 rounded-full border-2 transition-all ${
+            className={`w-2.5 h-2.5 rounded-full border transition-all ${
               isActive
                 ? ACTIVE_CLS[s]
                 : isInherited

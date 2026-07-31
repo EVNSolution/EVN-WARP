@@ -272,7 +272,7 @@ export default async function WeeklyPage({ searchParams }: { searchParams: Promi
               : 'border-transparent text-slate-500 hover:text-slate-700'
           }`}
         >
-          간트(과제별 진도 확인)
+          간트<span className="text-[80%] font-normal">(과제별 진도 확인)</span>
         </Link>
         <Link
           href={`/weekly?week=${weekId}&tab=weekly&view=${activeView}`}
@@ -282,7 +282,7 @@ export default async function WeeklyPage({ searchParams }: { searchParams: Promi
               : 'border-transparent text-slate-500 hover:text-slate-700'
           }`}
         >
-          주간업무보고(과제별 활동 실적 및 계획)
+          주간업무보고<span className="text-[80%] font-normal">(과제별 활동 실적 및 계획)</span>
         </Link>
       </div>
 

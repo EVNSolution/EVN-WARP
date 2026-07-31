@@ -2,6 +2,7 @@ import { prisma } from '@/lib/db'
 import Link from 'next/link'
 import { Plus, ChevronRight, PauseCircle } from 'lucide-react'
 import A3SubTaskGroups from '@/components/A3SubTaskGroups'
+import { A3ExpandProvider, A3ExpandAllButton } from '@/components/A3ExpandContext'
 import { STATUS_STYLE, dDay, stratColor } from '@/lib/a3'
 
 export default async function A3ListPage() {
@@ -20,78 +21,43 @@ export default async function A3ListPage() {
     orderBy: [{ teamId: 'asc' }, { teamSeq: 'asc' }],
   })
 
-  // 팀별 그룹
-  const teamMap = new Map<string, { teamName: string; tasks: typeof tasks }>()
-  for (const task of tasks) {
-    if (!teamMap.has(task.teamId))
-      teamMap.set(task.teamId, { teamName: task.team.name, tasks: [] })
-    teamMap.get(task.teamId)!.tasks.push(task)
-  }
-  const teamEntries = [...teamMap.values()]
+  const active    = tasks.filter(t => !t.suspended)
+  const suspended = tasks.filter(t => t.suspended)
 
   return (
-    <div className="p-8">
-      <div className="flex items-center justify-between px-6 py-4 mb-6 rounded-xl" style={{ backgroundColor: '#111111' }}>
-        <div>
-          <h1 className="text-xl font-bold text-white">전략과제 A3</h1>
-          <p className="text-xs mt-0.5" style={{ color: '#C5D42A' }}>전략과제별 A3 등록 및 실행 현황</p>
+    <A3ExpandProvider>
+      <div className="p-8">
+        <div className="flex items-center justify-between px-6 py-4 mb-6 rounded-xl" style={{ backgroundColor: '#111111' }}>
+          <div>
+            <h1 className="text-xl font-bold text-white">전략과제 A3</h1>
+            <p className="text-xs mt-0.5" style={{ color: '#C5D42A' }}>전략과제별 A3 등록 및 실행 현황</p>
+          </div>
+          <div className="flex items-center gap-2">
+            {tasks.length > 0 && <A3ExpandAllButton />}
+            <Link href="/a3/new"
+              className="flex items-center gap-2 text-white border border-white/20 px-4 py-2 rounded-lg text-sm font-medium hover:bg-white/10 transition-colors">
+              <Plus size={16} /> 신규 세부전략과제 등록
+            </Link>
+          </div>
         </div>
-        <Link href="/a3/new"
-          className="flex items-center gap-2 text-white border border-white/20 px-4 py-2 rounded-lg text-sm font-medium hover:bg-white/10 transition-colors">
-          <Plus size={16} /> 새 과제 등록
-        </Link>
+
+        {tasks.length === 0 ? (
+          <div className="text-center py-24 text-slate-400">
+            <p className="text-lg font-medium mb-2">등록된 전략과제가 없습니다</p>
+            <p className="text-sm">&quot;신규 세부전략과제 등록&quot; 버튼으로 첫 번째 과제를 등록하세요</p>
+          </div>
+        ) : (
+          <div className="grid gap-3">
+            {active.map(task => (
+              <TaskRow key={task.id} task={task} dimmed={task.status === '완료'} />
+            ))}
+            {suspended.map(task => (
+              <SuspendedTaskCard key={task.id} task={task} />
+            ))}
+          </div>
+        )}
       </div>
-
-      {tasks.length === 0 ? (
-        <div className="text-center py-24 text-slate-400">
-          <p className="text-lg font-medium mb-2">등록된 전략과제가 없습니다</p>
-          <p className="text-sm">&quot;새 과제 등록&quot; 버튼으로 첫 번째 과제를 등록하세요</p>
-        </div>
-      ) : (
-        <div className="space-y-8">
-          {teamEntries.map(({ teamName, tasks: teamTasks }) => {
-            const active    = teamTasks.filter(t => !t.suspended)
-            const suspended = teamTasks.filter(t => t.suspended)
-            const cntDone   = active.filter(t => t.status === '완료').length
-            const cntActive = active.filter(t => t.status !== '완료').length
-
-            return (
-              <section key={teamName} className="bg-white border border-slate-200 rounded-2xl p-5 shadow-md"
-                style={{ borderTop: '4px solid #C5D42A' }}>
-                {/* 팀 헤더 */}
-                <div className="flex items-center gap-3">
-                  <div className="w-[3px] h-5 rounded-full shrink-0" style={{ backgroundColor: '#C5D42A' }} />
-                  <span className="text-sm font-bold text-slate-800">{teamName}</span>
-                  <div className="flex items-center gap-2 text-xs">
-                    {cntActive > 0 && (
-                      <span className="px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 font-medium">진행 {cntActive}</span>
-                    )}
-                    {cntDone > 0 && (
-                      <span className="px-2 py-0.5 rounded-full bg-green-100 text-green-700 font-medium">완료 {cntDone}</span>
-                    )}
-                    {suspended.length > 0 && (
-                      <span className="px-2 py-0.5 rounded-full bg-orange-100 text-orange-700 font-medium">중단 {suspended.length}</span>
-                    )}
-                  </div>
-                  <div className="flex-1 h-px bg-slate-200" />
-                  <span className="text-xs text-slate-400 font-medium shrink-0">{teamTasks.length}건</span>
-                </div>
-
-                {/* 과제 카드들 */}
-                <div className="grid gap-3 mt-3">
-                  {active.map(task => (
-                    <TaskRow key={task.id} task={task} dimmed={task.status === '완료'} />
-                  ))}
-                  {suspended.map(task => (
-                    <SuspendedTaskCard key={task.id} task={task} />
-                  ))}
-                </div>
-              </section>
-            )
-          })}
-        </div>
-      )}
-    </div>
+    </A3ExpandProvider>
   )
 }
 
@@ -116,7 +82,6 @@ function TaskRow({ task, dimmed }: { task: any; dimmed?: boolean }) {
         </span>
 
         {/* 메타 */}
-        <span className="text-xs text-slate-400 font-medium shrink-0">{task.team?.name}</span>
         <span className="text-xs text-slate-400 font-medium shrink-0">오너 {task.owner ?? '미배정'}</span>
         <span className={`text-xs font-medium px-2 py-0.5 rounded-full shrink-0 ${stCls}`}>
           {task.status}
@@ -151,7 +116,6 @@ function SuspendedTaskCard({ task }: { task: any }) {
           <p className="text-xs text-orange-500 mt-0.5 truncate">사유: {task.suspendReason}</p>
         )}
       </div>
-      <span className="text-xs text-slate-400 font-medium shrink-0">{task.team?.name}</span>
       {task.suspendedAt && (
         <span className="text-xs text-orange-400 shrink-0">
           {new Date(task.suspendedAt).toLocaleDateString('ko-KR')} 중단

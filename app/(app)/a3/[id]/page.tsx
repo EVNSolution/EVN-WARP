@@ -1,11 +1,12 @@
 import { prisma } from '@/lib/db'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
-import { ArrowLeft, Edit, CheckCircle2, Plus, CornerDownRight, ChevronRight, Download, PauseCircle } from 'lucide-react'
+import { Edit, CheckCircle2, Plus, CornerDownRight, ChevronRight, Download, PauseCircle } from 'lucide-react'
 import SuspendTaskButton from '@/components/SuspendTaskButton'
 import DeleteTaskButton from '@/components/DeleteTaskButton'
 import QuickTaskModal from '@/components/QuickTaskModal'
 import BasicInfoEditModal from '@/components/BasicInfoEditModal'
+import BackButton from '@/components/BackButton'
 import { CEO_TEAM_ID } from '@/lib/constants'
 import { rootAncestorTitle, stratColor } from '@/lib/a3'
 import { aggregateKpiItems, aggregateDateRange } from '@/lib/kpiAggregate'
@@ -173,9 +174,7 @@ export default async function A3DetailPage(props: PageProps<'/a3/[id]'>) {
       {/* 상단 내비게이션 */}
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-3">
-          <Link href="/a3" className="text-slate-400 hover:text-slate-600 transition-colors">
-            <ArrowLeft size={20} />
-          </Link>
+          <BackButton fallbackHref="/a3" className="text-slate-400 hover:text-slate-600 transition-colors" />
           <div className="flex items-center gap-2">
             <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${statusCls}`}>{task.status}</span>
             {dd && <span className={`text-xs font-medium ${dd.cls}`}>{dd.label}</span>}
