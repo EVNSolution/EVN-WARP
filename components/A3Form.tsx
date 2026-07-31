@@ -412,11 +412,31 @@ export default function A3Form({ teams, presetParent, teamTasks, ceoTeamId, init
         </div>
       </section>
 
-      {/* ══ KPI 설정 ════════════════════════════════════════════════ */}
+      {/* ══ 1. 문제와 목표 ══════════════════════════════════════════ */}
+      <section className="bg-white border border-slate-200 rounded-xl p-6 mb-5">
+        <h2 className="text-base font-semibold text-slate-800 mb-1">1. 문제와 목표</h2>
+        <p className="text-xs text-slate-400 mb-5">정량 수치를 포함하여 작성하세요</p>
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1.5">문제 (전략과제 이전에 해결해야 할 문제를 설명)</label>
+            <textarea value={form.problemStatement} onChange={e => setField('problemStatement', e.target.value)}
+              rows={3} placeholder="예: 물류 SI 매출 비중 88% (월평균 5,000만원). 식자재·의약품 영역 확장 부재 시 연 KR 130억 대비 –14억 미달 예상."
+              className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300 resize-none" />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1.5">달성 목표 (달성해야 할 성공의 정의를 설명)</label>
+            <textarea value={form.goalStatement} onChange={e => setField('goalStatement', e.target.value)}
+              rows={3} placeholder="예: 2026-06-30까지 신규 본계약 2건, 월매출 +2,000만원."
+              className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300 resize-none" />
+          </div>
+        </div>
+      </section>
+
+      {/* ══ 2. KPI 설정 ═════════════════════════════════════════════ */}
       <section className="bg-white border border-slate-200 rounded-xl p-6 mb-5">
         <div className="flex items-center justify-between mb-2">
           <div>
-            <h2 className="text-base font-semibold text-slate-800">KPI 설정</h2>
+            <h2 className="text-base font-semibold text-slate-800">2. KPI 설정</h2>
             <p className="text-xs text-slate-400 mt-0.5">정량 KPI의 금액 항목은 경영 대시보드에 자동 집계됩니다</p>
           </div>
           <button onClick={addKpiItem} className="flex items-center gap-1 text-sm text-indigo-600 hover:text-indigo-700 font-medium">
@@ -489,32 +509,12 @@ export default function A3Form({ teams, presetParent, teamTasks, ceoTeamId, init
         )}
       </section>
 
-      {/* ══ 1. 문제와 목표 ══════════════════════════════════════════ */}
-      <section className="bg-white border border-slate-200 rounded-xl p-6 mb-5">
-        <h2 className="text-base font-semibold text-slate-800 mb-1">1. 문제와 목표</h2>
-        <p className="text-xs text-slate-400 mb-5">정량 수치를 포함하여 작성하세요</p>
-        <div className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1.5">문제 (정량)</label>
-            <textarea value={form.problemStatement} onChange={e => setField('problemStatement', e.target.value)}
-              rows={3} placeholder="예: 물류 SI 매출 비중 88% (월평균 5,000만원). 식자재·의약품 영역 확장 부재 시 연 KR 130억 대비 –14억 미달 예상."
-              className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300 resize-none" />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1.5">달성 목표 (정량)</label>
-            <textarea value={form.goalStatement} onChange={e => setField('goalStatement', e.target.value)}
-              rows={3} placeholder="예: 2026-06-30까지 신규 본계약 2건, 월매출 +2,000만원."
-              className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300 resize-none" />
-          </div>
-        </div>
-      </section>
-
-      {/* ══ 2. 대책과 실행안 ════════════════════════════════════════ */}
+      {/* ══ 대책과 실행안 (전사과제/팀과제 편집 전용) ══════════════════ */}
       {!isLeafTask && (
       <section className="bg-white border border-slate-200 rounded-xl p-6 mb-5">
         <div className="flex items-center justify-between mb-4">
           <div>
-            <h2 className="text-base font-semibold text-slate-800">2. 대책과 실행안</h2>
+            <h2 className="text-base font-semibold text-slate-800">대책과 실행안</h2>
             <p className="text-xs text-slate-400 mt-0.5">기간을 설정하면 간트 미리보기가 자동 표시됩니다</p>
           </div>
           <button onClick={addMeasure} className="flex items-center gap-1 text-sm text-indigo-600 hover:text-indigo-700 font-medium">

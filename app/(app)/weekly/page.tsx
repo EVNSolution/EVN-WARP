@@ -361,9 +361,8 @@ export default async function WeeklyPage({ searchParams }: { searchParams: Promi
 
                   for (const [, { teamName, tasks: tt }] of viewTeamEntries) {
                     for (const task of tt) {
-                      const leaves: LeafItem[] = task.subTasks.length > 0
-                        ? task.subTasks.map(s => ({ id: s.id, title: s.title, startDate: s.startDate, endDate: s.endDate }))
-                        : (() => { const r = effRangeByTaskId.get(task.id)!; return [{ id: task.id, title: task.title, startDate: r.start, endDate: r.end }] })()
+                      // 세부전략과제가 없는 팀과제는 아직 실행 단위로 쪼개지지 않은 것이므로 주간관리에 표시하지 않는다
+                      const leaves: LeafItem[] = task.subTasks.map(s => ({ id: s.id, title: s.title, startDate: s.startDate, endDate: s.endDate }))
 
                       for (const leaf of leaves) {
                         const update   = updateByTaskId.get(leaf.id)
@@ -420,27 +419,20 @@ export default async function WeeklyPage({ searchParams }: { searchParams: Promi
                     )
                   }
 
-                  /* 팀 안에서 팀전략 단위로 묶어서 렌더 — 세부전략과제가 있는 팀전략은 라벨을 한 번 보여주고 내부 번호를 새로 매기고, 없는(레거시) 팀전략은 라벨 없이 팀전략 자신이 바로 번호 항목 */
+                  /* 팀 안에서 팀전략 단위로 묶어서 렌더 — 팀전략 라벨을 한 번 보여주고 그 아래 세부전략과제들을 번호로 나열 */
                   const renderTeamLeaves = (items: RI[], dot: string) => {
                     const out: React.ReactNode[] = []
-                    let flatCounter = 1
                     let i = 0
                     while (i < items.length) {
                       const { parentTask } = items[i]
-                      if (parentTask.subTasks.length > 0) {
-                        const group: RI[] = []
-                        while (i < items.length && items[i].parentTask.id === parentTask.id) { group.push(items[i]); i++ }
-                        out.push(
-                          <div key={`pt-${parentTask.id}`} className="px-4 py-1 bg-slate-50/60">
-                            <span className="text-[10px] font-semibold text-slate-400">{parentTask.title}</span>
-                          </div>
-                        )
-                        group.forEach((ri, idx) => out.push(renderLeafRow(ri, dot, idx + 1)))
-                      } else {
-                        out.push(renderLeafRow(items[i], dot, flatCounter))
-                        flatCounter++
-                        i++
-                      }
+                      const group: RI[] = []
+                      while (i < items.length && items[i].parentTask.id === parentTask.id) { group.push(items[i]); i++ }
+                      out.push(
+                        <div key={`pt-${parentTask.id}`} className="pl-9 pr-4 py-1">
+                          <span className="text-[10px] text-slate-400 italic">└ {parentTask.title}</span>
+                        </div>
+                      )
+                      group.forEach((ri, idx) => out.push(renderLeafRow(ri, dot, idx + 1)))
                     }
                     return out
                   }
@@ -502,9 +494,8 @@ export default async function WeeklyPage({ searchParams }: { searchParams: Promi
 
                   for (const [, { teamName, tasks: tt }] of viewTeamEntries) {
                     for (const task of tt) {
-                      const leaves: LeafItem[] = task.subTasks.length > 0
-                        ? task.subTasks.map(s => ({ id: s.id, title: s.title, startDate: s.startDate, endDate: s.endDate }))
-                        : (() => { const r = effRangeByTaskId.get(task.id)!; return [{ id: task.id, title: task.title, startDate: r.start, endDate: r.end }] })()
+                      // 세부전략과제가 없는 팀과제는 아직 실행 단위로 쪼개지지 않은 것이므로 주간관리에 표시하지 않는다
+                      const leaves: LeafItem[] = task.subTasks.map(s => ({ id: s.id, title: s.title, startDate: s.startDate, endDate: s.endDate }))
 
                       for (const leaf of leaves) {
                         const update   = updateByTaskId.get(leaf.id)
@@ -555,24 +546,17 @@ export default async function WeeklyPage({ searchParams }: { searchParams: Promi
 
                   const renderTeamLeaves = (items: RI2[], dot: string) => {
                     const out: React.ReactNode[] = []
-                    let flatCounter = 1
                     let i = 0
                     while (i < items.length) {
                       const { parentTask } = items[i]
-                      if (parentTask.subTasks.length > 0) {
-                        const group: RI2[] = []
-                        while (i < items.length && items[i].parentTask.id === parentTask.id) { group.push(items[i]); i++ }
-                        out.push(
-                          <div key={`pt-${parentTask.id}`} className="px-4 py-1 bg-slate-50/60">
-                            <span className="text-[10px] font-semibold text-slate-400">{parentTask.title}</span>
-                          </div>
-                        )
-                        group.forEach((ri, idx) => out.push(renderLeafRow(ri, dot, idx + 1)))
-                      } else {
-                        out.push(renderLeafRow(items[i], dot, flatCounter))
-                        flatCounter++
-                        i++
-                      }
+                      const group: RI2[] = []
+                      while (i < items.length && items[i].parentTask.id === parentTask.id) { group.push(items[i]); i++ }
+                      out.push(
+                        <div key={`pt-${parentTask.id}`} className="pl-9 pr-4 py-1">
+                          <span className="text-[10px] text-slate-400 italic">└ {parentTask.title}</span>
+                        </div>
+                      )
+                      group.forEach((ri, idx) => out.push(renderLeafRow(ri, dot, idx + 1)))
                     }
                     return out
                   }

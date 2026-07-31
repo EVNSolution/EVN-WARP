@@ -5,6 +5,7 @@ import { ArrowLeft, Edit, CheckCircle2, Plus, CornerDownRight, ChevronRight, Dow
 import SuspendTaskButton from '@/components/SuspendTaskButton'
 import DeleteTaskButton from '@/components/DeleteTaskButton'
 import QuickTaskModal from '@/components/QuickTaskModal'
+import BasicInfoEditModal from '@/components/BasicInfoEditModal'
 import { CEO_TEAM_ID } from '@/lib/constants'
 import { rootAncestorTitle, stratColor } from '@/lib/a3'
 import { aggregateKpiItems, aggregateDateRange } from '@/lib/kpiAggregate'
@@ -31,8 +32,8 @@ function dDay(endDate: Date | null | undefined) {
   return { label: `D-${diff}`, cls: 'text-slate-500' }
 }
 
-function GanttSection({ taskStart, taskEnd, countermeasures }: {
-  taskStart: Date; taskEnd: Date; countermeasures: any[]
+function GanttSection({ taskStart, taskEnd, items }: {
+  taskStart: Date; taskEnd: Date; items: any[]
 }) {
   const total = taskEnd.getTime() - taskStart.getTime()
   if (total <= 0) return null
@@ -76,8 +77,8 @@ function GanttSection({ taskStart, taskEnd, countermeasures }: {
           ))}
         </div>
       </div>
-      {/* 실행안 행 */}
-      {countermeasures.map((c: any, i: number) => {
+      {/* 항목 행 (세부과제/대책과 실행안) */}
+      {items.map((c: any, i: number) => {
         const color = GANTT_COLORS[i % GANTT_COLORS.length]
         let barLeft = 0, barWidth = 0, hasBar = false
         if (c.startDate && c.endDate) {
@@ -87,8 +88,11 @@ function GanttSection({ taskStart, taskEnd, countermeasures }: {
           barWidth = Math.min(100 - barLeft, (me - ms) / total * 100)
           hasBar   = true
         }
+        const Wrapper = c.href ? Link : 'div'
+        const wrapperProps = c.href ? { href: c.href } : {}
         return (
-          <div key={c.id} className="flex items-center gap-3 bg-slate-50 rounded-lg px-4 py-2.5 mb-1.5">
+          <Wrapper key={c.id} {...(wrapperProps as any)}
+            className={`flex items-center gap-3 bg-slate-50 rounded-lg px-4 py-2.5 mb-1.5 ${c.href ? 'hover:bg-slate-100 transition-colors group' : ''}`}>
             <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold text-white shrink-0 ${color}`}>
               {c.index}
             </span>
@@ -96,7 +100,10 @@ function GanttSection({ taskStart, taskEnd, countermeasures }: {
               <p className="text-sm font-medium text-slate-800 leading-snug line-clamp-2">
                 {c.description}
               </p>
-              {c.owner && <p className="text-[11px] text-slate-400 mt-0.5">담당 {c.owner}</p>}
+              <div className="flex items-center gap-1.5 mt-0.5">
+                {c.owner && <p className="text-[11px] text-slate-400">담당 {c.owner}</p>}
+                {c.status && <span className="text-[10px] text-slate-400">{c.status}</span>}
+              </div>
             </div>
             <div className="flex-1 min-w-0">
               <div className="relative h-5 bg-slate-100 rounded overflow-hidden">
@@ -115,7 +122,8 @@ function GanttSection({ taskStart, taskEnd, countermeasures }: {
                 </p>
               )}
             </div>
-          </div>
+            {c.href && <ChevronRight size={14} className="text-slate-300 group-hover:text-slate-500 transition-colors shrink-0" />}
+          </Wrapper>
         )
       })}
     </div>
@@ -146,9 +154,8 @@ export default async function A3DetailPage(props: PageProps<'/a3/[id]'>) {
   const depth = !task.parentId ? 0 : !task.parent?.parentId ? 1 : 2
   const depthLabel = depth === 1 ? '팀과제' : depth === 2 ? '세부과제' : ''
 
-  // 팀과제(depth 1)가 자기 KPI/기간이 없으면 하위 세부과제에서 자동 취합
-  const hasOwnKpi   = task.kpiItems.length > 0
-  const displayKpis = hasOwnKpi ? task.kpiItems : (depth === 1 ? aggregateKpiItems(task.subTasks.flatMap(s => s.kpiItems)) : [])
+  // 전사과제/팀과제는 자체 입력이 없고 세부과제에서 자동 취합만 한다 (세부과제만 자기 KPI를 직접 입력)
+  const displayKpis = depth === 2 ? task.kpiItems : aggregateKpiItems(task.subTasks.flatMap(s => s.kpiItems))
 
   const hasOwnDates = !!(task.startDate && task.endDate)
   const aggregatedDates = (!hasOwnDates && depth === 1) ? aggregateDateRange(task.subTasks) : { startDate: null, endDate: null }
@@ -169,26 +176,7 @@ export default async function A3DetailPage(props: PageProps<'/a3/[id]'>) {
           <Link href="/a3" className="text-slate-400 hover:text-slate-600 transition-colors">
             <ArrowLeft size={20} />
           </Link>
-          {depth === 2 && task.parent?.parent && (
-            <>
-              <Link href={`/a3/${task.parent.parent.id}`}
-                className="text-sm text-slate-400 hover:text-indigo-600 font-mono transition-colors">
-                {task.parent.parent.code}
-              </Link>
-              <ChevronRight size={14} className="text-slate-300" />
-            </>
-          )}
-          {task.parent && (
-            <>
-              <Link href={`/a3/${task.parent.id}`}
-                className="text-sm text-slate-400 hover:text-indigo-600 font-mono transition-colors">
-                {task.parent.code}
-              </Link>
-              <ChevronRight size={14} className="text-slate-300" />
-            </>
-          )}
           <div className="flex items-center gap-2">
-            <span className="text-sm font-mono text-slate-500 font-semibold">{task.code}</span>
             <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${statusCls}`}>{task.status}</span>
             {dd && <span className={`text-xs font-medium ${dd.cls}`}>{dd.label}</span>}
             {task.confirmed && (
@@ -204,17 +192,30 @@ export default async function A3DetailPage(props: PageProps<'/a3/[id]'>) {
             <Download size={14} /> 과제정의서 PPT
           </a>
           {!task.suspended && (
-            <Link href={`/a3/${task.id}/edit`}
-              className="flex items-center gap-2 text-sm text-slate-600 border border-slate-200 px-3 py-1.5 rounded-lg hover:bg-slate-50 transition-colors">
-              <Edit size={14} /> 수정
-            </Link>
+            depth === 2 ? (
+              <Link href={`/a3/${task.id}/edit`}
+                className="flex items-center gap-2 text-sm text-slate-600 border border-slate-200 px-3 py-1.5 rounded-lg hover:bg-slate-50 transition-colors">
+                <Edit size={14} /> 수정
+              </Link>
+            ) : (
+              <BasicInfoEditModal
+                taskId={task.id}
+                initialTitle={task.title}
+                initialTeamId={task.teamId}
+                initialOwner={task.owner ?? ''}
+                teams={teams}
+                ceoTeamId={CEO_TEAM_ID}
+              />
+            )
           )}
-          <SuspendTaskButton
-            taskId={task.id}
-            suspended={task.suspended}
-            suspendedAt={task.suspendedAt?.toISOString()}
-            suspendReason={task.suspendReason}
-          />
+          {task.suspended && (
+            <SuspendTaskButton
+              taskId={task.id}
+              suspended={task.suspended}
+              suspendedAt={task.suspendedAt?.toISOString()}
+              suspendReason={task.suspendReason}
+            />
+          )}
           <DeleteTaskButton taskId={task.id} hasSubTasks={task.subTasks.length > 0} />
         </div>
       </div>
@@ -271,85 +272,8 @@ export default async function A3DetailPage(props: PageProps<'/a3/[id]'>) {
         </div>
       </div>
 
-      {/* KPI */}
-      {displayKpis.length > 0 && (
-        <section className="bg-white border border-slate-200 rounded-xl p-5 mb-5">
-          <h2 className="text-base font-semibold text-slate-800 mb-3">
-            KPI
-            {!hasOwnKpi && <span className="ml-1.5 text-xs font-normal text-slate-400">(세부과제에서 자동 취합)</span>}
-          </h2>
-          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-            {displayKpis.map((kpi: any, i: number) => (
-              <div key={kpi.id ?? i}
-                className={`rounded-lg px-4 py-3 border ${kpi.type === '정량' ? 'bg-indigo-50 border-indigo-100' : 'bg-amber-50 border-amber-100'}`}>
-                <div className="flex items-center gap-1.5 mb-1">
-                  <span className={`text-xs font-bold px-1.5 py-0.5 rounded ${kpi.type === '정량' ? 'bg-indigo-100 text-indigo-700' : 'bg-amber-100 text-amber-700'}`}>
-                    {kpi.type}
-                  </span>
-                  {kpi.subType && <span className="text-xs text-slate-400">{kpi.subType}</span>}
-                </div>
-                <p className="text-xs text-slate-500 mb-0.5">{kpi.label}</p>
-                <p className={`text-lg font-bold ${kpi.type === '정량' ? 'text-indigo-700' : 'text-amber-700'}`}>
-                  {kpi.targetNum != null ? kpi.targetNum.toLocaleString('ko-KR') : kpi.target}{kpi.unit ? ` ${kpi.unit}` : ''}
-                </p>
-              </div>
-            ))}
-          </div>
-        </section>
-      )}
-
-      {/* 하부 과제 목록 (전사과제/팀과제) */}
-      {depth < 2 && (
-        <section className="bg-white border border-slate-200 rounded-xl p-5 mb-5">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-base font-semibold text-slate-800">
-              하부 과제
-              {task.subTasks.length > 0 && (
-                <span className="ml-2 text-sm font-normal text-slate-400">{task.subTasks.length}건</span>
-              )}
-            </h2>
-            {depth === 0 ? (
-              <QuickTaskModal
-                teams={teams}
-                ceoTeamId={CEO_TEAM_ID}
-                presetParentId={task.id}
-                buttonLabel="팀과제 추가"
-                buttonClassName="flex items-center gap-1 text-sm text-indigo-600 hover:text-indigo-700 font-medium"
-              />
-            ) : (
-              <Link href={`/a3/new?parentId=${task.id}`}
-                className="flex items-center gap-1 text-sm text-indigo-600 hover:text-indigo-700 font-medium">
-                <Plus size={14} /> 세부과제 추가
-              </Link>
-            )}
-          </div>
-          {task.subTasks.length === 0 ? (
-            <p className="text-sm text-slate-400 py-2">등록된 하부 과제가 없습니다</p>
-          ) : (
-            <div className="space-y-2">
-              {task.subTasks.map((sub: any) => {
-                const subDd = dDay(sub.endDate)
-                const subStatusCls = STATUS_STYLE[sub.status] ?? 'bg-gray-100 text-gray-500'
-                return (
-                  <Link key={sub.id} href={`/a3/${sub.id}`}
-                    className="flex items-center gap-3 border border-slate-100 rounded-lg px-4 py-2.5 hover:border-indigo-200 hover:bg-indigo-50/30 transition-all group">
-                    <CornerDownRight size={13} className="text-indigo-300 shrink-0" />
-                    <span className="text-xs font-mono text-slate-400 w-40 shrink-0">{sub.code}</span>
-                    <span className="flex-1 text-sm font-medium text-slate-800 truncate">{sub.title}</span>
-                    <span className="text-xs text-slate-400 shrink-0">오너 {sub.owner ?? '미배정'}</span>
-                    <span className={`text-xs px-2 py-0.5 rounded-full shrink-0 ${subStatusCls}`}>{sub.status}</span>
-                    {subDd && <span className={`text-xs shrink-0 ${subDd.cls}`}>{subDd.label}</span>}
-                    <ChevronRight size={14} className="text-slate-300 group-hover:text-indigo-400 shrink-0" />
-                  </Link>
-                )
-              })}
-            </div>
-          )}
-        </section>
-      )}
-
-      {/* 1. 문제와 목표 */}
-      {(task.problemStatement || task.goalStatement) && (
+      {/* 1. 문제와 목표 — 세부과제만 자체 입력을 가진다 */}
+      {depth === 2 && (task.problemStatement || task.goalStatement) && (
         <section className="bg-white border border-slate-200 rounded-xl p-6 mb-5">
           <h2 className="text-base font-semibold text-slate-800 mb-4">1. 문제와 목표</h2>
           {task.problemStatement && (
@@ -381,22 +305,115 @@ export default async function A3DetailPage(props: PageProps<'/a3/[id]'>) {
         </section>
       )}
 
-      {/* 2. 대책과 실행안 (간트) */}
-      {task.countermeasures.length > 0 && effectiveStart && effectiveEnd && (
-        <section className="bg-white border border-slate-200 rounded-xl p-6 mb-5">
-          <h2 className="text-base font-semibold text-slate-800 mb-4">2. 대책과 실행안</h2>
-          <GanttSection
-            taskStart={new Date(effectiveStart)}
-            taskEnd={new Date(effectiveEnd)}
-            countermeasures={task.countermeasures}
-          />
+      {/* 2. KPI */}
+      {displayKpis.length > 0 && (
+        <section className="bg-white border border-slate-200 rounded-xl p-5 mb-5">
+          <h2 className="text-base font-semibold text-slate-800 mb-3">
+            {depth === 2 ? '2' : '1'}. KPI
+            {depth < 2 && <span className="ml-1.5 text-xs font-normal text-slate-400">(세부과제에서 자동 취합)</span>}
+          </h2>
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+            {displayKpis.map((kpi: any, i: number) => (
+              <div key={kpi.id ?? i}
+                className={`rounded-lg px-4 py-3 border ${kpi.type === '정량' ? 'bg-indigo-50 border-indigo-100' : 'bg-amber-50 border-amber-100'}`}>
+                <div className="flex items-center gap-1.5 mb-1">
+                  <span className={`text-xs font-bold px-1.5 py-0.5 rounded ${kpi.type === '정량' ? 'bg-indigo-100 text-indigo-700' : 'bg-amber-100 text-amber-700'}`}>
+                    {kpi.type}
+                  </span>
+                  {kpi.subType && <span className="text-xs text-slate-400">{kpi.subType}</span>}
+                </div>
+                <p className="text-xs text-slate-500 mb-0.5">{kpi.label}</p>
+                <p className={`text-lg font-bold ${kpi.type === '정량' ? 'text-indigo-700' : 'text-amber-700'}`}>
+                  {kpi.targetNum != null ? kpi.targetNum.toLocaleString('ko-KR') : kpi.target}{kpi.unit ? ` ${kpi.unit}` : ''}
+                </p>
+              </div>
+            ))}
+          </div>
         </section>
       )}
+
+      {/* 하부 과제 목록 (전사과제 전용 — 팀과제 이하는 아래 "하부과제" 간트에서 통합 표시) */}
+      {depth === 0 && (
+        <section className="bg-white border border-slate-200 rounded-xl p-5 mb-5">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-base font-semibold text-slate-800">
+              하부 과제
+              {task.subTasks.length > 0 && (
+                <span className="ml-2 text-sm font-normal text-slate-400">{task.subTasks.length}건</span>
+              )}
+            </h2>
+            <QuickTaskModal
+              teams={teams}
+              ceoTeamId={CEO_TEAM_ID}
+              presetParentId={task.id}
+              buttonLabel="팀과제 추가"
+              buttonClassName="flex items-center gap-1 text-sm text-indigo-600 hover:text-indigo-700 font-medium"
+            />
+          </div>
+          {task.subTasks.length === 0 ? (
+            <p className="text-sm text-slate-400 py-2">등록된 하부 과제가 없습니다</p>
+          ) : (
+            <div className="space-y-2">
+              {task.subTasks.map((sub: any) => {
+                const subDd = dDay(sub.endDate)
+                const subStatusCls = STATUS_STYLE[sub.status] ?? 'bg-gray-100 text-gray-500'
+                return (
+                  <Link key={sub.id} href={`/a3/${sub.id}`}
+                    className="flex items-center gap-3 border border-slate-100 rounded-lg px-4 py-2.5 hover:border-indigo-200 hover:bg-indigo-50/30 transition-all group">
+                    <CornerDownRight size={13} className="text-indigo-300 shrink-0" />
+                    <span className="text-xs font-mono text-slate-400 w-40 shrink-0">{sub.code}</span>
+                    <span className="flex-1 text-sm font-medium text-slate-800 truncate">{sub.title}</span>
+                    <span className="text-xs text-slate-400 shrink-0">오너 {sub.owner ?? '미배정'}</span>
+                    <span className={`text-xs px-2 py-0.5 rounded-full shrink-0 ${subStatusCls}`}>{sub.status}</span>
+                    {subDd && <span className={`text-xs shrink-0 ${subDd.cls}`}>{subDd.label}</span>}
+                    <ChevronRight size={14} className="text-slate-300 group-hover:text-indigo-400 shrink-0" />
+                  </Link>
+                )
+              })}
+            </div>
+          )}
+        </section>
+      )}
+
+      {/* 하부과제 / 대책과 실행안 (간트) — 팀과제는 세부과제+대책과 실행안을 하나로 합쳐 표시 */}
+      {(() => {
+        const isTeamTask = depth === 1
+        const ganttItems = isTeamTask
+          ? [
+              ...task.subTasks.map((sub: any, i: number) => ({
+                id: sub.id, index: i + 1, description: sub.title, owner: sub.owner, status: sub.status,
+                startDate: sub.startDate ? sub.startDate.toISOString().slice(0, 10) : null,
+                endDate:   sub.endDate   ? sub.endDate.toISOString().slice(0, 10)   : null,
+                href: `/a3/${sub.id}`,
+              })),
+              ...task.countermeasures.map((cm: any, i: number) => ({ ...cm, index: task.subTasks.length + i + 1 })),
+            ]
+          : task.countermeasures
+        if (ganttItems.length === 0 || !effectiveStart || !effectiveEnd) return null
+        return (
+          <section className="bg-white border border-slate-200 rounded-xl p-6 mb-5">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-base font-semibold text-slate-800">{isTeamTask ? '2. 세부전략과제' : '대책과 실행안'}</h2>
+              {isTeamTask && (
+                <Link href={`/a3/new?parentId=${task.id}`}
+                  className="flex items-center gap-1 text-sm text-indigo-600 hover:text-indigo-700 font-medium">
+                  <Plus size={14} /> 과제 추가
+                </Link>
+              )}
+            </div>
+            <GanttSection
+              taskStart={new Date(effectiveStart)}
+              taskEnd={new Date(effectiveEnd)}
+              items={ganttItems}
+            />
+          </section>
+        )
+      })()}
 
       {/* 3. 월별 목표 및 리소스 — 실제 데이터가 있을 때만 표시 */}
       {task.monthlyTargets.some((m: any) => m.revenueTarget != null || m.budget != null || m.personnel != null) && (
         <section className="bg-white border border-slate-200 rounded-xl p-6 mb-5">
-          <h2 className="text-base font-semibold text-slate-800 mb-4">3. 월별 목표 및 리소스</h2>
+          <h2 className="text-base font-semibold text-slate-800 mb-4">{depth === 0 ? '2' : '3'}. 월별 목표 및 리소스</h2>
           <div className="overflow-x-auto">
             <table className="w-full text-sm border-collapse">
               <thead>
