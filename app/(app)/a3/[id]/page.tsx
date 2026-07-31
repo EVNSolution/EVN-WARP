@@ -391,7 +391,8 @@ export default async function A3DetailPage(props: PageProps<'/a3/[id]'>) {
               ...task.countermeasures.map((cm: any, i: number) => ({ ...cm, index: task.subTasks.length + i + 1 })),
             ]
           : task.countermeasures
-        if (ganttItems.length === 0 || !effectiveStart || !effectiveEnd) return null
+        // 세부전략과제는 그 자체가 실행 단위이므로 대책과 실행안을 표시하지 않는다
+        if (depth === 2 || ganttItems.length === 0 || !effectiveStart || !effectiveEnd) return null
         return (
           <section className="bg-white border border-slate-200 rounded-xl p-6 mb-5">
             <div className="flex items-center justify-between mb-4">
