@@ -25,7 +25,8 @@ export default async function NewA3Page(props: PageProps<'/a3/new'>) {
         id: true, code: true, title: true, teamId: true, strategy: true,
         parent: { select: { title: true, strategy: true } },
       },
-      orderBy: [{ teamId: 'asc' }, { teamSeq: 'asc' }],
+      // 전사과제(A, B, C...) 순서대로 먼저, 그 안에서 등록 순
+      orderBy: [{ strategy: 'asc' }, { teamId: 'asc' }, { teamSeq: 'asc' }],
     }),
   ])
 

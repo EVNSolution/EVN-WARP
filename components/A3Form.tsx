@@ -350,7 +350,7 @@ export default function A3Form({ teams, presetParent, teamTasks, ceoTeamId, init
                 className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300">
                 <option value="">선택하세요</option>
                 {filteredTeamTasks.map(t => (
-                  <option key={t.id} value={t.id}>{t.code} {t.title}</option>
+                  <option key={t.id} value={t.id}>{t.parent ? `${t.parent.title}-${t.title}` : t.title}</option>
                 ))}
               </select>
               {filteredTeamTasks.length === 0 && (
