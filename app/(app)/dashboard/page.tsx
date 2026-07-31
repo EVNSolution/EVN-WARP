@@ -24,7 +24,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
   const [execTasks, weeklyUpdates, companyKpisRaw, linkedRows, teams, topTasks] = await Promise.all([
     prisma.strategyTask.findMany({
       where:   { parentId: { not: null }, parent: { parentId: null }, suspended: false },
-      include: { team: true },
+      include: { team: true, subTasks: { select: { id: true, status: true } } },
       orderBy: [{ teamId: 'asc' }, { teamSeq: 'asc' }],
     }),
     prisma.weeklyUpdate.findMany({ where: { week: weekId } }),
@@ -46,31 +46,40 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
   const linkedIds = new Set(linkedRows.map(r => r.id))
   const companyKpis = companyKpisRaw.map(k => ({ ...k, linkedToFunnel: linkedIds.has(k.id) }))
 
-  /* ── 집계 ── */
+  /* ── 집계 ──
+     상태 체크인은 세부전략과제(리프) 단위로 이뤄지므로, 팀과제 자신이 아니라
+     그 리프(세부과제, 또는 세부과제가 없는 팀과제 자신)를 기준으로 집계한다 */
+  type Leaf = { id: string; status: string }
   const updateByTaskId = new Map(weeklyUpdates.map(u => [u.taskId, u]))
-  const statusCounts = {
-    정상:    weeklyUpdates.filter(u => u.status === '정상').length,
-    지연:    weeklyUpdates.filter(u => u.status === '지연').length,
-    조치필요: weeklyUpdates.filter(u => u.status === '조치필요').length,
-    완료:    execTasks.filter(t => t.status === '완료').length,
-  }
 
-  const teamMap = new Map<string, { teamName: string; tasks: typeof execTasks }>()
+  const teamMap = new Map<string, { teamName: string; leaves: Leaf[] }>()
   for (const task of execTasks) {
-    if (!teamMap.has(task.teamId)) teamMap.set(task.teamId, { teamName: task.team.name, tasks: [] })
-    teamMap.get(task.teamId)!.tasks.push(task)
+    if (!teamMap.has(task.teamId)) teamMap.set(task.teamId, { teamName: task.team.name, leaves: [] })
+    const leaves: Leaf[] = task.subTasks.length > 0
+      ? task.subTasks.map(s => ({ id: s.id, status: s.status }))
+      : [{ id: task.id, status: task.status }]
+    teamMap.get(task.teamId)!.leaves.push(...leaves)
   }
   const teamEntries = [...teamMap.values()]
     .sort((a, b) => teamOrderIndex(a.teamName) - teamOrderIndex(b.teamName))
+
+  const allLeaves = teamEntries.flatMap(t => t.leaves)
+  const statusCounts = {
+    정상:    allLeaves.filter(l => updateByTaskId.get(l.id)?.status === '정상').length,
+    지연:    allLeaves.filter(l => updateByTaskId.get(l.id)?.status === '지연').length,
+    조치필요: allLeaves.filter(l => updateByTaskId.get(l.id)?.status === '조치필요').length,
+    완료:    allLeaves.filter(l => l.status === '완료').length,
+  }
+  const ganttHref = `/weekly?week=${weekId}&tab=gantt&view=company`
 
   return (
     <div className="p-5 bg-slate-100 h-[calc(100vh-64px)] flex flex-col overflow-hidden">
 
       {/* ── 헤더 ── */}
-      <div className="flex items-center justify-between mb-4 shrink-0">
+      <div className="flex items-center justify-between px-6 py-4 mb-4 rounded-xl shrink-0" style={{ backgroundColor: '#111111' }}>
         <div>
-          <h1 className="text-xl font-black text-slate-900 tracking-tight">경영 대시보드</h1>
-          <p className="text-xs text-slate-500 mt-0.5">{currentYear}년 · 전략과제 실행현황 · 전사 KPI</p>
+          <h1 className="text-xl font-bold text-white">경영 대시보드</h1>
+          <p className="text-xs mt-0.5" style={{ color: '#C5D42A' }}>{currentYear}년 · 전략과제 실행현황 · 전사 KPI</p>
         </div>
         <div className="flex items-center bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
           <Link href={`/dashboard?week=${prevWeek}`}
@@ -132,10 +141,10 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
               { label: '조치필요', count: statusCounts.조치필요, numCls: 'text-red-500',    bg: 'bg-red-50/70' },
               { label: '완료',    count: statusCounts.완료,    numCls: 'text-blue-600',    bg: 'bg-blue-50/50' },
             ].map(({ label, count, numCls, bg }) => (
-              <div key={label} className={`py-3 text-center ${bg}`}>
+              <Link key={label} href={ganttHref} className={`py-3 text-center ${bg} hover:brightness-95 transition-all block`}>
                 <p className="text-xs text-slate-500 leading-none mb-1.5">{label}</p>
                 <p className={`text-3xl font-black tabular-nums leading-none ${numCls}`}>{count}</p>
-              </div>
+              </Link>
             ))}
           </div>
 
@@ -151,44 +160,44 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
               </tr>
             </thead>
             <tbody>
-              {teamEntries.map(({ teamName, tasks: teamTasks }) => {
-                const cntNormal  = teamTasks.filter(t => updateByTaskId.get(t.id)?.status === '정상').length
-                const cntDelayed = teamTasks.filter(t => updateByTaskId.get(t.id)?.status === '지연').length
-                const cntAction  = teamTasks.filter(t => updateByTaskId.get(t.id)?.status === '조치필요').length
-                const cntDone    = teamTasks.filter(t => t.status === '완료').length
+              {teamEntries.map(({ teamName, leaves }) => {
+                const cntNormal  = leaves.filter(l => updateByTaskId.get(l.id)?.status === '정상').length
+                const cntDelayed = leaves.filter(l => updateByTaskId.get(l.id)?.status === '지연').length
+                const cntAction  = leaves.filter(l => updateByTaskId.get(l.id)?.status === '조치필요').length
+                const cntDone    = leaves.filter(l => l.status === '완료').length
                 return (
                   <tr key={teamName} className="border-b border-slate-50 last:border-0 hover:bg-slate-50/50">
                     <td className="pl-4 pr-2 py-3 align-middle">
                       <div className="flex items-center gap-1.5">
                         <span className="font-bold text-slate-700 text-sm">{teamName}</span>
-                        <span className="text-xs font-semibold text-slate-400">{teamTasks.length}건</span>
+                        <span className="text-xs font-semibold text-slate-400">{leaves.length}건</span>
                       </div>
                     </td>
                     <td className="text-center px-1 py-3 align-middle">
                       {cntNormal > 0
-                        ? <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-emerald-100 text-xs font-black text-emerald-700">{cntNormal}</span>
+                        ? <Link href={ganttHref} className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-emerald-100 text-xs font-black text-emerald-700 hover:bg-emerald-200 transition-colors">{cntNormal}</Link>
                         : <span className="text-slate-200 text-sm">—</span>}
                     </td>
                     <td className="text-center px-1 py-3 align-middle">
                       {cntDelayed > 0
-                        ? <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-amber-100 text-xs font-black text-amber-700">{cntDelayed}</span>
+                        ? <Link href={ganttHref} className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-amber-100 text-xs font-black text-amber-700 hover:bg-amber-200 transition-colors">{cntDelayed}</Link>
                         : <span className="text-slate-200 text-sm">—</span>}
                     </td>
                     <td className="text-center px-1 py-3 align-middle">
                       {cntAction > 0
-                        ? <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-red-100 text-xs font-black text-red-600">{cntAction}</span>
+                        ? <Link href={ganttHref} className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-red-100 text-xs font-black text-red-600 hover:bg-red-200 transition-colors">{cntAction}</Link>
                         : <span className="text-slate-200 text-sm">—</span>}
                     </td>
                     <td className="text-center px-1 py-3 align-middle">
                       {cntDone > 0
-                        ? <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-blue-100 text-xs font-black text-blue-600">{cntDone}</span>
+                        ? <Link href={ganttHref} className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-blue-100 text-xs font-black text-blue-600 hover:bg-blue-200 transition-colors">{cntDone}</Link>
                         : <span className="text-slate-200 text-sm">—</span>}
                     </td>
                   </tr>
                 )
               })}
               <tr className="bg-[#111111]">
-                <td className="pl-4 pr-2 py-2.5 text-xs font-bold text-slate-400">합계 · {execTasks.length}건</td>
+                <td className="pl-4 pr-2 py-2.5 text-xs font-bold text-slate-400">합계 · {allLeaves.length}건</td>
                 <td className="text-center px-1 py-2.5 text-xs font-black text-emerald-400">{statusCounts.정상 || '—'}</td>
                 <td className="text-center px-1 py-2.5 text-xs font-black text-amber-400">{statusCounts.지연 || '—'}</td>
                 <td className="text-center px-1 py-2.5 text-xs font-black text-red-400">{statusCounts.조치필요 || '—'}</td>

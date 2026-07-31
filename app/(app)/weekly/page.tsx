@@ -5,14 +5,8 @@ import { getWeekId, getWeekStart, adjacentWeek, formatWeekLabel } from '@/lib/we
 import { ChevronLeft, ChevronRight, CheckCircle, Clock } from 'lucide-react'
 import GanttChart from '@/components/GanttChart'
 import { teamOrderIndex } from '@/lib/teamOrder'
-import { stratColor } from '@/lib/a3'
+import { stratColor, WEEKLY_STATUS_BADGE as STATUS_BADGE } from '@/lib/a3'
 import { aggregateDateRange } from '@/lib/kpiAggregate'
-
-const STATUS_BADGE: Record<string, string> = {
-  '정상':    'bg-green-100  text-green-700  border-green-200',
-  '지연':    'bg-yellow-100 text-yellow-700 border-yellow-200',
-  '조치필요': 'bg-red-100    text-red-700   border-red-200',
-}
 
 function isDateRangeActive(
   start: Date | null,

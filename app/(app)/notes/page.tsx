@@ -450,7 +450,7 @@ export default async function NotesPage({ searchParams }: { searchParams: Promis
                   <Plus size={11} /> 내부회의
                 </Link>
                 <Link href={`/notes/new?type=외부미팅&date=${todayStr}`}
-                  className="flex items-center gap-1 text-xs text-purple-600 hover:text-purple-800 border border-purple-200 px-2 py-1 rounded-lg bg-white transition-colors">
+                  className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 border border-blue-200 px-2 py-1 rounded-lg bg-white transition-colors">
                   <Plus size={11} /> 외부미팅
                 </Link>
               </div>
@@ -472,7 +472,7 @@ export default async function NotesPage({ searchParams }: { searchParams: Promis
                   <Plus size={11} /> 국내출장
                 </Link>
                 <Link href="/trip/new?type=해외출장"
-                  className="flex items-center gap-1 text-xs text-red-600 hover:text-red-800 border border-red-200 px-2 py-1 rounded-lg bg-white transition-colors">
+                  className="flex items-center gap-1 text-xs text-orange-600 hover:text-orange-800 border border-orange-200 px-2 py-1 rounded-lg bg-white transition-colors">
                   <Globe size={11} /> 해외출장
                 </Link>
               </div>
@@ -494,7 +494,7 @@ export default async function NotesPage({ searchParams }: { searchParams: Promis
                   <Car size={11} /> 운행일지 전체보기
                 </Link>
                 <Link href="/vehicle"
-                  className="flex items-center gap-1 text-xs text-indigo-600 hover:text-indigo-800 border border-indigo-200 px-2 py-1 rounded-lg bg-white transition-colors">
+                  className="flex items-center gap-1 text-xs text-emerald-700 hover:text-emerald-900 border border-emerald-200 px-2 py-1 rounded-lg bg-white transition-colors">
                   <Plus size={11} /> 차량사용
                 </Link>
               </div>

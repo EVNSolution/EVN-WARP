@@ -7,16 +7,11 @@ import DeleteTaskButton from '@/components/DeleteTaskButton'
 import QuickTaskModal from '@/components/QuickTaskModal'
 import BasicInfoEditModal from '@/components/BasicInfoEditModal'
 import BackButton from '@/components/BackButton'
+import CompleteTaskButton from '@/components/CompleteTaskButton'
 import { CEO_TEAM_ID } from '@/lib/constants'
-import { rootAncestorTitle, stratColor } from '@/lib/a3'
+import { rootAncestorTitle, stratColor, STATUS_STYLE } from '@/lib/a3'
 import { aggregateKpiItems, aggregateDateRange } from '@/lib/kpiAggregate'
 
-const STATUS_STYLE: Record<string, string> = {
-  '진행중': 'bg-blue-100 text-blue-700',
-  '완료':   'bg-green-100 text-green-700',
-  '보류':   'bg-gray-100 text-gray-500',
-  '지연':   'bg-red-100 text-red-600',
-}
 const MONTHS = ['1월','2월','3월','4월','5월','6월','7월','8월','9월','10월','11월','12월']
 
 const GANTT_COLORS = [
@@ -165,6 +160,8 @@ export default async function A3DetailPage(props: PageProps<'/a3/[id]'>) {
   const isAggregatedDates = !hasOwnDates && (effectiveStart != null || effectiveEnd != null)
 
   const dd = dDay(effectiveEnd)
+  // 리프(실행 단위): 세부과제, 또는 세부과제가 없는 팀과제(레거시 폴백)
+  const isLeaf = depth === 2 || (depth === 1 && task.subTasks.length === 0)
   const statusCls  = STATUS_STYLE[task.status] ?? 'bg-gray-100 text-gray-500'
   const strategyLabel = rootAncestorTitle(task)
   const strat = stratColor(task.strategy)
@@ -190,6 +187,9 @@ export default async function A3DetailPage(props: PageProps<'/a3/[id]'>) {
             className="flex items-center gap-2 text-sm text-indigo-600 border border-indigo-200 bg-indigo-50 px-3 py-1.5 rounded-lg hover:bg-indigo-100 transition-colors font-medium">
             <Download size={14} /> 과제정의서 PPT
           </a>
+          {!task.suspended && isLeaf && (
+            <CompleteTaskButton taskId={task.id} status={task.status} />
+          )}
           {!task.suspended && (
             depth === 2 ? (
               <Link href={`/a3/${task.id}/edit`}

@@ -5,6 +5,13 @@ export const STATUS_STYLE: Record<string, string> = {
   '지연':   'bg-red-100 text-red-600',
 }
 
+// 주간 상태체크인(WeeklyUpdate.status) 배지 색상 — 과제 자체 상태(STATUS_STYLE)와는 다른 어휘
+export const WEEKLY_STATUS_BADGE: Record<string, string> = {
+  '정상':    'bg-green-100  text-green-700  border-green-200',
+  '지연':    'bg-yellow-100 text-yellow-700 border-yellow-200',
+  '조치필요': 'bg-red-100    text-red-700   border-red-200',
+}
+
 export function dDay(endDate: Date | null | undefined) {
   if (!endDate) return null
   const diff = Math.ceil((endDate.getTime() - Date.now()) / 86400000)
