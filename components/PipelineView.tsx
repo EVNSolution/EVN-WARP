@@ -435,9 +435,10 @@ export default function PipelineView({ deals, salesTarget, linkedKpiLabel, initi
     return activeTab === 'b2c' ? seg === 'B2C' : seg === 'B2B'
   })
 
-  const activeDeals = tabDeals.filter(d => d.salesStatus !== '이탈' && d.salesStatus !== '완료')
+  const activeDeals = tabDeals.filter(d => d.salesStatus !== '이탈' && d.salesStatus !== '완료' && d.salesStatus !== '판매보류')
   const lostDeals   = tabDeals.filter(d => d.salesStatus === '이탈')
   const doneDeals   = tabDeals.filter(d => d.salesStatus === '완료')
+  const holdDeals   = tabDeals.filter(d => d.salesStatus === '판매보류')
 
   /* B2B는 리드당 대수(미입력 시 1대)를 합산, B2C는 리드 건수(1)로 카운트 */
   const countByCode: Record<string, number> = {}
@@ -449,8 +450,9 @@ export default function PipelineView({ deals, salesTarget, linkedKpiLabel, initi
   const filteredDeals = (() => {
     const pool = selectedCode === '이탈' ? lostDeals
                : selectedCode === '완료' ? doneDeals
+               : selectedCode === '판매보류' ? holdDeals
                : showLost ? tabDeals : activeDeals
-    const byStage = selectedCode && selectedCode !== '이탈' && selectedCode !== '완료'
+    const byStage = selectedCode && selectedCode !== '이탈' && selectedCode !== '완료' && selectedCode !== '판매보류'
       ? pool.filter(d => d.stageCode === selectedCode)
       : pool
     if (!searchQuery.trim()) return byStage
@@ -902,18 +904,23 @@ export default function PipelineView({ deals, salesTarget, linkedKpiLabel, initi
           )
         })}
 
-        {/* 이탈 */}
-        <button
-          onClick={() => setSelectedCode('이탈')}
-          className={`mt-1 w-full text-left px-3 py-2 rounded-lg text-xs font-semibold transition flex items-center justify-between
-            ${selectedCode === '이탈'
-              ? 'bg-red-600 text-white shadow-sm'
-              : 'bg-white border border-red-200 text-red-500 hover:bg-red-50'}`}>
-          <span>이탈</span>
-          <span className={`text-[11px] font-bold tabular-nums ${selectedCode === '이탈' ? 'text-white/80' : 'text-red-400'}`}>
-            {lostDeals.length}건
-          </span>
-        </button>
+        {/* 판매보류 / 이탈 — 위 4단계와 동일한 색상 블록 UI */}
+        <div className="mt-1 flex flex-col gap-1.5">
+          <button
+            onClick={() => setSelectedCode(selectedCode === '판매보류' ? null : '판매보류')}
+            className={`w-full rounded-lg overflow-hidden shadow-sm transition-all flex items-center justify-between px-3 py-2
+              ${selectedCode === '판매보류' ? 'ring-2 ring-amber-400' : ''} bg-amber-500`}>
+            <span className="text-white font-bold text-[13px]">판매보류</span>
+            <span className="text-white font-black text-[16px] tabular-nums">{holdDeals.length}</span>
+          </button>
+          <button
+            onClick={() => setSelectedCode(selectedCode === '이탈' ? null : '이탈')}
+            className={`w-full rounded-lg overflow-hidden shadow-sm transition-all flex items-center justify-between px-3 py-2
+              ${selectedCode === '이탈' ? 'ring-2 ring-red-400' : ''} bg-red-600`}>
+            <span className="text-white font-bold text-[13px]">이탈</span>
+            <span className="text-white font-black text-[16px] tabular-nums">{lostDeals.length}</span>
+          </button>
+        </div>
 
       </div>
 
@@ -934,7 +941,7 @@ export default function PipelineView({ deals, salesTarget, linkedKpiLabel, initi
                     <span className="text-xs text-slate-400">확인사항 {checkCount}개</span>
                   </>
                 : <span className="font-bold text-sm text-slate-700">
-                    {selectedCode === '이탈' ? '이탈 리드' : '전체 리드'}
+                    {selectedCode === '이탈' ? '이탈 리드' : selectedCode === '판매보류' ? '판매보류 리드' : '전체 리드'}
                   </span>
             }
             {!crmView && (

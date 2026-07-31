@@ -3,7 +3,7 @@
 import { useState, useTransition, useEffect, useRef, type ChangeEvent } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { PIPELINE } from '@/lib/pipeline'
+import { PIPELINE, SALE_HOLD_CHECK_KEY, SALE_HOLD_TRIGGER_OPTS } from '@/lib/pipeline'
 import AgentPicker from '@/components/AgentPicker'
 import AssigneePicker from '@/components/AssigneePicker'
 import CallAnalysisModal from '@/components/CallAnalysisModal'
@@ -1026,6 +1026,14 @@ export default function LeadDetailClient({ deal, customer = null, products = [],
                                     [atKey]: selecting ? new Date().toISOString() : '',
                                   }
                                 })
+                                // 판매방법을 자체할부/리스로 선택하면 판매보류로, 다시 캐피탈/현금으로 바꾸면 진행중으로 자동 전환
+                                if (c.key === SALE_HOLD_CHECK_KEY) {
+                                  if (SALE_HOLD_TRIGGER_OPTS.includes(opt)) {
+                                    setSalesStatus('판매보류')
+                                  } else if (salesStatus === '판매보류') {
+                                    setSalesStatus('진행중')
+                                  }
+                                }
                                 setSaved(false)
                               }}
                               className={`px-2 py-0.5 rounded text-[11px] font-semibold border transition-all ${
@@ -1450,6 +1458,17 @@ export default function LeadDetailClient({ deal, customer = null, products = [],
           </div>
         ))}
       </div>
+
+      {/* 판매보류 */}
+      {salesStatus === '판매보류' && (
+        <div className="mt-2.5">
+          <p className="text-[10px] font-bold uppercase tracking-widest mb-2 text-amber-600">판매보류</p>
+          <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 flex items-center gap-3">
+            <span className="text-sm font-bold text-amber-700">판매방법 보류</span>
+            <span className="text-xs text-amber-600 flex-1">자체할부/리스로 진행 예정 — 캐피탈/현금으로 바꾸면 자동으로 진행중 상태로 복귀합니다</span>
+          </div>
+        </div>
+      )}
 
       {/* 이탈 */}
       <div className="mt-2.5">
