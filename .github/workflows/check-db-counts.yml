@@ -28,7 +28,7 @@ jobs:
           cat > /tmp/check.json << 'EOF'
           {"commands": [
             "cd /opt/evn-warp",
-            "node -e \"const {createClient}=require('@libsql/client');const c=createClient({url:'file:./dev.db'});c.execute({sql:'SELECT id, name FROM Team', args:[]}).then(r=>{console.log('TEAMS:');r.rows.forEach(row=>console.log(JSON.stringify(row)));return c.execute({sql:'SELECT s.id, s.title, s.parentId, s.teamId, s.startDate, s.endDate, s.code, s.strategy, s.suspended FROM StrategyTask s JOIN Team t ON s.teamId = t.id WHERE t.name = ?', args:['마케팅팀']});}).then(r=>{console.log('MARKETING TASKS:');r.rows.forEach(row=>console.log(JSON.stringify(row)));}).catch(e=>console.error('ERR',e.message));\""
+            "node -e \"const {createClient}=require('@libsql/client');const c=createClient({url:'file:./dev.db'});const ts=['Team','StrategyTask','KpiItem','MonthlyTarget','Countermeasure','WorkActivity','WeeklyUpdate','CompanyKpi','CompanyKpiEntry'];Promise.all(ts.map(t=>c.execute('SELECT COUNT(*) as cnt FROM \\\"'+t+'\\\"').then(r=>t+': '+r.rows[0].cnt).catch(e=>t+': ERROR '+e.message))).then(rs=>rs.forEach(r=>console.log(r))).catch(e=>console.error(e));\""
           ]}
           EOF
 
