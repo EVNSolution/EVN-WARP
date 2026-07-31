@@ -36,6 +36,7 @@ type KpiDraft = { type: '정량' | '정성'; subType: string; label: string; tar
 interface Props {
   teams: Team[]
   presetParent?: PresetParent | null
+  teamTasks?: PresetParent[]
   ceoTeamId: string
   initial?: any
   mode: 'new' | 'edit'
@@ -100,10 +101,11 @@ function GanttPreview({ taskStart, taskEnd, measures }: {
   )
 }
 
-export default function A3Form({ teams, presetParent, ceoTeamId, initial, mode }: Props) {
+export default function A3Form({ teams, presetParent, teamTasks, ceoTeamId, initial, mode }: Props) {
   const router = useRouter()
   const year   = new Date().getFullYear()
   const selectableTeams = teams.filter(t => t.id !== ceoTeamId)
+  const needsParentPicker = mode === 'new' && !presetParent
 
   const [form, setForm] = useState({
     strategy:         initial?.strategy         ?? presetParent?.strategy ?? '',
@@ -161,6 +163,8 @@ export default function A3Form({ teams, presetParent, ceoTeamId, initial, mode }
   const [error,  setError]  = useState('')
 
   const isTopLevel = !presetParent
+  const chosenParent = presetParent ?? (teamTasks ?? []).find(t => t.id === form.parentId) ?? null
+  const filteredTeamTasks = (teamTasks ?? []).filter(t => t.teamId === form.teamId)
 
   function setField(key: string, value: any) { setForm(prev => ({ ...prev, [key]: value })) }
 
@@ -209,8 +213,8 @@ export default function A3Form({ teams, presetParent, ceoTeamId, initial, mode }
 
   // ── 저장 ─────────────────────────────────────────────────────────
   async function handleSave() {
-    if (mode === 'new' && !presetParent) {
-      setError('세부과제는 팀과제 아래에서만 등록할 수 있습니다')
+    if (needsParentPicker && !form.parentId) {
+      setError('상위 팀과제를 선택해주세요')
       return
     }
     if (!form.title || !form.teamId || !form.owner || !form.startDate || !form.endDate) {
@@ -276,7 +280,7 @@ export default function A3Form({ teams, presetParent, ceoTeamId, initial, mode }
       <div className="flex items-center justify-between mb-8">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">
-            {mode === 'new' ? '새 전략과제 등록' : '전략과제 수정'}
+            {mode === 'new' ? '신규 세부전략과제 등록' : '전략과제 수정'}
           </h1>
           <p className="text-sm text-slate-500 mt-1">
             {mode === 'new' ? '과제 코드는 등록 시 자동으로 부여됩니다' : `과제 코드: ${initial?.code}`}
@@ -299,23 +303,23 @@ export default function A3Form({ teams, presetParent, ceoTeamId, initial, mode }
         <div className="grid grid-cols-2 gap-4">
 
           {/* 상위 팀과제 */}
-          {presetParent && (
+          {chosenParent && (
             <div className="col-span-2">
               <label className="block text-sm font-medium text-slate-700 mb-1.5">상위 팀과제</label>
               <div className="flex items-center gap-2 flex-wrap px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg">
-                {presetParent.parent && (
+                {chosenParent.parent && (
                   <>
-                    <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${stratColor(presetParent.parent.strategy).light}`}>
-                      전략과제 {presetParent.parent.strategy}
+                    <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${stratColor(chosenParent.parent.strategy).light}`}>
+                      전략과제 {chosenParent.parent.strategy}
                     </span>
-                    <span className="text-sm text-slate-500">{presetParent.parent.title}</span>
+                    <span className="text-sm text-slate-500">{chosenParent.parent.title}</span>
                     <span className="text-slate-300">›</span>
                   </>
                 )}
-                <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${stratColor(presetParent.strategy).light}`}>
-                  {presetParent.code}
+                <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${stratColor(chosenParent.strategy).light}`}>
+                  {chosenParent.code}
                 </span>
-                <span className="text-sm text-slate-700">{presetParent.title}</span>
+                <span className="text-sm text-slate-700">{chosenParent.title}</span>
               </div>
             </div>
           )}
@@ -329,14 +333,33 @@ export default function A3Form({ teams, presetParent, ceoTeamId, initial, mode }
                 <span className="ml-1.5 text-xs text-slate-400">— 세부과제는 상위 팀과제와 같은 팀으로 등록됩니다</span>
               </div>
             ) : (
-              <select value={form.teamId} onChange={e => setField('teamId', e.target.value)}
+              <select value={form.teamId} onChange={e => {
+                setField('teamId', e.target.value)
+                if (needsParentPicker) setField('parentId', '')
+              }}
                 className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300">
                 {teams.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
               </select>
             )}
           </div>
 
-          {isTopLevel && (
+          {needsParentPicker && (
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1.5">상위 팀과제 <span className="text-red-500">*</span></label>
+              <select value={form.parentId} onChange={e => setField('parentId', e.target.value)}
+                className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300">
+                <option value="">선택하세요</option>
+                {filteredTeamTasks.map(t => (
+                  <option key={t.id} value={t.id}>{t.code} {t.title}</option>
+                ))}
+              </select>
+              {filteredTeamTasks.length === 0 && (
+                <p className="text-xs text-amber-600 mt-1">해당 팀의 팀과제가 없습니다. 먼저 경영 대시보드에서 팀과제를 등록해주세요.</p>
+              )}
+            </div>
+          )}
+
+          {mode === 'edit' && isTopLevel && (
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1.5">전략과제 코드</label>
               <input value={form.strategy} onChange={e => setField('strategy', e.target.value)}

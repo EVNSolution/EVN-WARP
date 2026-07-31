@@ -8,14 +8,9 @@ import { stratColor } from '@/lib/a3'
 
 const CM_COLORS = ['#818cf8', '#fb923c', '#2dd4bf', '#c084fc', '#4ade80', '#fb7185']
 
-interface CmItem {
-  id: string
-  index: number
-  description: string
-  owner?: string | null
-  startDate: string | null
-  endDate:   string | null
-}
+type SubItem =
+  | { kind: 'subtask'; id: string; title: string; startDate: string | null; endDate: string | null }
+  | { kind: 'countermeasure'; id: string; index: number; description: string; owner?: string | null; startDate: string | null; endDate: string | null }
 
 interface TaskItem {
   id: string
@@ -26,7 +21,8 @@ interface TaskItem {
   parentTitle: string | null
   startDate: string
   endDate:   string
-  countermeasures: CmItem[]
+  hasOwnStatus: boolean
+  subItems: SubItem[]
 }
 
 interface TeamEntry {
@@ -74,7 +70,7 @@ export default function GanttChart({
   const allExpandableIds = useMemo(() =>
     teamEntries.flatMap(({ tasks }) =>
       tasks
-        .filter(t => t.countermeasures.length > 0)
+        .filter(t => t.subItems.length > 0)
         .map(t => t.id)
     ), [teamEntries])
 
@@ -108,6 +104,26 @@ export default function GanttChart({
       }
     })
   }, [teamEntries])
+
+  /* 팀별 뷰에서 팀 내부를 전사전략으로 소그룹핑 */
+  function splitByStrategy(tasks: TaskItem[]) {
+    const groups = new Map<string, TaskItem[]>()
+    for (const t of tasks) {
+      const k = t.strategy || '기타'
+      if (!groups.has(k)) groups.set(k, [])
+      groups.get(k)!.push(t)
+    }
+    const keys = [...groups.keys()].sort((a, b) => a === '기타' ? 1 : b === '기타' ? -1 : a.localeCompare(b))
+    return keys.map(k => {
+      const items = groups.get(k)!
+      const parentTitle = items.find(t => t.parentTitle)?.parentTitle ?? ''
+      return {
+        stratKey: k,
+        label: k !== '기타' && parentTitle ? `${k}. ${parentTitle}` : k === '기타' ? '기타 과제' : `전략 ${k}`,
+        items,
+      }
+    })
+  }
 
   const allExpanded = allExpandableIds.length > 0 && allExpandableIds.every(id => expanded.has(id))
 
@@ -239,42 +255,38 @@ export default function GanttChart({
               const update         = updates[task.id]
               const milestonePos   = getMilestonePos(task.endDate)
               const milestoneColor = stratColor(task.strategy).hex
-              const cmWithDates    = task.countermeasures.filter(cm => cm.startDate && cm.endDate)
-              const stratBadgeCls  = stratColor(task.strategy).bold
+              const subWithDates   = task.subItems.filter(si => si.startDate && si.endDate)
               const isExpanded     = expanded.has(task.id)
               const bar            = getBar(task.startDate, task.endDate)
-              const hasCMs         = task.countermeasures.length > 0
+              const hasSubItems    = task.subItems.length > 0
               return (
                 <Fragment key={task.id}>
-                  <tr className={`hover:bg-slate-50/40 transition-colors group ${!hasCMs || !isExpanded ? 'border-b border-slate-200' : ''}`}>
+                  <tr className={`hover:bg-slate-50/40 transition-colors group ${!hasSubItems || !isExpanded ? 'border-b border-slate-200' : ''}`}>
                     <td className="pl-4 pr-2 py-1 align-top" style={{ width: '240px' }}>
-                      <div className="flex items-center gap-1 mb-0.5">
-                        <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded shrink-0 truncate flex-1 min-w-0 ${stratBadgeCls}`}>
-                          {task.strategy}. {task.parentTitle ?? task.title}
-                        </span>
-                        <div className="shrink-0">
-                          <GanttStatusToggle
-                            taskId={task.id}  teamId={task.teamId}
-                            weekId={weekId}   weekStart={weekStartIso}
-                            updateId={update?.id} currentStatus={update?.status}
-                            prevStatus={prevUpdates[task.id]}
-                          />
-                        </div>
-                      </div>
                       <div className="flex items-center gap-1">
                         <Link href={`/a3/${task.id}`} className="flex-1 min-w-0 hover:text-indigo-600 transition-colors">
-                          <div className="text-[11px] font-bold text-slate-800 truncate" style={{ maxWidth: '185px' }}>
+                          <div className="text-[11px] font-bold text-slate-800 truncate">
                             {task.title}
                           </div>
                         </Link>
-                        {hasCMs && (
+                        {task.hasOwnStatus && (
+                          <div className="shrink-0">
+                            <GanttStatusToggle
+                              taskId={task.id}  teamId={task.teamId}
+                              weekId={weekId}   weekStart={weekStartIso}
+                              updateId={update?.id} currentStatus={update?.status}
+                              prevStatus={prevUpdates[task.id]}
+                            />
+                          </div>
+                        )}
+                        {hasSubItems && (
                           <button onClick={() => toggle(task.id)}
                             title={isExpanded ? '세부활동 접기' : '세부활동 펼치기'}
                             className={`shrink-0 flex items-center gap-0.5 text-[9px] px-1 py-0.5 rounded transition-colors ${
                               isExpanded ? 'bg-indigo-100 text-indigo-600' : 'bg-slate-100 text-slate-500 hover:bg-indigo-50 hover:text-indigo-500'
                             }`}>
                             <span>{isExpanded ? '▲' : '▼'}</span>
-                            <span>{cmWithDates.length}</span>
+                            <span>{subWithDates.length}</span>
                           </button>
                         )}
                       </div>
@@ -296,30 +308,68 @@ export default function GanttChart({
                       })()}
                     </td>
                   </tr>
-                  {isExpanded && task.countermeasures.map((cm, cmIdx) => {
-                    const cmBar   = getCmBar(cm.startDate, cm.endDate)
-                    const cmColor = CM_COLORS[cmIdx % CM_COLORS.length]
-                    const isLast  = cmIdx === cmWithDates.length - 1
+                  {isExpanded && task.subItems.map((si, siIdx) => {
+                    const siBar   = getCmBar(si.startDate, si.endDate)
+                    const siColor = CM_COLORS[siIdx % CM_COLORS.length]
+                    const isLast  = siIdx === subWithDates.length - 1
+
+                    if (si.kind === 'subtask') {
+                      const siUpdate = updates[si.id]
+                      return (
+                        <tr key={si.id} className={`bg-slate-50/40 ${isLast ? 'border-b border-slate-200' : 'border-b border-slate-100'}`}>
+                          <td className="pl-7 pr-2 py-1 align-middle" style={{ width: '240px' }}>
+                            <div className="flex items-center gap-1.5">
+                              <span className="w-3 h-3 rounded-full text-[7px] font-bold text-white shrink-0 flex items-center justify-center"
+                                style={{ backgroundColor: siColor, minWidth: '12px' }}>{siIdx + 1}</span>
+                              <Link href={`/a3/${si.id}`} className="text-[9px] text-slate-600 font-semibold truncate hover:text-indigo-600 transition-colors flex-1 min-w-0" style={{ maxWidth: '110px' }}>
+                                {si.title}
+                              </Link>
+                              <div className="shrink-0">
+                                <GanttStatusToggle
+                                  taskId={si.id} teamId={task.teamId}
+                                  weekId={weekId} weekStart={weekStartIso}
+                                  updateId={siUpdate?.id} currentStatus={siUpdate?.status}
+                                  prevStatus={prevUpdates[si.id]}
+                                />
+                              </div>
+                            </div>
+                          </td>
+                          <td colSpan={ganttWeeks.length} className="p-0 align-middle relative" style={{ height: '24px' }}>
+                            <WeekGrid light />
+                            {siBar && (
+                              <div className="absolute rounded"
+                                style={{
+                                  top: '50%', transform: 'translateY(-50%)',
+                                  left:  `calc(${siBar.left}%  + 4px)`,
+                                  width: `calc(${siBar.width}% - 8px)`,
+                                  height: '8px', backgroundColor: siColor, opacity: 0.75,
+                                }} />
+                            )}
+                          </td>
+                        </tr>
+                      )
+                    }
+
                     return (
-                      <tr key={cm.id} className={`bg-slate-50/40 ${isLast ? 'border-b border-slate-200' : 'border-b border-slate-100'}`}>
+                      <tr key={si.id} className={`bg-slate-50/40 ${isLast ? 'border-b border-slate-200' : 'border-b border-slate-100'}`}>
                         <td className="pl-7 pr-2 py-0.5 align-middle" style={{ width: '240px' }}>
                           <div className="flex items-center gap-1.5">
                             <span className="w-3 h-3 rounded-full text-[7px] font-bold text-white shrink-0 flex items-center justify-center"
-                              style={{ backgroundColor: cmColor, minWidth: '12px' }}>{cm.index}</span>
+                              style={{ backgroundColor: siColor, minWidth: '12px' }}>{si.index}</span>
                             <span className="text-[9px] text-slate-500 truncate" style={{ maxWidth: '190px' }}>
-                              {cm.description}{cm.owner && <span className="text-slate-400"> · {cm.owner}</span>}
+                              {si.description}{si.owner && <span className="text-slate-400"> · {si.owner}</span>}
                             </span>
                           </div>
                         </td>
                         <td colSpan={ganttWeeks.length} className="p-0 align-middle relative" style={{ height: '18px' }}>
                           <WeekGrid light />
-                          {cmBar && (
+                          {siBar && (
                             <div className="absolute rounded"
                               style={{
                                 top: '50%', transform: 'translateY(-50%)',
-                                left:  `calc(${cmBar.left}%  + 4px)`,
-                                width: `calc(${cmBar.width}% - 8px)`,
-                                height: '6px', backgroundColor: cmColor, opacity: 0.65,
+                                left:  `calc(${siBar.left}%  + 4px)`,
+                                width: `calc(${siBar.width}% - 8px)`,
+                                height: '6px', backgroundColor: siColor, opacity: 0.65,
                               }} />
                           )}
                         </td>
@@ -330,7 +380,7 @@ export default function GanttChart({
               )
             }
 
-            /* ── 팀별 뷰 ── */
+            /* ── 팀별 뷰 (팀 안에서 전사전략으로 소그룹핑) ── */
             if (groupBy === 'team') {
               return teamEntries.map(({ teamId: tid, teamName, tasks: teamTasks }) => (
                 <Fragment key={tid}>
@@ -340,7 +390,17 @@ export default function GanttChart({
                     </td>
                     <td colSpan={ganttWeeks.length} />
                   </tr>
-                  {teamTasks.map(renderTask)}
+                  {splitByStrategy(teamTasks).map(({ stratKey, label, items }) => (
+                    <Fragment key={stratKey}>
+                      <tr>
+                        <td className="pl-6 pr-2 py-1">
+                          <span className="text-[10px] font-semibold text-slate-400">{label}</span>
+                        </td>
+                        <td colSpan={ganttWeeks.length} />
+                      </tr>
+                      {items.map(renderTask)}
+                    </Fragment>
+                  ))}
                 </Fragment>
               ))
             }

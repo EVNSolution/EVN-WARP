@@ -14,30 +14,16 @@ const STATUS_BADGE: Record<string, string> = {
   '조치필요': 'bg-red-100    text-red-700   border-red-200',
 }
 
-function isCmActive(
-  cm: { startDate: string | null; endDate: string | null },
+function isDateRangeActive(
+  start: Date | null,
+  end: Date | null,
   rangeStart: number,
   rangeEnd: number,
 ): boolean {
-  if (!cm.startDate || !cm.endDate) return false
-  const s = new Date(cm.startDate).getTime()
-  const e = new Date(cm.endDate).getTime() + 86400000
+  if (!start || !end) return false
+  const s = start.getTime()
+  const e = end.getTime() + 86400000
   return s < rangeEnd && e > rangeStart
-}
-
-function shouldShowInSection(
-  cm: { startDate: string | null; endDate: string | null; description: string },
-  taskStart: Date | null,
-  taskEnd: Date | null,
-  rangeStart: number,
-  rangeEnd: number,
-): boolean {
-  if (!cm.description.trim()) return false
-  if (cm.startDate && cm.endDate) return isCmActive(cm, rangeStart, rangeEnd)
-  if (!taskStart || !taskEnd) return false
-  const ts = taskStart.getTime()
-  const te = taskEnd.getTime() + 86400000
-  return ts < rangeEnd && te > rangeStart
 }
 
 type SearchParams = { week?: string; tab?: string; view?: string }
@@ -92,7 +78,13 @@ export default async function WeeklyPage({ searchParams }: { searchParams: Promi
         team: true,
         countermeasures: { orderBy: { index: 'asc' } },
         parent: { select: { id: true, title: true, code: true, strategy: true } },
-        subTasks: { select: { startDate: true, endDate: true } },
+        subTasks: {
+          select: {
+            id: true, title: true, startDate: true, endDate: true, owner: true,
+            countermeasures: { orderBy: { index: 'asc' } },
+          },
+          orderBy: { subSeq: 'asc' },
+        },
       },
       orderBy: [{ teamId: 'asc' }, { teamSeq: 'asc' }],
     }),
@@ -185,11 +177,20 @@ export default async function WeeklyPage({ searchParams }: { searchParams: Promi
           parentTitle: (t.parent as any)?.title ?? null,
           startDate: r.start!.toISOString(),
           endDate:   r.end!.toISOString(),
-          countermeasures: t.countermeasures.map(cm => ({
-            id: cm.id, index: cm.index, description: cm.description, owner: cm.owner,
-            startDate: cm.startDate as string | null,
-            endDate:   cm.endDate   as string | null,
-          })),
+          hasOwnStatus: t.subTasks.length === 0,
+          subItems: t.subTasks.length > 0
+            ? t.subTasks.map(s => ({
+                kind: 'subtask' as const,
+                id: s.id, title: s.title,
+                startDate: s.startDate ? s.startDate.toISOString() : null,
+                endDate:   s.endDate   ? s.endDate.toISOString()   : null,
+              }))
+            : t.countermeasures.map(cm => ({
+                kind: 'countermeasure' as const,
+                id: cm.id, index: cm.index, description: cm.description, owner: cm.owner,
+                startDate: cm.startDate as string | null,
+                endDate:   cm.endDate   as string | null,
+              })),
         }
       }),
   }))
@@ -354,33 +355,36 @@ export default async function WeeklyPage({ searchParams }: { searchParams: Promi
               </div>
               <div className="divide-y divide-slate-100" style={{ minHeight: '100px' }}>
                 {(() => {
-                  type RI = { teamName: string; task: typeof tasks[0]; update: (typeof weeklyUpdates)[0] | undefined; activeCms: typeof tasks[0]['countermeasures']; taskActs: typeof thisWeekActivities; lines: string[] }
+                  type LeafItem = { id: string; title: string; startDate: Date | null; endDate: Date | null }
+                  type RI = { teamName: string; parentTask: typeof tasks[0]; leaf: LeafItem; update: (typeof weeklyUpdates)[0] | undefined; taskActs: typeof thisWeekActivities; lines: string[] }
                   const buckets = new Map<string, RI[]>()
 
                   for (const [, { teamName, tasks: tt }] of viewTeamEntries) {
                     for (const task of tt) {
-                      const update    = updateByTaskId.get(task.id)
-                      const taskActs  = thisActByTask.get(task.id) ?? []
-                      const taskRange = effRangeByTaskId.get(task.id)!
-                      const activeCms = task.countermeasures.filter(cm =>
-                        shouldShowInSection(cm, taskRange.start, taskRange.end, weekStartMs, weekEndMs)
-                        || taskActs.some((a: any) => a.countermeasureId === cm.id)
-                      )
-                      if (activeCms.length === 0 && taskActs.length === 0 && !update?.completed?.trim()) continue
-                      const sl = (task.strategy || (task.parent as any)?.strategy || '') as string
-                      const key = sl || '기타'
-                      if (!buckets.has(key)) buckets.set(key, [])
-                      buckets.get(key)!.push({ teamName, task, update, activeCms, taskActs, lines: update?.completed?.split('\n').filter(l => l.trim()) ?? [] })
+                      const leaves: LeafItem[] = task.subTasks.length > 0
+                        ? task.subTasks.map(s => ({ id: s.id, title: s.title, startDate: s.startDate, endDate: s.endDate }))
+                        : (() => { const r = effRangeByTaskId.get(task.id)!; return [{ id: task.id, title: task.title, startDate: r.start, endDate: r.end }] })()
+
+                      for (const leaf of leaves) {
+                        const update   = updateByTaskId.get(leaf.id)
+                        const taskActs = thisActByTask.get(leaf.id) ?? []
+                        const isActive = isDateRangeActive(leaf.startDate, leaf.endDate, weekStartMs, weekEndMs)
+                        if (taskActs.length === 0 && !isActive && !update?.completed?.trim()) continue
+                        const sl = (task.strategy || (task.parent as any)?.strategy || '') as string
+                        const key = sl || '기타'
+                        if (!buckets.has(key)) buckets.set(key, [])
+                        buckets.get(key)!.push({ teamName, parentTask: task, leaf, update, taskActs, lines: update?.completed?.split('\n').filter(l => l.trim()) ?? [] })
+                      }
                     }
                   }
 
-                  const renderTaskRow = (ri: RI, dotCls: string, num: number) => {
-                    const { task, update, activeCms, taskActs, lines } = ri
+                  const renderLeafRow = (ri: RI, dotCls: string, num: number) => {
+                    const { leaf, update, taskActs, lines } = ri
                     return (
-                      <div key={task.id} className="px-4 py-1.5">
+                      <div key={leaf.id} className="px-4 py-1.5">
                         <div className="flex items-center gap-2 mb-1 pb-1 border-b border-slate-100">
                           <span className="text-xs font-bold text-slate-400 shrink-0">{num})</span>
-                          <span className="text-xs font-bold text-slate-800 flex-1 truncate">{task.title}</span>
+                          <span className="text-xs font-bold text-slate-800 flex-1 truncate">{leaf.title}</span>
                           {update && (
                             <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded border shrink-0 ${STATUS_BADGE[update.status] ?? 'bg-gray-100 text-gray-600 border-gray-200'}`}>
                               {update.status}
@@ -388,35 +392,20 @@ export default async function WeeklyPage({ searchParams }: { searchParams: Promi
                           )}
                         </div>
                         <div className="pl-3 space-y-0.5">
-                          {activeCms.map(cm => {
-                            const cmActs = taskActs.filter((a: any) => a.countermeasureId === cm.id)
-                            return (
-                              <div key={cm.id}>
-                                <div className="flex items-center gap-1.5">
-                                  <span className="shrink-0 text-xs" style={{ color: dotCls }}>●</span>
-                                  <span className="text-xs font-medium text-slate-700">{cm.description}</span>
-                                </div>
-                                {cmActs.length > 0 && (
-                                  <div className="ml-4 mt-0.5 space-y-0.5">
-                                    {cmActs.map((act: any) => (
-                                      <div key={act.id} className="flex items-start gap-1 text-xs text-slate-500">
-                                        <span className="shrink-0 text-slate-300">-</span>
-                                        <span>
-                                          {act.type === '이메일' && act.referenceUrl
-                                            ? <a href={act.referenceUrl} target="_blank" rel="noopener noreferrer" className="text-sky-600 hover:underline">{act.title}</a>
-                                            : act.title}
-                                          {act.planStatus === '완료' && <span className="ml-1 text-[9px] font-bold text-emerald-600">[완료, {+act.date.slice(5,7)}/{+act.date.slice(8,10)}]</span>}
-                                        </span>
-                                      </div>
-                                    ))}
-                                  </div>
-                                )}
-                              </div>
-                            )
-                          })}
+                          {taskActs.map((act: any) => (
+                            <div key={act.id} className="flex items-start gap-1.5 text-xs text-slate-600">
+                              <span className="shrink-0 text-xs" style={{ color: dotCls }}>●</span>
+                              <span>
+                                {act.type === '이메일' && act.referenceUrl
+                                  ? <a href={act.referenceUrl} target="_blank" rel="noopener noreferrer" className="text-sky-600 hover:underline">{act.title}</a>
+                                  : act.title}
+                                {act.planStatus === '완료' && <span className="ml-1 text-[9px] font-bold text-emerald-600">[완료, {+act.date.slice(5,7)}/{+act.date.slice(8,10)}]</span>}
+                              </span>
+                            </div>
+                          ))}
                         </div>
                         {lines.length > 0 && (
-                          <div className="pl-3 ml-4 mt-0.5 space-y-0.5">
+                          <div className={`pl-3 ${taskActs.length > 0 ? 'mt-1 pt-1 border-t border-slate-50' : ''} space-y-0.5`}>
                             {lines.map((line, i) => (
                               <div key={i} className="flex items-start gap-1 text-xs text-slate-600">
                                 <span className="shrink-0 text-slate-400">-</span><span>{line}</span>
@@ -424,30 +413,36 @@ export default async function WeeklyPage({ searchParams }: { searchParams: Promi
                             ))}
                           </div>
                         )}
-                        {(() => {
-                          const unlinked = taskActs.filter((a: any) => !a.countermeasureId)
-                          if (unlinked.length === 0) return null
-                          return (
-                            <div className={`pl-3 ml-4 ${activeCms.length > 0 || lines.length > 0 ? 'mt-1 pt-1 border-t border-slate-50' : ''} space-y-0.5`}>
-                              {unlinked.map((act: any) => (
-                                <div key={act.id} className="flex items-start gap-1 text-xs text-slate-500">
-                                  <span className="shrink-0 text-slate-300">-</span>
-                                  <span>
-                                    {act.type === '이메일' && act.referenceUrl
-                                      ? <a href={act.referenceUrl} target="_blank" rel="noopener noreferrer" className="text-sky-600 hover:underline">{act.title}</a>
-                                      : act.title}
-                                    {act.planStatus === '완료' && <span className="ml-1 text-[9px] font-bold text-emerald-600">[완료, {+act.date.slice(5,7)}/{+act.date.slice(8,10)}]</span>}
-                                  </span>
-                                </div>
-                              ))}
-                            </div>
-                          )
-                        })()}
-                        {activeCms.length === 0 && lines.length === 0 && taskActs.length === 0 && update?.completed && (
+                        {taskActs.length === 0 && lines.length === 0 && update?.completed && (
                           <p className="pl-3 text-xs text-slate-700 leading-relaxed">{update.completed}</p>
                         )}
                       </div>
                     )
+                  }
+
+                  /* 팀 안에서 팀전략 단위로 묶어서 렌더 — 세부전략과제가 있는 팀전략은 라벨을 한 번 보여주고 내부 번호를 새로 매기고, 없는(레거시) 팀전략은 라벨 없이 팀전략 자신이 바로 번호 항목 */
+                  const renderTeamLeaves = (items: RI[], dot: string) => {
+                    const out: React.ReactNode[] = []
+                    let flatCounter = 1
+                    let i = 0
+                    while (i < items.length) {
+                      const { parentTask } = items[i]
+                      if (parentTask.subTasks.length > 0) {
+                        const group: RI[] = []
+                        while (i < items.length && items[i].parentTask.id === parentTask.id) { group.push(items[i]); i++ }
+                        out.push(
+                          <div key={`pt-${parentTask.id}`} className="px-4 py-1 bg-slate-50/60">
+                            <span className="text-[10px] font-semibold text-slate-400">{parentTask.title}</span>
+                          </div>
+                        )
+                        group.forEach((ri, idx) => out.push(renderLeafRow(ri, dot, idx + 1)))
+                      } else {
+                        out.push(renderLeafRow(items[i], dot, flatCounter))
+                        flatCounter++
+                        i++
+                      }
+                    }
+                    return out
                   }
 
                   const totalCount = [...buckets.values()].reduce((s, b) => s + b.length, 0)
@@ -462,7 +457,7 @@ export default async function WeeklyPage({ searchParams }: { searchParams: Promi
                     const hdr = key === '기타' ? 'bg-slate-600' : stratColor(key).bold
                     const dot = key === '기타' ? '#94a3b8' : stratColor(key).hex
                     /* 섹션 헤더 레이블: "{letter}. {전략명}" or "기타 과제" */
-                    const parentTitle = items[0]?.task.parent?.title ?? items[0]?.task.title ?? ''
+                    const parentTitle = items[0]?.parentTask.parent?.title ?? items[0]?.parentTask.title ?? ''
                     const headerLabel = key !== '기타' && parentTitle ? `${key}. ${parentTitle}` : '기타 과제'
                     /* 팀별 서브그룹 */
                     const teamOrder: string[] = []
@@ -480,7 +475,7 @@ export default async function WeeklyPage({ searchParams }: { searchParams: Promi
                         <div key={`th-${key}-${tn}`} className="px-4 py-1 bg-slate-50/80 border-b border-slate-100">
                           <span className="text-[10px] font-semibold text-slate-400">{tn}</span>
                         </div>,
-                        ...byTeam.get(tn)!.map((ri, idx) => renderTaskRow(ri, dot, idx + 1)),
+                        ...renderTeamLeaves(byTeam.get(tn)!, dot),
                       ]),
                     ]
                   })
@@ -501,64 +496,52 @@ export default async function WeeklyPage({ searchParams }: { searchParams: Promi
               </div>
               <div className="divide-y divide-slate-100" style={{ minHeight: '100px' }}>
                 {(() => {
-                  type RI2 = { teamName: string; task: typeof tasks[0]; update: (typeof weeklyUpdates)[0] | undefined; activeCms: typeof tasks[0]['countermeasures']; taskActs: typeof nextWeekActivities; lines: string[] }
+                  type LeafItem = { id: string; title: string; startDate: Date | null; endDate: Date | null }
+                  type RI2 = { teamName: string; parentTask: typeof tasks[0]; leaf: LeafItem; update: (typeof weeklyUpdates)[0] | undefined; taskActs: typeof nextWeekActivities; lines: string[] }
                   const buckets = new Map<string, RI2[]>()
 
                   for (const [, { teamName, tasks: tt }] of viewTeamEntries) {
                     for (const task of tt) {
-                      const update    = updateByTaskId.get(task.id)
-                      const taskActs  = nextActByTask.get(task.id) ?? []
-                      const taskRange = effRangeByTaskId.get(task.id)!
-                      const activeCms = task.countermeasures.filter(cm =>
-                        shouldShowInSection(cm, taskRange.start, taskRange.end, nextWeekStartMs, nextWeekEndMs)
-                        || taskActs.some((a: any) => a.countermeasureId === cm.id)
-                      )
-                      if (activeCms.length === 0 && taskActs.length === 0 && !update?.planned?.trim()) continue
-                      const sl = (task.strategy || (task.parent as any)?.strategy || '') as string
-                      const key = sl || '기타'
-                      if (!buckets.has(key)) buckets.set(key, [])
-                      buckets.get(key)!.push({ teamName, task, update, activeCms, taskActs, lines: update?.planned?.split('\n').filter(l => l.trim()) ?? [] })
+                      const leaves: LeafItem[] = task.subTasks.length > 0
+                        ? task.subTasks.map(s => ({ id: s.id, title: s.title, startDate: s.startDate, endDate: s.endDate }))
+                        : (() => { const r = effRangeByTaskId.get(task.id)!; return [{ id: task.id, title: task.title, startDate: r.start, endDate: r.end }] })()
+
+                      for (const leaf of leaves) {
+                        const update   = updateByTaskId.get(leaf.id)
+                        const taskActs = nextActByTask.get(leaf.id) ?? []
+                        const isActive = isDateRangeActive(leaf.startDate, leaf.endDate, nextWeekStartMs, nextWeekEndMs)
+                        if (taskActs.length === 0 && !isActive && !update?.planned?.trim()) continue
+                        const sl = (task.strategy || (task.parent as any)?.strategy || '') as string
+                        const key = sl || '기타'
+                        if (!buckets.has(key)) buckets.set(key, [])
+                        buckets.get(key)!.push({ teamName, parentTask: task, leaf, update, taskActs, lines: update?.planned?.split('\n').filter(l => l.trim()) ?? [] })
+                      }
                     }
                   }
 
-                  const renderTaskRow = (ri: RI2, dotCls: string, num: number) => {
-                    const { task, activeCms, taskActs, lines } = ri
+                  const renderLeafRow = (ri: RI2, dotCls: string, num: number) => {
+                    const { leaf, taskActs, lines } = ri
                     return (
-                      <div key={task.id} className="px-4 py-1.5">
+                      <div key={leaf.id} className="px-4 py-1.5">
                         <div className="flex items-center gap-2 mb-1 pb-1 border-b border-slate-100">
                           <span className="text-xs font-bold text-slate-400 shrink-0">{num})</span>
-                          <span className="text-xs font-bold text-slate-800 flex-1 truncate">{task.title}</span>
+                          <span className="text-xs font-bold text-slate-800 flex-1 truncate">{leaf.title}</span>
                         </div>
                         <div className="pl-3 space-y-0.5">
-                          {activeCms.map(cm => {
-                            const cmActs = taskActs.filter((a: any) => a.countermeasureId === cm.id)
-                            return (
-                              <div key={cm.id}>
-                                <div className="flex items-center gap-1.5">
-                                  <span className="shrink-0 text-xs" style={{ color: dotCls }}>●</span>
-                                  <span className="text-xs font-medium text-slate-700">{cm.description}</span>
-                                </div>
-                                {cmActs.length > 0 && (
-                                  <div className="ml-4 mt-0.5 space-y-0.5">
-                                    {cmActs.map((act: any) => (
-                                      <div key={act.id} className="flex items-start gap-1 text-xs text-slate-500">
-                                        <span className="shrink-0 text-slate-300">-</span>
-                                        <span>
-                                          {act.type === '이메일' && act.referenceUrl
-                                            ? <a href={act.referenceUrl} target="_blank" rel="noopener noreferrer" className="text-sky-600 hover:underline">{act.title}</a>
-                                            : act.title}
-                                          {act.planStatus === '완료' && <span className="ml-1 text-[9px] font-bold text-emerald-600">[완료, {+act.date.slice(5,7)}/{+act.date.slice(8,10)}]</span>}
-                                        </span>
-                                      </div>
-                                    ))}
-                                  </div>
-                                )}
-                              </div>
-                            )
-                          })}
+                          {taskActs.map((act: any) => (
+                            <div key={act.id} className="flex items-start gap-1.5 text-xs text-slate-600">
+                              <span className="shrink-0 text-xs" style={{ color: dotCls }}>●</span>
+                              <span>
+                                {act.type === '이메일' && act.referenceUrl
+                                  ? <a href={act.referenceUrl} target="_blank" rel="noopener noreferrer" className="text-sky-600 hover:underline">{act.title}</a>
+                                  : act.title}
+                                {act.planStatus === '완료' && <span className="ml-1 text-[9px] font-bold text-emerald-600">[완료, {+act.date.slice(5,7)}/{+act.date.slice(8,10)}]</span>}
+                              </span>
+                            </div>
+                          ))}
                         </div>
                         {lines.length > 0 && (
-                          <div className="pl-3 ml-4 mt-0.5 space-y-0.5">
+                          <div className={`pl-3 ${taskActs.length > 0 ? 'mt-1 pt-1 border-t border-slate-50' : ''} space-y-0.5`}>
                             {lines.map((line, i) => (
                               <div key={i} className="flex items-start gap-1 text-xs text-slate-600">
                                 <span className="shrink-0 text-slate-400">-</span><span>{line}</span>
@@ -566,27 +549,32 @@ export default async function WeeklyPage({ searchParams }: { searchParams: Promi
                             ))}
                           </div>
                         )}
-                        {(() => {
-                          const unlinked = taskActs.filter((a: any) => !a.countermeasureId)
-                          if (unlinked.length === 0) return null
-                          return (
-                            <div className={`pl-3 ml-4 ${activeCms.length > 0 || lines.length > 0 ? 'mt-1 pt-1 border-t border-slate-50' : ''} space-y-0.5`}>
-                              {unlinked.map((act: any) => (
-                                <div key={act.id} className="flex items-start gap-1 text-xs text-slate-500">
-                                  <span className="shrink-0 text-slate-300">-</span>
-                                  <span>
-                                    {act.type === '이메일' && act.referenceUrl
-                                      ? <a href={act.referenceUrl} target="_blank" rel="noopener noreferrer" className="text-sky-600 hover:underline">{act.title}</a>
-                                      : act.title}
-                                    {act.planStatus === '완료' && <span className="ml-1 text-[9px] font-bold text-emerald-600">[완료, {+act.date.slice(5,7)}/{+act.date.slice(8,10)}]</span>}
-                                  </span>
-                                </div>
-                              ))}
-                            </div>
-                          )
-                        })()}
                       </div>
                     )
+                  }
+
+                  const renderTeamLeaves = (items: RI2[], dot: string) => {
+                    const out: React.ReactNode[] = []
+                    let flatCounter = 1
+                    let i = 0
+                    while (i < items.length) {
+                      const { parentTask } = items[i]
+                      if (parentTask.subTasks.length > 0) {
+                        const group: RI2[] = []
+                        while (i < items.length && items[i].parentTask.id === parentTask.id) { group.push(items[i]); i++ }
+                        out.push(
+                          <div key={`pt-${parentTask.id}`} className="px-4 py-1 bg-slate-50/60">
+                            <span className="text-[10px] font-semibold text-slate-400">{parentTask.title}</span>
+                          </div>
+                        )
+                        group.forEach((ri, idx) => out.push(renderLeafRow(ri, dot, idx + 1)))
+                      } else {
+                        out.push(renderLeafRow(items[i], dot, flatCounter))
+                        flatCounter++
+                        i++
+                      }
+                    }
+                    return out
                   }
 
                   const totalCount = [...buckets.values()].reduce((s, b) => s + b.length, 0)
@@ -600,7 +588,7 @@ export default async function WeeklyPage({ searchParams }: { searchParams: Promi
                     if (items.length === 0) return []
                     const hdr = key === '기타' ? 'bg-slate-600' : stratColor(key).bold
                     const dot = key === '기타' ? '#94a3b8' : stratColor(key).hex
-                    const parentTitle = items[0]?.task.parent?.title ?? items[0]?.task.title ?? ''
+                    const parentTitle = items[0]?.parentTask.parent?.title ?? items[0]?.parentTask.title ?? ''
                     const headerLabel = key !== '기타' && parentTitle ? `${key}. ${parentTitle}` : '기타 과제'
                     const teamOrder: string[] = []
                     const byTeam = new Map<string, RI2[]>()
@@ -617,7 +605,7 @@ export default async function WeeklyPage({ searchParams }: { searchParams: Promi
                         <div key={`th-${key}-${tn}`} className="px-4 py-1 bg-slate-50/80 border-b border-slate-100">
                           <span className="text-[10px] font-semibold text-slate-400">{tn}</span>
                         </div>,
-                        ...byTeam.get(tn)!.map((ri, idx) => renderTaskRow(ri, dot, idx + 1)),
+                        ...renderTeamLeaves(byTeam.get(tn)!, dot),
                       ]),
                     ]
                   })
