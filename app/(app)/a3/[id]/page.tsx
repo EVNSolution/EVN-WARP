@@ -251,31 +251,34 @@ export default async function A3DetailPage(props: PageProps<'/a3/[id]'>) {
         <h1 className="text-2xl font-bold text-slate-900">{task.title}</h1>
       </div>
 
-      {/* 기본 정보 */}
-      <div className="bg-white border border-slate-200 rounded-xl p-5 mb-5 grid grid-cols-2 gap-4 text-sm">
-        <div>
-          <span className="text-slate-400">담당 팀</span>
-          <p className="font-semibold text-slate-800 mt-0.5">{task.team.name}</p>
+      {/* 1. 기본 정보 */}
+      <section className="bg-white border border-slate-200 rounded-xl p-5 mb-5">
+        <h2 className="text-base font-semibold text-slate-800 mb-3">1. 기본 정보</h2>
+        <div className="grid grid-cols-2 gap-4 text-sm">
+          <div>
+            <span className="text-slate-400">담당 팀</span>
+            <p className="font-semibold text-slate-800 mt-0.5">{task.team.name}</p>
+          </div>
+          <div>
+            <span className="text-slate-400">과제 오너</span>
+            <p className="font-semibold text-slate-800 mt-0.5">{task.owner ?? '미배정'}</p>
+          </div>
+          <div className="col-span-2">
+            <span className="text-slate-400">기간</span>
+            <p className="font-semibold text-slate-800 mt-0.5">
+              {effectiveStart && effectiveEnd
+                ? <>{new Date(effectiveStart).toLocaleDateString('ko-KR')} ~ {new Date(effectiveEnd).toLocaleDateString('ko-KR')}
+                    {isAggregatedDates && <span className="ml-1.5 text-xs font-normal text-slate-400">(세부과제 기간에서 자동 계산)</span>}</>
+                : '—'}
+            </p>
+          </div>
         </div>
-        <div>
-          <span className="text-slate-400">과제 오너</span>
-          <p className="font-semibold text-slate-800 mt-0.5">{task.owner ?? '미배정'}</p>
-        </div>
-        <div className="col-span-2">
-          <span className="text-slate-400">기간</span>
-          <p className="font-semibold text-slate-800 mt-0.5">
-            {effectiveStart && effectiveEnd
-              ? <>{new Date(effectiveStart).toLocaleDateString('ko-KR')} ~ {new Date(effectiveEnd).toLocaleDateString('ko-KR')}
-                  {isAggregatedDates && <span className="ml-1.5 text-xs font-normal text-slate-400">(세부과제 기간에서 자동 계산)</span>}</>
-              : '—'}
-          </p>
-        </div>
-      </div>
+      </section>
 
       {/* 1. 문제와 목표 — 세부과제만 자체 입력을 가진다 */}
       {depth === 2 && (task.problemStatement || task.goalStatement) && (
         <section className="bg-white border border-slate-200 rounded-xl p-6 mb-5">
-          <h2 className="text-base font-semibold text-slate-800 mb-4">1. 문제와 목표</h2>
+          <h2 className="text-base font-semibold text-slate-800 mb-4">2. 문제와 목표</h2>
           {task.problemStatement && (
             <div className="mb-4">
               <p className="text-xs font-medium text-slate-400 uppercase tracking-wide mb-1.5">문제 (정량)</p>
@@ -309,7 +312,7 @@ export default async function A3DetailPage(props: PageProps<'/a3/[id]'>) {
       {displayKpis.length > 0 && (
         <section className="bg-white border border-slate-200 rounded-xl p-5 mb-5">
           <h2 className="text-base font-semibold text-slate-800 mb-3">
-            {depth === 2 ? '2' : '1'}. KPI
+            {depth === 2 ? '3' : '2'}. KPI
             {depth < 2 && <span className="ml-1.5 text-xs font-normal text-slate-400">(세부과제에서 자동 취합)</span>}
           </h2>
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
@@ -393,7 +396,7 @@ export default async function A3DetailPage(props: PageProps<'/a3/[id]'>) {
         return (
           <section className="bg-white border border-slate-200 rounded-xl p-6 mb-5">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-base font-semibold text-slate-800">{isTeamTask ? '2. 세부전략과제' : '대책과 실행안'}</h2>
+              <h2 className="text-base font-semibold text-slate-800">{isTeamTask ? '3. 세부전략과제' : '대책과 실행안'}</h2>
               {isTeamTask && (
                 <Link href={`/a3/new?parentId=${task.id}`}
                   className="flex items-center gap-1 text-sm text-indigo-600 hover:text-indigo-700 font-medium">
@@ -413,7 +416,7 @@ export default async function A3DetailPage(props: PageProps<'/a3/[id]'>) {
       {/* 3. 월별 목표 및 리소스 — 실제 데이터가 있을 때만 표시 */}
       {task.monthlyTargets.some((m: any) => m.revenueTarget != null || m.budget != null || m.personnel != null) && (
         <section className="bg-white border border-slate-200 rounded-xl p-6 mb-5">
-          <h2 className="text-base font-semibold text-slate-800 mb-4">{depth === 0 ? '2' : '3'}. 월별 목표 및 리소스</h2>
+          <h2 className="text-base font-semibold text-slate-800 mb-4">{depth === 0 ? '3' : '4'}. 월별 목표 및 리소스</h2>
           <div className="overflow-x-auto">
             <table className="w-full text-sm border-collapse">
               <thead>

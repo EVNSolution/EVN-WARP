@@ -36,7 +36,8 @@ export default async function WeeklyPage({ searchParams }: { searchParams: Promi
   const currentWeekId = getWeekId(new Date())
   const weekId        = weekParam ?? currentWeekId
   const isCurrentWeek = weekId === currentWeekId
-  const isPastWeek    = weekId < currentWeekId
+  // 오늘이 포함된 주는 항상 "Weekly Completed Works"로 표시 (그 이전 주도 마찬가지, 이후 주만 Planned)
+  const isPastWeek    = weekId <= currentWeekId
 
   // 8주 윈도우: [weekId-1 … weekId+6]
   const ganttWeeks: string[] = []
@@ -271,7 +272,7 @@ export default async function WeeklyPage({ searchParams }: { searchParams: Promi
               : 'border-transparent text-slate-500 hover:text-slate-700'
           }`}
         >
-          간트
+          간트(과제별 진도 확인)
         </Link>
         <Link
           href={`/weekly?week=${weekId}&tab=weekly&view=${activeView}`}
@@ -281,7 +282,7 @@ export default async function WeeklyPage({ searchParams }: { searchParams: Promi
               : 'border-transparent text-slate-500 hover:text-slate-700'
           }`}
         >
-          주간 관리
+          주간업무보고(과제별 활동 실적 및 계획)
         </Link>
       </div>
 
@@ -380,7 +381,7 @@ export default async function WeeklyPage({ searchParams }: { searchParams: Promi
                   const renderLeafRow = (ri: RI, dotCls: string, num: number) => {
                     const { leaf, update, taskActs, lines } = ri
                     return (
-                      <div key={leaf.id} className="px-4 py-1.5">
+                      <div key={leaf.id} className="pl-9 pr-4 py-1.5">
                         <div className="flex items-center gap-2 mb-1 pb-1 border-b border-slate-100">
                           <span className="text-xs font-bold text-slate-400 shrink-0">{num})</span>
                           <span className="text-xs font-bold text-slate-800 flex-1 truncate">{leaf.title}</span>
@@ -428,8 +429,9 @@ export default async function WeeklyPage({ searchParams }: { searchParams: Promi
                       const group: RI[] = []
                       while (i < items.length && items[i].parentTask.id === parentTask.id) { group.push(items[i]); i++ }
                       out.push(
-                        <div key={`pt-${parentTask.id}`} className="pl-9 pr-4 py-1">
-                          <span className="text-[10px] text-slate-400 italic">└ {parentTask.title}</span>
+                        <div key={`pt-${parentTask.id}`} className="pl-8 pr-4 py-1">
+                          <span className="text-[9px] font-bold text-indigo-400 mr-1.5 align-middle">[팀과제]</span>
+                          <span className="text-[11px] text-slate-500 align-middle">{parentTask.title}</span>
                         </div>
                       )
                       group.forEach((ri, idx) => out.push(renderLeafRow(ri, dot, idx + 1)))
@@ -464,8 +466,8 @@ export default async function WeeklyPage({ searchParams }: { searchParams: Promi
                         <span className="text-[10px] text-white/50">{items.length}건</span>
                       </div>,
                       ...teamOrder.flatMap(tn => [
-                        <div key={`th-${key}-${tn}`} className="px-4 py-1 bg-slate-50/80 border-b border-slate-100">
-                          <span className="text-[10px] font-semibold text-slate-400">{tn}</span>
+                        <div key={`th-${key}-${tn}`} className="px-4 py-1.5 bg-slate-100 border-b border-slate-200">
+                          <span className="text-xs font-extrabold text-slate-800 tracking-tight">{tn}</span>
                         </div>,
                         ...renderTeamLeaves(byTeam.get(tn)!, dot),
                       ]),
@@ -481,7 +483,7 @@ export default async function WeeklyPage({ searchParams }: { searchParams: Promi
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <Clock size={14} className="text-slate-400" />
-                    <h2 className="text-sm font-bold text-slate-700">{nextWeek < currentWeekId ? 'Weekly Completed Works' : 'Weekly Planned Works'}</h2>
+                    <h2 className="text-sm font-bold text-slate-700">{nextWeek <= currentWeekId ? 'Weekly Completed Works' : 'Weekly Planned Works'}</h2>
                   </div>
                   <span className="text-xs text-slate-400">{nextWeekDateRange}</span>
                 </div>
@@ -513,7 +515,7 @@ export default async function WeeklyPage({ searchParams }: { searchParams: Promi
                   const renderLeafRow = (ri: RI2, dotCls: string, num: number) => {
                     const { leaf, taskActs, lines } = ri
                     return (
-                      <div key={leaf.id} className="px-4 py-1.5">
+                      <div key={leaf.id} className="pl-9 pr-4 py-1.5">
                         <div className="flex items-center gap-2 mb-1 pb-1 border-b border-slate-100">
                           <span className="text-xs font-bold text-slate-400 shrink-0">{num})</span>
                           <span className="text-xs font-bold text-slate-800 flex-1 truncate">{leaf.title}</span>
@@ -552,8 +554,9 @@ export default async function WeeklyPage({ searchParams }: { searchParams: Promi
                       const group: RI2[] = []
                       while (i < items.length && items[i].parentTask.id === parentTask.id) { group.push(items[i]); i++ }
                       out.push(
-                        <div key={`pt-${parentTask.id}`} className="pl-9 pr-4 py-1">
-                          <span className="text-[10px] text-slate-400 italic">└ {parentTask.title}</span>
+                        <div key={`pt-${parentTask.id}`} className="pl-8 pr-4 py-1">
+                          <span className="text-[9px] font-bold text-indigo-400 mr-1.5 align-middle">[팀과제]</span>
+                          <span className="text-[11px] text-slate-500 align-middle">{parentTask.title}</span>
                         </div>
                       )
                       group.forEach((ri, idx) => out.push(renderLeafRow(ri, dot, idx + 1)))
@@ -586,8 +589,8 @@ export default async function WeeklyPage({ searchParams }: { searchParams: Promi
                         <span className="text-[10px] text-white/50">{items.length}건</span>
                       </div>,
                       ...teamOrder.flatMap(tn => [
-                        <div key={`th-${key}-${tn}`} className="px-4 py-1 bg-slate-50/80 border-b border-slate-100">
-                          <span className="text-[10px] font-semibold text-slate-400">{tn}</span>
+                        <div key={`th-${key}-${tn}`} className="px-4 py-1.5 bg-slate-100 border-b border-slate-200">
+                          <span className="text-xs font-extrabold text-slate-800 tracking-tight">{tn}</span>
                         </div>,
                         ...renderTeamLeaves(byTeam.get(tn)!, dot),
                       ]),

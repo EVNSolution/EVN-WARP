@@ -301,7 +301,7 @@ export default function A3Form({ teams, presetParent, teamTasks, ceoTeamId, init
 
       {/* ══ 기본 정보 ══════════════════════════════════════════════ */}
       <section className="bg-white border border-slate-200 rounded-xl p-6 mb-5">
-        <h2 className="text-base font-semibold text-slate-800 mb-5">기본 정보</h2>
+        <h2 className="text-base font-semibold text-slate-800 mb-5">1. 기본 정보</h2>
         <div className="grid grid-cols-2 gap-4">
 
           {/* 상위 팀과제 */}
@@ -414,7 +414,7 @@ export default function A3Form({ teams, presetParent, teamTasks, ceoTeamId, init
 
       {/* ══ 1. 문제와 목표 ══════════════════════════════════════════ */}
       <section className="bg-white border border-slate-200 rounded-xl p-6 mb-5">
-        <h2 className="text-base font-semibold text-slate-800 mb-1">1. 문제와 목표</h2>
+        <h2 className="text-base font-semibold text-slate-800 mb-1">2. 문제와 목표</h2>
         <p className="text-xs text-slate-400 mb-5">정량 수치를 포함하여 작성하세요</p>
         <div className="space-y-4">
           <div>
@@ -436,7 +436,7 @@ export default function A3Form({ teams, presetParent, teamTasks, ceoTeamId, init
       <section className="bg-white border border-slate-200 rounded-xl p-6 mb-5">
         <div className="flex items-center justify-between mb-2">
           <div>
-            <h2 className="text-base font-semibold text-slate-800">2. KPI 설정</h2>
+            <h2 className="text-base font-semibold text-slate-800">3. KPI 설정</h2>
             <p className="text-xs text-slate-400 mt-0.5">정량 KPI의 금액 항목은 경영 대시보드에 자동 집계됩니다</p>
           </div>
           <button onClick={addKpiItem} className="flex items-center gap-1 text-sm text-indigo-600 hover:text-indigo-700 font-medium">
@@ -589,7 +589,7 @@ export default function A3Form({ teams, presetParent, teamTasks, ceoTeamId, init
       {/* ══ 3. 월별 목표 및 리소스 ══════════════════════════════════ */}
       <section className="bg-white border border-slate-200 rounded-xl p-6 mb-5">
         <div className="flex items-center justify-between mb-2">
-          <h2 className="text-base font-semibold text-slate-800">3. 월별 목표 및 리소스 ({year}년)</h2>
+          <h2 className="text-base font-semibold text-slate-800">4. 월별 목표 및 리소스 ({year}년)</h2>
           {!showMonthly ? (
             <button onClick={() => setShowMonthly(true)}
               className="flex items-center gap-1 text-sm text-indigo-600 hover:text-indigo-700 font-medium">

@@ -624,7 +624,7 @@ export default function ActivityForm({ teams, tasks, users = [], vehicles = [], 
           </div>
           {linked && (
             <p className="mt-2 text-xs text-slate-400">
-              입력한 활동이 3페이지 주간관리 해당 과제 아래 자동 표시됩니다.
+              입력한 활동이 3페이지 주간업무보고 해당 과제 아래 자동 표시됩니다.
             </p>
           )}
         </div>
