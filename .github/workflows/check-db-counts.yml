@@ -28,7 +28,7 @@ jobs:
           cat > /tmp/check.json << 'EOF'
           {"commands": [
             "cd /opt/evn-warp",
-            "node -e \"const {createClient}=require('@libsql/client');const c=createClient({url:'file:./dev.db'});const origParentId='cmqg0lt0g0000ak1jke7t2rth';const origSubSeq=13;const taskId='cms8c40re00032xnrji92lfxj';c.execute({sql:'SELECT id, title, parentId, subSeq FROM StrategyTask WHERE id = ?', args:[taskId]}).then(before=>{console.log('BEFORE:', JSON.stringify(before.rows[0]));return c.execute({sql:'UPDATE StrategyTask SET parentId = ?, subSeq = ? WHERE id = ?', args:[origParentId, origSubSeq, taskId]});}).then(()=>c.execute({sql:'SELECT id, title, parentId, subSeq FROM StrategyTask WHERE id = ?', args:[taskId]})).then(after=>{console.log('AFTER:', JSON.stringify(after.rows[0]));}).catch(e=>console.error('ERR', e.message));\""
+            "node -e \"const {createClient}=require('@libsql/client');const c=createClient({url:'file:./dev.db'});c.execute({sql:'SELECT id, title FROM StrategyTask WHERE title = ?', args:['CATL AS 사업준비']}).then(taskRes=>{const task=taskRes.rows[0];console.log('TASK:', JSON.stringify(task));if(!task)return;return c.execute({sql:'SELECT id, description FROM Countermeasure WHERE taskId = ?', args:[task.id]}).then(before=>{console.log('BEFORE:', before.rows.length);before.rows.forEach(r=>console.log(JSON.stringify(r)));return c.execute({sql:'DELETE FROM Countermeasure WHERE taskId = ?', args:[task.id]});}).then(del=>{console.log('deleted:', del.rowsAffected);return c.execute({sql:'SELECT COUNT(*) as cnt FROM Countermeasure WHERE taskId = ?', args:[task.id]});}).then(after=>console.log('remaining:', after.rows[0].cnt));}).catch(e=>console.error('ERR', e.message));\""
           ]}
           EOF
 
