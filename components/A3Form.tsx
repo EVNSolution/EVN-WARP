@@ -165,6 +165,8 @@ export default function A3Form({ teams, presetParent, teamTasks, ceoTeamId, init
   const isTopLevel = !presetParent
   const chosenParent = presetParent ?? (teamTasks ?? []).find(t => t.id === form.parentId) ?? null
   const filteredTeamTasks = (teamTasks ?? []).filter(t => t.teamId === form.teamId)
+  // 세부전략과제(팀과제의 하부)는 그 자체가 실행 단위이므로 별도의 대책과 실행안 breakdown이 필요 없다
+  const isLeafTask = mode === 'new' || Boolean(presetParent?.parent)
 
   function setField(key: string, value: any) { setForm(prev => ({ ...prev, [key]: value })) }
 
@@ -508,6 +510,7 @@ export default function A3Form({ teams, presetParent, teamTasks, ceoTeamId, init
       </section>
 
       {/* ══ 2. 대책과 실행안 ════════════════════════════════════════ */}
+      {!isLeafTask && (
       <section className="bg-white border border-slate-200 rounded-xl p-6 mb-5">
         <div className="flex items-center justify-between mb-4">
           <div>
@@ -581,6 +584,7 @@ export default function A3Form({ teams, presetParent, teamTasks, ceoTeamId, init
 
         <GanttPreview taskStart={form.startDate} taskEnd={form.endDate} measures={measures} />
       </section>
+      )}
 
       {/* ══ 3. 월별 목표 및 리소스 ══════════════════════════════════ */}
       <section className="bg-white border border-slate-200 rounded-xl p-6 mb-5">

@@ -10,7 +10,10 @@ export default async function A3ListPage() {
     include: {
       team: true,
       subTasks: {
-        include: { team: true },
+        include: {
+          team: true,
+          subTasks: { orderBy: { subSeq: 'asc' } },
+        },
         orderBy: { subSeq: 'asc' },
       },
     },

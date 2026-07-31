@@ -147,16 +147,34 @@ export default function A3SubTaskGroups({ subTasks, parentTaskId, teamSummaries 
                 {items.map((sub: any) => {
                   const subDd = dDay(sub.endDate)
                   const subStCls = STATUS_STYLE[sub.status] ?? 'bg-gray-100 text-gray-500'
+                  const leaves: any[] = sub.subTasks ?? []
                   return (
-                    <Link key={sub.id} href={`/a3/${sub.id}`}
-                      className={`flex items-center gap-3 ml-20 mr-3 my-1 pl-3 pr-3 py-1.5 rounded-lg bg-white border border-l-[3px] border-slate-100 ${c.bar} hover:border-slate-200 hover:shadow-sm transition-all group`}>
-                      <span className="flex-1 text-xs text-slate-700 font-medium truncate">{sub.title}</span>
-                      <span className="text-xs text-slate-400 font-medium shrink-0">오너 {sub.owner ?? '미배정'}</span>
-                      <span className={`text-xs font-medium px-2 py-0.5 rounded-full shrink-0 ${subStCls}`}>{sub.status}</span>
-                      {sub.confirmed && <span className="text-xs text-green-500 shrink-0">✓확정</span>}
-                      {subDd && <span className={`text-xs font-medium shrink-0 ${subDd.cls}`}>{subDd.label}</span>}
-                      <ChevronRight size={14} className="text-slate-300 group-hover:text-slate-500 transition-colors shrink-0" />
-                    </Link>
+                    <div key={sub.id}>
+                      <Link href={`/a3/${sub.id}`}
+                        className={`flex items-center gap-3 ml-20 mr-3 my-1 pl-3 pr-3 py-1.5 rounded-lg bg-white border border-l-[3px] border-slate-100 ${c.bar} hover:border-slate-200 hover:shadow-sm transition-all group`}>
+                        <span className="flex-1 text-xs text-slate-700 font-medium truncate">{sub.title}</span>
+                        <span className="text-xs text-slate-400 font-medium shrink-0">오너 {sub.owner ?? '미배정'}</span>
+                        <span className={`text-xs font-medium px-2 py-0.5 rounded-full shrink-0 ${subStCls}`}>{sub.status}</span>
+                        {sub.confirmed && <span className="text-xs text-green-500 shrink-0">✓확정</span>}
+                        {subDd && <span className={`text-xs font-medium shrink-0 ${subDd.cls}`}>{subDd.label}</span>}
+                        <ChevronRight size={14} className="text-slate-300 group-hover:text-slate-500 transition-colors shrink-0" />
+                      </Link>
+                      {leaves.map((leaf: any) => {
+                        const leafDd = dDay(leaf.endDate)
+                        const leafStCls = STATUS_STYLE[leaf.status] ?? 'bg-gray-100 text-gray-500'
+                        return (
+                          <Link key={leaf.id} href={`/a3/${leaf.id}`}
+                            className={`flex items-center gap-3 ml-32 mr-3 my-1 pl-3 pr-3 py-1.5 rounded-lg bg-slate-50/70 border border-l-[3px] border-slate-100 ${c.bar} hover:bg-white hover:border-slate-200 hover:shadow-sm transition-all group`}>
+                            <span className="flex-1 text-xs text-slate-600 truncate">{leaf.title}</span>
+                            <span className="text-xs text-slate-400 font-medium shrink-0">오너 {leaf.owner ?? '미배정'}</span>
+                            <span className={`text-xs font-medium px-2 py-0.5 rounded-full shrink-0 ${leafStCls}`}>{leaf.status}</span>
+                            {leaf.confirmed && <span className="text-xs text-green-500 shrink-0">✓확정</span>}
+                            {leafDd && <span className={`text-xs font-medium shrink-0 ${leafDd.cls}`}>{leafDd.label}</span>}
+                            <ChevronRight size={13} className="text-slate-300 group-hover:text-slate-500 transition-colors shrink-0" />
+                          </Link>
+                        )
+                      })}
+                    </div>
                   )
                 })}
               </div>
