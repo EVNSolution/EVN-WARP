@@ -519,9 +519,20 @@ model SalesDeal {
   cargoNote        String?   // 화물 특이사항
 
   documents        DealDocument[]
+  shares           DealShare[]
 
   createdAt        DateTime   @default(now())
   updatedAt        DateTime   @updatedAt
+}
+
+model DealShare {
+  id         String    @id @default(cuid())
+  dealId     String
+  deal       SalesDeal @relation(fields: [dealId], references: [id], onDelete: Cascade)
+  sharedBy   String?   // 공유한 사람 이름
+  targetTeam String?   // 팀 전체 공유 시 팀명
+  targetUser String?   // 개인 공유 시 대상자 이름
+  createdAt  DateTime  @default(now())
 }
 
 model DealDocument {

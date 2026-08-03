@@ -14,13 +14,15 @@ export default async function LeadDetailPage({
   const sp = await searchParams
   const fromStage = sp.from || null
   const fromSeg   = sp.seg  || null
-  const [d, products] = await Promise.all([
+  const [d, products, shares, teams] = await Promise.all([
     prisma.salesDeal.findUnique({ where: { id }, include: { customer: true } }),
     prisma.product.findMany({
       where: { active: true },
       select: { id: true, name: true, code: true, category: true },
       orderBy: [{ category: 'asc' }, { name: 'asc' }],
     }),
+    prisma.dealShare.findMany({ where: { dealId: id }, orderBy: { createdAt: 'desc' } }),
+    prisma.team.findMany({ orderBy: { name: 'asc' }, select: { id: true, name: true } }),
   ])
   if (!d) notFound()
   const customer = d.customer ?? null
@@ -98,6 +100,11 @@ export default async function LeadDetailPage({
       customer={customerSnap}
       fromStage={fromStage}
       fromSeg={fromSeg}
+      teams={teams}
+      shares={shares.map(s => ({
+        id: s.id, sharedBy: s.sharedBy, targetTeam: s.targetTeam, targetUser: s.targetUser,
+        createdAt: s.createdAt.toISOString(),
+      }))}
       deal={{
         id:              d.id,
         name:            d.name,

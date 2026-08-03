@@ -8,7 +8,7 @@ export async function createNotification({
   link,
 }: {
   userId: string
-  tripId: string
+  tripId?: string | null
   type: string
   message: string
   link: string
@@ -17,7 +17,7 @@ export async function createNotification({
   try {
     await prisma.$executeRaw`
       INSERT INTO "Notification" (id, "userId", "tripId", type, message, link, read, "createdAt")
-      VALUES (${id}, ${userId}, ${tripId}, ${type}, ${message}, ${link}, 0, datetime('now'))
+      VALUES (${id}, ${userId}, ${tripId ?? null}, ${type}, ${message}, ${link}, 0, datetime('now'))
     `
   } catch (e) {
     console.error('[Notification] create failed:', e)

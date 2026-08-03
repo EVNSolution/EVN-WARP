@@ -8,6 +8,7 @@ import AgentPicker from '@/components/AgentPicker'
 import AssigneePicker from '@/components/AssigneePicker'
 import CallAnalysisModal from '@/components/CallAnalysisModal'
 import StageHistoryList from '@/components/StageHistoryList'
+import ShareDealModal, { type ShareRecord } from '@/components/ShareDealModal'
 
 /* ── 선택 옵션 ── */
 const SOURCES        = ['소개', '온라인', '전시장/이벤트', '직접방문', '기타']
@@ -167,7 +168,8 @@ function toDatetimeLocal(isoStr: string) {
   return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16)
 }
 
-export default function LeadDetailClient({ deal, customer = null, products = [], fromStage, fromSeg }: { deal: Deal; customer?: CustomerSnap | null; products?: ProductOption[]; fromStage?: string | null; fromSeg?: string | null }) {
+export default function LeadDetailClient({ deal, customer = null, products = [], fromStage, fromSeg, teams = [], shares: initialShares = [] }: { deal: Deal; customer?: CustomerSnap | null; products?: ProductOption[]; fromStage?: string | null; fromSeg?: string | null; teams?: { id: string; name: string }[]; shares?: ShareRecord[] }) {
+  const [shares, setShares] = useState<ShareRecord[]>(initialShares)
   const router = useRouter()
   const [, startTransition] = useTransition()
 
@@ -1523,22 +1525,37 @@ export default function LeadDetailClient({ deal, customer = null, products = [],
               )
             })}
           </div>
-          {mtgTab !== 'history' && (
-            <button onClick={() => {
-                if (showMtgForm) {
-                  setShowMtgForm(false)
-                  setEditingMtgId(null)
-                  setMtg({ type: '통화', meetingAt: localNow(), duration: '', content: '', result: '', nextAction: '', assignee: '', expenseTransport: '', expenseAccomm: '', expenseMeal: '', expenseOther: '', expenseNote: '' })
-                } else {
-                  setShowMtgForm(true)
-                }
-              }}
-              className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition
-                ${showMtgForm ? 'bg-slate-200 text-slate-600' : 'bg-slate-800 text-white hover:bg-slate-700'}`}>
-              {showMtgForm ? '취소' : mtgTab === 'plan' ? '+ 미팅 계획' : '+ 미팅 기록'}
-            </button>
-          )}
+          <div className="flex items-center gap-2">
+            <ShareDealModal dealId={deal.id} teams={teams} onShared={share => setShares(prev => [share, ...prev])} />
+            {mtgTab !== 'history' && (
+              <button onClick={() => {
+                  if (showMtgForm) {
+                    setShowMtgForm(false)
+                    setEditingMtgId(null)
+                    setMtg({ type: '통화', meetingAt: localNow(), duration: '', content: '', result: '', nextAction: '', assignee: '', expenseTransport: '', expenseAccomm: '', expenseMeal: '', expenseOther: '', expenseNote: '' })
+                  } else {
+                    setShowMtgForm(true)
+                  }
+                }}
+                className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition
+                  ${showMtgForm ? 'bg-slate-200 text-slate-600' : 'bg-slate-800 text-white hover:bg-slate-700'}`}>
+                {showMtgForm ? '취소' : mtgTab === 'plan' ? '+ 미팅 계획' : '+ 미팅 기록'}
+              </button>
+            )}
+          </div>
         </div>
+
+        {shares.length > 0 && (
+          <div className="mb-4 flex flex-wrap items-center gap-1.5">
+            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mr-1">공유 이력</span>
+            {shares.map(s => (
+              <span key={s.id} className="inline-flex items-center gap-1 text-[10px] font-medium text-indigo-600 bg-indigo-50 border border-indigo-100 px-2 py-1 rounded-full">
+                {s.sharedBy ?? '알 수 없음'} → {s.targetTeam ? `${s.targetTeam} 전체` : `${s.targetUser}님`}
+                <span className="text-indigo-300">· {s.createdAt.slice(5, 10).replace('-', '/')}</span>
+              </span>
+            ))}
+          </div>
+        )}
 
         {/* 미팅 추가/수정 폼 */}
         {showMtgForm && mtgTab !== 'history' && (
