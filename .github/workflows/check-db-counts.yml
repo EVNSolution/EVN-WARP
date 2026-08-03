@@ -28,7 +28,14 @@ jobs:
           cat > /tmp/check.json << 'EOF'
           {"commands": [
             "cd /opt/evn-warp",
-            "node -e \"const {createClient}=require('@libsql/client');const c=createClient({url:'file:./dev.db'});const ts=['Team','StrategyTask','KpiItem','MonthlyTarget','Countermeasure','WorkActivity','WeeklyUpdate','CompanyKpi','CompanyKpiEntry'];Promise.all(ts.map(t=>c.execute('SELECT COUNT(*) as cnt FROM \\\"'+t+'\\\"').then(r=>t+': '+r.rows[0].cnt).catch(e=>t+': ERROR '+e.message))).then(rs=>rs.forEach(r=>console.log(r))).catch(e=>console.error(e));\""
+            "echo === PM2 STATUS ===",
+            "pm2 jlist | node -e \"let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>{const j=JSON.parse(d);j.forEach(p=>console.log(p.name, p.pm2_env.status, 'restarts='+p.pm2_env.restart_time, 'uptime_ms='+(Date.now()-p.pm2_env.pm_uptime)));});\"",
+            "echo === LOCAL HEALTH CHECK ===",
+            "curl -s -o /dev/null -w 'local:3000 -> %{http_code} (%{time_total}s)\\n' --max-time 10 http://localhost:3000/login || echo 'local curl FAILED'",
+            "echo === NGINX STATUS ===",
+            "systemctl is-active nginx || echo 'nginx not active'",
+            "echo === RECENT PM2 LOGS ===",
+            "pm2 logs evn-warp --lines 25 --nostream 2>&1 | tail -60"
           ]}
           EOF
 
