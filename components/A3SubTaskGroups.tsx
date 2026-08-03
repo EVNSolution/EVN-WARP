@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { ChevronRight, Pencil, X, Layers, CornerDownRight } from 'lucide-react'
@@ -29,6 +29,8 @@ interface Props {
   teamSummaries: Record<string, string>
 }
 
+const STORAGE_PREFIX = 'a3-expanded-'
+
 export default function A3SubTaskGroups({ subTasks, parentTaskId, teamSummaries }: Props) {
   const router = useRouter()
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
@@ -47,9 +49,26 @@ export default function A3SubTaskGroups({ subTasks, parentTaskId, teamSummaries 
   const groupList = [...groups.entries()]
     .sort((a, b) => teamOrderIndex(a[1].teamName) - teamOrderIndex(b[1].teamName))
 
+  // 마운트(또는 뒤로가기로 인한 리마운트) 시 세션에 저장된 펼침 상태를 복원
+  useEffect(() => {
+    try {
+      const raw = sessionStorage.getItem(STORAGE_PREFIX + parentTaskId)
+      if (raw) setExpanded(new Set(JSON.parse(raw)))
+    } catch {}
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [parentTaskId])
+
+  // 펼침 상태가 바뀔 때마다 세션에 저장 — 리마운트되어도(뒤로가기 등) 그대로 복원됨
+  useEffect(() => {
+    try { sessionStorage.setItem(STORAGE_PREFIX + parentTaskId, JSON.stringify([...expanded])) } catch {}
+  }, [expanded, parentTaskId])
+
+  // "전체 펼치기/접기" 버튼 — 마운트 시점의 버전은 무시하고, 실제 클릭(버전 변경)에만 반응
   const expandCtx = useA3Expand()
+  const initialVersionRef = useRef(expandCtx?.version)
   useEffect(() => {
     if (!expandCtx) return
+    if (expandCtx.version === initialVersionRef.current) return
     setExpanded(expandCtx.expandAll ? new Set(groupList.map(([teamId]) => teamId)) : new Set())
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [expandCtx?.version])
