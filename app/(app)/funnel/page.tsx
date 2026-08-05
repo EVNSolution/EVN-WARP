@@ -9,6 +9,8 @@ export default async function FunnelPage({ searchParams }: { searchParams: Promi
   const sp = await searchParams
   const initialStage = sp.stage ?? null
   const initialSeg   = sp.seg   ?? null
+  const currentMonth = new Date().getMonth() + 1
+  const currentYear  = new Date().getFullYear()
 
   const nowIso = new Date().toISOString()
   const [rows, products, allMeetings, planRows, lastCallRows] = await Promise.all([
@@ -113,6 +115,26 @@ export default async function FunnelPage({ searchParams }: { searchParams: Promi
     }
   })
 
+  // 영업퍼널 연동 KPI에서 이번 달 목표 읽기 (raw SQL로 linkedToFunnel 처리)
+  let salesTarget: number | null = null
+  try {
+    const rows = await prisma.$queryRaw<{ id: string }[]>`
+      SELECT id FROM "CompanyKpi" WHERE "linkedToFunnel" = 1 LIMIT 1
+    `
+    if (rows.length > 0) {
+      const entryRows = await prisma.$queryRaw<{ target: number | null }[]>`
+        SELECT target FROM "CompanyKpiEntry"
+        WHERE "companyKpiId" = ${rows[0].id}
+          AND year = ${currentYear}
+          AND month = ${currentMonth}
+        LIMIT 1
+      `
+      salesTarget = entryRows[0]?.target ?? null
+    }
+  } catch {
+    // linkedToFunnel 컬럼이 없는 환경에서도 페이지가 열리도록 폴백
+  }
+
   return (
     <div className="flex flex-col h-[calc(100vh-64px)] overflow-hidden">
       {/* ── 상단 헤더 ── */}
@@ -141,6 +163,7 @@ export default async function FunnelPage({ searchParams }: { searchParams: Promi
       {/* ── 본문: PipelineView ── */}
       <PipelineView
         deals={deals}
+        salesTarget={salesTarget}
         initialStage={initialStage}
         initialSeg={initialSeg}
       />

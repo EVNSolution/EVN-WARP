@@ -4,7 +4,7 @@ import AdminClient from './AdminClient'
 export default async function AdminPage() {
   const [
     totalCustomers, linkedDeals, unlinkedDeals, customersWithDetail,
-    users, teams, products,
+    users, teams, products, vehicles,
   ] = await Promise.all([
     prisma.customer.count(),
     prisma.salesDeal.count({ where: { customerId: { not: null } } }),
@@ -30,6 +30,7 @@ export default async function AdminPage() {
     }),
     prisma.team.findMany({ select: { id: true, name: true }, orderBy: { name: 'asc' } }),
     prisma.product.findMany({ orderBy: [{ category: 'asc' }, { name: 'asc' }] }),
+    prisma.vehicle.findMany({ where: { active: true }, orderBy: { name: 'asc' } }),
   ])
 
   return (
@@ -38,6 +39,7 @@ export default async function AdminPage() {
       users={users.map(u => ({ ...u, createdAt: u.createdAt.toISOString() }))}
       teams={teams}
       products={products}
+      vehicles={vehicles}
     />
   )
 }

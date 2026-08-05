@@ -1,7 +1,8 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { Plus, ChevronLeft, ChevronRight, Car, X, Save, FileDown, Printer, CalendarClock } from 'lucide-react'
+import Link from 'next/link'
+import { Plus, ChevronLeft, ChevronRight, Car, X, Save, FileDown, Printer, CalendarClock, Settings } from 'lucide-react'
 import * as XLSX from 'xlsx'
 import VehicleReservationModal from '@/components/VehicleReservationModal'
 
@@ -102,17 +103,7 @@ export default function VehicleClient({ vehicles, myName }: Props) {
   const [saving,    setSaving]    = useState(false)
   const [error,     setError]     = useState('')
 
-  // 차량 등록 모달
   const [showResv, setShowResv] = useState(false)
-  const [addVehicle, setAddVehicle] = useState(false)
-  const [vName, setVName]           = useState('')
-  const [vPlate, setVPlate]         = useState('')
-  const [vDept, setVDept]           = useState('')
-  const [vMgr, setVMgr]             = useState('')
-  const [vCard, setVCard]           = useState('')
-  const [vCharge, setVCharge]       = useState(false)
-  const [vHipass, setVHipass]       = useState(false)
-  const [vSaving, setVSaving]       = useState(false)
 
   const { from, to, label } = periodRange(period, anchor)
 
@@ -241,25 +232,6 @@ export default function VehicleClient({ vehicles, myName }: Props) {
     fetchLogs()
   }
 
-  async function handleAddVehicle() {
-    if (!vName.trim() || !vPlate.trim()) return
-    setVSaving(true)
-    const res = await fetch('/api/vehicles', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: vName, plateNo: vPlate, department: vDept||null, manager: vMgr||null, cardNo: vCard||null, hasCharge: vCharge, hasHipass: vHipass }),
-    })
-    setVSaving(false)
-    if (res.ok) {
-      const v = await res.json()
-      setVehicleId(v.id)
-      setAddVehicle(false)
-      setVName(''); setVPlate(''); setVDept(''); setVMgr(''); setVCard('')
-      setVCharge(false); setVHipass(false)
-      window.location.reload()
-    }
-  }
-
   return (
     <div className="p-6" style={{ maxWidth: '1440px' }}>
       {/* 헤더 */}
@@ -274,10 +246,10 @@ export default function VehicleClient({ vehicles, myName }: Props) {
             style={{ backgroundColor: '#C5D42A', color: '#111' }}>
             <CalendarClock size={13} /> 차량 신청
           </button>
-          <button onClick={() => setAddVehicle(true)}
+          <Link href="/admin"
             className="flex items-center gap-1.5 text-white border border-white/20 px-3 py-1.5 rounded-lg text-sm hover:bg-white/10 transition-colors">
-            <Car size={13} /> 차량 등록
-          </button>
+            <Settings size={13} /> 차량 관리
+          </Link>
           <button
             onClick={() => setModal(EMPTY_MODAL(vehicleId, today, myName, true))}
             className="flex items-center gap-1.5 text-white border border-white/20 px-3.5 py-2 rounded-lg text-sm font-medium hover:bg-white/10 transition-colors">
@@ -312,10 +284,10 @@ export default function VehicleClient({ vehicles, myName }: Props) {
         <div className="bg-white border border-slate-200 rounded-xl p-10 text-center">
           <Car size={32} className="text-slate-300 mx-auto mb-2" />
           <p className="text-sm text-slate-500">등록된 차량이 없습니다.</p>
-          <button onClick={() => setAddVehicle(true)}
-            className="mt-3 px-4 py-2 bg-indigo-600 text-white text-sm rounded-lg hover:bg-indigo-700 transition-colors">
-            차량 등록하기
-          </button>
+          <Link href="/admin"
+            className="inline-block mt-3 px-4 py-2 bg-indigo-600 text-white text-sm rounded-lg hover:bg-indigo-700 transition-colors">
+            관리자 페이지에서 차량 등록
+          </Link>
         </div>
       )}
 
@@ -604,64 +576,6 @@ export default function VehicleClient({ vehicles, myName }: Props) {
         />
       )}
 
-      {/* ── 차량 등록 모달 ── */}
-      {addVehicle && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40" onClick={() => setAddVehicle(false)}>
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between px-6 pt-5 pb-4 border-b border-slate-100">
-              <h2 className="text-sm font-bold text-slate-800">차량 등록</h2>
-              <button onClick={() => setAddVehicle(false)}><X size={16} className="text-slate-400" /></button>
-            </div>
-            <div className="px-6 py-4 space-y-3">
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-medium text-slate-500 mb-1">차량명 *</label>
-                  <input value={vName} onChange={e => setVName(e.target.value)} placeholder="니로, 아이오닉5 등"
-                    className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300" />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-slate-500 mb-1">차량번호 *</label>
-                  <input value={vPlate} onChange={e => setVPlate(e.target.value)} placeholder="예: 4055"
-                    className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300" />
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-medium text-slate-500 mb-1">관리부서</label>
-                  <input value={vDept} onChange={e => setVDept(e.target.value)} placeholder="경영관리팀 등"
-                    className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300" />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-slate-500 mb-1">관리담당자</label>
-                  <input value={vMgr} onChange={e => setVMgr(e.target.value)}
-                    className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300" />
-                </div>
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-slate-500 mb-1">법인카드번호</label>
-                <input value={vCard} onChange={e => setVCard(e.target.value)}
-                  className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300" />
-              </div>
-              <div className="flex gap-4">
-                {[{ key: 'charge', label: '충전카드', v: vCharge, set: setVCharge }, { key: 'hipass', label: '하이패스', v: vHipass, set: setVHipass }].map(({ key, label: lb, v, set }) => (
-                  <label key={key} className="flex items-center gap-2 cursor-pointer">
-                    <input type="checkbox" checked={v} onChange={e => set(e.target.checked)} className="w-4 h-4 rounded" />
-                    <span className="text-sm text-slate-600">{lb}</span>
-                  </label>
-                ))}
-              </div>
-            </div>
-            <div className="flex justify-end gap-2 px-6 py-4 border-t border-slate-100">
-              <button onClick={() => setAddVehicle(false)}
-                className="px-4 py-1.5 text-sm text-slate-500 border border-slate-200 rounded-lg hover:bg-slate-50">취소</button>
-              <button onClick={handleAddVehicle} disabled={vSaving || !vName || !vPlate}
-                className="px-4 py-1.5 bg-indigo-600 text-white text-sm rounded-lg hover:bg-indigo-700 disabled:opacity-60">
-                {vSaving ? '등록 중...' : '등록'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   )
 }

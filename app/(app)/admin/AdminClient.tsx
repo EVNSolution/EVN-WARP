@@ -6,7 +6,7 @@ import {
   AlertTriangle, CheckCircle2, RefreshCw,
   Users, Database, Link2, Unlink,
   GitMerge, Search, Phone, ChevronDown, ChevronUp,
-  Trash2, Eye, UserPlus, X, Pencil, FolderPlus, PackagePlus,
+  Trash2, Eye, UserPlus, X, Pencil, FolderPlus, PackagePlus, Car,
 } from 'lucide-react'
 
 /* ── 타입 ── */
@@ -28,6 +28,17 @@ interface UserRow {
 }
 
 interface TeamRow { id: string; name: string }
+
+interface VehicleRow {
+  id:         string
+  name:       string
+  plateNo:    string
+  department: string | null
+  manager:    string | null
+  cardNo:     string | null
+  hasCharge:  boolean
+  hasHipass:  boolean
+}
 
 type CustInfo = { id: string; name: string; phone: string | null; status: string; leadCount: number; createdAt: string }
 type DupGroup = { phone: string | null; name: string; customers: CustInfo[] }
@@ -67,9 +78,9 @@ const RESET_RESULT_INIT = null as { resetCount: number; createCount: number; mes
 const PRODUCT_CATEGORIES = ['냉동', '상온', '특장', '기타']
 
 export default function AdminClient({
-  stats, users: initialUsers, teams: initialTeams, products: initialProducts,
+  stats, users: initialUsers, teams: initialTeams, products: initialProducts, vehicles: initialVehicles,
 }: {
-  stats: Stats; users: UserRow[]; teams: TeamRow[]; products: ProductRow[]
+  stats: Stats; users: UserRow[]; teams: TeamRow[]; products: ProductRow[]; vehicles: VehicleRow[]
 }) {
   const router = useRouter()
 
@@ -179,6 +190,58 @@ export default function AdminClient({
       const res = await fetch(`/api/teams/${id}`, { method: 'DELETE' })
       if (res.ok) { setTeams(prev => prev.filter(t => t.id !== id)); setTeamDelId(null) }
     } finally { setTeamDelLoading(false) }
+  }
+
+  /* ── 업무용 차량 관리 ── */
+  const [vehicles,       setVehicles]       = useState<VehicleRow[]>(initialVehicles)
+  const [showVehAdd,     setShowVehAdd]     = useState(false)
+  const [newVeh, setNewVeh] = useState({ name: '', plateNo: '', department: '', manager: '', cardNo: '', hasCharge: false, hasHipass: false })
+  const [vehAddLoading,  setVehAddLoading]  = useState(false)
+  const [vehAddErr,      setVehAddErr]      = useState('')
+  const [vehEditId,      setVehEditId]      = useState<string | null>(null)
+  const [vehEditVal,     setVehEditVal]     = useState({ name: '', plateNo: '', department: '', manager: '', cardNo: '', hasCharge: false, hasHipass: false })
+  const [vehEditLoading, setVehEditLoading] = useState(false)
+  const [vehDelId,       setVehDelId]       = useState<string | null>(null)
+  const [vehDelLoading,  setVehDelLoading]  = useState(false)
+
+  const handleAddVehicle = async () => {
+    setVehAddErr('')
+    if (!newVeh.name.trim() || !newVeh.plateNo.trim()) { setVehAddErr('차량명과 차량번호는 필수입니다.'); return }
+    setVehAddLoading(true)
+    try {
+      const res  = await fetch('/api/vehicles', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newVeh),
+      })
+      const data = await res.json()
+      if (!res.ok) { setVehAddErr(data.error ?? '등록 실패'); return }
+      setVehicles(prev => [...prev, data].sort((a, b) => a.name.localeCompare(b.name)))
+      setNewVeh({ name: '', plateNo: '', department: '', manager: '', cardNo: '', hasCharge: false, hasHipass: false })
+      setShowVehAdd(false)
+    } finally { setVehAddLoading(false) }
+  }
+
+  const handleEditVehicle = async (id: string) => {
+    setVehEditLoading(true)
+    try {
+      const res = await fetch(`/api/vehicles/${id}`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(vehEditVal),
+      })
+      if (res.ok) {
+        const updated = await res.json()
+        setVehicles(prev => prev.map(v => v.id === id ? updated : v))
+        setVehEditId(null)
+      }
+    } finally { setVehEditLoading(false) }
+  }
+
+  const handleDeleteVehicle = async (id: string) => {
+    setVehDelLoading(true)
+    try {
+      const res = await fetch(`/api/vehicles/${id}`, { method: 'DELETE' })
+      if (res.ok) { setVehicles(prev => prev.filter(v => v.id !== id)); setVehDelId(null) }
+    } finally { setVehDelLoading(false) }
   }
 
   /* ── 사용자 관리 ── */
@@ -363,7 +426,7 @@ export default function AdminClient({
 
   /* ── 렌더 ── */
   return (
-    <div className="p-8 max-w-3xl mx-auto space-y-8">
+    <div className="p-8 max-w-7xl mx-auto space-y-8">
 
       {/* 헤더 */}
       <div>
@@ -371,9 +434,12 @@ export default function AdminClient({
         <p className="text-sm text-slate-500 mt-1">사용자 계정 및 데이터 관리</p>
       </div>
 
+      {/* ══ 등록 항목 (제품/팀/사용자/차량) — 동일 크기 박스 + 스크롤 ══ */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
       {/* ══ 제품/모델 관리 ══ */}
-      <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden">
-        <div className="px-6 py-4 flex items-center justify-between" style={{ backgroundColor: '#1e3a5f' }}>
+      <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden h-[560px] flex flex-col">
+        <div className="px-6 py-4 flex items-center justify-between shrink-0" style={{ backgroundColor: '#1e3a5f' }}>
           <div>
             <h2 className="text-white font-bold text-sm flex items-center gap-2">
               <PackagePlus size={15} /> 제품/모델 관리
@@ -388,7 +454,7 @@ export default function AdminClient({
           </button>
         </div>
 
-        <div className="divide-y divide-slate-100">
+        <div className="divide-y divide-slate-100 flex-1 overflow-y-auto">
           {/* 추가 폼 */}
           {showProdAdd && (
             <div className="p-5 bg-slate-50 border-b border-slate-200">
@@ -526,8 +592,8 @@ export default function AdminClient({
       </div>
 
       {/* ══ 팀 관리 ══ */}
-      <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden">
-        <div className="px-6 py-4 bg-slate-700 flex items-center justify-between">
+      <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden h-[560px] flex flex-col">
+        <div className="px-6 py-4 bg-slate-700 flex items-center justify-between shrink-0">
           <div>
             <h2 className="text-white font-bold text-sm flex items-center gap-2">
               <FolderPlus size={15} /> 팀 관리
@@ -536,7 +602,7 @@ export default function AdminClient({
           </div>
         </div>
 
-        <div className="p-5 space-y-3">
+        <div className="p-5 space-y-3 flex-1 overflow-y-auto">
           {/* 팀 추가 입력 */}
           <div className="flex gap-2">
             <input
@@ -620,8 +686,8 @@ export default function AdminClient({
       </div>
 
       {/* ══ 사용자 관리 ══ */}
-      <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden">
-        <div className="px-6 py-4 bg-slate-800 flex items-center justify-between">
+      <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden h-[560px] flex flex-col">
+        <div className="px-6 py-4 bg-slate-800 flex items-center justify-between shrink-0">
           <div>
             <h2 className="text-white font-bold text-sm flex items-center gap-2">
               <Users size={15} /> 사용자 관리
@@ -636,7 +702,7 @@ export default function AdminClient({
           </button>
         </div>
 
-        <div className="divide-y divide-slate-100">
+        <div className="divide-y divide-slate-100 flex-1 overflow-y-auto">
           {/* 사용자 추가 폼 */}
           {showAdd && (
             <div className="p-5 bg-slate-50 border-b border-slate-200">
@@ -841,6 +907,211 @@ export default function AdminClient({
           })()}
         </div>
       </div>
+
+      {/* ══ 업무용 차량 관리 ══ */}
+      <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden h-[560px] flex flex-col">
+        <div className="px-6 py-4 flex items-center justify-between shrink-0" style={{ backgroundColor: '#0f4c42' }}>
+          <div>
+            <h2 className="text-white font-bold text-sm flex items-center gap-2">
+              <Car size={15} /> 업무용 차량 관리
+            </h2>
+            <p className="text-slate-300 text-xs mt-0.5">법인차량 등록 · 수정 · 삭제 — 운행일지/차량 신청에서 사용됩니다</p>
+          </div>
+          <button
+            onClick={() => { setShowVehAdd(v => !v); setVehAddErr('') }}
+            className="flex items-center gap-1.5 px-4 py-2 bg-white/10 hover:bg-white/20 text-white text-xs font-semibold rounded-lg transition">
+            <Car size={13} />
+            차량 등록
+          </button>
+        </div>
+
+        <div className="divide-y divide-slate-100 flex-1 overflow-y-auto">
+          {/* 차량 추가 폼 */}
+          {showVehAdd && (
+            <div className="p-5 bg-slate-50 border-b border-slate-200">
+              <p className="text-xs font-bold text-slate-600 mb-3">새 법인차량 등록</p>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs text-slate-500 mb-1 block">차량명 *</label>
+                  <input value={newVeh.name} onChange={e => setNewVeh(v => ({ ...v, name: e.target.value }))}
+                    placeholder="니로, 아이오닉5 등"
+                    className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-slate-400" />
+                </div>
+                <div>
+                  <label className="text-xs text-slate-500 mb-1 block">차량번호 *</label>
+                  <input value={newVeh.plateNo} onChange={e => setNewVeh(v => ({ ...v, plateNo: e.target.value }))}
+                    placeholder="예: 4055"
+                    className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-slate-400" />
+                </div>
+                <div>
+                  <label className="text-xs text-slate-500 mb-1 block">관리부서</label>
+                  <input value={newVeh.department} onChange={e => setNewVeh(v => ({ ...v, department: e.target.value }))}
+                    className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-slate-400" />
+                </div>
+                <div>
+                  <label className="text-xs text-slate-500 mb-1 block">관리담당자</label>
+                  <input value={newVeh.manager} onChange={e => setNewVeh(v => ({ ...v, manager: e.target.value }))}
+                    className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-slate-400" />
+                </div>
+                <div className="col-span-2">
+                  <label className="text-xs text-slate-500 mb-1 block">법인카드번호</label>
+                  <input value={newVeh.cardNo} onChange={e => setNewVeh(v => ({ ...v, cardNo: e.target.value }))}
+                    className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-slate-400" />
+                </div>
+              </div>
+              <div className="flex gap-4 mt-3">
+                {([{ key: 'hasCharge', label: '충전카드' }, { key: 'hasHipass', label: '하이패스' }] as const).map(({ key, label }) => (
+                  <label key={key} className="flex items-center gap-2 cursor-pointer">
+                    <input type="checkbox" checked={newVeh[key]}
+                      onChange={e => setNewVeh(v => ({ ...v, [key]: e.target.checked }))}
+                      className="w-4 h-4 rounded" />
+                    <span className="text-sm text-slate-600">{label}</span>
+                  </label>
+                ))}
+              </div>
+              {vehAddErr && <p className="text-xs text-red-500 mt-2">{vehAddErr}</p>}
+              <div className="flex gap-2 mt-4">
+                <button onClick={handleAddVehicle} disabled={vehAddLoading}
+                  className="px-5 py-2 text-sm font-bold rounded-xl bg-slate-800 text-white hover:bg-slate-700 transition disabled:opacity-50 flex items-center gap-2">
+                  {vehAddLoading ? <RefreshCw size={13} className="animate-spin" /> : <Car size={13} />}
+                  {vehAddLoading ? '등록 중...' : '차량 등록'}
+                </button>
+                <button onClick={() => { setShowVehAdd(false); setVehAddErr('') }}
+                  className="px-4 py-2 text-sm font-semibold rounded-xl border border-slate-200 text-slate-500 hover:bg-slate-50">
+                  취소
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* 차량 목록 */}
+          {vehicles.length === 0 ? (
+            <p className="text-xs text-slate-400 text-center py-8">등록된 차량이 없습니다. 차량 등록 버튼으로 등록하세요.</p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-slate-100 bg-slate-50">
+                    <th className="text-left px-4 py-2.5 text-xs font-semibold text-slate-500">차량명</th>
+                    <th className="text-left px-3 py-2.5 text-xs font-semibold text-slate-500">차량번호</th>
+                    <th className="text-left px-3 py-2.5 text-xs font-semibold text-slate-500">관리부서</th>
+                    <th className="text-left px-3 py-2.5 text-xs font-semibold text-slate-500">담당자</th>
+                    <th className="text-left px-3 py-2.5 text-xs font-semibold text-slate-500">비고</th>
+                    <th className="px-3 py-2.5"></th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {vehicles.map(v => (
+                    <>
+                      <tr key={v.id} className="hover:bg-slate-50 transition">
+                        <td className="px-4 py-3 font-semibold text-slate-800">{v.name}</td>
+                        <td className="px-3 py-3 text-slate-600">{v.plateNo}</td>
+                        <td className="px-3 py-3 text-slate-500">{v.department ?? '—'}</td>
+                        <td className="px-3 py-3 text-slate-500">{v.manager ?? '—'}</td>
+                        <td className="px-3 py-3">
+                          <div className="flex gap-1">
+                            {v.hasCharge && <span className="px-2 py-0.5 bg-blue-50 text-blue-600 rounded-full text-[10px] font-semibold">충전카드</span>}
+                            {v.hasHipass && <span className="px-2 py-0.5 bg-green-50 text-green-600 rounded-full text-[10px] font-semibold">하이패스</span>}
+                          </div>
+                        </td>
+                        <td className="px-3 py-3">
+                          <div className="flex items-center gap-1.5 justify-end">
+                            {vehDelId === v.id ? (
+                              <>
+                                <span className="text-xs text-red-600 font-medium whitespace-nowrap">삭제할까요?</span>
+                                <button onClick={() => handleDeleteVehicle(v.id)} disabled={vehDelLoading}
+                                  className="px-2 py-1 text-xs font-bold rounded-lg bg-red-600 text-white hover:bg-red-700 disabled:opacity-40">
+                                  {vehDelLoading ? '...' : '삭제'}
+                                </button>
+                                <button onClick={() => setVehDelId(null)} className="p-1 text-slate-400 hover:text-slate-600">
+                                  <X size={12} />
+                                </button>
+                              </>
+                            ) : (
+                              <>
+                                <button
+                                  onClick={() => {
+                                    setVehEditId(vehEditId === v.id ? null : v.id)
+                                    setVehEditVal({ name: v.name, plateNo: v.plateNo, department: v.department ?? '', manager: v.manager ?? '', cardNo: v.cardNo ?? '', hasCharge: v.hasCharge, hasHipass: v.hasHipass })
+                                    setVehDelId(null)
+                                  }}
+                                  className="flex items-center gap-1 px-2 py-1 text-xs font-semibold rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50 transition">
+                                  <Pencil size={10} /> 수정
+                                </button>
+                                <button onClick={() => { setVehDelId(v.id); setVehEditId(null) }}
+                                  className="flex items-center gap-1 px-2 py-1 text-xs font-semibold rounded-lg border border-red-200 text-red-500 hover:bg-red-50 transition">
+                                  <Trash2 size={10} /> 삭제
+                                </button>
+                              </>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                      {vehEditId === v.id && (
+                        <tr key={`${v.id}-edit`}>
+                          <td colSpan={6} className="px-4 pb-4 pt-0 bg-slate-50">
+                            <div className="grid grid-cols-2 gap-3 mt-3">
+                              <div>
+                                <label className="text-xs text-slate-500 mb-1 block">차량명 *</label>
+                                <input value={vehEditVal.name} onChange={e => setVehEditVal(x => ({ ...x, name: e.target.value }))}
+                                  className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-slate-400" />
+                              </div>
+                              <div>
+                                <label className="text-xs text-slate-500 mb-1 block">차량번호 *</label>
+                                <input value={vehEditVal.plateNo} onChange={e => setVehEditVal(x => ({ ...x, plateNo: e.target.value }))}
+                                  className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-slate-400" />
+                              </div>
+                              <div>
+                                <label className="text-xs text-slate-500 mb-1 block">관리부서</label>
+                                <input value={vehEditVal.department} onChange={e => setVehEditVal(x => ({ ...x, department: e.target.value }))}
+                                  className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-slate-400" />
+                              </div>
+                              <div>
+                                <label className="text-xs text-slate-500 mb-1 block">관리담당자</label>
+                                <input value={vehEditVal.manager} onChange={e => setVehEditVal(x => ({ ...x, manager: e.target.value }))}
+                                  className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-slate-400" />
+                              </div>
+                              <div className="col-span-2">
+                                <label className="text-xs text-slate-500 mb-1 block">법인카드번호</label>
+                                <input value={vehEditVal.cardNo} onChange={e => setVehEditVal(x => ({ ...x, cardNo: e.target.value }))}
+                                  className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-slate-400" />
+                              </div>
+                            </div>
+                            <div className="flex gap-4 mt-3">
+                              {([{ key: 'hasCharge', label: '충전카드' }, { key: 'hasHipass', label: '하이패스' }] as const).map(({ key, label }) => (
+                                <label key={key} className="flex items-center gap-2 cursor-pointer">
+                                  <input type="checkbox" checked={vehEditVal[key]}
+                                    onChange={e => setVehEditVal(x => ({ ...x, [key]: e.target.checked }))}
+                                    className="w-4 h-4 rounded" />
+                                  <span className="text-sm text-slate-600">{label}</span>
+                                </label>
+                              ))}
+                            </div>
+                            <div className="flex gap-2 mt-3">
+                              <button onClick={() => handleEditVehicle(v.id)} disabled={vehEditLoading || !vehEditVal.name.trim() || !vehEditVal.plateNo.trim()}
+                                className="px-4 py-2 text-sm font-bold rounded-lg bg-slate-800 text-white hover:bg-slate-700 disabled:opacity-40 transition flex items-center gap-1.5">
+                                {vehEditLoading ? <RefreshCw size={12} className="animate-spin" /> : null}
+                                {vehEditLoading ? '저장 중...' : '저장'}
+                              </button>
+                              <button onClick={() => setVehEditId(null)}
+                                className="px-4 py-2 text-sm font-semibold rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-100 transition">
+                                취소
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      </div>
+
+      </div>
+      {/* ── 등록 항목 그리드 끝 ── */}
 
       {/* 현황 카드 */}
       <div className="grid grid-cols-2 gap-3">
