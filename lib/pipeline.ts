@@ -15,6 +15,13 @@ export interface PipelineDocument {
   label: string // 표시 이름 (예: "신분증")
 }
 
+export interface PipelineTouchpoint {
+  key: string      // 고유 키
+  activity: string // 활동내용 (예: "전화통화")
+  owner: string    // 주관 (예: "영업 담당자")
+  frequency: string // 주기 (예: "2주")
+}
+
 export interface PipelineProcess {
   code: string       // "1-1", "1-2", ...
   name: string
@@ -22,6 +29,7 @@ export interface PipelineProcess {
   checksB2B?: PipelineCheck[]      // B2B 전용 체크리스트 (없으면 checks 사용)
   documents: PipelineDocument[]
   documentsB2B?: PipelineDocument[] // B2B 전용 서류 (없으면 documents 사용)
+  touchpoints?: PipelineTouchpoint[] // 고객접점활동 가이드 (활동내용/주관/주기)
   target: number
   conversionRate: number  // 전환율 (0~1), 필요 리드 = ceil(판매목표 / conversionRate)
 }
@@ -51,6 +59,9 @@ export const PIPELINE: PipelinePhase[] = [
         documentsB2B: [
           { key: 'freight_permit', label: '화물자동차 운송사업 영업소허가증' },
           { key: 'company_intro',  label: '회사소개자료' },
+        ],
+        touchpoints: [
+          { key: '1-1-tp-0', activity: '전화통화', owner: '영업 담당자', frequency: '2주' },
         ],
       },
       {

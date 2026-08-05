@@ -1,11 +1,13 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { X, ChevronDown, ChevronUp, CheckCircle2, FileText, Pencil, Plus, Trash2, Save, Loader2, Printer } from 'lucide-react'
+import { X, ChevronDown, ChevronUp, CheckCircle2, FileText, Pencil, Plus, Trash2, Save, Loader2, Printer, Users, PauseCircle, XCircle } from 'lucide-react'
 import { PIPELINE } from '@/lib/pipeline'
 
 type ItemDef  = { key: string; label: string; field?: string }
 type ConfigMap = Record<string, ItemDef[]>
+type TouchpointDef = { key: string; activity: string; owner: string; frequency: string }
+type TouchpointMap = Record<string, TouchpointDef[]>
 
 const FIELD_LABELS: Record<string, string> = {
   vehicle: '차량정보', shipper: '화주정보',
@@ -22,8 +24,9 @@ const PHASE_COLORS: Record<number, string> = {
 export default function ProcessGuideModal({ onClose }: { onClose: () => void }) {
   const [openCodes,  setOpenCodes]  = useState<Set<string>>(new Set())
   const [editMode,   setEditMode]   = useState(false)
-  const [checks,     setChecks]     = useState<ConfigMap>({})
-  const [docs,       setDocs]       = useState<ConfigMap>({})
+  const [checks,       setChecks]       = useState<ConfigMap>({})
+  const [docs,         setDocs]         = useState<ConfigMap>({})
+  const [touchpoints,  setTouchpoints]  = useState<TouchpointMap>({})
   const [loading,    setLoading]    = useState(true)
   const [saving,     setSaving]     = useState(false)
   const [saved,      setSaved]      = useState(false)
@@ -32,23 +35,28 @@ export default function ProcessGuideModal({ onClose }: { onClose: () => void }) 
   // 새 항목 입력 (단계코드 → { check, doc })
   const [newCheck,   setNewCheck]   = useState<Record<string, string>>({})
   const [newDoc,     setNewDoc]     = useState<Record<string, string>>({})
+  const [newTp,      setNewTp]      = useState<Record<string, { activity: string; owner: string; frequency: string }>>({})
 
   useEffect(() => {
     Promise.all([
       fetch('/api/pipeline-checklists').then(r => r.json()),
       fetch('/api/pipeline-documents').then(r => r.json()),
-    ]).then(([cl, dc]: [ConfigMap, ConfigMap]) => {
+      fetch('/api/pipeline-touchpoints').then(r => r.json()),
+    ]).then(([cl, dc, tp]: [ConfigMap, ConfigMap, TouchpointMap]) => {
       // pipeline.ts 기본값과 병합
       const mc: ConfigMap = {}
       const md: ConfigMap = {}
+      const mt: TouchpointMap = {}
       for (const ph of PIPELINE) {
         for (const proc of ph.processes) {
           mc[proc.code] = cl[proc.code] ?? proc.checks
           md[proc.code] = dc[proc.code] ?? proc.documents
+          mt[proc.code] = tp[proc.code] ?? proc.touchpoints ?? []
         }
       }
       setChecks(mc)
       setDocs(md)
+      setTouchpoints(mt)
     }).catch(() => {}).finally(() => setLoading(false))
   }, [])
 
@@ -85,7 +93,25 @@ export default function ProcessGuideModal({ onClose }: { onClose: () => void }) 
     setDirty(true); setSaved(false)
   }
 
-  /* ── 저장 (체크리스트 + 서류 동시 저장) ── */
+  /* ── 고객접점활동 가이드 추가/삭제 ── */
+  const addTouchpoint = (code: string) => {
+    const cur = newTp[code]
+    const activity = cur?.activity?.trim()
+    if (!activity) return
+    const key = `custom_${Date.now()}`
+    setTouchpoints(prev => ({
+      ...prev,
+      [code]: [...(prev[code] ?? []), { key, activity, owner: cur.owner?.trim() ?? '', frequency: cur.frequency?.trim() ?? '' }],
+    }))
+    setNewTp(prev => ({ ...prev, [code]: { activity: '', owner: '', frequency: '' } }))
+    setDirty(true); setSaved(false)
+  }
+  const removeTouchpoint = (code: string, key: string) => {
+    setTouchpoints(prev => ({ ...prev, [code]: prev[code].filter(t => t.key !== key) }))
+    setDirty(true); setSaved(false)
+  }
+
+  /* ── 저장 (체크리스트 + 서류 + 고객접점활동 동시 저장) ── */
   const handleSave = async () => {
     setSaving(true)
     try {
@@ -99,6 +125,11 @@ export default function ProcessGuideModal({ onClose }: { onClose: () => void }) 
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(docs),
+        }),
+        fetch('/api/pipeline-touchpoints', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(touchpoints),
         }),
       ])
       setDirty(false)
@@ -235,7 +266,8 @@ export default function ProcessGuideModal({ onClose }: { onClose: () => void }) 
               <Loader2 size={24} className="animate-spin text-slate-400" />
             </div>
           ) : (
-            PIPELINE.map(phase => (
+            <>
+            {PIPELINE.map(phase => (
               <div key={phase.phase}>
                 <div className={`rounded-lg px-3 py-1.5 mb-2 ${PHASE_COLORS[phase.phase]}`}>
                   <span className="text-xs font-bold text-white tracking-wide">
@@ -252,6 +284,7 @@ export default function ProcessGuideModal({ onClose }: { onClose: () => void }) 
                     const stageDocs = (segment === 'B2B' && proc.documentsB2B)
                       ? proc.documentsB2B
                       : (docs[proc.code] ?? [])
+                    const stageTps  = touchpoints[proc.code] ?? []
                     const hasB2BVariant = !!(proc.checksB2B || proc.documentsB2B)
                     return (
                       <div key={proc.code} className="border border-slate-200 rounded-lg overflow-hidden">
@@ -377,6 +410,66 @@ export default function ProcessGuideModal({ onClose }: { onClose: () => void }) 
                                 />
                               )}
                             </div>
+
+                            {/* 구분선 */}
+                            <div className="border-t border-slate-200" />
+
+                            {/* ── 고객접점활동 가이드 ── */}
+                            <div>
+                              <p className="text-[10px] font-bold text-emerald-600 uppercase tracking-wider mb-1.5">
+                                고객접점활동 가이드
+                              </p>
+                              {stageTps.length === 0 && !editMode && (
+                                <p className="text-xs text-slate-400 italic">없음</p>
+                              )}
+                              {stageTps.length > 0 && (
+                                <div className="grid grid-cols-[1fr_1fr_auto] gap-x-3 gap-y-1 text-[10px] text-slate-400 font-medium mb-1">
+                                  <span>활동내용</span><span>주관</span><span>주기</span>
+                                </div>
+                              )}
+                              <ul className="space-y-1">
+                                {stageTps.map(tp => (
+                                  <li key={tp.key} className="grid grid-cols-[1fr_1fr_auto] gap-x-3 items-center text-xs text-slate-600">
+                                    <span className="flex items-center gap-1.5"><Users size={11} className="text-emerald-400 shrink-0" />{tp.activity}</span>
+                                    <span className="text-slate-500">{tp.owner || '—'}</span>
+                                    <span className="flex items-center gap-2 text-slate-500 shrink-0">
+                                      {tp.frequency || '—'}
+                                      {editMode && (
+                                        <button
+                                          onClick={() => removeTouchpoint(proc.code, tp.key)}
+                                          className="text-slate-300 hover:text-red-400 transition-colors"
+                                        >
+                                          <Trash2 size={12} />
+                                        </button>
+                                      )}
+                                    </span>
+                                  </li>
+                                ))}
+                              </ul>
+                              {editMode && (
+                                <div className="flex items-center gap-1.5 mt-2">
+                                  <input type="text" placeholder="활동내용 (예: 전화통화)"
+                                    value={newTp[proc.code]?.activity ?? ''}
+                                    onChange={e => setNewTp(p => ({ ...p, [proc.code]: { activity: e.target.value, owner: p[proc.code]?.owner ?? '', frequency: p[proc.code]?.frequency ?? '' } }))}
+                                    className="flex-1 text-xs border border-slate-200 rounded-lg px-2.5 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-emerald-100 placeholder:text-slate-300" />
+                                  <input type="text" placeholder="주관 (예: 영업 담당자)"
+                                    value={newTp[proc.code]?.owner ?? ''}
+                                    onChange={e => setNewTp(p => ({ ...p, [proc.code]: { activity: p[proc.code]?.activity ?? '', owner: e.target.value, frequency: p[proc.code]?.frequency ?? '' } }))}
+                                    className="flex-1 text-xs border border-slate-200 rounded-lg px-2.5 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-emerald-100 placeholder:text-slate-300" />
+                                  <input type="text" placeholder="주기 (예: 2주)"
+                                    value={newTp[proc.code]?.frequency ?? ''}
+                                    onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addTouchpoint(proc.code) } }}
+                                    onChange={e => setNewTp(p => ({ ...p, [proc.code]: { activity: p[proc.code]?.activity ?? '', owner: p[proc.code]?.owner ?? '', frequency: e.target.value } }))}
+                                    className="w-24 text-xs border border-slate-200 rounded-lg px-2.5 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-emerald-100 placeholder:text-slate-300" />
+                                  <button
+                                    onClick={() => addTouchpoint(proc.code)}
+                                    className="flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-lg bg-emerald-500 text-white hover:bg-emerald-600 transition-colors font-semibold shrink-0"
+                                  >
+                                    <Plus size={12} /> 추가
+                                  </button>
+                                </div>
+                              )}
+                            </div>
                           </div>
                         )}
                       </div>
@@ -384,7 +477,36 @@ export default function ProcessGuideModal({ onClose }: { onClose: () => void }) 
                   })}
                 </div>
               </div>
-            ))
+            ))}
+
+            {/* ── 판매보류 / 이탈 ── */}
+            <div>
+              <div className="rounded-lg px-3 py-1.5 mb-2 bg-slate-700">
+                <span className="text-xs font-bold text-white tracking-wide">특수 상태</span>
+              </div>
+              <div className="space-y-1.5">
+                <div className="border border-amber-200 bg-amber-50 rounded-lg px-3 py-2.5 flex items-start gap-2.5">
+                  <PauseCircle size={14} className="text-amber-500 shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-sm font-semibold text-amber-700">판매보류</p>
+                    <p className="text-xs text-amber-600 mt-0.5 leading-relaxed">
+                      성숙 리드(1-3)의 &quot;판매방법 확정&quot; 항목에서 자체할부 또는 리스를 선택하면 자동으로 이 상태가 됩니다.
+                      다시 캐피탈 또는 현금으로 바꾸면 자동으로 진행중 상태로 복귀합니다.
+                    </p>
+                  </div>
+                </div>
+                <div className="border border-red-200 bg-red-50 rounded-lg px-3 py-2.5 flex items-start gap-2.5">
+                  <XCircle size={14} className="text-red-500 shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-sm font-semibold text-red-700">이탈</p>
+                    <p className="text-xs text-red-500 mt-0.5 leading-relaxed">
+                      모든 영업 단계에서 구매 의사를 포기한 경우 기록합니다. 리드 상세 페이지의 &quot;구매의사 포기&quot; 버튼으로 처리하며, 사유를 함께 남길 수 있습니다.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+            </>
           )}
         </div>
       </div>
