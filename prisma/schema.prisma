@@ -466,6 +466,7 @@ model SalesDeal {
   purchaseGoal     String?    // 구매목적
   keyFactors       String?    // 중요요소
   lostReason       String?
+  holdReason       String?    // 판매보류 사유
 
   // CRM 고객 세그먼트
   customerSegment  String?   // "B2C" | "B2B"

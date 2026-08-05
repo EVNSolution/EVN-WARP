@@ -79,6 +79,9 @@ export const PIPELINE: PipelinePhase[] = [
           { key: '1-2-b2b-4', label: '실물차량 소개' },
         ],
         documents: [],
+        touchpoints: [
+          { key: '1-2-tp-0', activity: '전화통화', owner: '영업 담당자', frequency: '1주' },
+        ],
       },
       {
         code: '1-3', name: '성숙 리드', target: 3, conversionRate: 0.50,

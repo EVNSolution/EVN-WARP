@@ -144,6 +144,7 @@ export default async function LeadDetailPage({
         assignee:         d.assignee,
         memo:            d.memo,
         lostReason:      d.lostReason,
+        holdReason:      (d as any).holdReason ?? null,
         stageCode,
         salesStatus,
         checklistJson,

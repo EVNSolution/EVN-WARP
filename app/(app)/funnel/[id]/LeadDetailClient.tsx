@@ -18,7 +18,11 @@ const TEMP_TYPES     = ['저탑', '정탑', '하이탑']
 const FUND_METHODS   = ['캐피탈', '현금', '보조금+캐피탈', '보조금+현금']
 const BUY_TIMINGS    = ['즉시', '1개월 내', '3개월 내', '6개월 내', '미정']
 const BUY_TYPES      = ['개인', '법인', '개인사업자']
-const LOST_REASONS   = ['구매시점 미달', '가격', '캐피탈 미승인', '중고차구매', '기타']
+const LOST_REASONS   = ['타사제품 구매', '구매 포기', '가격', '캐피탈 미승인', '기타']
+const HOLD_REASON_GROUPS: { category: string; reasons: string[] }[] = [
+  { category: '고객 사유', reasons: ['구매일정 변경', '자금확보 정리', '의사결정권자 검토 지연', '비교검토', '정부보조금 대기'] },
+  { category: '회사 사유', reasons: ['생산 일정 지연', '리스상품 희망', '자체할부 희망', '신제품 대기'] },
+]
 
 /* ── 단계별 입력 필드 정의 ── */
 type FType = 'text' | 'date' | 'number' | 'chips' | 'crm'
@@ -88,6 +92,7 @@ interface Deal {
   agent: { id: string; name: string; type: string; company: string | null } | null
   memo: string | null
   lostReason: string | null
+  holdReason: string | null
   stageCode: string
   salesStatus: string
   checklistJson: string | null
@@ -240,6 +245,12 @@ export default function LeadDetailClient({ deal, customer = null, products = [],
   const [pendingLostReason, setPendingLostReason] = useState('')
   const [pendingLostNote,   setPendingLostNote]   = useState('')
   const [lostReason,        setLostReason]        = useState(deal.lostReason)
+
+  /* ── 판매보류 사유 모달 ── */
+  const [showHoldModal,     setShowHoldModal]     = useState(false)
+  const [pendingHoldCategory, setPendingHoldCategory] = useState('')
+  const [pendingHoldReason,   setPendingHoldReason]   = useState('')
+  const [holdReason,        setHoldReason]        = useState(deal.holdReason)
 
   /* ── 미팅 기록 ── */
   type MFile = { name: string; path: string; size: number; mime: string }
@@ -559,6 +570,24 @@ export default function LeadDetailClient({ deal, customer = null, products = [],
     setPendingLostReason('')
     setPendingLostNote('')
     setMsg('이탈 처리되었습니다')
+    setTimeout(() => setMsg(''), 4000)
+    startTransition(() => router.refresh())
+  }
+
+  /* ── 판매보류 사유 저장 ── */
+  const handleMarkHold = async () => {
+    if (!pendingHoldReason) return
+    await fetch(`/api/deals/${deal.id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ salesStatus: '판매보류', holdReason: pendingHoldReason }),
+    })
+    setSalesStatus('판매보류')
+    setHoldReason(pendingHoldReason)
+    setShowHoldModal(false)
+    setPendingHoldCategory('')
+    setPendingHoldReason('')
+    setMsg('판매보류 사유가 저장되었습니다')
     setTimeout(() => setMsg(''), 4000)
     startTransition(() => router.refresh())
   }
@@ -1532,7 +1561,19 @@ export default function LeadDetailClient({ deal, customer = null, products = [],
           <p className="text-[10px] font-bold uppercase tracking-widest mb-2 text-amber-600">판매보류</p>
           <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 flex items-center gap-3">
             <span className="text-sm font-bold text-amber-700">판매방법 보류</span>
-            <span className="text-xs text-amber-600 flex-1">자체할부/리스로 진행 예정 — 캐피탈/현금으로 바꾸면 자동으로 진행중 상태로 복귀합니다</span>
+            <span className="text-xs text-amber-600 flex-1">
+              {holdReason ?? '자체할부/리스로 진행 예정 — 사유를 선택해 주세요'}
+            </span>
+            <button
+              onClick={() => {
+                const found = HOLD_REASON_GROUPS.find(g => g.reasons.includes(holdReason ?? ''))
+                setPendingHoldCategory(found?.category ?? HOLD_REASON_GROUPS[0].category)
+                setPendingHoldReason(holdReason ?? '')
+                setShowHoldModal(true)
+              }}
+              className="text-[11px] text-amber-600 hover:text-amber-800 border border-amber-200 hover:border-amber-400 rounded-lg px-2 py-1 transition shrink-0">
+              {holdReason ? '사유 수정' : '사유 선택'}
+            </button>
             {renderReactivateActions()}
           </div>
         </div>
@@ -1920,6 +1961,56 @@ export default function LeadDetailClient({ deal, customer = null, products = [],
                 onClick={handleMarkLost}
                 className="flex-1 py-2 rounded-xl bg-red-600 text-white text-sm font-bold hover:bg-red-700 disabled:opacity-40 disabled:cursor-not-allowed transition">
                 이탈 처리
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 판매보류 사유 모달 */}
+      {showHoldModal && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
+          <div className="bg-white rounded-2xl shadow-xl p-6 w-full max-w-sm mx-4">
+            <h3 className="text-base font-bold text-slate-800 mb-1">판매보류 사유</h3>
+            <p className="text-xs text-slate-400 mb-4">보류 사유를 선택해 주세요</p>
+
+            <div className="flex gap-1.5 mb-3">
+              {HOLD_REASON_GROUPS.map(g => (
+                <button key={g.category} type="button"
+                  onClick={() => { setPendingHoldCategory(g.category); setPendingHoldReason('') }}
+                  className={`flex-1 px-3 py-2 rounded-lg text-xs font-semibold border transition-colors ${
+                    pendingHoldCategory === g.category
+                      ? 'bg-amber-600 text-white border-amber-600'
+                      : 'bg-white text-slate-500 border-slate-200 hover:border-slate-400'
+                  }`}>
+                  {g.category}
+                </button>
+              ))}
+            </div>
+
+            <div className="space-y-2">
+              {(HOLD_REASON_GROUPS.find(g => g.category === pendingHoldCategory)?.reasons ?? []).map(r => (
+                <button key={r} onClick={() => setPendingHoldReason(r)}
+                  className={`w-full text-left px-4 py-2.5 rounded-xl border text-sm transition
+                    ${pendingHoldReason === r
+                      ? 'bg-amber-50 border-amber-300 text-amber-700 font-semibold'
+                      : 'border-slate-200 text-slate-600 hover:border-slate-300 hover:bg-slate-50'}`}>
+                  {r}
+                </button>
+              ))}
+            </div>
+
+            <div className="flex gap-2 mt-5">
+              <button
+                onClick={() => { setShowHoldModal(false); setPendingHoldCategory(''); setPendingHoldReason('') }}
+                className="flex-1 py-2 rounded-xl border border-slate-200 text-sm text-slate-600 hover:bg-slate-50 transition">
+                취소
+              </button>
+              <button
+                disabled={!pendingHoldReason}
+                onClick={handleMarkHold}
+                className="flex-1 py-2 rounded-xl bg-amber-600 text-white text-sm font-bold hover:bg-amber-700 disabled:opacity-40 disabled:cursor-not-allowed transition">
+                저장
               </button>
             </div>
           </div>

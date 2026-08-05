@@ -54,6 +54,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
         ...(b.purchaseGoal     !== undefined && { purchaseGoal: b.purchaseGoal || null }),
         ...(b.keyFactors       !== undefined && { keyFactors: b.keyFactors || null }),
         ...(b.lostReason        !== undefined && { lostReason:        b.lostReason        || null }),
+        ...(b.holdReason        !== undefined && { holdReason:        b.holdReason        || null }),
         ...(b.stageCode         !== undefined && { stageCode:         b.stageCode         || null,
                                                                       stageChangedAt:     new Date() }),
         ...(b.checklistJson     !== undefined && { checklistJson:     b.checklistJson     || null }),
