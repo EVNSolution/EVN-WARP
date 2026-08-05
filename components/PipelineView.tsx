@@ -40,8 +40,6 @@ export interface PipelineDeal {
 
 interface Props {
   deals: PipelineDeal[]
-  salesTarget: number | null
-  linkedKpiLabel: string | null
   initialStage?: string | null
   initialSeg?: string | null
 }
@@ -383,7 +381,7 @@ function fmtMtgDate(iso: string) {
 type Tab = 'all' | 'b2c' | 'b2b'
 
 /* ── 메인 컴포넌트 ── */
-export default function PipelineView({ deals, salesTarget, linkedKpiLabel, initialStage, initialSeg }: Props) {
+export default function PipelineView({ deals, initialStage, initialSeg }: Props) {
   const [selectedCode, setSelectedCode] = useState<string | null>(initialStage ?? null)
   const [showLost,     setShowLost]     = useState(initialStage === '이탈')
   const [localDeals,   setLocalDeals]   = useState<PipelineDeal[]>(deals)
@@ -785,32 +783,6 @@ export default function PipelineView({ deals, salesTarget, linkedKpiLabel, initi
           전체 보기 · 진행중 {activeDeals.length}건
         </button>
 
-        {/* 판매목표 표시 (대시보드 KPI 연동) */}
-        <div className={`rounded-lg border px-3 py-2 mb-0.5 ${
-          salesTarget != null
-            ? 'bg-emerald-50 border-emerald-200'
-            : 'bg-slate-50 border-slate-200'
-        }`}>
-          <div className="flex items-center justify-between">
-            <span className="text-[10px] font-bold text-slate-500">이달 판매목표</span>
-            {salesTarget != null && (
-              <span className="text-[9px] text-emerald-600 font-medium truncate max-w-[100px]" title={linkedKpiLabel ?? ''}>
-                {linkedKpiLabel}
-              </span>
-            )}
-          </div>
-          {salesTarget != null ? (
-            <div className="flex items-baseline gap-1 mt-0.5">
-              <span className="text-xl font-black text-emerald-700 tabular-nums">{salesTarget}</span>
-              <span className="text-xs text-emerald-600">대</span>
-            </div>
-          ) : (
-            <p className="text-[10px] text-slate-400 mt-0.5">
-              대시보드 KPI 입력 후<br />퍼널 연동을 설정해주세요
-            </p>
-          )}
-        </div>
-
         {PIPELINE.map((phase, pi) => {
           const phaseCount = phase.processes.reduce((s, p) => s + (countByCode[p.code] ?? 0), 0)
           return (
@@ -838,11 +810,8 @@ export default function PipelineView({ deals, salesTarget, linkedKpiLabel, initi
                 {/* 프로세스 노드 */}
                 <div className="flex-1 flex flex-col">
                   {phase.processes.map((proc, idx) => {
-                    const count         = countByCode[proc.code] ?? 0
-                    const dynamicTarget = (salesTarget != null && proc.conversionRate > 0)
-                      ? Math.ceil(salesTarget / proc.conversionRate)
-                      : proc.target
-                    const status = getStatusColor(count, dynamicTarget)
+                    const count  = countByCode[proc.code] ?? 0
+                    const status = getStatusColor(count, proc.target)
                     const isSel  = selectedCode === proc.code
                     return (
                       <div key={proc.code} className="flex flex-col">
@@ -866,11 +835,9 @@ export default function PipelineView({ deals, salesTarget, linkedKpiLabel, initi
                                 <span className={`text-[12px] font-bold tabular-nums ${isSel ? 'text-white/90' : PHASE_ACCENT[phase.phase]}`}>
                                   {count}
                                 </span>
-                                {salesTarget != null && (
-                                  <span className={`text-[9px] tabular-nums ${isSel ? 'text-white/50' : 'text-slate-400'}`}>
-                                    /{dynamicTarget}
-                                  </span>
-                                )}
+                                <span className={`text-[9px] tabular-nums ${isSel ? 'text-white/50' : 'text-slate-400'}`}>
+                                  /{proc.target}
+                                </span>
                               </div>
                             </div>
                           </div>
