@@ -16,6 +16,7 @@ const adapter = new PrismaLibSql({ url: `file:${dbPath}` })
 const prisma = new PrismaClient({ adapter } as any)
 
 async function main() {
+  await prisma.$executeRawUnsafe('PRAGMA busy_timeout = 5000')
   const r = await prisma.$executeRaw`
     UPDATE "LeadMeeting"
     SET "filesJson" = REPLACE("filesJson", '/uploads/meetings/', '/api/uploads/meetings/')

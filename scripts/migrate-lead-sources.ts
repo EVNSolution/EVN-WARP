@@ -17,6 +17,7 @@ const adapter = new PrismaLibSql({ url: `file:${dbPath}` })
 const prisma = new PrismaClient({ adapter } as any)
 
 async function main() {
+  await prisma.$executeRawUnsafe('PRAGMA busy_timeout = 5000')
   const r1 = await prisma.$executeRaw`UPDATE "SalesDeal" SET "source" = '온라인' WHERE "source" = 'SNS'`
   const r2 = await prisma.$executeRaw`UPDATE "SalesDeal" SET "source" = '오프라인' WHERE "source" IN ('전시회', '로드쇼')`
   const r3 = await prisma.$executeRaw`UPDATE "SalesDeal" SET "source" = '소개인' WHERE "source" = 'Agent'`

@@ -6,6 +6,7 @@
 import { prisma } from '../lib/db'
 
 async function main() {
+  await prisma.$executeRawUnsafe('PRAGMA busy_timeout = 5000')
   const allTeams = await prisma.team.findMany({ orderBy: { createdAt: 'asc' } })
 
   // 이름별로 그룹화

@@ -7,7 +7,10 @@ const globalForPrisma = globalThis as unknown as { prisma: PrismaClient }
 function createPrisma() {
   const dbPath = path.resolve(process.cwd(), 'dev.db')
   const adapter = new PrismaLibSql({ url: `file:${dbPath}` })
-  return new PrismaClient({ adapter } as any)
+  const client = new PrismaClient({ adapter } as any)
+  // 배포 시 마이그레이션 스크립트와 동시에 쓰기가 몰릴 때 SQLITE_BUSY로 즉시 실패하지 않고 잠깐 재시도하도록 대기시간을 둔다
+  client.$executeRawUnsafe('PRAGMA busy_timeout = 5000').catch(() => {})
+  return client
 }
 
 export const prisma = globalForPrisma.prisma ?? createPrisma()

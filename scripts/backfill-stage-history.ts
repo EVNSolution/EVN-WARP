@@ -16,6 +16,7 @@ const adapter = new PrismaLibSql({ url: `file:${dbPath}` })
 const prisma = new PrismaClient({ adapter } as any)
 
 async function main() {
+  await prisma.$executeRawUnsafe('PRAGMA busy_timeout = 5000')
   const deals = await prisma.salesDeal.findMany({
     where: { stageCode: { not: null } },
     select: { id: true, stageCode: true, stageChangedAt: true, createdAt: true },
