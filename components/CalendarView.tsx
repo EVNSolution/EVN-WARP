@@ -104,12 +104,21 @@ interface Props {
   todayStr:     string
 }
 
+type FieldFilter = 'all' | 'activity' | 'leave' | 'vehicle'
+const FIELD_FILTERS: { key: FieldFilter; label: string }[] = [
+  { key: 'all',      label: '전체' },
+  { key: 'activity', label: '활동' },
+  { key: 'leave',    label: '근태' },
+  { key: 'vehicle',  label: '차량' },
+]
+
 export default function CalendarView({ weeks, activities, reservations, todayStr }: Props) {
   const router = useRouter()
   const [selected, setSelected]         = useState<CalActivity | null>(null)
   const [selectedResv, setSelectedResv] = useState<CalVehicleReservation | null>(null)
   const [showNewResv, setShowNewResv]   = useState(false)
   const [newResvDate, setNewResvDate]   = useState('')
+  const [fieldFilter, setFieldFilter]   = useState<FieldFilter>('all')
 
   const handleResvSaved = useCallback(() => router.refresh(), [router])
 
@@ -137,6 +146,19 @@ export default function CalendarView({ weeks, activities, reservations, todayStr
 
   return (
     <>
+      {/* ─── 표시 항목 필터 ─── */}
+      <div className="flex items-center gap-2 mb-3 flex-wrap">
+        <span className="text-xs font-semibold text-slate-500">표시</span>
+        {FIELD_FILTERS.map(f => (
+          <button key={f.key} type="button" onClick={() => setFieldFilter(f.key)}
+            className={`px-3 py-1 rounded-full text-xs font-semibold transition-colors ${
+              fieldFilter === f.key ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+            }`}>
+            {f.label}
+          </button>
+        ))}
+      </div>
+
       {/* ─── 캘린더 그리드 ─── */}
       <section className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
 
@@ -160,8 +182,14 @@ export default function CalendarView({ weeks, activities, reservations, todayStr
           <div key={wIdx} className="border-b border-slate-200 last:border-b-0">
             <div className="grid grid-cols-7 divide-x divide-slate-100">
               {week.map(({ dateStr, day, inMonth, dow }) => {
-                const dayActs  = actByDate.get(dateStr) ?? []
-                const dayResvs = resvForDate(dateStr)
+                const dayActs = fieldFilter === 'vehicle'
+                  ? []
+                  : (actByDate.get(dateStr) ?? []).filter(a => {
+                      if (fieldFilter === 'all') return true
+                      const isLeave = LEAVE_TYPES.has(a.type)
+                      return fieldFilter === 'leave' ? isLeave : !isLeave
+                    })
+                const dayResvs = (fieldFilter === 'activity' || fieldFilter === 'leave') ? [] : resvForDate(dateStr)
                 const isToday  = dateStr === todayStr
 
                 return (
