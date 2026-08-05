@@ -87,13 +87,29 @@ if ! grep -q '^AUTH_SECRET=' .env; then
   fi
 fi
 
+# 마이그레이션 스크립트 실행 중 아직 살아있는 이전 앱 프로세스와 SQLite 쓰기가 겹쳐
+# "database is locked"로 실패하는 경우가 있어, 짧게 대기 후 재시도한다
+run_with_retry() {
+  local attempts=0
+  local max=5
+  until "$@"; do
+    attempts=$((attempts + 1))
+    if [ "$attempts" -ge "$max" ]; then
+      echo "Command failed after $attempts attempts: $*" >&2
+      return 1
+    fi
+    echo "Command failed (attempt $attempts/$max) — retrying in 3s: $*"
+    sleep 3
+  done
+}
+
 npm ci
 npx prisma generate
 npx prisma db push --accept-data-loss
-npx tsx scripts/dedup-teams.ts
-npx tsx scripts/migrate-lead-sources.ts
-npx tsx scripts/migrate-meeting-upload-paths.ts
-npx tsx scripts/backfill-stage-history.ts
+run_with_retry npx tsx scripts/dedup-teams.ts
+run_with_retry npx tsx scripts/migrate-lead-sources.ts
+run_with_retry npx tsx scripts/migrate-meeting-upload-paths.ts
+run_with_retry npx tsx scripts/backfill-stage-history.ts
 
 admin_email="$(node -e "const fs=require('fs');const dotenv=require('dotenv');const e=dotenv.parse(fs.readFileSync('.env'));process.stdout.write(e.ADMIN_EMAIL||'')")"
 admin_password="$(node -e "const fs=require('fs');const dotenv=require('dotenv');const e=dotenv.parse(fs.readFileSync('.env'));process.stdout.write(e.ADMIN_PASSWORD||'')")"
@@ -108,17 +124,18 @@ const id = `user-${crypto.randomUUID()}`
 console.log('PRAGMA busy_timeout = 5000;')
 console.log(`INSERT INTO "User" ("id","name","email","password","role","createdAt","updatedAt") VALUES (${q(id)},${q(process.env.ADMIN_NAME)},${q(process.env.ADMIN_EMAIL)},${q(process.env.ADMIN_HASH)},${q(process.env.ADMIN_ROLE)},CURRENT_TIMESTAMP,CURRENT_TIMESTAMP) ON CONFLICT("email") DO UPDATE SET "name"=excluded."name", "password"=excluded."password", "role"=excluded."role", "updatedAt"=CURRENT_TIMESTAMP;`)
 NODE
-  npx prisma db execute --stdin < /tmp/evn-admin.sql
+  run_with_retry npx prisma db execute --file /tmp/evn-admin.sql
   echo "Admin user ensured: $admin_email"
 fi
 
 # WorkActivity 중 userId가 있고 userName이 없는 기존 데이터 백필
-npx prisma db execute --stdin <<'BACKFILL_SQL'
+cat > /tmp/evn-backfill.sql <<'BACKFILL_SQL'
 PRAGMA busy_timeout = 5000;
 UPDATE "WorkActivity"
 SET "userName" = (SELECT "name" FROM "User" WHERE "User"."id" = "WorkActivity"."userId")
 WHERE "userName" IS NULL AND "userId" IS NOT NULL;
 BACKFILL_SQL
+run_with_retry npx prisma db execute --file /tmp/evn-backfill.sql
 echo "Backfilled WorkActivity userName from userId"
 
 NODE_OPTIONS="--max-old-space-size=3072" npm run build
