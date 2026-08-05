@@ -227,6 +227,9 @@ export default function LeadDetailClient({ deal, customer = null, products = [],
   const [checksMap, setChecksMap] = useState<Record<string, import('@/lib/pipeline').PipelineCheck[]>>({})
   const [stageCode,   setStageCode]   = useState(deal.stageCode)
   const [salesStatus, setSalesStatus] = useState(deal.salesStatus)
+  const [reviving,    setReviving]    = useState(false)
+  const [converting,  setConverting]  = useState(false)
+  const [confirmingConvert, setConfirmingConvert] = useState(false)
   const [saving,      setSaving]      = useState(false)
   const [saved,       setSaved]       = useState(true)
   const [msg,         setMsg]         = useState('')
@@ -558,6 +561,40 @@ export default function LeadDetailClient({ deal, customer = null, products = [],
     setMsg('이탈 처리되었습니다')
     setTimeout(() => setMsg(''), 4000)
     startTransition(() => router.refresh())
+  }
+
+  /* ── 판매보류/이탈 → 다시 진행중으로 ── */
+  const handleRevive = async () => {
+    setReviving(true)
+    try {
+      await fetch(`/api/deals/${deal.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ salesStatus: '진행중' }),
+      })
+      setSalesStatus('진행중')
+      setMsg('다시 진행중 상태로 변경되었습니다')
+      setTimeout(() => setMsg(''), 4000)
+      startTransition(() => router.refresh())
+    } finally {
+      setReviving(false)
+    }
+  }
+
+  /* ── 판매보류/이탈 → 고객정보(CRM)로 전환: 파이프라인에서 내리고 고객 상세페이지의 "연결된 리드"로 남김 ── */
+  const handleConvertToCustomer = async () => {
+    setConverting(true)
+    try {
+      const res = await fetch(`/api/deals/${deal.id}/convert-to-customer`, { method: 'POST' })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error ?? '전환 실패')
+      router.push(`/customers/${data.customerId}`)
+    } catch (e: any) {
+      setMsg(e.message)
+      setTimeout(() => setMsg(''), 4000)
+      setConverting(false)
+      setConfirmingConvert(false)
+    }
   }
 
   /* ── 저장 ── */
@@ -1276,6 +1313,34 @@ export default function LeadDetailClient({ deal, customer = null, products = [],
   ).length
   const pct = totalChecks ? Math.round((doneChecks / totalChecks) * 100) : 0
 
+  /* ── 판매보류/이탈 상태에서 재분류 액션 (다시 진행중으로 / 고객정보로 전환) ── */
+  const renderReactivateActions = () => (
+    <div className="flex items-center gap-1.5 shrink-0">
+      <button onClick={handleRevive} disabled={reviving}
+        className="text-[11px] text-slate-500 hover:text-slate-700 border border-slate-200 hover:border-slate-400 rounded-lg px-2 py-1 transition disabled:opacity-50">
+        {reviving ? '처리 중...' : '다시 진행중으로'}
+      </button>
+      {!confirmingConvert ? (
+        <button onClick={() => setConfirmingConvert(true)}
+          className="text-[11px] text-indigo-500 hover:text-indigo-700 border border-indigo-200 hover:border-indigo-400 rounded-lg px-2 py-1 transition">
+          고객정보로 전환
+        </button>
+      ) : (
+        <span className="flex items-center gap-1">
+          <span className="text-[10px] text-slate-400 whitespace-nowrap">리드 목록에서 사라집니다</span>
+          <button onClick={handleConvertToCustomer} disabled={converting}
+            className="text-[11px] font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg px-2 py-1 transition disabled:opacity-50 whitespace-nowrap">
+            {converting ? '전환 중...' : '확인'}
+          </button>
+          <button onClick={() => setConfirmingConvert(false)}
+            className="text-[11px] text-slate-400 hover:text-slate-600 px-1">
+            취소
+          </button>
+        </span>
+      )}
+    </div>
+  )
+
   return (
     <div className="p-6 max-w-5xl mx-auto">
       {/* 알림 배너 */}
@@ -1468,6 +1533,7 @@ export default function LeadDetailClient({ deal, customer = null, products = [],
           <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 flex items-center gap-3">
             <span className="text-sm font-bold text-amber-700">판매방법 보류</span>
             <span className="text-xs text-amber-600 flex-1">자체할부/리스로 진행 예정 — 캐피탈/현금으로 바꾸면 자동으로 진행중 상태로 복귀합니다</span>
+            {renderReactivateActions()}
           </div>
         </div>
       )}
@@ -1494,6 +1560,7 @@ export default function LeadDetailClient({ deal, customer = null, products = [],
               className="text-[11px] text-red-400 hover:text-red-600 border border-red-200 hover:border-red-400 rounded-lg px-2 py-1 transition shrink-0">
               수정
             </button>
+            {renderReactivateActions()}
           </div>
         ) : (
           <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 flex items-center justify-between gap-3">

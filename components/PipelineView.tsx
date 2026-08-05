@@ -435,7 +435,7 @@ export default function PipelineView({ deals, salesTarget, linkedKpiLabel, initi
     return activeTab === 'b2c' ? seg === 'B2C' : seg === 'B2B'
   })
 
-  const activeDeals = tabDeals.filter(d => d.salesStatus !== '이탈' && d.salesStatus !== '완료' && d.salesStatus !== '판매보류')
+  const activeDeals = tabDeals.filter(d => d.salesStatus !== '이탈' && d.salesStatus !== '완료' && d.salesStatus !== '판매보류' && d.salesStatus !== '고객전환')
   const lostDeals   = tabDeals.filter(d => d.salesStatus === '이탈')
   const doneDeals   = tabDeals.filter(d => d.salesStatus === '완료')
   const holdDeals   = tabDeals.filter(d => d.salesStatus === '판매보류')
