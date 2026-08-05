@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Share2, X } from 'lucide-react'
+import { Share2, X, Link2, Check } from 'lucide-react'
 import AssigneePicker from '@/components/AssigneePicker'
 
 type Team = { id: string; name: string }
@@ -26,10 +26,22 @@ export default function ShareDealModal({ dealId, teams, onShared }: Props) {
   const [userName, setUserName] = useState('')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  const [copied, setCopied] = useState(false)
 
   function handleClose() {
     setOpen(false)
-    setTeamId(''); setUserName(''); setError(''); setMode('team')
+    setTeamId(''); setUserName(''); setError(''); setMode('team'); setCopied(false)
+  }
+
+  async function handleCopyLink() {
+    const url = `${window.location.origin}/funnel/${dealId}`
+    try {
+      await navigator.clipboard.writeText(url)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    } catch {
+      setError('링크 복사에 실패했습니다')
+    }
   }
 
   async function handleSave() {
@@ -69,6 +81,13 @@ export default function ShareDealModal({ dealId, teams, onShared }: Props) {
             </div>
 
             <div className="p-5 space-y-4">
+              <button type="button" onClick={handleCopyLink}
+                className={`w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold border transition-colors ${
+                  copied ? 'bg-emerald-50 text-emerald-600 border-emerald-200' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                }`}>
+                {copied ? <><Check size={13} /> 링크가 복사되었습니다</> : <><Link2 size={13} /> 리드 페이지 링크 복사</>}
+              </button>
+
               <div className="flex gap-1.5">
                 <button type="button" onClick={() => setMode('team')}
                   className={`flex-1 px-3 py-2 rounded-lg text-xs font-semibold border transition-colors ${
