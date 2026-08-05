@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { randomUUID } from 'crypto'
+import { toKstDate } from '@/lib/time'
 
 export async function GET(_: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -15,7 +16,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   try {
     const b = await req.json()
     const newId = randomUUID()
-    const meetingAt = b.meetingAt ? new Date(b.meetingAt).toISOString() : new Date().toISOString()
+    const meetingAt = b.meetingAt ? toKstDate(b.meetingAt).toISOString() : new Date().toISOString()
     const isPlan = b.isPlan ? 1 : 0
 
     await prisma.$executeRaw`

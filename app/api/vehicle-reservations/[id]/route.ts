@@ -1,13 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
+import { toKstDate } from '@/lib/time'
 
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const body = await req.json()
   const now  = new Date().toISOString()
 
-  const startIso = body.startAt ? new Date(body.startAt).toISOString() : undefined
-  const endIso   = body.endAt   ? new Date(body.endAt).toISOString()   : undefined
+  const startIso = body.startAt ? toKstDate(body.startAt).toISOString() : undefined
+  const endIso   = body.endAt   ? toKstDate(body.endAt).toISOString()   : undefined
 
   await prisma.$executeRaw`
     UPDATE "VehicleReservation" SET

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { auth } from '@/auth'
 import { randomUUID } from 'crypto'
+import { toKstDate } from '@/lib/time'
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url)
@@ -50,7 +51,7 @@ export async function POST(req: NextRequest) {
          "status","createdAt","updatedAt")
       VALUES
         (${id}, ${vehicleId}, ${me?.id ?? null}, ${resolvedName}, ${teamName ?? null},
-         ${purpose}, ${new Date(startAt).toISOString()}, ${new Date(endAt).toISOString()},
+         ${purpose}, ${toKstDate(startAt).toISOString()}, ${toKstDate(endAt).toISOString()},
          ${pickupLocation ?? null}, ${returnLocation ?? null}, ${notes ?? null},
          '신청', ${now}, ${now})
     `

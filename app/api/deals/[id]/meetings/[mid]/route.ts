@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
+import { toKstDate } from '@/lib/time'
 
 export async function DELETE(
   _: NextRequest,
@@ -16,7 +17,7 @@ export async function PATCH(
 ) {
   const { mid } = await params
   const b = await req.json()
-  const meetingAt = b.meetingAt ? new Date(b.meetingAt).toISOString() : new Date().toISOString()
+  const meetingAt = b.meetingAt ? toKstDate(b.meetingAt).toISOString() : new Date().toISOString()
   const duration  = b.duration  != null && b.duration !== '' ? Number(b.duration)  : null
 
   await prisma.$executeRaw`

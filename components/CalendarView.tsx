@@ -88,7 +88,7 @@ const TYPE_COLORS: Record<string, { bg: string; text: string }> = {
 }
 
 const DOW_KR = ['일', '월', '화', '수', '목', '금', '토']
-const LEAVE_TYPES = new Set(['연차', '반차', '오전반차', '오후반차', '공가'])
+const LEAVE_TYPES = new Set(['연차', '반차(오전)', '반차(오후)'])
 
 const RESV_STATUS_COLOR: Record<string, { bg: string; text: string }> = {
   '신청': { bg: 'bg-lime-100',   text: 'text-lime-700' },
