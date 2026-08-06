@@ -101,12 +101,17 @@ export async function PUT(req: NextRequest, ctx: RouteContext<'/api/a3/[id]'>) {
   return Response.json(updated)
 }
 
-export async function DELETE(_req: NextRequest, ctx: RouteContext<'/api/a3/[id]'>) {
-  const { id } = await ctx.params
-  const subCount = await prisma.strategyTask.count({ where: { parentId: id } })
-  if (subCount > 0) {
-    return Response.json({ error: '하부 과제가 있는 과제는 삭제할 수 없습니다. 먼저 하부 과제를 삭제해주세요.' }, { status: 400 })
+// 하부 과제를 포함해 재귀적으로 삭제 (자식부터 삭제해 FK 제약을 피한다)
+async function deleteTaskRecursive(id: string) {
+  const children = await prisma.strategyTask.findMany({ where: { parentId: id }, select: { id: true } })
+  for (const child of children) {
+    await deleteTaskRecursive(child.id)
   }
   await prisma.strategyTask.delete({ where: { id } })
+}
+
+export async function DELETE(_req: NextRequest, ctx: RouteContext<'/api/a3/[id]'>) {
+  const { id } = await ctx.params
+  await deleteTaskRecursive(id)
   return Response.json({ ok: true })
 }

@@ -12,7 +12,6 @@ interface Props {
 export default function DeleteTaskButton({ taskId, hasSubTasks }: Props) {
   const router = useRouter()
   const [showModal, setShowModal] = useState(false)
-  const [showBlocked, setShowBlocked] = useState(false)
   const [deleting, setDeleting] = useState(false)
 
   async function handleDelete() {
@@ -28,38 +27,11 @@ export default function DeleteTaskButton({ taskId, hasSubTasks }: Props) {
   return (
     <>
       <button
-        onClick={() => (hasSubTasks ? setShowBlocked(true) : setShowModal(true))}
+        onClick={() => setShowModal(true)}
         className="flex items-center gap-2 text-sm text-red-600 border border-red-200 bg-red-50 px-3 py-1.5 rounded-lg hover:bg-red-100 transition-colors font-medium"
       >
         <Trash2 size={14} /> 삭제
       </button>
-
-      {/* 하부과제 존재 - 삭제 차단 안내 */}
-      {showBlocked && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
-              <h2 className="text-base font-bold text-slate-900">삭제할 수 없습니다</h2>
-              <button onClick={() => setShowBlocked(false)} className="text-slate-400 hover:text-slate-600">
-                <X size={18} />
-              </button>
-            </div>
-            <div className="px-6 py-5">
-              <p className="text-sm text-slate-500">
-                하부 과제가 있는 과제는 삭제할 수 없습니다. 먼저 하부 과제를 삭제해주세요.
-              </p>
-            </div>
-            <div className="flex justify-end gap-3 px-6 py-4 border-t border-slate-100 bg-slate-50 rounded-b-2xl">
-              <button
-                onClick={() => setShowBlocked(false)}
-                className="px-4 py-2 text-sm font-medium text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-100 transition-colors"
-              >
-                확인
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* 삭제 확인 모달 */}
       {showModal && (
@@ -74,10 +46,15 @@ export default function DeleteTaskButton({ taskId, hasSubTasks }: Props) {
                 <X size={18} />
               </button>
             </div>
-            <div className="px-6 py-5">
+            <div className="px-6 py-5 space-y-2">
               <p className="text-sm text-slate-500">
                 이 전략과제를 삭제하시겠습니까? <span className="font-semibold text-red-500">삭제된 데이터는 되돌릴 수 없습니다.</span>
               </p>
+              {hasSubTasks && (
+                <p className="text-sm font-semibold text-red-500">
+                  하부 과제가 모두 함께 삭제됩니다.
+                </p>
+              )}
             </div>
             <div className="flex justify-end gap-3 px-6 py-4 border-t border-slate-100 bg-slate-50 rounded-b-2xl">
               <button
