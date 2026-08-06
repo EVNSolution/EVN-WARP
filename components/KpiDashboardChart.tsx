@@ -95,6 +95,19 @@ function MonthlyBars({ entries, currentMonth }: { entries: Entry[]; currentMonth
           </div>
         ))}
       </div>
+      {/* 월별 달성률 */}
+      <div className="flex gap-1 mt-1">
+        {months.map(({ month, target, actual }) => {
+          const mRate = target > 0 && actual != null ? Math.round(actual / target * 100) : null
+          return (
+            <div key={month} className="flex-1 text-center">
+              <span className="text-[10px] font-bold tabular-nums leading-none" style={{ color: rateColor(mRate) }}>
+                {mRate != null ? `${mRate}%` : '—'}
+              </span>
+            </div>
+          )
+        })}
+      </div>
     </div>
   )
 }
