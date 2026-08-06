@@ -4,8 +4,8 @@ import { useState } from 'react'
 
 const EVN_GREEN = '#C5D42A'
 const MONTHS    = ['1','2','3','4','5','6','7','8','9','10','11','12']
-const BAR_H        = 104  // 월별 차트 높이(px)
-const ANNUAL_BAR_H = 156  // 연간 차트 높이(px, 월별 × 1.5)
+const BAR_H        = 160  // 월별 차트 높이(px)
+const ANNUAL_BAR_H = 180  // 연간 차트 높이(px)
 
 interface Entry  { month: number; target: number | null; actual: number | null }
 interface KpiRow {
@@ -47,7 +47,7 @@ function MonthlyBars({ entries, currentMonth }: { entries: Entry[]; currentMonth
 
   return (
     <div className="mt-2">
-      <div className="flex items-end gap-px" style={{ height: BAR_H }}>
+      <div className="flex items-end gap-1" style={{ height: BAR_H }}>
         {months.map(({ month, target, actual }) => {
           const tPct  = (target / maxVal) * 100
           const aPct  = actual != null ? (actual / maxVal) * 100 : 0
@@ -55,14 +55,14 @@ function MonthlyBars({ entries, currentMonth }: { entries: Entry[]; currentMonth
           const ok    = actual != null && target > 0 && actual >= target
           return (
             <div key={month}
-              className="flex-1 flex items-end justify-center gap-px"
+              className="flex-1 flex items-end justify-center gap-0.5"
               style={{
                 height: '100%',
                 backgroundColor: isCur ? `${EVN_GREEN}18` : undefined,
                 borderRadius: 2,
               }}>
               {/* 목표 막대 */}
-              <div className="w-[42%] flex flex-col justify-end" style={{ height: '100%' }}>
+              <div className="w-[32%] flex flex-col justify-end" style={{ height: '100%' }}>
                 <div className="w-full rounded-t-sm"
                   style={{
                     height: `${tPct}%`,
@@ -71,7 +71,7 @@ function MonthlyBars({ entries, currentMonth }: { entries: Entry[]; currentMonth
                   }} />
               </div>
               {/* 실적 막대 */}
-              <div className="w-[42%] flex flex-col justify-end" style={{ height: '100%' }}>
+              <div className="w-[32%] flex flex-col justify-end" style={{ height: '100%' }}>
                 {actual != null
                   ? <div className="w-full rounded-t-sm"
                       style={{
@@ -86,11 +86,11 @@ function MonthlyBars({ entries, currentMonth }: { entries: Entry[]; currentMonth
         })}
       </div>
       {/* X축 */}
-      <div className="flex gap-px mt-0.5">
+      <div className="flex gap-1 mt-1">
         {MONTHS.map((m, i) => (
           <div key={i} className="flex-1 text-center">
-            <span className="text-[8px] leading-none"
-              style={{ color: i + 1 === currentMonth ? '#7a9200' : '#cbd5e1', fontWeight: i + 1 === currentMonth ? 700 : 400 }}>
+            <span className="text-[11px] leading-none"
+              style={{ color: i + 1 === currentMonth ? '#7a9200' : '#94a3b8', fontWeight: i + 1 === currentMonth ? 700 : 500 }}>
               {m}
             </span>
           </div>
@@ -105,29 +105,30 @@ function AnnualBars({ annualTgt, ytd }: { annualTgt: number; ytd: number }) {
   const maxVal = niceMax([annualTgt, ytd])
   const tPct   = (annualTgt / maxVal) * 100
   const aPct   = (ytd       / maxVal) * 100
+  const rate   = annualTgt > 0 ? Math.round(ytd / annualTgt * 100) : null
   const ok     = annualTgt > 0 && ytd >= annualTgt
-  const BAR_W  = 28   // px, 두 바만 있으므로 좀 굵게
+  const BAR_W  = 64   // px, 넓게
 
   return (
-    <div className="mt-2 flex items-end gap-3">
+    <div className="mt-2 flex items-center justify-center gap-8">
       {/* Y축 레이블 */}
-      <div className="flex flex-col justify-between text-right shrink-0" style={{ width: 32, height: ANNUAL_BAR_H }}>
-        <span className="text-[8px] text-slate-300 leading-none">{fmt(maxVal)}</span>
-        <span className="text-[8px] text-slate-300 leading-none">0</span>
+      <div className="flex flex-col justify-between text-right shrink-0" style={{ width: 34, height: ANNUAL_BAR_H }}>
+        <span className="text-[9px] text-slate-300 leading-none">{fmt(maxVal)}</span>
+        <span className="text-[9px] text-slate-300 leading-none">0</span>
       </div>
 
       {/* 막대 영역 */}
-      <div className="flex items-end gap-2" style={{ height: ANNUAL_BAR_H }}>
+      <div className="flex items-end gap-5" style={{ height: ANNUAL_BAR_H }}>
         {/* 연간 목표 */}
-        <div className="flex flex-col items-center gap-1">
+        <div className="flex flex-col items-center gap-1.5">
           <div className="flex items-end" style={{ height: ANNUAL_BAR_H }}>
             <div className="rounded-t-sm"
               style={{ width: BAR_W, height: `${tPct}%`, minHeight: annualTgt > 0 ? 2 : 0, backgroundColor: '#64748b' }} />
           </div>
-          <span className="text-[9px] text-slate-400 whitespace-nowrap">연간 목표</span>
+          <span className="text-[10px] text-slate-400 whitespace-nowrap">연간 목표</span>
         </div>
         {/* YTD 실적 */}
-        <div className="flex flex-col items-center gap-1">
+        <div className="flex flex-col items-center gap-1.5">
           <div className="flex items-end" style={{ height: ANNUAL_BAR_H }}>
             <div className="rounded-t-sm"
               style={{
@@ -137,14 +138,18 @@ function AnnualBars({ annualTgt, ytd }: { annualTgt: number; ytd: number }) {
                 backgroundColor: ok ? EVN_GREEN : '#ef4444',
               }} />
           </div>
-          <span className="text-[9px] text-slate-400 whitespace-nowrap">YTD 실적</span>
+          <span className="text-[10px] text-slate-400 whitespace-nowrap">YTD 실적</span>
         </div>
       </div>
 
-      {/* 수치 */}
-      <div className="flex flex-col justify-end gap-1 pb-5 text-[10px] text-slate-500">
-        <span>목표 <span className="font-bold text-slate-700">{annualTgt > 0 ? fmt(annualTgt) : '—'}</span></span>
-        <span>실적 <span className="font-bold" style={{ color: rateColor(annualTgt > 0 ? Math.round(ytd / annualTgt * 100) : null) }}>{fmt(ytd)}</span></span>
+      {/* 달성률 + 수치 */}
+      <div className="flex flex-col justify-end gap-1.5 pb-7 text-[11px] text-slate-500 shrink-0">
+        <span className="text-[10px] text-slate-400">달성률</span>
+        <span className="text-3xl font-black tabular-nums leading-none" style={{ color: rateColor(rate) }}>
+          {rate != null ? `${rate}%` : '—'}
+        </span>
+        <span className="mt-1">목표 <span className="font-bold text-slate-700">{annualTgt > 0 ? fmt(annualTgt) : '—'}</span></span>
+        <span>실적 <span className="font-bold" style={{ color: rateColor(rate) }}>{fmt(ytd)}</span></span>
       </div>
     </div>
   )
