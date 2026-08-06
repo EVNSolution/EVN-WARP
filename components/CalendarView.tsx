@@ -146,7 +146,7 @@ export default function CalendarView({ weeks, activities, reservations, todayStr
 
   return (
     <>
-      {/* ─── 표시 항목 필터 ─── */}
+      {/* ─── 표시 항목 필터 + 차량 신청 ─── */}
       <div className="flex items-center gap-2 mb-3 flex-wrap">
         <span className="text-xs font-semibold text-slate-500">표시</span>
         {FIELD_FILTERS.map(f => (
@@ -157,20 +157,16 @@ export default function CalendarView({ weeks, activities, reservations, todayStr
             {f.label}
           </button>
         ))}
+        <button
+          onClick={() => openNewResv(todayStr)}
+          className="ml-auto flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-semibold text-lime-700 bg-white border border-lime-200 rounded-lg hover:bg-lime-50 transition-colors">
+          <Car size={11} />
+          차량 신청
+        </button>
       </div>
 
       {/* ─── 캘린더 그리드 ─── */}
       <section className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
-
-        {/* 차량 신청 버튼 */}
-        <div className="flex justify-end px-2 py-1.5 border-b border-slate-200 bg-slate-50">
-          <button
-            onClick={() => openNewResv(todayStr)}
-            className="flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-semibold text-lime-700 bg-white border border-lime-200 rounded-lg hover:bg-lime-50 transition-colors">
-            <Car size={11} />
-            차량 신청
-          </button>
-        </div>
 
         {/* 요일 헤더 */}
         <div className="grid grid-cols-7 border-b border-slate-200 bg-slate-50">
