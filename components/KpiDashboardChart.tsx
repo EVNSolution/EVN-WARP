@@ -102,7 +102,9 @@ function MonthlyBars({ entries, currentMonth }: { entries: Entry[]; currentMonth
 
 /* ── 연간 바차트 (연간목표 vs YTD) ── */
 function AnnualBars({ annualTgt, ytd }: { annualTgt: number; ytd: number }) {
-  const maxVal = niceMax([annualTgt, ytd])
+  // "적당히 둥근 값"이 아니라 이 KPI의 실제 목표치에 맞춰 축 최대값을 잡는다
+  // (목표를 초과 달성한 경우에만 실적 쪽으로 확장)
+  const maxVal = Math.max(annualTgt, ytd, 1)
   const tPct   = (annualTgt / maxVal) * 100
   const aPct   = (ytd       / maxVal) * 100
   const rate   = annualTgt > 0 ? Math.round(ytd / annualTgt * 100) : null
@@ -112,9 +114,9 @@ function AnnualBars({ annualTgt, ytd }: { annualTgt: number; ytd: number }) {
   return (
     <div className="mt-2 flex items-center justify-center gap-8">
       {/* Y축 레이블 */}
-      <div className="flex flex-col justify-between text-right shrink-0" style={{ width: 34, height: ANNUAL_BAR_H }}>
-        <span className="text-[9px] text-slate-300 leading-none">{fmt(maxVal)}</span>
-        <span className="text-[9px] text-slate-300 leading-none">0</span>
+      <div className="flex flex-col justify-between text-right shrink-0" style={{ width: 44, height: ANNUAL_BAR_H }}>
+        <span className="text-[12px] text-slate-400 leading-none">{fmt(maxVal)}</span>
+        <span className="text-[12px] text-slate-400 leading-none">0</span>
       </div>
 
       {/* 막대 영역 */}
@@ -125,7 +127,7 @@ function AnnualBars({ annualTgt, ytd }: { annualTgt: number; ytd: number }) {
             <div className="rounded-t-sm"
               style={{ width: BAR_W, height: `${tPct}%`, minHeight: annualTgt > 0 ? 2 : 0, backgroundColor: '#64748b' }} />
           </div>
-          <span className="text-[10px] text-slate-400 whitespace-nowrap">연간 목표</span>
+          <span className="text-[12px] text-slate-500 whitespace-nowrap">연간 목표</span>
         </div>
         {/* YTD 실적 */}
         <div className="flex flex-col items-center gap-1.5">
@@ -138,13 +140,13 @@ function AnnualBars({ annualTgt, ytd }: { annualTgt: number; ytd: number }) {
                 backgroundColor: ok ? EVN_GREEN : '#ef4444',
               }} />
           </div>
-          <span className="text-[10px] text-slate-400 whitespace-nowrap">YTD 실적</span>
+          <span className="text-[12px] text-slate-500 whitespace-nowrap">YTD 실적</span>
         </div>
       </div>
 
       {/* 달성률 + 수치 */}
-      <div className="flex flex-col justify-end gap-1.5 pb-7 text-[11px] text-slate-500 shrink-0">
-        <span className="text-[10px] text-slate-400">달성률</span>
+      <div className="flex flex-col justify-end gap-1.5 pb-7 text-[13px] text-slate-500 shrink-0">
+        <span className="text-[11px] text-slate-400">달성률</span>
         <span className="text-3xl font-black tabular-nums leading-none" style={{ color: rateColor(rate) }}>
           {rate != null ? `${rate}%` : '—'}
         </span>
