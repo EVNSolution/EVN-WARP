@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { writeFile, mkdir } from 'fs/promises'
-import { existsSync } from 'fs'
 import path from 'path'
 import { randomUUID } from 'crypto'
 import { prisma } from '@/lib/db'
+
+const UPLOADS_DIR = process.env.UPLOADS_DIR ?? path.join(process.cwd(), 'uploads')
 
 // GET /api/deals/[id]/documents
 export async function GET(
@@ -35,14 +36,14 @@ export async function POST(
     return NextResponse.json({ error: 'Missing fields' }, { status: 400 })
   }
 
-  const dir = path.join(process.cwd(), 'public', 'uploads', 'deals', id)
-  if (!existsSync(dir)) await mkdir(dir, { recursive: true })
+  const dir = path.join(UPLOADS_DIR, 'deals', id)
+  await mkdir(dir, { recursive: true })
 
   const ext        = path.extname(file.name)
   const storedName = `${randomUUID()}${ext}`
-  const filePath   = path.join(dir, storedName)
+  const destPath   = path.join(dir, storedName)
   const buffer     = Buffer.from(await file.arrayBuffer())
-  await writeFile(filePath, buffer)
+  await writeFile(destPath, buffer)
 
   const doc = await prisma.dealDocument.create({
     data: {
@@ -52,7 +53,7 @@ export async function POST(
       docLabel,
       fileName:   file.name,
       storedName,
-      filePath:   `/uploads/deals/${id}/${storedName}`,
+      filePath:   `/api/uploads/deals/${id}/${storedName}`,
       fileSize:   file.size,
       mimeType:   file.type,
     },
