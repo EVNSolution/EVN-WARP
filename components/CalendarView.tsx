@@ -162,19 +162,23 @@ export default function CalendarView({ weeks, activities, reservations, todayStr
       {/* ─── 캘린더 그리드 ─── */}
       <section className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
 
-        {/* 요일 헤더 + 차량 신청 버튼 */}
-        <div className="relative grid grid-cols-7 border-b border-slate-200 bg-slate-50">
+        {/* 차량 신청 버튼 */}
+        <div className="flex justify-end px-2 py-1.5 border-b border-slate-200 bg-slate-50">
+          <button
+            onClick={() => openNewResv(todayStr)}
+            className="flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-semibold text-lime-700 bg-white border border-lime-200 rounded-lg hover:bg-lime-50 transition-colors">
+            <Car size={11} />
+            차량 신청
+          </button>
+        </div>
+
+        {/* 요일 헤더 */}
+        <div className="grid grid-cols-7 border-b border-slate-200 bg-slate-50">
           {DOW_KR.map((d, i) => (
             <div key={i} className={`text-center py-2.5 text-xs font-bold tracking-wider ${
               i === 0 ? 'text-red-400' : i === 6 ? 'text-blue-400' : 'text-slate-500'
             }`}>{d}</div>
           ))}
-          <button
-            onClick={() => openNewResv(todayStr)}
-            className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-semibold text-lime-700 bg-white border border-lime-200 rounded-lg hover:bg-lime-50 transition-colors">
-            <Car size={11} />
-            차량 신청
-          </button>
         </div>
 
         {/* 주 행 */}
