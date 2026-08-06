@@ -1094,10 +1094,14 @@ export default function LeadDetailClient({ deal, customer = null, products = [],
                                     [atKey]: selecting ? new Date().toISOString() : '',
                                   }
                                 })
-                                // 판매방법을 자체할부/리스로 선택하면 판매보류로, 다시 캐피탈/현금으로 바꾸면 진행중으로 자동 전환
+                                // 판매방법을 '판매보류'로 선택하면 판매보류 상태로 전환하고 바로 보류 사유를 묻는다
+                                // (다시 캐피탈/현금으로 바꾸면 진행중으로 자동 복귀)
                                 if (c.key === SALE_HOLD_CHECK_KEY) {
                                   if (SALE_HOLD_TRIGGER_OPTS.includes(opt)) {
                                     setSalesStatus('판매보류')
+                                    setPendingHoldCategory(HOLD_REASON_GROUPS[0].category)
+                                    setPendingHoldReason('')
+                                    setShowHoldModal(true)
                                   } else if (salesStatus === '판매보류') {
                                     setSalesStatus('진행중')
                                   }

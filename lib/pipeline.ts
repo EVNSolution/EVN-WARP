@@ -90,7 +90,7 @@ export const PIPELINE: PipelinePhase[] = [
           { key: '1-3-4', label: '자금조달방법 확인',   opts: ['여유자금', '캐피탈', '중고차매각', '직접입력'], multiSelect: true },
           { key: '1-3-5', label: '신용평가 필요서류 확보' },
           { key: '1-3-6', label: '사전 신용조회 (캐피탈업체)' },
-          { key: '1-3-7', label: '판매방법 확정', opts: ['캐피탈', '현금', '자체할부', '리스'] },
+          { key: '1-3-7', label: '판매방법 확정', opts: ['캐피탈', '현금', '판매보류'] },
           { key: '1-3-1', label: '차량 / 특장 옵션 확정', extLink: 'buildup-ev' },
           { key: '1-3-2', label: '견적서 발행' },
           { key: '2-1-0', label: '특장계약서 작성' },
@@ -243,9 +243,9 @@ export const PIPELINE: PipelinePhase[] = [
 ]
 
 // '판매방법 확정'(1-3-7)에서 이 옵션을 선택하면 salesStatus가 자동으로 "판매보류"로 전환된다
-// (캐피탈/현금 실행이 불가능해 자체할부·리스로 진행하는 리드는 이탈이 아니라 별도 보류 상태로 관리)
+// (캐피탈/현금 실행이 불가능한 리드는 이탈이 아니라 별도 보류 상태로 관리 — 구체적인 보류 사유는 별도 모달에서 선택)
 export const SALE_HOLD_CHECK_KEY = '1-3-7'
-export const SALE_HOLD_TRIGGER_OPTS = ['자체할부', '리스']
+export const SALE_HOLD_TRIGGER_OPTS = ['판매보류']
 
 // 기존 stage 값 → stageCode 매핑 (기존 데이터 호환)
 export const OLD_STAGE_TO_CODE: Record<string, string> = {
