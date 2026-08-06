@@ -20,13 +20,12 @@ function fmt(v: number): string {
   return v.toLocaleString()
 }
 
-function niceMax(vals: number[]): number {
+// "적당히 둥근 값"으로 반올림하지 않고 실제 값에 약간의 여유(8%)만 둔다 —
+// 반올림 폭이 크면(예: 30 → 50) 막대가 축 대비 작게 보이는 문제가 생긴다
+function chartMax(vals: number[]): number {
   const pos = vals.filter(v => v > 0)
   if (!pos.length) return 1
-  const raw = Math.max(...pos) * 1.15
-  const mag = Math.pow(10, Math.floor(Math.log10(raw)))
-  const n   = raw / mag
-  return (n <= 1 ? 1 : n <= 2 ? 2 : n <= 5 ? 5 : 10) * mag
+  return Math.max(...pos) * 1.08
 }
 
 function rateColor(rate: number | null): string {
@@ -43,7 +42,7 @@ function MonthlyBars({ entries, currentMonth }: { entries: Entry[]; currentMonth
     const e = entries.find(en => en.month === i + 1)
     return { month: i + 1, target: e?.target ?? 0, actual: e?.actual ?? null }
   })
-  const maxVal = niceMax(months.flatMap(m => [m.target, m.actual ?? 0]))
+  const maxVal = chartMax(months.flatMap(m => [m.target, m.actual ?? 0]))
 
   return (
     <div className="mt-2">
