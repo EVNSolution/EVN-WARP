@@ -790,16 +790,19 @@ export default function PipelineView({ deals, salesTarget, initialStage, initial
             ? 'bg-emerald-50 border-emerald-200'
             : 'bg-slate-50 border-slate-200'
         }`}>
-          <span className="text-[10px] font-bold text-slate-500">이달 판매목표</span>
           {salesTarget != null ? (
-            <div className="flex items-baseline gap-1 mt-0.5">
+            <div className="flex items-baseline gap-1.5">
+              <span className="text-[10px] font-bold text-slate-500">이달 판매목표</span>
               <span className="text-xl font-black text-emerald-700 tabular-nums">{salesTarget}</span>
               <span className="text-xs text-emerald-600">대</span>
             </div>
           ) : (
-            <p className="text-[10px] text-slate-400 mt-0.5">
-              대시보드 KPI 입력 후<br />퍼널 연동을 설정해주세요
-            </p>
+            <div className="flex items-baseline gap-1.5">
+              <span className="text-[10px] font-bold text-slate-500 shrink-0">이달 판매목표</span>
+              <span className="text-[10px] text-slate-400">
+                대시보드 KPI 입력 후 퍼널 연동을 설정해주세요
+              </span>
+            </div>
           )}
         </div>
 
