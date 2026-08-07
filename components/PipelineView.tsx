@@ -831,8 +831,8 @@ export default function PipelineView({ deals, salesTarget, initialStage, initial
                 </div>
 
                 {/* 프로세스 노드 */}
-                <div className="flex-1 flex flex-col">
-                  {phase.processes.map((proc, idx) => {
+                <div className="flex-1 flex flex-col gap-1">
+                  {phase.processes.map((proc) => {
                     const count         = countByCode[proc.code] ?? 0
                     const dynamicTarget = (salesTarget != null && proc.conversionRate > 0)
                       ? Math.ceil(salesTarget / proc.conversionRate)
@@ -870,14 +870,6 @@ export default function PipelineView({ deals, salesTarget, initialStage, initial
                             </div>
                           </div>
                         </button>
-                        {/* 단계 내 화살표: 작은 채운 삼각형 */}
-                        {idx < phase.processes.length - 1 && (
-                          <div className="flex justify-center items-center h-5">
-                            <svg width="10" height="5" viewBox="0 0 10 5">
-                              <path d="M0 0 L10 0 L5 5 Z" fill="#cbd5e1"/>
-                            </svg>
-                          </div>
-                        )}
                       </div>
                     )
                   })}
