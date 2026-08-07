@@ -4,6 +4,17 @@ import { useState, useMemo, useEffect, useRef } from 'react'
 import { formatPhone, hasPlateSpacing, unknownCustomerName } from '@/lib/format'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
+import { Phone, Truck } from 'lucide-react'
+
+/** "미상(...)" 이름에 박아둔 이모지 아이콘(📞/🚚)을 실제 아이콘 컴포넌트로 보여주기 위한 파싱 */
+function unknownNameIcon(name: string) {
+  if (name.includes('📞')) return Phone
+  if (name.includes('🚚')) return Truck
+  return null
+}
+function stripUnknownNameIcon(name: string) {
+  return name.replace(/📞|🚚/g, '').replace(/\s+/g, ' ').trim()
+}
 
 type Lead = { id: string; stageCode: string; salesStatus: string }
 type Activity = { id: string; date: string; type: string }
@@ -319,17 +330,20 @@ export default function CustomerListClient({ customers: initial }: Props) {
                     onClick={() => router.push(`/customers/${c.id}`)}>
                     {visCols.map(vc => {
                       switch (vc.key) {
-                        case 'name':
+                        case 'name': {
+                          const Icon = unknownNameIcon(c.name)
                           return (
                             <td key="name" className="px-3 py-2.5 truncate">
                               <div className="flex items-center gap-1.5 min-w-0">
-                                <span className="font-semibold text-slate-800 truncate">{c.name}</span>
+                                {Icon && <Icon size={12} className="text-slate-400 shrink-0" />}
+                                <span className="font-semibold text-slate-800 truncate">{stripUnknownNameIcon(c.name)}</span>
                                 {(c.customerSegment ?? 'B2C') === 'B2B'
                                   ? <span className="shrink-0 px-1.5 py-0.5 rounded text-[9px] font-bold bg-violet-100 text-violet-700">법인</span>
                                   : <span className="shrink-0 px-1.5 py-0.5 rounded text-[9px] font-bold bg-sky-50 text-sky-600">개인</span>}
                               </div>
                             </td>
                           )
+                        }
                         case 'phone':
                           return <td key="phone" className="px-3 py-2.5 text-slate-500 truncate">{c.phone ?? '—'}</td>
                         case 'segment':
