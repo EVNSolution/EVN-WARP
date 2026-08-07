@@ -3,7 +3,7 @@
 import { useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { Plus, X, ExternalLink, Mail, Car } from 'lucide-react'
+import { Plus, X, ExternalLink, Mail, Car, Pencil, Trash2 } from 'lucide-react'
 import VehicleReservationModal from './VehicleReservationModal'
 
 export type CalActivity = {
@@ -119,8 +119,22 @@ export default function CalendarView({ weeks, activities, reservations, todayStr
   const [showNewResv, setShowNewResv]   = useState(false)
   const [newResvDate, setNewResvDate]   = useState('')
   const [fieldFilter, setFieldFilter]   = useState<FieldFilter>('all')
+  const [editingResv, setEditingResv]   = useState<CalVehicleReservation | null>(null)
+  const [deletingResv, setDeletingResv] = useState(false)
 
   const handleResvSaved = useCallback(() => router.refresh(), [router])
+
+  const handleResvDelete = useCallback(async (id: string) => {
+    if (!confirm('이 차량 신청을 삭제하시겠습니까?')) return
+    setDeletingResv(true)
+    try {
+      await fetch(`/api/vehicle-reservations/${id}`, { method: 'DELETE' })
+      setSelectedResv(null)
+      router.refresh()
+    } finally {
+      setDeletingResv(false)
+    }
+  }, [router])
 
   // 예약이 해당 날짜에 겹치는지 확인
   function resvForDate(dateStr: string): CalVehicleReservation[] {
@@ -444,6 +458,16 @@ export default function CalendarView({ weeks, activities, reservations, todayStr
             </div>
 
             <div className="flex gap-2 justify-end px-6 py-4 border-t border-slate-100 bg-slate-50/60">
+              <button onClick={() => handleResvDelete(selectedResv.id)} disabled={deletingResv}
+                className="flex items-center gap-1.5 px-4 py-1.5 text-sm text-red-500 border border-red-200 rounded-lg hover:bg-red-50 transition-colors disabled:opacity-50">
+                <Trash2 size={13} />
+                {deletingResv ? '삭제 중…' : '삭제'}
+              </button>
+              <button onClick={() => { setEditingResv(selectedResv); setSelectedResv(null) }}
+                className="flex items-center gap-1.5 px-4 py-1.5 text-sm text-lime-700 border border-lime-200 rounded-lg hover:bg-lime-50 transition-colors">
+                <Pencil size={13} />
+                수정
+              </button>
               <button onClick={() => setSelectedResv(null)}
                 className="px-4 py-1.5 text-sm text-slate-500 border border-slate-200 rounded-lg hover:bg-white transition-colors">
                 닫기
@@ -458,6 +482,25 @@ export default function CalendarView({ weeks, activities, reservations, todayStr
         <VehicleReservationModal
           initialDate={newResvDate}
           onClose={() => setShowNewResv(false)}
+          onSaved={handleResvSaved}
+        />
+      )}
+
+      {/* ─── 차량 예약 수정 모달 ─── */}
+      {editingResv && (
+        <VehicleReservationModal
+          reservation={{
+            id:             editingResv.id,
+            vehicleId:      editingResv.vehicleId,
+            purpose:        editingResv.purpose,
+            startAt:        editingResv.startAt,
+            endAt:          editingResv.endAt,
+            pickupLocation: editingResv.pickupLocation,
+            returnLocation: editingResv.returnLocation,
+            notes:          editingResv.notes,
+            userName:       editingResv.userName,
+          }}
+          onClose={() => setEditingResv(null)}
           onSaved={handleResvSaved}
         />
       )}

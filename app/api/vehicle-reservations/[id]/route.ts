@@ -12,6 +12,8 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
 
   await prisma.$executeRaw`
     UPDATE "VehicleReservation" SET
+      vehicleId      = COALESCE(${body.vehicleId       ?? null}, vehicleId),
+      userName       = COALESCE(${body.userName        ?? null}, userName),
       purpose        = COALESCE(${body.purpose        ?? null}, purpose),
       startAt        = COALESCE(${startIso            ?? null}, startAt),
       endAt          = COALESCE(${endIso              ?? null}, endAt),

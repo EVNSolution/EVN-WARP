@@ -18,8 +18,21 @@ export type ResvFormData = {
   userName: string
 }
 
+export type ExistingReservation = {
+  id: string
+  vehicleId: string
+  purpose: string
+  startAt: string
+  endAt: string
+  pickupLocation: string | null
+  returnLocation: string | null
+  notes: string | null
+  userName: string
+}
+
 interface Props {
   initialDate?: string
+  reservation?: ExistingReservation   // 있으면 수정 모드
   onClose: () => void
   onSaved: () => void
 }
@@ -29,12 +42,36 @@ const EMPTY: ResvFormData = {
   endDate: '', endTime: '18:00', pickupLocation: '', returnLocation: '', notes: '', userName: '',
 }
 
-export default function VehicleReservationModal({ initialDate, onClose, onSaved }: Props) {
+function splitIso(iso: string): { date: string; time: string } {
+  const d = new Date(iso)
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return {
+    date: `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`,
+    time: `${pad(d.getHours())}:${pad(d.getMinutes())}`,
+  }
+}
+
+export default function VehicleReservationModal({ initialDate, reservation, onClose, onSaved }: Props) {
+  const isEdit = !!reservation
   const [vehicles, setVehicles] = useState<Vehicle[]>([])
-  const [form, setForm] = useState<ResvFormData>({
-    ...EMPTY,
-    startDate: initialDate ?? '',
-    endDate:   initialDate ?? '',
+  const [form, setForm] = useState<ResvFormData>(() => {
+    if (reservation) {
+      const s = splitIso(reservation.startAt)
+      const e = splitIso(reservation.endAt)
+      return {
+        vehicleId:      reservation.vehicleId,
+        purpose:        reservation.purpose,
+        startDate:      s.date,
+        startTime:      s.time,
+        endDate:        e.date,
+        endTime:        e.time,
+        pickupLocation: reservation.pickupLocation ?? '',
+        returnLocation: reservation.returnLocation ?? '',
+        notes:          reservation.notes ?? '',
+        userName:       reservation.userName ?? '',
+      }
+    }
+    return { ...EMPTY, startDate: initialDate ?? '', endDate: initialDate ?? '' }
   })
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -59,20 +96,23 @@ export default function VehicleReservationModal({ initialDate, onClose, onSaved 
 
     setSaving(true)
     try {
-      const res = await fetch('/api/vehicle-reservations', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          vehicleId:      form.vehicleId,
-          purpose:        form.purpose,
-          startAt,
-          endAt,
-          pickupLocation: form.pickupLocation || null,
-          returnLocation: form.returnLocation || null,
-          notes:          form.notes         || null,
-          userName:       form.userName      || undefined,
-        }),
-      })
+      const res = await fetch(
+        isEdit ? `/api/vehicle-reservations/${reservation!.id}` : '/api/vehicle-reservations',
+        {
+          method: isEdit ? 'PUT' : 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            vehicleId:      form.vehicleId,
+            purpose:        form.purpose,
+            startAt,
+            endAt,
+            pickupLocation: form.pickupLocation || null,
+            returnLocation: form.returnLocation || null,
+            notes:          form.notes         || null,
+            userName:       form.userName      || undefined,
+          }),
+        }
+      )
       if (!res.ok) {
         const j = await res.json().catch(() => ({}))
         throw new Error(j.error ?? '저장 실패')
@@ -96,7 +136,7 @@ export default function VehicleReservationModal({ initialDate, onClose, onSaved 
         <div className="flex items-center justify-between px-6 pt-5 pb-4 bg-lime-50 border-b border-lime-100">
           <div className="flex items-center gap-2">
             <Car size={16} className="text-lime-700" />
-            <h2 className="text-sm font-bold text-lime-800">차량 신청</h2>
+            <h2 className="text-sm font-bold text-lime-800">{isEdit ? '차량 예약 수정' : '차량 신청'}</h2>
           </div>
           <button onClick={onClose}
             className="w-7 h-7 flex items-center justify-center rounded-full bg-white/70 hover:bg-white transition-colors">
@@ -229,7 +269,7 @@ export default function VehicleReservationModal({ initialDate, onClose, onSaved 
           <button onClick={handleSave} disabled={saving}
             className="flex items-center gap-1.5 px-4 py-1.5 text-sm text-white bg-lime-600 hover:bg-lime-700 rounded-lg transition-colors disabled:opacity-60">
             <Save size={13} />
-            {saving ? '신청 중…' : '신청하기'}
+            {isEdit ? (saving ? '저장 중…' : '저장하기') : (saving ? '신청 중…' : '신청하기')}
           </button>
         </div>
       </div>
