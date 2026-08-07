@@ -4,7 +4,7 @@ import { useState } from 'react'
 import Link from 'next/link'
 import AssigneePicker from '@/components/AssigneePicker'
 import { useRouter } from 'next/navigation'
-import { formatPhone } from '@/lib/format'
+import { formatPhone, hasPlateSpacing, plateLast4 } from '@/lib/format'
 
 const SOURCES  = ['소개', '온라인', '전시장/이벤트', '직접방문', '전단지/명함', '기타']
 const CONTACT_TITLES = ['대표이사', '사장', '부사장', '전무이사', '상무이사', '이사', '본부장', '실장', '부장', '차장', '과장', '팀장', '파트장', '대리', '책임', '주임', '사원']
@@ -471,7 +471,12 @@ export default function CustomerDetailClient({ customer, returnTo }: { customer:
                     <div className="flex items-center justify-between mb-1.5">
                       <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest">고객명 *</label>
                       <button type="button"
-                        onClick={() => setFv('name', f.vehiclePlateNo.trim() ? `미상(${f.vehiclePlateNo.trim()})` : '미상')}
+                        onClick={() => {
+                          const region = f.regionDist || f.regionCity || ''
+                          const last4  = plateLast4(f.vehiclePlateNo)
+                          const parts  = [region, last4].filter(Boolean)
+                          setFv('name', parts.length ? `미상(${parts.join(' ')})` : '미상')
+                        }}
                         className="text-[10px] font-semibold text-slate-400 hover:text-slate-600 border border-slate-200 rounded-full px-2 py-0.5 transition">
                         이름을 모를 때 · 신원미상
                       </button>
@@ -603,7 +608,13 @@ export default function CustomerDetailClient({ customer, returnTo }: { customer:
                     )}
                   </div>
                   <div>{label('차량명')}{input('vehicleName', '예: 메가트럭, 파비스')}</div>
-                  <div>{label('차량번호')}{input('vehiclePlateNo', '예: 12가3456')}</div>
+                  <div>
+                    {label('차량번호')}
+                    <input value={f.vehiclePlateNo} onChange={e => setFv('vehiclePlateNo', e.target.value)}
+                      onBlur={e => { if (!hasPlateSpacing(e.target.value)) alert('차량번호 끝 4자리 앞에 띄어쓰기를 추가해주세요. (예: 97보 8003)') }}
+                      placeholder="예: 97보 8003"
+                      className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-slate-300" />
+                  </div>
                   <div>{label('연식')}{input('vehicleYear', '예: 2020')}</div>
                   <div>
                     {label('주행거리 (km)')}
@@ -613,7 +624,7 @@ export default function CustomerDetailClient({ customer, returnTo }: { customer:
                   <div className="col-span-2">
                     {label('차종 분류')}
                     <div className="grid grid-cols-2 gap-3">
-                      <div><p className="text-[10px] text-slate-400 mb-1">구분1 · 형태</p>{chips('truckType1', ['탑', '벤'], true)}</div>
+                      <div><p className="text-[10px] text-slate-400 mb-1">구분1 · 형태</p>{chips('truckType1', ['탑', '벤', '오픈배드'], true)}</div>
                       <div><p className="text-[10px] text-slate-400 mb-1">구분2 · 연료</p>{chips('truckType2', ['경유', '가스', '전기'], true)}</div>
                       <div><p className="text-[10px] text-slate-400 mb-1">구분3 · 적재함</p>{chips('truckType3', ['건탑', '냉동', '냉장'], true)}</div>
                       <div><p className="text-[10px] text-slate-400 mb-1">구분4 · 높이</p>{chips('truckType4', ['저상', '표준', '하이탑'], true)}</div>

@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useMemo, useEffect, useRef } from 'react'
-import { formatPhone } from '@/lib/format'
+import { formatPhone, hasPlateSpacing, plateLast4 } from '@/lib/format'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 
@@ -490,7 +490,7 @@ function NewCustomerModal({ onClose, onCreated }: { onClose: () => void; onCreat
               </label>
               {seg === 'B2C' && (
                 <button type="button"
-                  onClick={() => setName(plateNo.trim() ? `미상(${plateNo.trim()})` : '미상')}
+                  onClick={() => { const last4 = plateLast4(plateNo); setName(last4 ? `미상(${last4})` : '미상') }}
                   className="text-[10px] font-semibold text-slate-400 hover:text-slate-600 border border-slate-200 rounded-full px-2 py-0.5 transition">
                   이름을 모를 때 · 신원미상
                 </button>
@@ -511,7 +511,9 @@ function NewCustomerModal({ onClose, onCreated }: { onClose: () => void; onCreat
           {seg === 'B2C' && (
             <div>
               <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-widest mb-1">차량번호</label>
-              <input value={plateNo} onChange={e => setPlateNo(e.target.value)} placeholder="예: 12가3456"
+              <input value={plateNo} onChange={e => setPlateNo(e.target.value)}
+                onBlur={e => { if (!hasPlateSpacing(e.target.value)) alert('차량번호 끝 4자리 앞에 띄어쓰기를 추가해주세요. (예: 97보 8003)') }}
+                placeholder="예: 97보 8003"
                 className="w-full text-sm border border-slate-200 rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-slate-300" />
               <p className="text-[10px] text-slate-400 mt-1">이름·연락처를 모르는 고객은 차량번호로 구분할 수 있습니다</p>
             </div>
