@@ -752,7 +752,7 @@ export default function PipelineView({ deals, salesTarget, initialStage, initial
 
   return (
     <>
-    <div className="flex flex-col h-[calc(100vh-140px)] min-h-0">
+    <div className="flex flex-col h-[calc(100vh-100px)] min-h-0">
 
       {/* ── B2C / B2B 탭 ── */}
       <div className="shrink-0 flex items-center gap-1 px-4 py-2 bg-white border-b border-slate-200">
@@ -776,7 +776,7 @@ export default function PipelineView({ deals, salesTarget, initialStage, initial
     <div className="flex gap-0 flex-1 min-h-0">
 
       {/* ── 좌측: 파이프라인 플로우 ── */}
-      <div className="w-72 shrink-0 overflow-y-auto border-r border-slate-200 bg-slate-50 py-2 px-2.5 flex flex-col gap-1.5">
+      <div className="w-72 shrink-0 overflow-y-auto border-r border-slate-200 bg-slate-50 py-2 px-2.5 flex flex-col gap-1">
         <button
           onClick={() => { setSelectedCode(null); setShowLost(false) }}
           className={`w-full text-left px-3 py-1.5 rounded-lg text-xs font-semibold transition mb-0.5
@@ -880,7 +880,7 @@ export default function PipelineView({ deals, salesTarget, initialStage, initial
               {pi < PIPELINE.length - 1 && (
                 <div className="flex gap-1.5">
                   <div className="w-16 shrink-0" />
-                  <div className="flex-1 flex justify-center items-center h-6">
+                  <div className="flex-1 flex justify-center items-center h-3">
                     <svg width="14" height="7" viewBox="0 0 14 7">
                       <path d="M0 0 L14 0 L7 7 Z" fill="#94a3b8"/>
                     </svg>
