@@ -408,6 +408,14 @@ function NewCustomerModal({ onClose, onCreated }: { onClose: () => void; onCreat
   const [source,  setSource]  = useState('')
   const [company, setCompany] = useState('')
   const [plateNo, setPlateNo] = useState('')
+
+  // "신원미상" 모드(이름이 "미상"으로 시작)일 때는 차량번호가 바뀔 때마다 이름을 자동으로 갱신한다.
+  useEffect(() => {
+    if (!name.startsWith('미상')) return
+    const last4 = plateLast4(plateNo)
+    const next  = last4 ? `미상(${last4})` : '미상'
+    if (next !== name) setName(next)
+  }, [plateNo])
   const [saving,  setSaving]  = useState(false)
   const [error,   setError]   = useState('')
 

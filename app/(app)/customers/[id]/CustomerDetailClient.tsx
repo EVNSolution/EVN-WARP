@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import AssigneePicker from '@/components/AssigneePicker'
 import { useRouter } from 'next/navigation'
@@ -240,6 +240,17 @@ export default function CustomerDetailClient({ customer, returnTo }: { customer:
     setF(p => ({ ...p, [k]: val }))
     setSaved(false)
   }
+
+  // "신원미상" 모드(이름이 "미상"으로 시작)일 때는 지역/차량번호가 바뀔 때마다 이름을 자동으로 갱신한다.
+  // (버튼을 누른 시점의 값으로 한 번만 채워지면, 그 뒤에 차량번호를 입력해도 반영되지 않아 혼란스러움)
+  useEffect(() => {
+    if (!f.name.startsWith('미상')) return
+    const region = f.regionDist || f.regionCity || ''
+    const last4  = plateLast4(f.vehiclePlateNo)
+    const parts  = [region, last4].filter(Boolean)
+    const next   = parts.length ? `미상(${parts.join(' ')})` : '미상'
+    if (next !== f.name) setFv('name', next)
+  }, [f.vehiclePlateNo, f.regionCity, f.regionDist])
 
   const handleSave = async () => {
     setSaving(true)
