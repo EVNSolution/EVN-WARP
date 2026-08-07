@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useMemo, useEffect, useRef } from 'react'
-import { formatPhone, hasPlateSpacing, plateLast4 } from '@/lib/format'
+import { formatPhone, hasPlateSpacing, unknownCustomerName } from '@/lib/format'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 
@@ -409,13 +409,12 @@ function NewCustomerModal({ onClose, onCreated }: { onClose: () => void; onCreat
   const [company, setCompany] = useState('')
   const [plateNo, setPlateNo] = useState('')
 
-  // "신원미상" 모드(이름이 "미상"으로 시작)일 때는 차량번호가 바뀔 때마다 이름을 자동으로 갱신한다.
+  // "신원미상" 모드(이름이 "미상"으로 시작)일 때는 차량번호·전화번호가 바뀔 때마다 이름을 자동으로 갱신한다.
   useEffect(() => {
     if (!name.startsWith('미상')) return
-    const last4 = plateLast4(plateNo)
-    const next  = last4 ? `미상(${last4})` : '미상'
+    const next = unknownCustomerName({ plateNo, phone })
     if (next !== name) setName(next)
-  }, [plateNo])
+  }, [plateNo, phone])
   const [saving,  setSaving]  = useState(false)
   const [error,   setError]   = useState('')
 
@@ -498,7 +497,7 @@ function NewCustomerModal({ onClose, onCreated }: { onClose: () => void; onCreat
               </label>
               {seg === 'B2C' && (
                 <button type="button"
-                  onClick={() => { const last4 = plateLast4(plateNo); setName(last4 ? `미상(${last4})` : '미상') }}
+                  onClick={() => setName(unknownCustomerName({ plateNo, phone }))}
                   className="text-[10px] font-semibold text-slate-400 hover:text-slate-600 border border-slate-200 rounded-full px-2 py-0.5 transition">
                   이름을 모를 때 · 신원미상
                 </button>

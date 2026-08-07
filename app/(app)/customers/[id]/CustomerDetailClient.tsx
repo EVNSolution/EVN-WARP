@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import AssigneePicker from '@/components/AssigneePicker'
 import { useRouter } from 'next/navigation'
-import { formatPhone, hasPlateSpacing, plateLast4 } from '@/lib/format'
+import { formatPhone, hasPlateSpacing, unknownCustomerName } from '@/lib/format'
 
 const SOURCES  = ['소개', '온라인', '전시장/이벤트', '직접방문', '전단지/명함', '기타']
 const CONTACT_TITLES = ['대표이사', '사장', '부사장', '전무이사', '상무이사', '이사', '본부장', '실장', '부장', '차장', '과장', '팀장', '파트장', '대리', '책임', '주임', '사원']
@@ -245,12 +245,13 @@ export default function CustomerDetailClient({ customer, returnTo }: { customer:
   // (버튼을 누른 시점의 값으로 한 번만 채워지면, 그 뒤에 차량번호를 입력해도 반영되지 않아 혼란스러움)
   useEffect(() => {
     if (!f.name.startsWith('미상')) return
-    const region = f.regionDist || f.regionCity || ''
-    const last4  = plateLast4(f.vehiclePlateNo)
-    const parts  = [region, last4].filter(Boolean)
-    const next   = parts.length ? `미상(${parts.join(' ')})` : '미상'
+    const next = unknownCustomerName({
+      region:  f.regionDist || f.regionCity,
+      plateNo: f.vehiclePlateNo,
+      phone:   f.phone,
+    })
     if (next !== f.name) setFv('name', next)
-  }, [f.vehiclePlateNo, f.regionCity, f.regionDist])
+  }, [f.vehiclePlateNo, f.regionCity, f.regionDist, f.phone])
 
   const handleSave = async () => {
     setSaving(true)
@@ -482,12 +483,11 @@ export default function CustomerDetailClient({ customer, returnTo }: { customer:
                     <div className="flex items-center justify-between mb-1.5">
                       <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest">고객명 *</label>
                       <button type="button"
-                        onClick={() => {
-                          const region = f.regionDist || f.regionCity || ''
-                          const last4  = plateLast4(f.vehiclePlateNo)
-                          const parts  = [region, last4].filter(Boolean)
-                          setFv('name', parts.length ? `미상(${parts.join(' ')})` : '미상')
-                        }}
+                        onClick={() => setFv('name', unknownCustomerName({
+                          region:  f.regionDist || f.regionCity,
+                          plateNo: f.vehiclePlateNo,
+                          phone:   f.phone,
+                        }))}
                         className="text-[10px] font-semibold text-slate-400 hover:text-slate-600 border border-slate-200 rounded-full px-2 py-0.5 transition">
                         이름을 모를 때 · 신원미상
                       </button>

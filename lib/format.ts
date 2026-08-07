@@ -35,3 +35,24 @@ export function hasPlateSpacing(value: string): boolean {
 export function plateLast4(value: string): string {
   return value.replace(/\D/g, '').slice(-4)
 }
+
+/** 전화번호에서 끝 4자리 숫자만 추출 */
+export function phoneLast4(value: string): string {
+  return value.replace(/\D/g, '').slice(-4)
+}
+
+/**
+ * 신원미상 고객명 자동 생성.
+ * 차량번호가 있으면 "미상(지역 차량번호끝4자리)", 없으면 전화번호가 있을 때 "미상(📞 전화끝4자리)",
+ * 둘 다 없으면 "미상"만 반환한다. (차량번호를 전화번호보다 우선 — 더 구체적인 물리적 식별자이므로)
+ */
+export function unknownCustomerName(opts: { region?: string; plateNo?: string; phone?: string }): string {
+  const plate4 = plateLast4(opts.plateNo ?? '')
+  if (plate4) {
+    const parts = [opts.region?.trim(), plate4].filter(Boolean)
+    return `미상(${parts.join(' ')})`
+  }
+  const phone4 = phoneLast4(opts.phone ?? '')
+  if (phone4) return `미상(📞 ${phone4})`
+  return '미상'
+}
