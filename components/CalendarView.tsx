@@ -303,13 +303,13 @@ export default function CalendarView({ weeks, activities, reservations, todayStr
       {selected && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40"
           onClick={() => setSelected(null)}>
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md relative overflow-hidden"
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md relative overflow-hidden max-h-[85vh] flex flex-col"
             onClick={e => e.stopPropagation()}>
 
             {(() => {
               const c = TYPE_COLORS[selected.type] ?? TYPE_COLORS['문서·자료작성']
               return (
-                <div className={`px-6 pt-5 pb-4 ${c.bg}`}>
+                <div className={`px-6 pt-5 pb-4 shrink-0 ${c.bg}`}>
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex-1 min-w-0">
                       <span className={`inline-block text-[10px] font-bold px-2 py-0.5 rounded mb-2 bg-white/60 ${c.text}`}>
@@ -326,7 +326,7 @@ export default function CalendarView({ weeks, activities, reservations, todayStr
               )
             })()}
 
-            <div className="px-6 py-4 space-y-3">
+            <div className="px-6 py-4 space-y-3 flex-1 overflow-y-auto min-h-0">
               <div className="grid grid-cols-[56px,1fr] gap-y-1.5 text-xs">
                 <span className="text-slate-400">날짜</span>
                 <div className="flex items-center gap-2">
@@ -368,7 +368,7 @@ export default function CalendarView({ weeks, activities, reservations, todayStr
               )}
             </div>
 
-            <div className="flex gap-2 justify-end px-6 py-4 border-t border-slate-100 bg-slate-50/60">
+            <div className="flex gap-2 justify-end px-6 py-4 border-t border-slate-100 bg-slate-50/60 shrink-0">
               <button onClick={() => setSelected(null)}
                 className="px-4 py-1.5 text-sm text-slate-500 border border-slate-200 rounded-lg hover:bg-white transition-colors">
                 닫기
