@@ -6,14 +6,14 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { Phone, Truck } from 'lucide-react'
 
-/** "미상(...)" 이름에 박아둔 이모지 아이콘(📞/🚚)을 실제 아이콘 컴포넌트로 보여주기 위한 파싱 */
-function unknownNameIcon(name: string) {
-  if (name.includes('📞')) return Phone
-  if (name.includes('🚚')) return Truck
-  return null
-}
-function stripUnknownNameIcon(name: string) {
-  return name.replace(/📞|🚚/g, '').replace(/\s+/g, ' ').trim()
+/**
+ * "미상(...)" 이름에 박아둔 이모지 아이콘(📞/🚚)을 전화/차량번호 바로 앞에
+ * 실제 아이콘 컴포넌트로 보여주기 위한 파싱. 아이콘이 없으면 before만 채워진다.
+ */
+function splitUnknownName(name: string): { before: string; Icon: typeof Phone | null; after: string } {
+  const m = name.match(/^(.*?)(📞|🚚)\s?(.*)$/)
+  if (!m) return { before: name, Icon: null, after: '' }
+  return { before: m[1], Icon: m[2] === '📞' ? Phone : Truck, after: m[3] }
 }
 
 type Lead = { id: string; stageCode: string; salesStatus: string }
@@ -331,12 +331,15 @@ export default function CustomerListClient({ customers: initial }: Props) {
                     {visCols.map(vc => {
                       switch (vc.key) {
                         case 'name': {
-                          const Icon = unknownNameIcon(c.name)
+                          const { before, Icon, after } = splitUnknownName(c.name)
                           return (
                             <td key="name" className="px-3 py-2.5 truncate">
                               <div className="flex items-center gap-1.5 min-w-0">
-                                {Icon && <Icon size={12} className="text-slate-400 shrink-0" />}
-                                <span className="font-semibold text-slate-800 truncate">{stripUnknownNameIcon(c.name)}</span>
+                                <span className="font-semibold text-slate-800 truncate inline-flex items-center gap-0.5">
+                                  {before}
+                                  {Icon && <Icon size={11} className="text-slate-400 shrink-0" />}
+                                  {after}
+                                </span>
                                 {(c.customerSegment ?? 'B2C') === 'B2B'
                                   ? <span className="shrink-0 px-1.5 py-0.5 rounded text-[9px] font-bold bg-violet-100 text-violet-700">법인</span>
                                   : <span className="shrink-0 px-1.5 py-0.5 rounded text-[9px] font-bold bg-sky-50 text-sky-600">개인</span>}
