@@ -11,7 +11,7 @@ import StageHistoryList from '@/components/StageHistoryList'
 import ShareDealModal, { type ShareRecord } from '@/components/ShareDealModal'
 
 /* ── 선택 옵션 ── */
-const SOURCES        = ['소개', '온라인', '전시장/이벤트', '직접방문', '기타']
+const SOURCES        = ['소개', '온라인', '전시장/이벤트', '직접방문', '전단지/명함', '기타']
 const VEHICLE_MODELS = ['스테고Z', '마사다', '포터 EV', '봉고 EV']
 const BODY_TYPES     = ['냉탑', '건탑', '기타']
 const TEMP_TYPES     = ['저탑', '정탑', '하이탑']

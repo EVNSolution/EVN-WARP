@@ -407,6 +407,7 @@ function NewCustomerModal({ onClose, onCreated }: { onClose: () => void; onCreat
   const [seg,     setSeg]     = useState<'B2C' | 'B2B'>('B2C')
   const [source,  setSource]  = useState('')
   const [company, setCompany] = useState('')
+  const [plateNo, setPlateNo] = useState('')
   const [saving,  setSaving]  = useState(false)
   const [error,   setError]   = useState('')
 
@@ -436,7 +437,7 @@ function NewCustomerModal({ onClose, onCreated }: { onClose: () => void; onCreat
     }, 300)
   }, [name, phone])
 
-  const SOURCES = ['소개', '온라인', '전시장/이벤트', '직접방문', '기타']
+  const SOURCES = ['소개', '온라인', '전시장/이벤트', '직접방문', '전단지/명함', '기타']
 
   const handleSubmit = async () => {
     if (!name.trim()) { setError('고객명은 필수입니다.'); return }
@@ -451,6 +452,7 @@ function NewCustomerModal({ onClose, onCreated }: { onClose: () => void; onCreat
           customerSegment: seg,
           source:          source   || null,
           companyName:     company  || null,
+          vehiclePlateNo:  plateNo  || null,
           collectedAt:     new Date().toISOString(),
         }),
       })
@@ -482,9 +484,18 @@ function NewCustomerModal({ onClose, onCreated }: { onClose: () => void; onCreat
         </div>
         <div className="flex-1 overflow-y-auto px-6 py-5 flex flex-col gap-4">
           <div>
-            <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-widest mb-1">
-              {seg === 'B2B' ? '거래처 담당자 이름' : '고객 이름'} <span className="text-red-400">*</span>
-            </label>
+            <div className="flex items-center justify-between mb-1">
+              <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-widest">
+                {seg === 'B2B' ? '거래처 담당자 이름' : '고객 이름'} <span className="text-red-400">*</span>
+              </label>
+              {seg === 'B2C' && (
+                <button type="button"
+                  onClick={() => setName(plateNo.trim() ? `미상(${plateNo.trim()})` : '미상')}
+                  className="text-[10px] font-semibold text-slate-400 hover:text-slate-600 border border-slate-200 rounded-full px-2 py-0.5 transition">
+                  이름을 모를 때 · 신원미상
+                </button>
+              )}
+            </div>
             <input autoFocus value={name} onChange={e => setName(e.target.value)}
               className="w-full text-sm border border-slate-200 rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-slate-300" />
             {error && <p className="text-red-500 text-xs mt-1">{error}</p>}
@@ -497,6 +508,14 @@ function NewCustomerModal({ onClose, onCreated }: { onClose: () => void; onCreat
             <input value={phone} onChange={e => setPhone(formatPhone(e.target.value))} placeholder="010-0000-0000"
               className="w-full text-sm border border-slate-200 rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-slate-300" />
           </div>
+          {seg === 'B2C' && (
+            <div>
+              <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-widest mb-1">차량번호</label>
+              <input value={plateNo} onChange={e => setPlateNo(e.target.value)} placeholder="예: 12가3456"
+                className="w-full text-sm border border-slate-200 rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-slate-300" />
+              <p className="text-[10px] text-slate-400 mt-1">이름·연락처를 모르는 고객은 차량번호로 구분할 수 있습니다</p>
+            </div>
+          )}
 
           {/* 기존 고객 중복 경고 */}
           {dupHits.length > 0 && (

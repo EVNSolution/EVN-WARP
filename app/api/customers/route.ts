@@ -75,6 +75,7 @@ export async function POST(req: NextRequest) {
         companyPhone:     body.companyPhone     || null,
         vehicleMaker:     body.vehicleMaker     || null,
         vehicleName:      body.vehicleName      || null,
+        vehiclePlateNo:   body.vehiclePlateNo   || null,
         vehicleYear:      body.vehicleYear      || null,
         totalMileage:     body.totalMileage     ?? null,
         truckType1:       body.truckType1       || null,

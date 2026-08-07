@@ -6,7 +6,7 @@ import AssigneePicker from '@/components/AssigneePicker'
 import { useRouter } from 'next/navigation'
 import { formatPhone } from '@/lib/format'
 
-const SOURCES  = ['소개', '온라인', '전시장/이벤트', '직접방문', '기타']
+const SOURCES  = ['소개', '온라인', '전시장/이벤트', '직접방문', '전단지/명함', '기타']
 const CONTACT_TITLES = ['대표이사', '사장', '부사장', '전무이사', '상무이사', '이사', '본부장', '실장', '부장', '차장', '과장', '팀장', '파트장', '대리', '책임', '주임', '사원']
 const SHIPPER_PRESETS = ['컬리', '쿠팡', 'CJ대한통운']
 const INDUSTRY_CHIPS = ['화주', '운송사', '기타']
@@ -69,6 +69,7 @@ type Customer = {
   companyAddress: string | null; companyPhone: string | null; employeeCount: number | null
   /* 차량 */
   hasVehicle: boolean | null; vehicleMaker: string | null; vehicleName: string | null
+  vehiclePlateNo: string | null
   vehicleYear: string | null; totalMileage: number | null; vehicleCount: number | null
   vehicleListJson: string | null
   documentsJson: string | null
@@ -126,6 +127,7 @@ export default function CustomerDetailClient({ customer, returnTo }: { customer:
     /* 차량 */
     vehicleMaker:     customer.vehicleMaker     ?? '',
     vehicleName:      customer.vehicleName      ?? '',
+    vehiclePlateNo:   customer.vehiclePlateNo   ?? '',
     vehicleYear:      customer.vehicleYear      ?? '',
     totalMileage:     customer.totalMileage != null ? customer.totalMileage.toLocaleString() : '',
     vehicleCount:     customer.vehicleCount != null ? String(customer.vehicleCount) : '',
@@ -283,6 +285,7 @@ export default function CustomerDetailClient({ customer, returnTo }: { customer:
             : null,
           vehicleMaker: (makerChip  === '직접입력' ? makerCustom  : makerChip)  || null,
           vehicleName:  f.vehicleName   || null,
+          vehiclePlateNo: f.vehiclePlateNo || null,
           vehicleYear:  f.vehicleYear   || null,
           truckType1:   f.truckType1    || null,
           truckType2:   f.truckType2    || null,
@@ -464,7 +467,17 @@ export default function CustomerDetailClient({ customer, returnTo }: { customer:
                   <div className="flex-1 h-px bg-blue-100" />
                 </div>
                 <div className="grid grid-cols-2 gap-4">
-                  <div>{label('고객명 *')}{input('name', '고객 이름')}</div>
+                  <div>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest">고객명 *</label>
+                      <button type="button"
+                        onClick={() => setFv('name', f.vehiclePlateNo.trim() ? `미상(${f.vehiclePlateNo.trim()})` : '미상')}
+                        className="text-[10px] font-semibold text-slate-400 hover:text-slate-600 border border-slate-200 rounded-full px-2 py-0.5 transition">
+                        이름을 모를 때 · 신원미상
+                      </button>
+                    </div>
+                    {input('name', '고객 이름')}
+                  </div>
                   <div>{label('연락처')}{input('phone', '010-0000-0000')}</div>
                   <div>{label('이메일')}{input('email', 'example@email.com')}</div>
                   <div>
@@ -590,6 +603,7 @@ export default function CustomerDetailClient({ customer, returnTo }: { customer:
                     )}
                   </div>
                   <div>{label('차량명')}{input('vehicleName', '예: 메가트럭, 파비스')}</div>
+                  <div>{label('차량번호')}{input('vehiclePlateNo', '예: 12가3456')}</div>
                   <div>{label('연식')}{input('vehicleYear', '예: 2020')}</div>
                   <div>
                     {label('주행거리 (km)')}
@@ -604,6 +618,36 @@ export default function CustomerDetailClient({ customer, returnTo }: { customer:
                       <div><p className="text-[10px] text-slate-400 mb-1">구분3 · 적재함</p>{chips('truckType3', ['건탑', '냉동', '냉장'], true)}</div>
                       <div><p className="text-[10px] text-slate-400 mb-1">구분4 · 높이</p>{chips('truckType4', ['저상', '표준', '하이탑'], true)}</div>
                     </div>
+                  </div>
+                  <div className="col-span-2">
+                    {label('차량 사진')}
+                    {(() => {
+                      const doc = docs.find(d => d.type === '차량사진')
+                      const isUploading = uploading === '차량사진'
+                      return (
+                        <div className="flex items-center gap-3">
+                          {doc && (
+                            <a href={doc.path} target="_blank" rel="noreferrer" className="shrink-0">
+                              <img src={doc.path} alt="차량 사진"
+                                className="w-16 h-16 object-cover rounded-lg border border-slate-200" />
+                            </a>
+                          )}
+                          <label className={`cursor-pointer px-3 py-1.5 text-xs font-semibold rounded-lg border transition
+                            ${isUploading ? 'opacity-50 cursor-not-allowed' : 'border-slate-200 text-slate-600 hover:bg-slate-50 hover:border-slate-400'}`}>
+                            {isUploading ? '업로드 중...' : doc ? '재업로드' : '사진 업로드'}
+                            <input type="file" className="hidden" disabled={isUploading}
+                              accept=".jpg,.jpeg,.png,.heic"
+                              onChange={e => { const file = e.target.files?.[0]; if (file) handleDocUpload('차량사진', file); e.target.value = '' }} />
+                          </label>
+                          {doc && (
+                            <button type="button" onClick={() => handleDocDelete('차량사진')}
+                              className="text-[10px] text-red-400 hover:text-red-600 transition font-semibold">
+                              삭제
+                            </button>
+                          )}
+                        </div>
+                      )
+                    })()}
                   </div>
                 </div>
               </div>

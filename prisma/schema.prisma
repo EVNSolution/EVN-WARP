@@ -259,6 +259,7 @@ model Customer {
   hasVehicle      Boolean?
   vehicleMaker    String?
   vehicleName     String?
+  vehiclePlateNo  String?   // 차량번호 — 이름을 밝히지 않는 고객도 차량번호로 식별 가능하도록
   vehicleYear     String?
   totalMileage    Int?
   truckType1      String?

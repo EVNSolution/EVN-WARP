@@ -8,7 +8,7 @@ import AssigneePicker from './AssigneePicker'
 
 /* ── 리드 발굴경로 (고객 유입경로와 별도 관리) ── */
 const LEAD_SOURCES = ['자체발굴', '온라인', '오프라인', '소개인', '기타']
-const CUST_SOURCES = ['소개', '온라인', '전시장/이벤트', '직접방문', '기타']
+const CUST_SOURCES = ['소개', '온라인', '전시장/이벤트', '직접방문', '전단지/명함', '기타']
 
 type Segment = 'B2C' | 'B2B'
 type CustomerHit = {

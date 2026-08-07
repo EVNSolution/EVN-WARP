@@ -110,6 +110,7 @@ run_with_retry npx tsx scripts/dedup-teams.ts
 run_with_retry npx tsx scripts/migrate-lead-sources.ts
 run_with_retry npx tsx scripts/migrate-meeting-upload-paths.ts
 run_with_retry npx tsx scripts/migrate-deal-document-paths.ts
+run_with_retry npx tsx scripts/migrate-customer-document-paths.ts
 run_with_retry npx tsx scripts/backfill-stage-history.ts
 
 admin_email="$(node -e "const fs=require('fs');const dotenv=require('dotenv');const e=dotenv.parse(fs.readFileSync('.env'));process.stdout.write(e.ADMIN_EMAIL||'')")"

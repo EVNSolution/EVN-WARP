@@ -3,6 +3,8 @@ import { prisma } from '@/lib/db'
 import path from 'path'
 import fs from 'fs/promises'
 
+const UPLOADS_DIR = process.env.UPLOADS_DIR ?? path.join(process.cwd(), 'uploads')
+
 type DocMeta = { type: string; name: string; path: string; size: number; uploadedAt: string }
 
 function getDocs(customer: { documentsJson: string | null }): DocMeta[] {
@@ -21,7 +23,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const docType = form.get('type') as string | null
   if (!file || !docType) return NextResponse.json({ error: 'Missing file or type' }, { status: 400 })
 
-  const uploadDir = path.join(process.cwd(), 'public', 'uploads', 'customers', id)
+  const uploadDir = path.join(UPLOADS_DIR, 'customers', id)
   await fs.mkdir(uploadDir, { recursive: true })
 
   const safeName = `${Date.now()}_${file.name.replace(/[^\w.\-]/g, '_')}`
@@ -32,7 +34,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const doc: DocMeta = {
     type: docType,
     name: file.name,
-    path: `/uploads/customers/${id}/${safeName}`,
+    path: `/api/uploads/customers/${id}/${safeName}`,
     size: file.size,
     uploadedAt: new Date().toISOString(),
   }
@@ -54,7 +56,13 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
   const target = docs.find(d => d.type === docType)
 
   if (target) {
-    const absPath = path.join(process.cwd(), 'public', target.path)
+    // 신규 경로(/api/uploads/...)는 UPLOADS_DIR 기준, 구 경로(/uploads/...)는 public/ 기준으로 해석
+    const relPath = target.path.startsWith('/api/uploads/')
+      ? target.path.slice('/api/uploads/'.length)
+      : null
+    const absPath = relPath
+      ? path.join(UPLOADS_DIR, relPath)
+      : path.join(process.cwd(), 'public', target.path)
     await fs.unlink(absPath).catch(() => {})
   }
 

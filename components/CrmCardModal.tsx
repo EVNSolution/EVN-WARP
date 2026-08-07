@@ -28,7 +28,7 @@ const REGIONS: Record<string, string[]> = {
 }
 const CITIES = Object.keys(REGIONS)
 
-const CUST_SOURCES  = ['소개', '온라인', '전시장/이벤트', '직접방문', '기타']
+const CUST_SOURCES  = ['소개', '온라인', '전시장/이벤트', '직접방문', '전단지/명함', '기타']
 const SHIFT_PRESETS = ['주간', '야간']
 
 interface CrmData {

@@ -31,7 +31,7 @@ const REGIONS: Record<string, string[]> = {
 }
 const CITIES = Object.keys(REGIONS)
 
-const SOURCES = ['소개', '온라인', '전시장/이벤트', '직접방문', '기타']
+const SOURCES = ['소개', '온라인', '전시장/이벤트', '직접방문', '전단지/명함', '기타']
 
 type Segment = 'B2C' | 'B2B'
 

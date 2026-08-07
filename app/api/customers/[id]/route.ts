@@ -68,6 +68,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
         ...(b.hasVehicle       !== undefined && { hasVehicle:       b.hasVehicle ?? null }),
         ...(b.vehicleMaker     !== undefined && { vehicleMaker:     n(b.vehicleMaker) }),
         ...(b.vehicleName      !== undefined && { vehicleName:      n(b.vehicleName) }),
+        ...(b.vehiclePlateNo   !== undefined && { vehiclePlateNo:   n(b.vehiclePlateNo) }),
         ...(b.vehicleYear      !== undefined && { vehicleYear:      n(b.vehicleYear) }),
         ...(b.totalMileage     !== undefined && { totalMileage:     b.totalMileage ?? null }),
         ...(b.vehicleListJson  !== undefined && { vehicleListJson:  n(b.vehicleListJson) }),
