@@ -152,9 +152,8 @@ function AnnualBars({ annualTgt, ytd }: { annualTgt: number; ytd: number }) {
           </div>
         </div>
 
-        {/* 달성률 + 수치 */}
+        {/* 수치 (달성률 라벨은 아래 캡션 행으로 이동 — 연간목표/YTD 실적과 같은 줄에 위치) */}
         <div className="flex flex-col justify-end gap-1.5 text-[13px] text-slate-500 shrink-0" style={{ height: ANNUAL_BAR_H }}>
-          <span className="text-[11px] text-slate-400">달성률</span>
           <span className="text-3xl font-black tabular-nums leading-none" style={{ color: rateColor(rate) }}>
             {rate != null ? `${rate}%` : '—'}
           </span>
@@ -163,13 +162,14 @@ function AnnualBars({ annualTgt, ytd }: { annualTgt: number; ytd: number }) {
         </div>
       </div>
 
-      {/* 막대 라벨 (높이 계산과 무관하게 별도 행으로 하단에 배치) */}
-      <div className="flex justify-center gap-8 mt-1.5">
+      {/* 캡션 행 — 막대 라벨과 "달성률"을 같은 줄에 배치 (높이 계산과는 무관하게 별도 행) */}
+      <div className="flex items-center justify-center gap-8 mt-1.5">
         <div style={{ width: 44 }} />
         <div className="flex gap-5">
           <span className="text-[12px] text-slate-500 text-center" style={{ width: BAR_W }}>연간 목표</span>
           <span className="text-[12px] text-slate-500 text-center" style={{ width: BAR_W }}>YTD 실적</span>
         </div>
+        <span className="text-[12px] text-slate-400 shrink-0">달성률</span>
       </div>
     </div>
   )
