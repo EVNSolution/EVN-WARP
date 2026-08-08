@@ -124,25 +124,23 @@ function AnnualBars({ annualTgt, ytd }: { annualTgt: number; ytd: number }) {
   const BAR_W  = 64   // px, 넓게
 
   return (
-    <div className="mt-2 flex items-center justify-center gap-8">
-      {/* Y축 레이블 */}
-      <div className="flex flex-col justify-between text-right shrink-0" style={{ width: 44, height: ANNUAL_BAR_H }}>
-        <span className="text-[12px] text-slate-400 leading-none">{fmt(maxVal)}</span>
-        <span className="text-[12px] text-slate-400 leading-none">0</span>
-      </div>
+    <div className="mt-2 flex flex-col items-center">
+      {/* 축·막대·통계 — 셋 다 높이 ANNUAL_BAR_H 박스를 하단 기준으로 정렬해야
+          막대의 0%(바닥)이 Y축의 "0" 표기와 실제로 일치한다. 막대 아래 라벨은
+          이 높이 계산에 끼어들면 기준선이 밀리므로 별도 행으로 분리한다. */}
+      <div className="flex items-end justify-center gap-8">
+        {/* Y축 레이블 */}
+        <div className="flex flex-col justify-between text-right shrink-0" style={{ width: 44, height: ANNUAL_BAR_H }}>
+          <span className="text-[12px] text-slate-400 leading-none">{fmt(maxVal)}</span>
+          <span className="text-[12px] text-slate-400 leading-none">0</span>
+        </div>
 
-      {/* 막대 영역 */}
-      <div className="flex items-end gap-5" style={{ height: ANNUAL_BAR_H }}>
-        {/* 연간 목표 */}
-        <div className="flex flex-col items-center gap-1.5">
+        {/* 막대 영역 (라벨 없이 순수 높이만) */}
+        <div className="flex items-end gap-5">
           <div className="flex items-end" style={{ height: ANNUAL_BAR_H }}>
             <div className="rounded-t-sm"
               style={{ width: BAR_W, height: `${tPct}%`, minHeight: annualTgt > 0 ? 2 : 0, backgroundColor: '#64748b' }} />
           </div>
-          <span className="text-[12px] text-slate-500 whitespace-nowrap">연간 목표</span>
-        </div>
-        {/* YTD 실적 */}
-        <div className="flex flex-col items-center gap-1.5">
           <div className="flex items-end" style={{ height: ANNUAL_BAR_H }}>
             <div className="rounded-t-sm"
               style={{
@@ -152,18 +150,26 @@ function AnnualBars({ annualTgt, ytd }: { annualTgt: number; ytd: number }) {
                 backgroundColor: ok ? EVN_GREEN : '#ef4444',
               }} />
           </div>
-          <span className="text-[12px] text-slate-500 whitespace-nowrap">YTD 실적</span>
+        </div>
+
+        {/* 달성률 + 수치 */}
+        <div className="flex flex-col justify-end gap-1.5 text-[13px] text-slate-500 shrink-0">
+          <span className="text-[11px] text-slate-400">달성률</span>
+          <span className="text-3xl font-black tabular-nums leading-none" style={{ color: rateColor(rate) }}>
+            {rate != null ? `${rate}%` : '—'}
+          </span>
+          <span className="mt-1">목표 <span className="font-bold text-slate-700">{annualTgt > 0 ? fmt(annualTgt) : '—'}</span></span>
+          <span>실적 <span className="font-bold" style={{ color: rateColor(rate) }}>{fmt(ytd)}</span></span>
         </div>
       </div>
 
-      {/* 달성률 + 수치 */}
-      <div className="flex flex-col justify-end gap-1.5 pb-7 text-[13px] text-slate-500 shrink-0">
-        <span className="text-[11px] text-slate-400">달성률</span>
-        <span className="text-3xl font-black tabular-nums leading-none" style={{ color: rateColor(rate) }}>
-          {rate != null ? `${rate}%` : '—'}
-        </span>
-        <span className="mt-1">목표 <span className="font-bold text-slate-700">{annualTgt > 0 ? fmt(annualTgt) : '—'}</span></span>
-        <span>실적 <span className="font-bold" style={{ color: rateColor(rate) }}>{fmt(ytd)}</span></span>
+      {/* 막대 라벨 (높이 계산과 무관하게 별도 행으로 하단에 배치) */}
+      <div className="flex justify-center gap-8 mt-1.5">
+        <div style={{ width: 44 }} />
+        <div className="flex gap-5">
+          <span className="text-[12px] text-slate-500 text-center" style={{ width: BAR_W }}>연간 목표</span>
+          <span className="text-[12px] text-slate-500 text-center" style={{ width: BAR_W }}>YTD 실적</span>
+        </div>
       </div>
     </div>
   )
