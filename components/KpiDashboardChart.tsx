@@ -228,7 +228,7 @@ export default function KpiDashboardChart({
                   style={{ backgroundColor: EVN_GREEN }}>
                   {idx + 1}
                 </span>
-                <span className="flex-1 text-xs font-bold text-slate-800 truncate">{kpi.label}</span>
+                <span className="flex-1 min-w-0 text-xs font-bold text-slate-800 truncate">{kpi.label}</span>
                 {kpi.unit && <span className="text-[10px] text-slate-400 shrink-0">({kpi.unit})</span>}
                 <span className="shrink-0 text-sm font-black tabular-nums" style={{ color: rateColor(displayRate) }}>
                   {displayRate != null ? `${displayRate}%` : '—'}
