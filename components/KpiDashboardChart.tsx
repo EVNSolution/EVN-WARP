@@ -125,26 +125,26 @@ function AnnualBars({ annualTgt, ytd }: { annualTgt: number; ytd: number }) {
 
   return (
     <div className="mt-2 flex flex-col items-center">
-      {/* 축·막대·통계 — 셋 다 높이 ANNUAL_BAR_H 박스를 하단 기준으로 정렬해야
-          막대의 0%(바닥)이 Y축의 "0" 표기와 실제로 일치한다. 막대 아래 라벨은
-          이 높이 계산에 끼어들면 기준선이 밀리므로 별도 행으로 분리한다. */}
+      {/* 축·막대·통계 — 각 칸을 position:relative + height:ANNUAL_BAR_H 박스로 만들고
+          내용은 그 박스 안에서 top:0/bottom:0으로 절대배치한다. 플렉스 정렬에 기대면
+          형제 요소의 내용물(라벨 줄바꿈 등)에 따라 높이가 미묘하게 달라져 기준선이
+          어긋날 수 있어, 좌표를 직접 고정해 막대 바닥이 항상 축의 "0"과 정확히 맞도록 한다. */}
       <div className="flex items-end justify-center gap-8">
         {/* Y축 레이블 */}
-        <div className="flex flex-col justify-between text-right shrink-0" style={{ width: 44, height: ANNUAL_BAR_H }}>
-          <span className="text-[12px] text-slate-400 leading-none">{fmt(maxVal)}</span>
-          <span className="text-[12px] text-slate-400 leading-none">0</span>
+        <div className="relative shrink-0" style={{ width: 44, height: ANNUAL_BAR_H }}>
+          <span className="absolute top-0 right-0 text-[12px] text-slate-400 leading-none">{fmt(maxVal)}</span>
+          <span className="absolute bottom-0 right-0 text-[12px] text-slate-400 leading-none">0</span>
         </div>
 
-        {/* 막대 영역 (라벨 없이 순수 높이만) */}
+        {/* 막대 영역 */}
         <div className="flex items-end gap-5">
-          <div className="flex items-end" style={{ height: ANNUAL_BAR_H }}>
-            <div className="rounded-t-sm"
-              style={{ width: BAR_W, height: `${tPct}%`, minHeight: annualTgt > 0 ? 2 : 0, backgroundColor: '#64748b' }} />
+          <div className="relative" style={{ width: BAR_W, height: ANNUAL_BAR_H }}>
+            <div className="absolute bottom-0 left-0 w-full rounded-t-sm"
+              style={{ height: `${tPct}%`, minHeight: annualTgt > 0 ? 2 : 0, backgroundColor: '#64748b' }} />
           </div>
-          <div className="flex items-end" style={{ height: ANNUAL_BAR_H }}>
-            <div className="rounded-t-sm"
+          <div className="relative" style={{ width: BAR_W, height: ANNUAL_BAR_H }}>
+            <div className="absolute bottom-0 left-0 w-full rounded-t-sm"
               style={{
-                width: BAR_W,
                 height: `${aPct}%`,
                 minHeight: ytd > 0 ? 2 : 0,
                 backgroundColor: ok ? EVN_GREEN : '#ef4444',
@@ -153,7 +153,7 @@ function AnnualBars({ annualTgt, ytd }: { annualTgt: number; ytd: number }) {
         </div>
 
         {/* 달성률 + 수치 */}
-        <div className="flex flex-col justify-end gap-1.5 text-[13px] text-slate-500 shrink-0">
+        <div className="flex flex-col justify-end gap-1.5 text-[13px] text-slate-500 shrink-0" style={{ height: ANNUAL_BAR_H }}>
           <span className="text-[11px] text-slate-400">달성률</span>
           <span className="text-3xl font-black tabular-nums leading-none" style={{ color: rateColor(rate) }}>
             {rate != null ? `${rate}%` : '—'}
