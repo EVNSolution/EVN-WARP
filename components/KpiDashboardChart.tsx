@@ -129,7 +129,7 @@ function AnnualBars({ annualTgt, ytd }: { annualTgt: number; ytd: number }) {
           내용은 그 박스 안에서 top:0/bottom:0으로 절대배치한다. 플렉스 정렬에 기대면
           형제 요소의 내용물(라벨 줄바꿈 등)에 따라 높이가 미묘하게 달라져 기준선이
           어긋날 수 있어, 좌표를 직접 고정해 막대 바닥이 항상 축의 "0"과 정확히 맞도록 한다. */}
-      <div className="flex items-end justify-center gap-8">
+      <div className="flex items-end gap-8">
         {/* Y축 레이블 */}
         <div className="relative shrink-0" style={{ width: 44, height: ANNUAL_BAR_H }}>
           <span className="absolute top-0 right-0 text-[12px] text-slate-400 leading-none">{fmt(maxVal)}</span>
@@ -162,8 +162,11 @@ function AnnualBars({ annualTgt, ytd }: { annualTgt: number; ytd: number }) {
         </div>
       </div>
 
-      {/* 캡션 행 — 막대 라벨과 "달성률"을 같은 줄에 배치 (높이 계산과는 무관하게 별도 행) */}
-      <div className="flex items-center justify-center gap-8 mt-1.5">
+      {/* 캡션 행 — 막대 라벨과 "달성률"을 같은 줄에 배치 (높이 계산과는 무관하게 별도 행).
+          위 행과 마찬가지로 justify-center를 쓰지 않는다 — 두 행의 3번째 칸(통계 vs "달성률") 너비가
+          서로 달라서 각자 독립적으로 가운데 정렬하면 1·2번째 칸(축·막대)이 행마다 다르게 밀린다.
+          대신 두 행 모두 왼쪽 정렬로 맞추고, 바깥 wrapper의 items-center가 전체 블록을 가운데로 놓는다. */}
+      <div className="flex items-center gap-8 mt-1.5">
         <div style={{ width: 44 }} />
         <div className="flex gap-5">
           <span className="text-[12px] text-slate-500 text-center" style={{ width: BAR_W }}>연간 목표</span>
