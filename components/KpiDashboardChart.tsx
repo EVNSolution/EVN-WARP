@@ -225,9 +225,6 @@ export default function KpiDashboardChart({
 
           const ytd        = kpi.entries.filter(e => e.month <= currentMonth).reduce((s, e) => s + (e.actual ?? 0), 0)
           const annualTgt  = kpi.annualTarget ?? kpi.entries.reduce((s, e) => s + (e.target ?? 0), 0)
-          const annualRate = annualTgt > 0 ? Math.round(ytd / annualTgt * 100) : null
-
-          const displayRate = view === 'monthly' ? mRate : annualRate
 
           return (
             <div key={kpi.id} className="px-5 pt-4 pb-3">
@@ -239,9 +236,6 @@ export default function KpiDashboardChart({
                 </span>
                 <span className="flex-1 min-w-0 text-xs font-bold text-slate-800 truncate">{kpi.label}</span>
                 {kpi.unit && <span className="text-[10px] text-slate-400 shrink-0">({kpi.unit})</span>}
-                <span className="shrink-0 text-sm font-black tabular-nums" style={{ color: rateColor(displayRate) }}>
-                  {displayRate != null ? `${displayRate}%` : '—'}
-                </span>
               </div>
 
               {/* 월별 이달 수치 */}
