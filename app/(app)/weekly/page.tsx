@@ -2,7 +2,7 @@ import { prisma } from '@/lib/db'
 import { auth } from '@/auth'
 import Link from 'next/link'
 import { getWeekId, getWeekStart, adjacentWeek, formatWeekLabel } from '@/lib/week'
-import { ChevronLeft, ChevronRight, CheckCircle, Clock } from 'lucide-react'
+import { ChevronLeft, ChevronRight, CheckCircle, Clock, Layers } from 'lucide-react'
 import GanttChart from '@/components/GanttChart'
 import { teamOrderIndex } from '@/lib/teamOrder'
 import { stratColor, WEEKLY_STATUS_BADGE as STATUS_BADGE } from '@/lib/a3'
@@ -423,9 +423,10 @@ export default async function WeeklyPage({ searchParams }: { searchParams: Promi
                       const group: RI[] = []
                       while (i < items.length && items[i].parentTask.id === parentTask.id) { group.push(items[i]); i++ }
                       out.push(
-                        <div key={`pt-${parentTask.id}`} className="pl-8 pr-4 py-1">
-                          <span className="text-[9px] font-bold text-indigo-400 mr-1.5 align-middle">[팀과제]</span>
-                          <span className="text-[11px] text-slate-500 align-middle">{parentTask.title}</span>
+                        <div key={`pt-${parentTask.id}`} className="pl-8 pr-4 py-1 flex items-center gap-1.5 bg-indigo-50/70">
+                          <Layers size={11} className="text-indigo-400 shrink-0" />
+                          <span className="text-[9px] font-bold text-indigo-500 align-middle">[팀과제]</span>
+                          <span className="text-[11px] text-indigo-900/70 align-middle">{parentTask.title}</span>
                         </div>
                       )
                       group.forEach((ri, idx) => out.push(renderLeafRow(ri, dot, idx + 1)))
@@ -548,9 +549,10 @@ export default async function WeeklyPage({ searchParams }: { searchParams: Promi
                       const group: RI2[] = []
                       while (i < items.length && items[i].parentTask.id === parentTask.id) { group.push(items[i]); i++ }
                       out.push(
-                        <div key={`pt-${parentTask.id}`} className="pl-8 pr-4 py-1">
-                          <span className="text-[9px] font-bold text-indigo-400 mr-1.5 align-middle">[팀과제]</span>
-                          <span className="text-[11px] text-slate-500 align-middle">{parentTask.title}</span>
+                        <div key={`pt-${parentTask.id}`} className="pl-8 pr-4 py-1 flex items-center gap-1.5 bg-indigo-50/70">
+                          <Layers size={11} className="text-indigo-400 shrink-0" />
+                          <span className="text-[9px] font-bold text-indigo-500 align-middle">[팀과제]</span>
+                          <span className="text-[11px] text-indigo-900/70 align-middle">{parentTask.title}</span>
                         </div>
                       )
                       group.forEach((ri, idx) => out.push(renderLeafRow(ri, dot, idx + 1)))
