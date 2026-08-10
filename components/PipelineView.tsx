@@ -531,7 +531,7 @@ export default function PipelineView({ deals, salesTarget, initialStage, initial
               value={d.stageCode}
               onChange={e => handleStageChange(d.id, e.target.value)}
               onClick={e => e.stopPropagation()}
-              className={`text-[11px] font-semibold border rounded-md px-1.5 py-1 focus:outline-none focus:ring-1 focus:ring-slate-300 cursor-pointer
+              className={`w-40 text-[11px] font-semibold border rounded-md px-1.5 py-1 focus:outline-none focus:ring-1 focus:ring-slate-300 cursor-pointer
                 ${ph ? `${PHASE_LIGHT[ph.phase]} ${PHASE_ACCENT[ph.phase]}` : 'bg-white border-slate-200 text-slate-500'}`}
             >
               {ALL_PROCESS_OPTIONS.map(opt => (
