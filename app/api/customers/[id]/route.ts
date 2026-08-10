@@ -32,6 +32,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
         ...(b.grade            !== undefined && { grade:            n(b.grade) }),
         ...(b.tags             !== undefined && { tags:             n(b.tags) }),
         ...(b.source           !== undefined && { source:           n(b.source) }),
+        ...(b.collectedAt      !== undefined && { collectedAt:      b.collectedAt ? new Date(b.collectedAt) : null }),
         ...(b.assignee         !== undefined && { assignee:         n(b.assignee) }),
         ...(b.memo             !== undefined && { memo:             n(b.memo) }),
         ...(b.regionCity       !== undefined && { regionCity:       n(b.regionCity) }),

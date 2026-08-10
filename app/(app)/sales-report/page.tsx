@@ -76,9 +76,19 @@ export default async function SalesReportPage({
   const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate())
   const todayEnd   = new Date(todayStart); todayEnd.setHours(23, 59, 59, 999)
 
+  // 신규고객입력 집계용 일/주/월/연 경계 (페이지 상단의 기간 선택기와 무관하게 항상 "지금" 기준)
+  const dow        = now.getDay()
+  const weekStart  = new Date(now.getFullYear(), now.getMonth(), now.getDate() - (dow === 0 ? 6 : dow - 1))
+  const weekEnd    = new Date(weekStart); weekEnd.setDate(weekStart.getDate() + 6); weekEnd.setHours(23, 59, 59, 999)
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1)
+  const monthEnd   = new Date(now.getFullYear(), now.getMonth() + 1, 0); monthEnd.setHours(23, 59, 59, 999)
+  const yearStart  = new Date(now.getFullYear(), 0, 1)
+  const yearEnd    = new Date(now.getFullYear(), 11, 31); yearEnd.setHours(23, 59, 59, 999)
+
   const [
     meetings, newDeals, wonDeals, lostDeals, stageChanged, allActive,
     todayPlanned, plannedInRange, activeCadenceLeads, lastCallRows,
+    newCustomerCountsRaw,
   ] = await Promise.all([
     prisma.$queryRaw<any[]>`
       SELECT lm.id, lm.type, lm."meetingAt", lm.content, lm.result, lm.assignee,
@@ -148,7 +158,23 @@ export default async function SalesReportPage({
       WHERE type = '통화' AND "isPlan" = 0
       GROUP BY "dealId"
     `,
+    /* ── 신규고객입력: 일/주/월/연 단위 신규 고객 등록 수 (입력일자 우선, 없으면 등록일시) ── */
+    prisma.$queryRaw<{ today: number | bigint; week: number | bigint; month: number | bigint; year: number | bigint }[]>`
+      SELECT
+        SUM(CASE WHEN COALESCE("collectedAt","createdAt") >= ${todayStart} AND COALESCE("collectedAt","createdAt") <= ${todayEnd} THEN 1 ELSE 0 END) AS today,
+        SUM(CASE WHEN COALESCE("collectedAt","createdAt") >= ${weekStart}  AND COALESCE("collectedAt","createdAt") <= ${weekEnd}  THEN 1 ELSE 0 END) AS week,
+        SUM(CASE WHEN COALESCE("collectedAt","createdAt") >= ${monthStart} AND COALESCE("collectedAt","createdAt") <= ${monthEnd} THEN 1 ELSE 0 END) AS month,
+        SUM(CASE WHEN COALESCE("collectedAt","createdAt") >= ${yearStart}  AND COALESCE("collectedAt","createdAt") <= ${yearEnd}  THEN 1 ELSE 0 END) AS year
+      FROM "Customer"
+    `,
   ])
+
+  const newCustomerCounts = {
+    today: Number(newCustomerCountsRaw[0]?.today ?? 0),
+    week:  Number(newCustomerCountsRaw[0]?.week ?? 0),
+    month: Number(newCustomerCountsRaw[0]?.month ?? 0),
+    year:  Number(newCustomerCountsRaw[0]?.year ?? 0),
+  }
 
   const meetByType: Record<string, number> = {}
   for (const m of meetings) meetByType[m.type] = (meetByType[m.type] ?? 0) + 1
@@ -702,28 +728,47 @@ export default async function SalesReportPage({
           </Section>
         </div>
 
-        {/* 단계 진전 리드 */}
-        {stageChanged.length > 0 && (
-          <Section title="단계 진전 리드" count={stageChanged.length}>
-            <table className="w-full text-xs">
-              <thead>
-                <tr className="border-b border-slate-100">
-                  <Th>변경일</Th><Th>고객명</Th><Th>현재 단계</Th><Th>담당</Th>
-                </tr>
-              </thead>
-              <tbody>
-                {stageChanged.map((d: any) => (
-                  <ClickRow key={d.id} href={`/funnel/${d.id}`}>
-                    <Td>{fmt(d.stageChangedAt)}</Td>
-                    <Td><Link href={`/funnel/${d.id}`} className="font-medium text-indigo-600 hover:underline">{d.name}</Link></Td>
-                    <Td><Badge text={STAGE_LABEL[d.stageCode] ?? d.stageCode} /></Td>
-                    <Td>{d.assignee ?? '-'}</Td>
-                  </ClickRow>
-                ))}
-              </tbody>
-            </table>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          {/* 단계 진전 리드 */}
+          {stageChanged.length > 0 && (
+            <Section title="단계 진전 리드" count={stageChanged.length}>
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="border-b border-slate-100">
+                    <Th>변경일</Th><Th>고객명</Th><Th>현재 단계</Th><Th>담당</Th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {stageChanged.map((d: any) => (
+                    <ClickRow key={d.id} href={`/funnel/${d.id}`}>
+                      <Td>{fmt(d.stageChangedAt)}</Td>
+                      <Td><Link href={`/funnel/${d.id}`} className="font-medium text-indigo-600 hover:underline">{d.name}</Link></Td>
+                      <Td><Badge text={STAGE_LABEL[d.stageCode] ?? d.stageCode} /></Td>
+                      <Td>{d.assignee ?? '-'}</Td>
+                    </ClickRow>
+                  ))}
+                </tbody>
+              </table>
+            </Section>
+          )}
+
+          {/* 신규고객입력 */}
+          <Section title="신규고객입력" count={newCustomerCounts.today}>
+            <div className="grid grid-cols-4 gap-3 py-1">
+              {[
+                { label: '오늘', value: newCustomerCounts.today },
+                { label: '이번 주', value: newCustomerCounts.week },
+                { label: '이번 달', value: newCustomerCounts.month },
+                { label: '올해', value: newCustomerCounts.year },
+              ].map(({ label, value }) => (
+                <div key={label} className="rounded-xl bg-slate-50 px-2 py-3 text-center">
+                  <div className="text-[11px] font-semibold text-slate-400 mb-1">{label}</div>
+                  <div className="text-xl font-bold text-slate-700">{value}</div>
+                </div>
+              ))}
+            </div>
           </Section>
-        )}
+        </div>
 
         <p className="text-[10px] text-slate-300 text-center pb-4">
           * 수주/실주 날짜는 영업 파이프라인에서 상태를 변경한 시점부터 집계됩니다.

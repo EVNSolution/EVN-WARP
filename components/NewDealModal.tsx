@@ -19,6 +19,7 @@ type CustomerHit = {
   soleBusinessName: string | null
   customerSegment: string | null
   status: string
+  vehiclePlateNo: string | null
 }
 type Step = 'search' | 'create' | 'lead'
 
@@ -34,7 +35,7 @@ export default function NewDealModal({ onClose, onCreated }: Props) {
 
   /* ── Step 1: 고객 검색 ── */
   const [query,        setQuery]        = useState('')
-  const [searchMode,   setSearchMode]   = useState<'name' | 'phone' | 'company'>('name')
+  const [searchMode,   setSearchMode]   = useState<'name' | 'phone' | 'company' | 'plate'>('name')
   const [searchResult, setSearchResult] = useState<CustomerHit[]>([])
   const [searching,    setSearching]    = useState(false)
   const [didSearch,    setDidSearch]    = useState(false)
@@ -98,7 +99,7 @@ export default function NewDealModal({ onClose, onCreated }: Props) {
     setStep('lead')
   }
 
-  const switchMode = (mode: 'name' | 'phone' | 'company') => {
+  const switchMode = (mode: 'name' | 'phone' | 'company' | 'plate') => {
     setSearchMode(mode)
     setQuery('')
     setSearchResult([])
@@ -137,7 +138,7 @@ export default function NewDealModal({ onClose, onCreated }: Props) {
       })
       if (!res.ok) { const j = await res.json(); setError(j.error ?? '등록 실패'); setSaving(false); return }
       const c = await res.json()
-      setCustomer({ id: c.id, name: c.name, phone: c.phone, companyName: c.companyName ?? null, soleBusinessName: c.soleBusinessName ?? null, customerSegment: c.customerSegment, status: c.status })
+      setCustomer({ id: c.id, name: c.name, phone: c.phone, companyName: c.companyName ?? null, soleBusinessName: c.soleBusinessName ?? null, customerSegment: c.customerSegment, status: c.status, vehiclePlateNo: c.vehiclePlateNo ?? null })
       setStep('lead')
     } catch {
       setError('네트워크 오류')
@@ -275,11 +276,11 @@ export default function NewDealModal({ onClose, onCreated }: Props) {
 
             {/* 검색 모드 탭 */}
             <div className="flex border border-slate-200 rounded-xl overflow-hidden">
-              {(['name', 'phone', 'company'] as const).map(m => (
+              {(['name', 'phone', 'company', 'plate'] as const).map(m => (
                 <button key={m} onClick={() => switchMode(m)}
                   className={`flex-1 py-2.5 text-xs font-bold transition-colors
                     ${searchMode === m ? 'bg-slate-800 text-white' : 'text-slate-400 hover:text-slate-600'}`}>
-                  {m === 'name' ? '이름' : m === 'phone' ? '전화번호' : '법인명'}
+                  {m === 'name' ? '이름' : m === 'phone' ? '전화번호' : m === 'company' ? '법인명' : '차량번호'}
                 </button>
               ))}
             </div>
@@ -290,7 +291,12 @@ export default function NewDealModal({ onClose, onCreated }: Props) {
                 autoFocus
                 value={query}
                 onChange={e => setQuery(e.target.value)}
-                placeholder={searchMode === 'phone' ? '뒷자리 4자리 이상 (숫자만)' : searchMode === 'company' ? '법인명 입력...' : '고객 이름 입력...'}
+                placeholder={
+                  searchMode === 'phone' ? '뒷자리 4자리 이상 (숫자만)'
+                  : searchMode === 'company' ? '법인명 입력...'
+                  : searchMode === 'plate' ? '차량번호 입력 (예: 1234, 97보 1234)'
+                  : '고객 이름 입력...'
+                }
                 inputMode={searchMode === 'phone' ? 'numeric' : 'text'}
                 className="w-full text-sm border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-slate-300"
               />
@@ -315,10 +321,12 @@ export default function NewDealModal({ onClose, onCreated }: Props) {
                           ? highlightPhone(c.phone, query)
                           : searchMode === 'company'
                             ? (c.phone ?? '연락처 없음')
-                            : (() => {
-                                const bizName = c.companyName ?? c.soleBusinessName
-                                return (bizName ? `${bizName} · ` : '') + (c.phone ?? '연락처 없음')
-                              })()}
+                            : searchMode === 'plate'
+                              ? `${c.vehiclePlateNo ?? '차량번호 없음'} · ${c.phone ?? '연락처 없음'}`
+                              : (() => {
+                                  const bizName = c.companyName ?? c.soleBusinessName
+                                  return (bizName ? `${bizName} · ` : '') + (c.phone ?? '연락처 없음')
+                                })()}
                       </p>
                     </div>
                     <span className="text-xs font-semibold text-blue-600 shrink-0">선택 →</span>

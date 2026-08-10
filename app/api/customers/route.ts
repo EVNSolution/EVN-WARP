@@ -4,7 +4,7 @@ import { prisma } from '@/lib/db'
 export async function GET(req: NextRequest) {
   const url  = new URL(req.url)
   const q    = url.searchParams.get('q')?.trim()
-  const mode = url.searchParams.get('mode') // 'name' | 'phone' | 'company' | null(both)
+  const mode = url.searchParams.get('mode') // 'name' | 'phone' | 'company' | 'plate' | null(both)
 
   // 전화번호 검색 시 숫자만 추출해 비교 (하이픈 무관)
   const digitsOnly = q?.replace(/\D/g, '')
@@ -23,11 +23,13 @@ export async function GET(req: NextRequest) {
                 { companyName:      { contains: q } },
                 { soleBusinessName: { contains: q } },
               ] }
-            : { OR: [
-                { name:        { contains: q } },
-                { phone:       { contains: q } },
-                { companyName: { contains: q } },
-              ] }
+            : mode === 'plate'
+              ? { vehiclePlateNo: { contains: q } }
+              : { OR: [
+                  { name:        { contains: q } },
+                  { phone:       { contains: q } },
+                  { companyName: { contains: q } },
+                ] }
       : undefined,
     orderBy: { createdAt: 'desc' },
     include: {

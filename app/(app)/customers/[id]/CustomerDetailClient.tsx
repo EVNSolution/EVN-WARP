@@ -96,6 +96,7 @@ export default function CustomerDetailClient({ customer, returnTo }: { customer:
     status:           customer.status,
     grade:            customer.grade            ?? '',
     source:           customer.source           ?? '',
+    collectedAt:      customer.collectedAt      ? customer.collectedAt.slice(0, 10) : '',
     assignee:         customer.assignee         ?? '',
     isAgent:          customer.isAgent          ?? false,
     memo:             customer.memo             ?? '',
@@ -264,6 +265,7 @@ export default function CustomerDetailClient({ customer, returnTo }: { customer:
           email:            f.email            || null,
           grade:            f.grade            || null,
           source:           f.source           || null,
+          collectedAt:      f.collectedAt ? new Date(f.collectedAt).toISOString() : (customer.collectedAt || new Date().toISOString()),
           isAgent:          f.isAgent,
           regionCity:       f.regionCity       || null,
           regionDist:       f.regionDist       || null,
@@ -509,20 +511,28 @@ export default function CustomerDetailClient({ customer, returnTo }: { customer:
                     {label('유입 경로')}
                     {chips('source', SOURCES, true)}
                   </div>
-                  <div className="col-span-2">
-                    <label className="block text-[11px] font-semibold text-slate-400 mb-1.5 uppercase tracking-wide">소개인 여부</label>
-                    <button type="button"
-                      onClick={() => { setF(prev => ({ ...prev, isAgent: !prev.isAgent })); setSaved(false) }}
-                      className={`flex items-center gap-2.5 px-4 py-2 rounded-xl text-sm font-semibold border transition-all
-                        ${f.isAgent
-                          ? 'bg-indigo-600 text-white border-indigo-600'
-                          : 'bg-white text-slate-500 border-slate-200 hover:border-slate-400'}`}>
-                      <span className={`w-4 h-4 rounded-full border-2 flex items-center justify-center transition-all
-                        ${f.isAgent ? 'bg-white border-white' : 'border-slate-300'}`}>
-                        {f.isAgent && <span className="w-2 h-2 rounded-full bg-indigo-600 block" />}
-                      </span>
-                      {f.isAgent ? '✓ 소개인 — 소개인 검색 시 포함됩니다' : '소개인'}
-                    </button>
+                  <div className="col-span-2 flex items-end gap-3">
+                    <div>
+                      <label className="block text-[11px] font-semibold text-slate-400 mb-1.5 uppercase tracking-wide">소개인 여부</label>
+                      <button type="button"
+                        onClick={() => { setF(prev => ({ ...prev, isAgent: !prev.isAgent })); setSaved(false) }}
+                        className={`flex items-center gap-2.5 px-4 py-2 rounded-xl text-sm font-semibold border transition-all
+                          ${f.isAgent
+                            ? 'bg-indigo-600 text-white border-indigo-600'
+                            : 'bg-white text-slate-500 border-slate-200 hover:border-slate-400'}`}>
+                        <span className={`w-4 h-4 rounded-full border-2 flex items-center justify-center transition-all
+                          ${f.isAgent ? 'bg-white border-white' : 'border-slate-300'}`}>
+                          {f.isAgent && <span className="w-2 h-2 rounded-full bg-indigo-600 block" />}
+                        </span>
+                        {f.isAgent ? '✓ 소개인 — 소개인 검색 시 포함됩니다' : '소개인'}
+                      </button>
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-semibold text-slate-400 mb-1.5 uppercase tracking-wide">입력일자</label>
+                      <input type="date" value={f.collectedAt} onChange={e => setFv('collectedAt', e.target.value)}
+                        placeholder="미입력 시 오늘 날짜"
+                        className="text-sm border border-slate-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-slate-300" />
+                    </div>
                   </div>
                 </div>
               </div>
@@ -795,20 +805,28 @@ export default function CustomerDetailClient({ customer, returnTo }: { customer:
                     {label('유입 경로')}
                     {chips('source', SOURCES, true)}
                   </div>
-                  <div className="col-span-2">
-                    <label className="block text-[11px] font-semibold text-slate-400 mb-1.5 uppercase tracking-wide">소개인 여부</label>
-                    <button type="button"
-                      onClick={() => { setF(prev => ({ ...prev, isAgent: !prev.isAgent })); setSaved(false) }}
-                      className={`flex items-center gap-2.5 px-4 py-2 rounded-xl text-sm font-semibold border transition-all
-                        ${f.isAgent
-                          ? 'bg-violet-600 text-white border-violet-600'
-                          : 'bg-white text-slate-500 border-slate-200 hover:border-slate-400'}`}>
-                      <span className={`w-4 h-4 rounded-full border-2 flex items-center justify-center transition-all
-                        ${f.isAgent ? 'bg-white border-white' : 'border-slate-300'}`}>
-                        {f.isAgent && <span className="w-2 h-2 rounded-full bg-violet-600 block" />}
-                      </span>
-                      {f.isAgent ? '✓ 법인 소개인 — 소개인 검색 시 포함됩니다' : '소개인(법인)'}
-                    </button>
+                  <div className="col-span-2 flex items-end gap-3">
+                    <div>
+                      <label className="block text-[11px] font-semibold text-slate-400 mb-1.5 uppercase tracking-wide">소개인 여부</label>
+                      <button type="button"
+                        onClick={() => { setF(prev => ({ ...prev, isAgent: !prev.isAgent })); setSaved(false) }}
+                        className={`flex items-center gap-2.5 px-4 py-2 rounded-xl text-sm font-semibold border transition-all
+                          ${f.isAgent
+                            ? 'bg-violet-600 text-white border-violet-600'
+                            : 'bg-white text-slate-500 border-slate-200 hover:border-slate-400'}`}>
+                        <span className={`w-4 h-4 rounded-full border-2 flex items-center justify-center transition-all
+                          ${f.isAgent ? 'bg-white border-white' : 'border-slate-300'}`}>
+                          {f.isAgent && <span className="w-2 h-2 rounded-full bg-violet-600 block" />}
+                        </span>
+                        {f.isAgent ? '✓ 법인 소개인 — 소개인 검색 시 포함됩니다' : '소개인(법인)'}
+                      </button>
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-semibold text-slate-400 mb-1.5 uppercase tracking-wide">입력일자</label>
+                      <input type="date" value={f.collectedAt} onChange={e => setFv('collectedAt', e.target.value)}
+                        placeholder="미입력 시 오늘 날짜"
+                        className="text-sm border border-slate-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-slate-300" />
+                    </div>
                   </div>
                   <div>
                     {label('영업 담당자')}
