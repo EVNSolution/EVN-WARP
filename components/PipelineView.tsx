@@ -776,16 +776,16 @@ export default function PipelineView({ deals, salesTarget, initialStage, initial
     <div className="flex gap-0 flex-1 min-h-0">
 
       {/* ── 좌측: 파이프라인 플로우 ── */}
-      <div className="w-72 shrink-0 overflow-y-auto border-r border-slate-200 bg-slate-50 py-[7px] px-2.5 flex flex-col gap-[3px]">
+      <div className="w-72 shrink-0 overflow-y-auto border-r border-slate-200 bg-slate-50 py-3 px-2.5 flex flex-col gap-2">
         <button
           onClick={() => { setSelectedCode(null); setShowLost(false) }}
-          className={`w-full text-left px-3 py-[5px] rounded-lg text-xs font-semibold transition mb-0.5
+          className={`w-full text-left px-3 py-2 rounded-lg text-xs font-semibold transition mb-0.5
             ${!selectedCode ? 'bg-slate-800 text-white shadow-sm' : 'text-slate-500 hover:bg-slate-100 bg-white border border-slate-200'}`}>
           전체 보기 · 진행중 {activeDeals.length}건
         </button>
 
         {/* 판매목표 표시 (대시보드 KPI 연동) */}
-        <div className={`rounded-lg border px-3 py-[7px] mb-0.5 ${
+        <div className={`rounded-lg border px-3 py-2.5 mb-0.5 ${
           salesTarget != null
             ? 'bg-emerald-50 border-emerald-200'
             : 'bg-slate-50 border-slate-200'
@@ -831,7 +831,7 @@ export default function PipelineView({ deals, salesTarget, initialStage, initial
                 </div>
 
                 {/* 프로세스 노드 */}
-                <div className="flex-1 flex flex-col gap-[3px]">
+                <div className="flex-1 flex flex-col gap-1.5">
                   {phase.processes.map((proc) => {
                     const count         = countByCode[proc.code] ?? 0
                     const dynamicTarget = (salesTarget != null && proc.conversionRate > 0)
@@ -845,7 +845,7 @@ export default function PipelineView({ deals, salesTarget, initialStage, initial
                           onClick={() => setSelectedCode(isSel ? null : proc.code)}
                           className={`w-full text-left rounded-md border overflow-hidden transition-all
                             ${isSel ? PHASE_NODE_SELECTED[phase.phase] : `bg-white ${PHASE_NODE_BORDER[phase.phase]}`}`}>
-                          <div className="flex items-stretch min-h-[31px]">
+                          <div className="flex items-stretch min-h-[42px]">
                             <div className="w-10 shrink-0 flex items-center justify-center"
                               style={{ backgroundColor: STATUS_BG_HEX[status] }}>
                               <span className={`text-[10px] font-black tabular-nums ${STATUS_NUM_COLOR[status]}`}>
@@ -880,7 +880,7 @@ export default function PipelineView({ deals, salesTarget, initialStage, initial
               {pi < PIPELINE.length - 1 && (
                 <div className="flex gap-1.5">
                   <div className="w-16 shrink-0" />
-                  <div className="flex-1 flex justify-center items-center h-[9px]">
+                  <div className="flex-1 flex justify-center items-center h-4">
                     <svg width="14" height="7" viewBox="0 0 14 7">
                       <path d="M0 0 L14 0 L7 7 Z" fill="#94a3b8"/>
                     </svg>
@@ -892,17 +892,17 @@ export default function PipelineView({ deals, salesTarget, initialStage, initial
         })}
 
         {/* 판매보류 / 이탈 — 위 4단계와 동일한 색상 블록 UI */}
-        <div className="mt-[3px] flex flex-col gap-[5px]">
+        <div className="mt-1.5 flex flex-col gap-2">
           <button
             onClick={() => setSelectedCode(selectedCode === '판매보류' ? null : '판매보류')}
-            className={`w-full rounded-lg overflow-hidden shadow-sm transition-all flex items-center justify-between px-3 py-[7px]
+            className={`w-full rounded-lg overflow-hidden shadow-sm transition-all flex items-center justify-between px-3 py-2.5
               ${selectedCode === '판매보류' ? 'ring-2 ring-amber-400' : ''} bg-amber-500`}>
             <span className="text-white font-bold text-[13px]">판매보류</span>
             <span className="text-white font-black text-[16px] tabular-nums">{holdDeals.length}</span>
           </button>
           <button
             onClick={() => setSelectedCode(selectedCode === '이탈' ? null : '이탈')}
-            className={`w-full rounded-lg overflow-hidden shadow-sm transition-all flex items-center justify-between px-3 py-[7px]
+            className={`w-full rounded-lg overflow-hidden shadow-sm transition-all flex items-center justify-between px-3 py-2.5
               ${selectedCode === '이탈' ? 'ring-2 ring-red-400' : ''} bg-red-600`}>
             <span className="text-white font-bold text-[13px]">이탈</span>
             <span className="text-white font-black text-[16px] tabular-nums">{lostDeals.length}</span>
