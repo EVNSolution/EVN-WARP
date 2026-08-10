@@ -694,9 +694,10 @@ export default async function SalesReportPage({
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           {/* 단계 진전 리드 */}
-          {stageChanged.length > 0 && (
-            <Section title="단계 진전 리드" count={stageChanged.length}>
-              <table className="w-full text-xs">
+          <Section title="단계 진전 리드" count={stageChanged.length}>
+            {stageChanged.length === 0
+              ? <Empty text="기간 내 단계 진전 리드가 없습니다" />
+              : <table className="w-full text-xs">
                 <thead>
                   <tr className="border-b border-slate-100">
                     <Th>변경일</Th><Th>고객명</Th><Th>현재 단계</Th><Th>담당</Th>
@@ -713,8 +714,8 @@ export default async function SalesReportPage({
                   ))}
                 </tbody>
               </table>
-            </Section>
-          )}
+            }
+          </Section>
 
           {/* 신규고객입력 목록 */}
           <Section title="신규고객입력" count={newCustomersList.length}>
