@@ -20,10 +20,10 @@ function isDateRangeActive(
   return s < rangeEnd && e > rangeStart
 }
 
-type SearchParams = { week?: string; tab?: string; view?: string }
+type SearchParams = { week?: string; tab?: string; view?: string; presentTeam?: string }
 
 export default async function WeeklyPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
-  const { week: weekParam, tab, view: viewParam } = await searchParams
+  const { week: weekParam, tab, view: viewParam, presentTeam: presentTeamParam } = await searchParams
   const activeTab  = tab === 'weekly' ? 'weekly' : 'gantt'
   const activeView = (viewParam === 'team' || viewParam === 'personal') ? viewParam : 'company'
 
@@ -135,11 +135,28 @@ export default async function WeeklyPage({ searchParams }: { searchParams: Promi
   const teamEntries = [...teamMap.entries()]
     .sort((a, b) => teamOrderIndex(a[1].teamName) - teamOrderIndex(b[1].teamName))
 
+  // ── 발표 모드: 주간업무보고 탭 · 전사 보기에서 팀을 한 팀씩 페이지 넘기며 보기 ──
+  const presentTeamId = (activeTab === 'weekly' && activeView === 'company'
+    && presentTeamParam && teamEntries.some(([tid]) => tid === presentTeamParam))
+    ? presentTeamParam
+    : null
+  const presentTeamIdx  = presentTeamId ? teamEntries.findIndex(([tid]) => tid === presentTeamId) : -1
+  const presentTeamName = presentTeamIdx >= 0 ? teamEntries[presentTeamIdx][1].teamName : ''
+  const prevTeamId = teamEntries.length > 0 ? teamEntries[(presentTeamIdx - 1 + teamEntries.length) % teamEntries.length][0] : null
+  const nextTeamId = teamEntries.length > 0 ? teamEntries[(presentTeamIdx + 1) % teamEntries.length][0] : null
+  const withParams = (o: { week?: string; tab?: string; view?: string; presentTeam?: string | null }) => {
+    const w  = o.week ?? weekId
+    const t  = o.tab  ?? activeTab
+    const v  = o.view ?? activeView
+    const pt = o.presentTeam !== undefined ? o.presentTeam : presentTeamId
+    return `/weekly?week=${w}&tab=${t}&view=${v}${pt ? `&presentTeam=${pt}` : ''}`
+  }
+
   // ── 뷰 스코프 필터 ──
   const myThisActTaskIds = new Set(thisWeekActivities.filter(a => a.userId === myUserId && a.taskId).map(a => a.taskId!))
   const myNextActTaskIds = new Set(nextWeekActivities.filter(a => a.userId === myUserId && a.taskId).map(a => a.taskId!))
 
-  const viewTeamEntries = activeView === 'personal'
+  const scopedTeamEntries = activeView === 'personal'
     ? teamEntries.map(([tid, te]) => [tid, {
         ...te,
         tasks: te.tasks.filter(t => myThisActTaskIds.has(t.id) || myNextActTaskIds.has(t.id)),
@@ -147,6 +164,10 @@ export default async function WeeklyPage({ searchParams }: { searchParams: Promi
     : activeView === 'team'
     ? teamEntries.filter(([tid]) => tid === myTeamId)
     : teamEntries
+
+  const viewTeamEntries = presentTeamId
+    ? scopedTeamEntries.filter(([tid]) => tid === presentTeamId)
+    : scopedTeamEntries
 
   const todayMs  = Date.now()
   const todayPos = todayMs >= windowStart.getTime() && todayMs <= windowEnd.getTime()
@@ -209,7 +230,7 @@ export default async function WeeklyPage({ searchParams }: { searchParams: Promi
         </div>
         <div className="flex items-center gap-3">
           <div className="flex items-center border border-white/20 rounded-lg overflow-hidden" style={{ backgroundColor: 'rgba(255,255,255,0.08)' }}>
-            <Link href={`/weekly?week=${prevWeek}&tab=${activeTab}&view=${activeView}`}
+            <Link href={withParams({ week: prevWeek })}
               className="px-2.5 py-1.5 text-white/50 hover:text-white hover:bg-white/10 transition-colors border-r border-white/20">
               <ChevronLeft size={16} />
             </Link>
@@ -217,7 +238,7 @@ export default async function WeeklyPage({ searchParams }: { searchParams: Promi
               {formatWeekLabel(weekId)}
               {isCurrentWeek && <span className="ml-2 text-xs font-medium" style={{ color: '#C5D42A' }}>이번 주</span>}
             </span>
-            <Link href={`/weekly?week=${nextWeek}&tab=${activeTab}&view=${activeView}`}
+            <Link href={withParams({ week: nextWeek })}
               className="px-2.5 py-1.5 text-white/50 hover:text-white hover:bg-white/10 transition-colors border-l border-white/20">
               <ChevronRight size={16} />
             </Link>
@@ -335,6 +356,34 @@ export default async function WeeklyPage({ searchParams }: { searchParams: Promi
       ══════════════════════════════ */}
       {activeTab === 'weekly' && (
         <>
+          {activeView === 'company' && (
+            <div className="flex items-center gap-2 mb-3">
+              <span className="text-xs text-slate-400 font-medium">발표 모드:</span>
+              {presentTeamId ? (
+                <div className="flex items-center border border-slate-200 rounded-lg overflow-hidden bg-white">
+                  <Link href={withParams({ presentTeam: prevTeamId })}
+                    className="px-2 py-1 text-slate-400 hover:text-slate-700 hover:bg-slate-50 transition-colors border-r border-slate-200">
+                    <ChevronLeft size={14} />
+                  </Link>
+                  <span className="px-3 py-1 text-xs font-bold text-slate-700 min-w-[130px] text-center">
+                    {presentTeamName} ({presentTeamIdx + 1}/{teamEntries.length})
+                  </span>
+                  <Link href={withParams({ presentTeam: nextTeamId })}
+                    className="px-2 py-1 text-slate-400 hover:text-slate-700 hover:bg-slate-50 transition-colors border-l border-slate-200">
+                    <ChevronRight size={14} />
+                  </Link>
+                </div>
+              ) : (
+                <span className="text-xs text-slate-300">전체 팀 표시 중</span>
+              )}
+              <Link
+                href={presentTeamId ? withParams({ presentTeam: null }) : withParams({ presentTeam: teamEntries[0]?.[0] ?? null })}
+                className="px-3 py-1 text-xs font-semibold rounded-full border border-slate-200 text-slate-500 hover:border-slate-400 transition-colors"
+              >
+                {presentTeamId ? '전체 팀 보기' : '팀별로 보기 시작'}
+              </Link>
+            </div>
+          )}
           <section className="grid grid-cols-2 gap-4 mb-4">
 
             {/* Weekly Completed Works */}
@@ -393,7 +442,7 @@ export default async function WeeklyPage({ searchParams }: { searchParams: Promi
                                 {act.type === '이메일' && act.referenceUrl
                                   ? <a href={act.referenceUrl} target="_blank" rel="noopener noreferrer" className="text-sky-600 hover:underline">{act.title}</a>
                                   : act.title}
-                                {act.planStatus === '완료' && <span className="ml-1 text-[9px] font-bold text-emerald-600">[완료, {+act.date.slice(5,7)}/{+act.date.slice(8,10)}]</span>}
+                                <span className="ml-1 text-slate-400">({act.userName ?? '담당자 미상'}, {act.planStatus === '완료' ? '완료' : '계획'} {+act.date.slice(5,7)}/{+act.date.slice(8,10)})</span>
                               </span>
                             </div>
                           ))}
@@ -523,7 +572,7 @@ export default async function WeeklyPage({ searchParams }: { searchParams: Promi
                                 {act.type === '이메일' && act.referenceUrl
                                   ? <a href={act.referenceUrl} target="_blank" rel="noopener noreferrer" className="text-sky-600 hover:underline">{act.title}</a>
                                   : act.title}
-                                {act.planStatus === '완료' && <span className="ml-1 text-[9px] font-bold text-emerald-600">[완료, {+act.date.slice(5,7)}/{+act.date.slice(8,10)}]</span>}
+                                <span className="ml-1 text-slate-400">({act.userName ?? '담당자 미상'}, {act.planStatus === '완료' ? '완료' : '계획'} {+act.date.slice(5,7)}/{+act.date.slice(8,10)})</span>
                               </span>
                             </div>
                           ))}
