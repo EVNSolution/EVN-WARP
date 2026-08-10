@@ -779,13 +779,13 @@ export default function PipelineView({ deals, salesTarget, initialStage, initial
       <div className="w-72 shrink-0 overflow-y-auto border-r border-slate-200 bg-slate-50 py-[9px] px-2.5 flex flex-col gap-[5px]">
         <button
           onClick={() => { setSelectedCode(null); setShowLost(false) }}
-          className={`w-full text-left px-3 py-[6px] rounded-lg text-xs font-semibold transition mb-0.5
+          className={`h-8 w-full flex items-center text-left px-3 rounded-lg text-xs font-semibold transition mb-0.5
             ${!selectedCode ? 'bg-slate-800 text-white shadow-sm' : 'text-slate-500 hover:bg-slate-100 bg-white border border-slate-200'}`}>
           전체 보기 · 진행중 {activeDeals.length}건
         </button>
 
-        {/* 판매목표 표시 (대시보드 KPI 연동) */}
-        <div className={`rounded-lg border px-3 py-[8px] mb-0.5 ${
+        {/* 판매목표 표시 (대시보드 KPI 연동) — 위 '전체 보기' 박스와 높이 통일 */}
+        <div className={`h-8 flex items-center rounded-lg border px-3 mb-0.5 ${
           salesTarget != null
             ? 'bg-emerald-50 border-emerald-200'
             : 'bg-slate-50 border-slate-200'
@@ -793,7 +793,7 @@ export default function PipelineView({ deals, salesTarget, initialStage, initial
           {salesTarget != null ? (
             <div className="flex items-baseline gap-1.5">
               <span className="text-[10px] font-bold text-slate-500">이달 판매목표</span>
-              <span className="text-xl font-black text-emerald-700 tabular-nums">{salesTarget}</span>
+              <span className="text-lg font-black text-emerald-700 tabular-nums leading-none">{salesTarget}</span>
               <span className="text-xs text-emerald-600">대</span>
             </div>
           ) : (
