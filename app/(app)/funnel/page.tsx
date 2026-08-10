@@ -161,12 +161,14 @@ export default async function FunnelPage({ searchParams }: { searchParams: Promi
       </div>
 
       {/* ── 본문: PipelineView ── */}
-      <PipelineView
-        deals={deals}
-        salesTarget={salesTarget}
-        initialStage={initialStage}
-        initialSeg={initialSeg}
-      />
+      <div className="flex-1 min-h-0">
+        <PipelineView
+          deals={deals}
+          salesTarget={salesTarget}
+          initialStage={initialStage}
+          initialSeg={initialSeg}
+        />
+      </div>
     </div>
   )
 }

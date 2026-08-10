@@ -88,7 +88,7 @@ export default async function SalesReportPage({
   const [
     meetings, newDeals, wonDeals, lostDeals, stageChanged, allActive,
     todayPlanned, plannedInRange, activeCadenceLeads, lastCallRows,
-    newCustomerCountsRaw,
+    newCustomerCountsRaw, newCustomersList,
   ] = await Promise.all([
     prisma.$queryRaw<any[]>`
       SELECT lm.id, lm.type, lm."meetingAt", lm.content, lm.result, lm.assignee,
@@ -167,6 +167,14 @@ export default async function SalesReportPage({
         SUM(CASE WHEN COALESCE("collectedAt","createdAt") >= ${yearStart}  AND COALESCE("collectedAt","createdAt") <= ${yearEnd}  THEN 1 ELSE 0 END) AS year
       FROM "Customer"
     `,
+    /* ── 신규고객입력 목록: 선택 기간(from~to) 내 등록된 고객 ── */
+    prisma.$queryRaw<any[]>`
+      SELECT id, name, phone, assignee, "customerSegment" AS segment,
+             COALESCE("collectedAt","createdAt") AS "enteredAt"
+      FROM "Customer"
+      WHERE COALESCE("collectedAt","createdAt") >= ${from} AND COALESCE("collectedAt","createdAt") <= ${to}
+      ORDER BY "enteredAt" DESC
+    `,
   ])
 
   const newCustomerCounts = {
@@ -179,9 +187,6 @@ export default async function SalesReportPage({
   const meetByType: Record<string, number> = {}
   for (const m of meetings) meetByType[m.type] = (meetByType[m.type] ?? 0) + 1
   const wonRevenue = wonDeals.reduce((s: number, d: any) => s + (Number(d.totalPrice) || 0), 0)
-  const winRate = wonDeals.length + lostDeals.length > 0
-    ? Math.round((wonDeals.length / (wonDeals.length + lostDeals.length)) * 100)
-    : null
 
   const periodLabel = { today: '오늘', week: '이번 주', month: '이번 달', year: '올해', custom: '기간 지정' }[period] ?? '이번 달'
 
@@ -605,22 +610,31 @@ export default async function SalesReportPage({
                 <p className="text-2xl font-black text-red-600">{lostDeals.length}</p>
               </div>
             </div>
-            <div className="space-y-1.5">
-              {winRate !== null && (
-                <div className="flex items-center justify-between">
-                  <span className="text-xs text-slate-500">수주율</span>
-                  <span className="text-sm font-bold text-slate-700">{winRate}%</span>
-                </div>
-              )}
-              {wonRevenue > 0 && (
+            <div className="space-y-1.5 mb-3">
+              {wonRevenue > 0 ? (
                 <div className="flex items-center justify-between">
                   <span className="text-xs text-slate-500">수주 매출</span>
                   <span className="text-sm font-bold text-slate-700">{wonRevenue.toLocaleString()}만원</span>
                 </div>
-              )}
-              {winRate === null && wonRevenue === 0 && (
+              ) : (
                 <p className="text-xs text-slate-400 text-center py-1">기간 내 수주/실주 없음</p>
               )}
+            </div>
+
+            <div className="h-px bg-slate-100 mb-3" />
+            <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-2">신규고객입력</p>
+            <div className="grid grid-cols-4 gap-2">
+              {[
+                { label: '오늘', value: newCustomerCounts.today },
+                { label: '이번 주', value: newCustomerCounts.week },
+                { label: '이번 달', value: newCustomerCounts.month },
+                { label: '올해', value: newCustomerCounts.year },
+              ].map(({ label, value }) => (
+                <div key={label} className="rounded-lg bg-slate-50 px-1 py-2 text-center">
+                  <div className="text-[10px] font-semibold text-slate-400 mb-0.5">{label}</div>
+                  <div className="text-base font-bold text-slate-700">{value}</div>
+                </div>
+              ))}
             </div>
           </div>
         </div>
@@ -676,56 +690,6 @@ export default async function SalesReportPage({
                 </table>
             }
           </Section>
-
-          {/* 수주 목록 */}
-          <Section title="수주 목록" count={wonDeals.length} accent="green">
-            {wonDeals.length === 0
-              ? <Empty text="기간 내 수주 건이 없습니다" />
-              : <table className="w-full text-xs">
-                  <thead>
-                    <tr className="border-b border-slate-100">
-                      <Th>완료일</Th><Th>고객명</Th><Th>차종</Th><Th>대수</Th><Th>금액</Th><Th>담당</Th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {wonDeals.map((d: any) => (
-                      <ClickRow key={d.id} href={`/funnel/${d.id}`}>
-                        <Td>{fmt(d.closedAt)}</Td>
-                        <Td><Link href={`/funnel/${d.id}`} className="font-medium text-green-700 hover:underline">{d.name}</Link></Td>
-                        <Td>{d.vehicleModel ?? '-'}</Td>
-                        <Td>{d.vehicleCount ?? '-'}</Td>
-                        <Td>{d.totalPrice ? `${Number(d.totalPrice).toLocaleString()}만` : '-'}</Td>
-                        <Td>{d.assignee ?? '-'}</Td>
-                      </ClickRow>
-                    ))}
-                  </tbody>
-                </table>
-            }
-          </Section>
-
-          {/* 실주 목록 */}
-          <Section title="실주 목록" count={lostDeals.length} accent="red">
-            {lostDeals.length === 0
-              ? <Empty text="기간 내 실주 건이 없습니다" />
-              : <table className="w-full text-xs">
-                  <thead>
-                    <tr className="border-b border-slate-100">
-                      <Th>이탈일</Th><Th>고객명</Th><Th>실주 사유</Th><Th>담당</Th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {lostDeals.map((d: any) => (
-                      <ClickRow key={d.id} href={`/funnel/${d.id}`}>
-                        <Td>{fmt(d.closedAt)}</Td>
-                        <Td><Link href={`/funnel/${d.id}`} className="font-medium text-slate-700 hover:underline">{d.name}</Link></Td>
-                        <Td className="max-w-[150px] truncate">{d.lostReason ?? '-'}</Td>
-                        <Td>{d.assignee ?? '-'}</Td>
-                      </ClickRow>
-                    ))}
-                  </tbody>
-                </table>
-            }
-          </Section>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -752,21 +716,79 @@ export default async function SalesReportPage({
             </Section>
           )}
 
-          {/* 신규고객입력 */}
-          <Section title="신규고객입력" count={newCustomerCounts.today}>
-            <div className="grid grid-cols-4 gap-3 py-1">
-              {[
-                { label: '오늘', value: newCustomerCounts.today },
-                { label: '이번 주', value: newCustomerCounts.week },
-                { label: '이번 달', value: newCustomerCounts.month },
-                { label: '올해', value: newCustomerCounts.year },
-              ].map(({ label, value }) => (
-                <div key={label} className="rounded-xl bg-slate-50 px-2 py-3 text-center">
-                  <div className="text-[11px] font-semibold text-slate-400 mb-1">{label}</div>
-                  <div className="text-xl font-bold text-slate-700">{value}</div>
-                </div>
-              ))}
-            </div>
+          {/* 신규고객입력 목록 */}
+          <Section title="신규고객입력" count={newCustomersList.length}>
+            {newCustomersList.length === 0
+              ? <Empty text="기간 내 신규 등록된 고객이 없습니다" />
+              : <table className="w-full text-xs">
+                  <thead>
+                    <tr className="border-b border-slate-100">
+                      <Th>입력일</Th><Th>고객명</Th><Th>구분</Th><Th>담당</Th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {newCustomersList.map((c: any) => (
+                      <ClickRow key={c.id} href={`/customers/${c.id}`}>
+                        <Td>{fmt(c.enteredAt)}</Td>
+                        <Td><Link href={`/customers/${c.id}`} className="font-medium text-indigo-600 hover:underline">{c.name}</Link></Td>
+                        <Td>{c.segment ?? '-'}</Td>
+                        <Td>{c.assignee ?? '-'}</Td>
+                      </ClickRow>
+                    ))}
+                  </tbody>
+                </table>
+            }
+          </Section>
+        </div>
+
+        {/* 수주 / 실주 목록 */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <Section title="수주 목록" count={wonDeals.length} accent="green">
+            {wonDeals.length === 0
+              ? <Empty text="기간 내 수주 건이 없습니다" />
+              : <table className="w-full text-xs">
+                  <thead>
+                    <tr className="border-b border-slate-100">
+                      <Th>완료일</Th><Th>고객명</Th><Th>차종</Th><Th>대수</Th><Th>금액</Th><Th>담당</Th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {wonDeals.map((d: any) => (
+                      <ClickRow key={d.id} href={`/funnel/${d.id}`}>
+                        <Td>{fmt(d.closedAt)}</Td>
+                        <Td><Link href={`/funnel/${d.id}`} className="font-medium text-green-700 hover:underline">{d.name}</Link></Td>
+                        <Td>{d.vehicleModel ?? '-'}</Td>
+                        <Td>{d.vehicleCount ?? '-'}</Td>
+                        <Td>{d.totalPrice ? `${Number(d.totalPrice).toLocaleString()}만` : '-'}</Td>
+                        <Td>{d.assignee ?? '-'}</Td>
+                      </ClickRow>
+                    ))}
+                  </tbody>
+                </table>
+            }
+          </Section>
+
+          <Section title="실주 목록" count={lostDeals.length} accent="red">
+            {lostDeals.length === 0
+              ? <Empty text="기간 내 실주 건이 없습니다" />
+              : <table className="w-full text-xs">
+                  <thead>
+                    <tr className="border-b border-slate-100">
+                      <Th>이탈일</Th><Th>고객명</Th><Th>실주 사유</Th><Th>담당</Th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {lostDeals.map((d: any) => (
+                      <ClickRow key={d.id} href={`/funnel/${d.id}`}>
+                        <Td>{fmt(d.closedAt)}</Td>
+                        <Td><Link href={`/funnel/${d.id}`} className="font-medium text-slate-700 hover:underline">{d.name}</Link></Td>
+                        <Td className="max-w-[150px] truncate">{d.lostReason ?? '-'}</Td>
+                        <Td>{d.assignee ?? '-'}</Td>
+                      </ClickRow>
+                    ))}
+                  </tbody>
+                </table>
+            }
           </Section>
         </div>
 
