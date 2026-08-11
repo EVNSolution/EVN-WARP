@@ -16,10 +16,11 @@ const navItems = [
   { href: '/sales-report', label: '영업 리포트',    icon: BarChart2 },
 ]
 
-interface Props { userName: string; userEmail: string; isAdmin?: boolean }
+interface Props { userName: string; userEmail: string; isAdmin?: boolean; isExternal?: boolean }
 
-export default function Sidebar({ userName, userEmail, isAdmin = false }: Props) {
+export default function Sidebar({ userName, userEmail, isAdmin = false, isExternal = false }: Props) {
   const pathname = usePathname()
+  const visibleNavItems = isExternal ? navItems.filter(n => n.href === '/funnel') : navItems
 
   return (
     <aside className="w-56 min-h-screen flex flex-col" style={{ backgroundColor: '#111111' }}>
@@ -39,7 +40,7 @@ export default function Sidebar({ userName, userEmail, isAdmin = false }: Props)
 
       {/* 내비게이션 */}
       <nav className="flex-1 px-3 py-4" style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-        {navItems.map(({ href, label, icon: Icon }) => {
+        {visibleNavItems.map(({ href, label, icon: Icon }) => {
           const active = pathname.startsWith(href)
           return (
             <Link
@@ -75,15 +76,19 @@ export default function Sidebar({ userName, userEmail, isAdmin = false }: Props)
         })}
       </nav>
 
-      {/* 알림 */}
-      <div className="px-3 pb-0.5">
-        <NotificationBell />
-      </div>
+      {!isExternal && (
+        <>
+          {/* 알림 */}
+          <div className="px-3 pb-0.5">
+            <NotificationBell />
+          </div>
 
-      {/* 제안함 */}
-      <div className="px-3 pb-1">
-        <SuggestionNavItem isAdmin={isAdmin} />
-      </div>
+          {/* 제안함 */}
+          <div className="px-3 pb-1">
+            <SuggestionNavItem isAdmin={isAdmin} />
+          </div>
+        </>
+      )}
 
       {/* 보조 메뉴 */}
       <div className="px-3 pb-2 space-y-0.5">
@@ -97,26 +102,30 @@ export default function Sidebar({ userName, userEmail, isAdmin = false }: Props)
           <UserRound size={13} />
           고객 관리 (CRM)
         </Link>
-        <Link
-          href="/admin"
-          className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs transition-all"
-          style={{ color: pathname.startsWith('/admin') ? '#C5D42A' : '#555' }}
-          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = '#999' }}
-          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = pathname.startsWith('/admin') ? '#C5D42A' : '#555' }}
-        >
-          <Settings2 size={13} />
-          관리자
-        </Link>
-        <Link
-          href="/account"
-          className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs transition-all"
-          style={{ color: pathname.startsWith('/account') ? '#C5D42A' : '#555' }}
-          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = '#999' }}
-          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = pathname.startsWith('/account') ? '#C5D42A' : '#555' }}
-        >
-          <CircleUserRound size={13} />
-          내 계정
-        </Link>
+        {!isExternal && (
+          <>
+            <Link
+              href="/admin"
+              className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs transition-all"
+              style={{ color: pathname.startsWith('/admin') ? '#C5D42A' : '#555' }}
+              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = '#999' }}
+              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = pathname.startsWith('/admin') ? '#C5D42A' : '#555' }}
+            >
+              <Settings2 size={13} />
+              관리자
+            </Link>
+            <Link
+              href="/account"
+              className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs transition-all"
+              style={{ color: pathname.startsWith('/account') ? '#C5D42A' : '#555' }}
+              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = '#999' }}
+              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = pathname.startsWith('/account') ? '#C5D42A' : '#555' }}
+            >
+              <CircleUserRound size={13} />
+              내 계정
+            </Link>
+          </>
+        )}
       </div>
 
       {/* 유저 정보 + 로그아웃 */}

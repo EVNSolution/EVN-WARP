@@ -2,13 +2,17 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import bcrypt from 'bcryptjs'
 
+const SELECT_FIELDS = {
+  id: true, name: true, email: true, role: true, teamId: true,
+  team: { select: { name: true } },
+  nickname: true, position: true, ssnFront: true, hireDate: true, phone: true,
+  employmentType: true, externalRole: true,
+  createdAt: true,
+} as const
+
 export async function GET() {
   const users = await prisma.user.findMany({
-    select: {
-      id: true, name: true, email: true, role: true, teamId: true,
-      team: { select: { name: true } },
-      createdAt: true,
-    },
+    select: SELECT_FIELDS,
     orderBy: { name: 'asc' },
   })
   return NextResponse.json(users)
@@ -16,7 +20,7 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   const body = await req.json()
-  const { name, email, password, role, teamId } = body
+  const { name, email, password, role, teamId, nickname, position, ssnFront, hireDate, phone, employmentType, externalRole } = body
 
   if (!name?.trim() || !email?.trim() || !password?.trim()) {
     return NextResponse.json({ error: '이름, 이메일, 비밀번호는 필수입니다.' }, { status: 400 })
@@ -30,17 +34,20 @@ export async function POST(req: NextRequest) {
   const hash = await bcrypt.hash(password, 12)
   const user = await prisma.user.create({
     data: {
-      name:     name.trim(),
-      email:    email.trim().toLowerCase(),
-      password: hash,
-      role:     role || 'user',
-      teamId:   teamId || null,
+      name:           name.trim(),
+      email:          email.trim().toLowerCase(),
+      password:       hash,
+      role:           role || 'user',
+      teamId:         teamId || null,
+      nickname:       nickname || null,
+      position:       position || null,
+      ssnFront:       ssnFront || null,
+      hireDate:       hireDate ? new Date(hireDate) : null,
+      phone:          phone || null,
+      employmentType: employmentType === '사외' ? '사외' : '사내',
+      externalRole:   employmentType === '사외' ? (externalRole || null) : null,
     },
-    select: {
-      id: true, name: true, email: true, role: true, teamId: true,
-      team: { select: { name: true } },
-      createdAt: true,
-    },
+    select: SELECT_FIELDS,
   })
   return NextResponse.json(user, { status: 201 })
 }

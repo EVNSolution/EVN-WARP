@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/db'
 import { notFound } from 'next/navigation'
+import { auth } from '@/auth'
 import { PIPELINE, getStageCode } from '@/lib/pipeline'
 import LeadDetailClient, { type CustomerSnap } from './LeadDetailClient'
 
@@ -14,6 +15,8 @@ export default async function LeadDetailPage({
   const sp = await searchParams
   const fromStage = sp.from || null
   const fromSeg   = sp.seg  || null
+  const session = await auth()
+  const me      = session?.user as any
   const [d, products, shares, teams] = await Promise.all([
     prisma.salesDeal.findUnique({ where: { id }, include: { customer: true } }),
     prisma.product.findMany({
@@ -25,6 +28,7 @@ export default async function LeadDetailPage({
     prisma.team.findMany({ orderBy: { name: 'asc' }, select: { id: true, name: true } }),
   ])
   if (!d) notFound()
+  if (me?.employmentType === '사외' && d.assignee !== me?.name) notFound()
   const customer = d.customer ?? null
 
   // agentId FK 관계: include 대신 $queryRaw (libSQL 어댑터 호환)

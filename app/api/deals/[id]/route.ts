@@ -9,9 +9,13 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   try {
     const { id } = await params
     const [b, session] = await Promise.all([req.json(), auth()])
-    const before = b.stageCode !== undefined
-      ? await prisma.salesDeal.findUnique({ where: { id }, select: { stageCode: true } })
-      : null
+    const me = session?.user as any
+
+    const ownerCheck = await prisma.salesDeal.findUnique({ where: { id }, select: { stageCode: true, assignee: true } })
+    if (me?.employmentType === '사외' && ownerCheck?.assignee !== me?.name) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    }
+    const before = b.stageCode !== undefined ? ownerCheck : null
     const deal = await prisma.salesDeal.update({
       where: { id },
       data: {
@@ -141,6 +145,12 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
 export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params
+    const session = await auth()
+    const me = session?.user as any
+    if (me?.employmentType === '사외') {
+      const owner = await prisma.salesDeal.findUnique({ where: { id }, select: { assignee: true } })
+      if (owner?.assignee !== me?.name) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    }
     await prisma.salesDeal.delete({ where: { id } })
     return NextResponse.json({ ok: true })
   } catch {

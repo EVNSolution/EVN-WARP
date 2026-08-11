@@ -27,6 +27,15 @@ model User {
   team           Team?          @relation(fields: [teamId], references: [id])
   agentProfile   Agent?
   workActivities WorkActivity[]
+
+  nickname       String?   // 닉네임
+  position       String?   // 직책
+  ssnFront       String?   // 주민번호 앞자리
+  hireDate       DateTime? // 입사일 (근속기간은 이 값에서 매번 계산)
+  phone          String?
+  employmentType String    @default("사내")  // "사내" | "사외"
+  externalRole   String?   // "영업" | "AS" — employmentType이 "사외"일 때만 사용
+
   createdAt      DateTime       @default(now())
   updatedAt      DateTime       @updatedAt
 }
@@ -681,6 +690,13 @@ model Notification {
   link      String?
   read      Boolean  @default(false)
   createdAt DateTime @default(now())
+}
+
+model CorporateCard {
+  id         String   @id @default(cuid())
+  holderName String   // 카드상 이름
+  cardNumber String   // 카드번호
+  createdAt  DateTime @default(now())
 }
 
 model Suggestion {

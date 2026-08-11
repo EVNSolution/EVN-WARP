@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
+import { auth } from '@/auth'
 
 export async function GET(_: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -17,7 +18,12 @@ export async function GET(_: NextRequest, { params }: { params: Promise<{ id: st
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   try {
-    const b = await req.json()
+    const [b, session] = await Promise.all([req.json(), auth()])
+    const me = session?.user as any
+    if (me?.employmentType === '사외') {
+      const owner = await prisma.customer.findUnique({ where: { id }, select: { assignee: true } })
+      if (owner?.assignee !== me?.name) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    }
     const n = (v: unknown) => (v === undefined ? undefined : v ?? null)
     const customer = await prisma.customer.update({
       where: { id },
@@ -102,6 +108,12 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
 
 export async function DELETE(_: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
+  const session = await auth()
+  const me = session?.user as any
+  if (me?.employmentType === '사외') {
+    const owner = await prisma.customer.findUnique({ where: { id }, select: { assignee: true } })
+    if (owner?.assignee !== me?.name) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  }
   await prisma.customer.delete({ where: { id } })
   return NextResponse.json({ ok: true })
 }

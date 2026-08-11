@@ -1,8 +1,14 @@
 import { prisma } from '@/lib/db'
+import { auth } from '@/auth'
 import CustomerListClient from './CustomerListClient'
 
 export default async function CustomersPage() {
+  const session    = await auth()
+  const me         = session?.user as any
+  const isExternal = me?.employmentType === '사외'
+
   const customers = await prisma.customer.findMany({
+    where: isExternal ? { assignee: me?.name ?? '__none__' } : undefined,
     orderBy: { createdAt: 'desc' },
     include: {
       leads: { select: { id: true, stageCode: true, salesStatus: true } },

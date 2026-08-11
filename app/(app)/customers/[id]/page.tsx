@@ -1,5 +1,6 @@
 import { notFound } from 'next/navigation'
 import { prisma } from '@/lib/db'
+import { auth } from '@/auth'
 import CustomerDetailClient from './CustomerDetailClient'
 
 export default async function CustomerDetailPage({
@@ -11,6 +12,8 @@ export default async function CustomerDetailPage({
 }) {
   const { id } = await params
   const { returnTo } = await searchParams
+  const session = await auth()
+  const me      = session?.user as any
   const customer = await prisma.customer.findUnique({
     where: { id },
     include: {
@@ -19,5 +22,6 @@ export default async function CustomerDetailPage({
     },
   })
   if (!customer) notFound()
+  if (me?.employmentType === '사외' && customer.assignee !== me?.name) notFound()
   return <CustomerDetailClient customer={JSON.parse(JSON.stringify(customer))} returnTo={returnTo} />
 }

@@ -8,7 +8,7 @@ export async function PATCH(
 ) {
   const { id } = await params
   const body = await req.json()
-  const { name, email, role, teamId, password } = body
+  const { name, email, role, teamId, password, nickname, position, ssnFront, hireDate, phone, employmentType, externalRole } = body
 
   const data: Record<string, unknown> = {}
   if (name)              data.name     = name.trim()
@@ -16,6 +16,15 @@ export async function PATCH(
   if (role)              data.role     = role
   if (teamId !== undefined) data.teamId = teamId || null
   if (password?.trim())  data.password = await bcrypt.hash(password, 12)
+  if (nickname !== undefined) data.nickname = nickname || null
+  if (position !== undefined) data.position = position || null
+  if (ssnFront !== undefined) data.ssnFront = ssnFront || null
+  if (hireDate !== undefined) data.hireDate = hireDate ? new Date(hireDate) : null
+  if (phone    !== undefined) data.phone    = phone || null
+  if (employmentType !== undefined) {
+    data.employmentType = employmentType === '사외' ? '사외' : '사내'
+    data.externalRole   = employmentType === '사외' ? (externalRole || null) : null
+  }
 
   const user = await prisma.user.update({
     where: { id },
@@ -23,6 +32,8 @@ export async function PATCH(
     select: {
       id: true, name: true, email: true, role: true, teamId: true,
       team: { select: { name: true } },
+      nickname: true, position: true, ssnFront: true, hireDate: true, phone: true,
+      employmentType: true, externalRole: true,
       createdAt: true,
     },
   })

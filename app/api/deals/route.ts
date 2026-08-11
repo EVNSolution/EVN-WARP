@@ -13,6 +13,10 @@ export async function POST(req: NextRequest) {
     const [body, session] = await Promise.all([req.json(), auth()])
     if (!body.name?.trim()) return NextResponse.json({ error: '고객명은 필수입니다.' }, { status: 400 })
 
+    // 사외 계정은 항상 본인을 담당자로 등록 (다른 사람 이름으로 배정 불가)
+    const me = session?.user as any
+    if (me?.employmentType === '사외') body.assignee = me?.name ?? null
+
     // Customer CRM 레코드: 전화번호가 같은 기존 고객이 있으면 연결, 없으면 신규 생성
     const customerData = {
       name:             body.name.trim(),

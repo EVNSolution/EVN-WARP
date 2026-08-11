@@ -6,7 +6,7 @@ import {
   RefreshCw,
   Users, Database, Link2, Unlink,
   GitMerge, Search, Phone, ChevronDown, ChevronUp,
-  Trash2, UserPlus, X, Pencil, FolderPlus, PackagePlus, Car,
+  Trash2, UserPlus, X, Pencil, FolderPlus, PackagePlus, Car, CreditCard,
 } from 'lucide-react'
 
 /* ── 타입 ── */
@@ -24,10 +24,39 @@ interface UserRow {
   role:      string
   teamId:    string | null
   team:      { name: string } | null
+  nickname:  string | null
+  position:  string | null
+  ssnFront:  string | null
+  hireDate:  string | null
+  phone:     string | null
+  employmentType: string
+  externalRole:   string | null
   createdAt: string
 }
 
+function formatTenure(hireDate: string | null): string {
+  if (!hireDate) return '-'
+  const start = new Date(hireDate)
+  const now = new Date()
+  let years  = now.getFullYear()  - start.getFullYear()
+  let months = now.getMonth()     - start.getMonth()
+  let days   = now.getDate()      - start.getDate()
+  if (days < 0) {
+    months -= 1
+    days += new Date(now.getFullYear(), now.getMonth(), 0).getDate()
+  }
+  if (months < 0) { years -= 1; months += 12 }
+  return years > 0 ? `${years}년 ${months}개월 ${days}일` : `${months}개월 ${days}일`
+}
+
 interface TeamRow { id: string; name: string }
+
+interface CardRow {
+  id:         string
+  holderName: string
+  cardNumber: string
+  createdAt:  string
+}
 
 interface VehicleRow {
   id:         string
@@ -66,8 +95,10 @@ const PRODUCT_CATEGORIES = ['냉동', '상온', '특장', '기타']
 
 export default function AdminClient({
   stats, users: initialUsers, teams: initialTeams, products: initialProducts, vehicles: initialVehicles,
+  corporateCards: initialCards,
 }: {
   stats: Stats; users: UserRow[]; teams: TeamRow[]; products: ProductRow[]; vehicles: VehicleRow[]
+  corporateCards: CardRow[]
 }) {
   const router = useRouter()
 
@@ -231,16 +262,61 @@ export default function AdminClient({
     } finally { setVehDelLoading(false) }
   }
 
+  /* ── 법인카드 관리 ── */
+  const [cards,        setCards]        = useState<CardRow[]>(initialCards)
+  const [showCardAdd,  setShowCardAdd]  = useState(false)
+  const [newCard, setNewCard] = useState({ holderName: '', cardNumber: '' })
+  const [cardAddLoading, setCardAddLoading] = useState(false)
+  const [cardAddErr,     setCardAddErr]     = useState('')
+  const [cardDelId,      setCardDelId]      = useState<string | null>(null)
+  const [cardDelLoading, setCardDelLoading] = useState(false)
+
+  const handleAddCard = async () => {
+    setCardAddErr('')
+    if (!newCard.holderName.trim() || !newCard.cardNumber.trim()) {
+      setCardAddErr('카드상 이름과 카드번호는 필수입니다.')
+      return
+    }
+    setCardAddLoading(true)
+    try {
+      const res  = await fetch('/api/corporate-cards', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newCard),
+      })
+      const data = await res.json()
+      if (!res.ok) { setCardAddErr(data.error ?? '등록 실패'); return }
+      setCards(prev => [data, ...prev])
+      setNewCard({ holderName: '', cardNumber: '' })
+      setShowCardAdd(false)
+    } finally { setCardAddLoading(false) }
+  }
+
+  const handleDeleteCard = async (id: string) => {
+    setCardDelLoading(true)
+    try {
+      const res = await fetch(`/api/corporate-cards/${id}`, { method: 'DELETE' })
+      if (res.ok) { setCards(prev => prev.filter(c => c.id !== id)); setCardDelId(null) }
+    } finally { setCardDelLoading(false) }
+  }
+
   /* ── 사용자 관리 ── */
   const [users,      setUsers]      = useState<UserRow[]>(initialUsers)
   const [showAdd,    setShowAdd]    = useState(false)
-  const [newUser,    setNewUser]    = useState({ name: '', email: '', password: '', role: 'user', teamId: '' })
+  const [newUser,    setNewUser]    = useState({
+    name: '', email: '', password: '', role: 'user', teamId: '',
+    nickname: '', position: '', ssnFront: '', hireDate: '', phone: '',
+    employmentType: '사내', externalRole: '영업',
+  })
   const [addErr,     setAddErr]     = useState('')
   const [addLoading, setAddLoading] = useState(false)
   const [delId,       setDelId]       = useState<string | null>(null)
   const [delLoading,  setDelLoading]  = useState(false)
   const [editId,      setEditId]      = useState<string | null>(null)
-  const [editVal,     setEditVal]     = useState({ name: '', email: '', role: 'user', teamId: '', newPassword: '' })
+  const [editVal,     setEditVal]     = useState({
+    name: '', email: '', role: 'user', teamId: '', newPassword: '',
+    nickname: '', position: '', ssnFront: '', hireDate: '', phone: '',
+    employmentType: '사내', externalRole: '영업',
+  })
   const [editLoading, setEditLoading] = useState(false)
 
   const handleAddUser = async () => {
@@ -258,7 +334,11 @@ export default function AdminClient({
       const data = await res.json()
       if (!res.ok) { setAddErr(data.error ?? '생성 실패'); return }
       setUsers(prev => [...prev, data].sort((a, b) => a.name.localeCompare(b.name)))
-      setNewUser({ name: '', email: '', password: '', role: 'user', teamId: '' })
+      setNewUser({
+        name: '', email: '', password: '', role: 'user', teamId: '',
+        nickname: '', position: '', ssnFront: '', hireDate: '', phone: '',
+        employmentType: '사내', externalRole: '영업',
+      })
       setShowAdd(false)
     } finally { setAddLoading(false) }
   }
@@ -278,6 +358,9 @@ export default function AdminClient({
       const body: Record<string, unknown> = {
         name: editVal.name, email: editVal.email, role: editVal.role,
         teamId: editVal.teamId || null,
+        nickname: editVal.nickname, position: editVal.position, ssnFront: editVal.ssnFront,
+        hireDate: editVal.hireDate || null, phone: editVal.phone,
+        employmentType: editVal.employmentType, externalRole: editVal.externalRole,
       }
       if (editVal.newPassword.trim()) body.password = editVal.newPassword
       const res = await fetch(`/api/users/${id}`, {
@@ -285,11 +368,8 @@ export default function AdminClient({
         body: JSON.stringify(body),
       })
       if (res.ok) {
-        const newTeam = teams.find(t => t.id === editVal.teamId) ?? null
-        setUsers(prev => prev.map(u => u.id === id
-          ? { ...u, name: editVal.name.trim(), email: editVal.email.trim(), role: editVal.role, teamId: editVal.teamId || null, team: newTeam }
-          : u
-        ))
+        const data = await res.json()
+        setUsers(prev => prev.map(u => u.id === id ? data : u))
         setEditId(null)
       }
     } finally { setEditLoading(false) }
@@ -680,7 +760,89 @@ export default function AdminClient({
                     <option value="admin">관리자</option>
                   </select>
                 </div>
+                <div>
+                  <label className="text-xs text-slate-500 mb-1 block">닉네임</label>
+                  <input
+                    value={newUser.nickname}
+                    onChange={e => setNewUser(p => ({ ...p, nickname: e.target.value }))}
+                    className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-slate-400"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs text-slate-500 mb-1 block">직책</label>
+                  <input
+                    value={newUser.position}
+                    onChange={e => setNewUser(p => ({ ...p, position: e.target.value }))}
+                    className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-slate-400"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs text-slate-500 mb-1 block">주민번호 앞자리</label>
+                  <input
+                    value={newUser.ssnFront}
+                    onChange={e => setNewUser(p => ({ ...p, ssnFront: e.target.value.replace(/[^0-9]/g, '').slice(0, 6) }))}
+                    placeholder="990101"
+                    className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-slate-400"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs text-slate-500 mb-1 block">전화번호</label>
+                  <input
+                    value={newUser.phone}
+                    onChange={e => setNewUser(p => ({ ...p, phone: e.target.value }))}
+                    placeholder="010-0000-0000"
+                    className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-slate-400"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs text-slate-500 mb-1 block">입사일</label>
+                  <input
+                    type="date"
+                    value={newUser.hireDate}
+                    onChange={e => setNewUser(p => ({ ...p, hireDate: e.target.value }))}
+                    className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-slate-400"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs text-slate-500 mb-1 block">근속기간</label>
+                  <input
+                    disabled
+                    value={formatTenure(newUser.hireDate || null)}
+                    className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 bg-slate-100 text-slate-400"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs text-slate-500 mb-1 block">사내/사외</label>
+                  <div className="flex gap-1.5">
+                    {(['사내', '사외'] as const).map(t => (
+                      <button key={t} type="button"
+                        onClick={() => setNewUser(p => ({ ...p, employmentType: t }))}
+                        className={`flex-1 px-3 py-2 text-sm font-semibold rounded-lg border transition ${
+                          newUser.employmentType === t ? 'bg-slate-800 text-white border-slate-800' : 'bg-white border-slate-200 text-slate-500 hover:border-slate-400'
+                        }`}>
+                        {t}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                {newUser.employmentType === '사외' && (
+                  <div>
+                    <label className="text-xs text-slate-500 mb-1 block">사외 구분</label>
+                    <select
+                      value={newUser.externalRole}
+                      onChange={e => setNewUser(p => ({ ...p, externalRole: e.target.value }))}
+                      className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-1 focus:ring-slate-400">
+                      <option value="영업">영업</option>
+                      <option value="AS">AS</option>
+                    </select>
+                  </div>
+                )}
               </div>
+              {newUser.employmentType === '사외' && (
+                <p className="text-[11px] text-amber-600 mt-2">
+                  사외 계정은 로그인 시 영업 파이프라인 · 고객 관리(CRM)만 볼 수 있고, 본인이 담당자로 등록된 리드/고객만 표시됩니다.
+                </p>
+              )}
               {addErr && <p className="text-xs text-red-500 mt-2">{addErr}</p>}
               <div className="flex gap-2 mt-4">
                 <button
@@ -714,14 +876,23 @@ export default function AdminClient({
                   <div className="min-w-0">
                     <div className="flex items-center gap-2">
                       <span className="font-semibold text-sm text-slate-800">{u.name}</span>
+                      {u.nickname && <span className="text-xs text-slate-400">({u.nickname})</span>}
                       <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
                         u.role === 'admin' ? 'bg-violet-100 text-violet-700' : 'bg-slate-100 text-slate-500'
                       }`}>
                         {u.role === 'admin' ? '관리자' : '사용자'}
                       </span>
+                      <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
+                        u.employmentType === '사외' ? 'bg-amber-100 text-amber-700' : 'bg-emerald-50 text-emerald-600'
+                      }`}>
+                        {u.employmentType === '사외' ? `사외 · ${u.externalRole ?? '-'}` : '사내'}
+                      </span>
                       {u.team && <span className="text-[10px] text-slate-400">{u.team.name}</span>}
                     </div>
-                    <p className="text-xs text-slate-400 mt-0.5">{u.email}</p>
+                    <p className="text-xs text-slate-400 mt-0.5">
+                      {u.email}{u.position ? ` · ${u.position}` : ''}{u.phone ? ` · ${u.phone}` : ''}
+                      {u.hireDate ? ` · 입사 ${u.hireDate.slice(0, 10)} (${formatTenure(u.hireDate)})` : ''}
+                    </p>
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
                     {delId === u.id ? (
@@ -738,7 +909,12 @@ export default function AdminClient({
                     ) : (
                       <>
                         <button
-                          onClick={() => { setEditId(editId === u.id ? null : u.id); setEditVal({ name: u.name, email: u.email, role: u.role, teamId: u.teamId ?? '', newPassword: '' }); setDelId(null) }}
+                          onClick={() => { setEditId(editId === u.id ? null : u.id); setEditVal({
+                            name: u.name, email: u.email, role: u.role, teamId: u.teamId ?? '', newPassword: '',
+                            nickname: u.nickname ?? '', position: u.position ?? '', ssnFront: u.ssnFront ?? '',
+                            hireDate: u.hireDate ? u.hireDate.slice(0, 10) : '', phone: u.phone ?? '',
+                            employmentType: u.employmentType ?? '사내', externalRole: u.externalRole ?? '영업',
+                          }); setDelId(null) }}
                           className={`flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold rounded-lg border transition ${editId === u.id ? 'bg-slate-100 border-slate-300 text-slate-700' : 'border-slate-200 text-slate-500 hover:bg-slate-50'}`}>
                           <Pencil size={11} /> 정보 수정
                         </button>
@@ -780,6 +956,63 @@ export default function AdminClient({
                           <option value="admin">관리자</option>
                         </select>
                       </div>
+                      <div>
+                        <label className="text-xs text-slate-500 mb-1 block">닉네임</label>
+                        <input value={editVal.nickname} onChange={e => setEditVal(p => ({ ...p, nickname: e.target.value }))}
+                          className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-slate-400" />
+                      </div>
+                      <div>
+                        <label className="text-xs text-slate-500 mb-1 block">직책</label>
+                        <input value={editVal.position} onChange={e => setEditVal(p => ({ ...p, position: e.target.value }))}
+                          className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-slate-400" />
+                      </div>
+                      <div>
+                        <label className="text-xs text-slate-500 mb-1 block">주민번호 앞자리</label>
+                        <input value={editVal.ssnFront}
+                          onChange={e => setEditVal(p => ({ ...p, ssnFront: e.target.value.replace(/[^0-9]/g, '').slice(0, 6) }))}
+                          placeholder="990101"
+                          className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-slate-400" />
+                      </div>
+                      <div>
+                        <label className="text-xs text-slate-500 mb-1 block">전화번호</label>
+                        <input value={editVal.phone} onChange={e => setEditVal(p => ({ ...p, phone: e.target.value }))}
+                          placeholder="010-0000-0000"
+                          className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-slate-400" />
+                      </div>
+                      <div>
+                        <label className="text-xs text-slate-500 mb-1 block">입사일</label>
+                        <input type="date" value={editVal.hireDate} onChange={e => setEditVal(p => ({ ...p, hireDate: e.target.value }))}
+                          className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-slate-400" />
+                      </div>
+                      <div>
+                        <label className="text-xs text-slate-500 mb-1 block">근속기간</label>
+                        <input disabled value={formatTenure(editVal.hireDate || null)}
+                          className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 bg-slate-100 text-slate-400" />
+                      </div>
+                      <div>
+                        <label className="text-xs text-slate-500 mb-1 block">사내/사외</label>
+                        <div className="flex gap-1.5">
+                          {(['사내', '사외'] as const).map(t => (
+                            <button key={t} type="button"
+                              onClick={() => setEditVal(p => ({ ...p, employmentType: t }))}
+                              className={`flex-1 px-3 py-2 text-sm font-semibold rounded-lg border transition ${
+                                editVal.employmentType === t ? 'bg-slate-800 text-white border-slate-800' : 'bg-white border-slate-200 text-slate-500 hover:border-slate-400'
+                              }`}>
+                              {t}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                      {editVal.employmentType === '사외' && (
+                        <div>
+                          <label className="text-xs text-slate-500 mb-1 block">사외 구분</label>
+                          <select value={editVal.externalRole} onChange={e => setEditVal(p => ({ ...p, externalRole: e.target.value }))}
+                            className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-1 focus:ring-slate-400">
+                            <option value="영업">영업</option>
+                            <option value="AS">AS</option>
+                          </select>
+                        </div>
+                      )}
                       <div className="col-span-2">
                         <label className="text-xs text-slate-500 mb-1 block">새 비밀번호 <span className="text-slate-400">(변경 시에만 입력)</span></label>
                         <input type="password" value={editVal.newPassword} onChange={e => setEditVal(p => ({ ...p, newPassword: e.target.value }))}
@@ -1029,6 +1262,90 @@ export default function AdminClient({
                 </tbody>
               </table>
             </div>
+          )}
+        </div>
+      </div>
+
+      {/* ══ 법인카드 관리 ══ */}
+      <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden h-[560px] flex flex-col">
+        <div className="px-6 py-4 flex items-center justify-between shrink-0" style={{ backgroundColor: '#5b3a8e' }}>
+          <div>
+            <h2 className="text-white font-bold text-sm flex items-center gap-2">
+              <CreditCard size={15} /> 법인카드 관리
+            </h2>
+            <p className="text-slate-300 text-xs mt-0.5">카드상 이름 · 카드번호 등록</p>
+          </div>
+          <button
+            onClick={() => { setShowCardAdd(v => !v); setCardAddErr('') }}
+            className="flex items-center gap-1.5 px-4 py-2 bg-white/10 hover:bg-white/20 text-white text-xs font-semibold rounded-lg transition">
+            <CreditCard size={13} />
+            카드 등록
+          </button>
+        </div>
+
+        <div className="divide-y divide-slate-100 flex-1 overflow-y-auto">
+          {showCardAdd && (
+            <div className="p-5 bg-slate-50 border-b border-slate-200">
+              <p className="text-xs font-bold text-slate-600 mb-3">새 법인카드 등록</p>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs text-slate-500 mb-1 block">카드상 이름 *</label>
+                  <input value={newCard.holderName} onChange={e => setNewCard(c => ({ ...c, holderName: e.target.value }))}
+                    placeholder="카드에 표기된 이름"
+                    className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-slate-400" />
+                </div>
+                <div>
+                  <label className="text-xs text-slate-500 mb-1 block">카드번호 *</label>
+                  <input value={newCard.cardNumber} onChange={e => setNewCard(c => ({ ...c, cardNumber: e.target.value }))}
+                    placeholder="0000-0000-0000-0000"
+                    className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-slate-400" />
+                </div>
+              </div>
+              {cardAddErr && <p className="text-xs text-red-500 mt-2">{cardAddErr}</p>}
+              <div className="flex gap-2 mt-4">
+                <button onClick={handleAddCard} disabled={cardAddLoading}
+                  className="px-5 py-2 text-sm font-bold rounded-xl bg-slate-800 text-white hover:bg-slate-700 transition disabled:opacity-50 flex items-center gap-2">
+                  {cardAddLoading ? <RefreshCw size={13} className="animate-spin" /> : <CreditCard size={13} />}
+                  {cardAddLoading ? '등록 중...' : '카드 등록'}
+                </button>
+                <button onClick={() => { setShowCardAdd(false); setCardAddErr('') }}
+                  className="px-4 py-2 text-sm font-semibold rounded-xl border border-slate-200 text-slate-500 hover:bg-slate-50">
+                  취소
+                </button>
+              </div>
+            </div>
+          )}
+
+          {cards.length === 0 ? (
+            <p className="text-xs text-slate-400 text-center py-8">등록된 법인카드가 없습니다.</p>
+          ) : (
+            cards.map(c => (
+              <div key={c.id} className="px-5 py-3.5 flex items-center justify-between gap-4">
+                <div className="min-w-0">
+                  <p className="font-semibold text-sm text-slate-800">{c.holderName}</p>
+                  <p className="text-xs text-slate-400 mt-0.5">{c.cardNumber}</p>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  {cardDelId === c.id ? (
+                    <>
+                      <span className="text-xs text-red-600 font-medium">정말 삭제하시겠어요?</span>
+                      <button onClick={() => handleDeleteCard(c.id)} disabled={cardDelLoading}
+                        className="px-2.5 py-1.5 text-xs font-bold rounded-lg bg-red-600 text-white hover:bg-red-700 disabled:opacity-40 transition">
+                        {cardDelLoading ? '...' : '삭제'}
+                      </button>
+                      <button onClick={() => setCardDelId(null)} className="p-1.5 text-slate-400 hover:text-slate-600">
+                        <X size={13} />
+                      </button>
+                    </>
+                  ) : (
+                    <button onClick={() => setCardDelId(c.id)}
+                      className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold rounded-lg border border-red-200 text-red-500 hover:bg-red-50 transition">
+                      <Trash2 size={11} /> 삭제
+                    </button>
+                  )}
+                </div>
+              </div>
+            ))
           )}
         </div>
       </div>

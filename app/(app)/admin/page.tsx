@@ -24,6 +24,8 @@ export default async function AdminPage() {
       select: {
         id: true, name: true, email: true, role: true, teamId: true,
         team: { select: { name: true } },
+        nickname: true, position: true, ssnFront: true, hireDate: true, phone: true,
+        employmentType: true, externalRole: true,
         createdAt: true,
       },
       orderBy: { name: 'asc' },
@@ -33,13 +35,20 @@ export default async function AdminPage() {
     prisma.vehicle.findMany({ where: { active: true }, orderBy: { name: 'asc' } }),
   ])
 
+  const corporateCards = await prisma.corporateCard.findMany({ orderBy: { createdAt: 'desc' } })
+
   return (
     <AdminClient
       stats={{ totalCustomers, linkedDeals, unlinkedDeals, customersWithDetail }}
-      users={users.map(u => ({ ...u, createdAt: u.createdAt.toISOString() }))}
+      users={users.map(u => ({
+        ...u,
+        hireDate: u.hireDate ? u.hireDate.toISOString() : null,
+        createdAt: u.createdAt.toISOString(),
+      }))}
       teams={teams}
       products={products}
       vehicles={vehicles}
+      corporateCards={corporateCards.map(c => ({ ...c, createdAt: c.createdAt.toISOString() }))}
     />
   )
 }

@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/db'
+import { auth } from '@/auth'
 import { getStageCode, PIPELINE } from '@/lib/pipeline'
 import { nextCallDueDate } from '@/lib/callCadence'
 import PipelineView, { type PipelineDeal } from '@/components/PipelineView'
@@ -12,9 +13,14 @@ export default async function FunnelPage({ searchParams }: { searchParams: Promi
   const currentMonth = new Date().getMonth() + 1
   const currentYear  = new Date().getFullYear()
 
+  const session    = await auth()
+  const me         = session?.user as any
+  const isExternal = me?.employmentType === '사외'
+
   const nowIso = new Date().toISOString()
   const [rows, products, allMeetings, planRows, lastCallRows] = await Promise.all([
     prisma.salesDeal.findMany({
+      where: isExternal ? { assignee: me?.name ?? '__none__' } : undefined,
       orderBy: { createdAt: 'asc' },
       include: {
         customer: {

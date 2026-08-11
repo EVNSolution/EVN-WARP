@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
+import { auth } from '@/auth'
 
 export async function GET(req: NextRequest) {
   const url  = new URL(req.url)
@@ -48,8 +49,13 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    const body = await req.json()
+    const [body, session] = await Promise.all([req.json(), auth()])
     if (!body.name?.trim()) return NextResponse.json({ error: '고객명은 필수입니다.' }, { status: 400 })
+
+    // 사외 계정은 항상 본인을 담당자로 등록 (다른 사람 이름으로 배정 불가)
+    const me = session?.user as any
+    if (me?.employmentType === '사외') body.assignee = me?.name ?? null
+
     const customer = await prisma.customer.create({
       data: {
         name:             body.name.trim(),
