@@ -67,6 +67,7 @@ type Customer = {
   b2bCategory: string | null; companyName: string | null; businessRegNo: string | null
   contactTitle: string | null; industry: string | null
   companyAddress: string | null; companyPhone: string | null; employeeCount: number | null
+  mainContactCardUrl: string | null; contactsJson: string | null
   /* 차량 */
   hasVehicle: boolean | null; vehicleMaker: string | null; vehicleName: string | null
   vehiclePlateNo: string | null
@@ -196,6 +197,70 @@ export default function CustomerDetailClient({ customer, returnTo }: { customer:
     return [{ name: '', count: '' }]
   })
 
+  /* B2B 대표 담당자 명함 */
+  const [mainCardUrl, setMainCardUrl] = useState<string | null>(customer.mainContactCardUrl ?? null)
+  const [mainCardUploading, setMainCardUploading] = useState(false)
+
+  const handleMainCardUpload = async (file: File) => {
+    setMainCardUploading(true)
+    try {
+      const fd = new FormData()
+      fd.append('file', file)
+      const res = await fetch(`/api/customers/${customer.id}/contact-card`, { method: 'POST', body: fd })
+      const data = await res.json()
+      setMainCardUrl(data.url)
+    } finally { setMainCardUploading(false) }
+  }
+  const handleMainCardDelete = async () => {
+    if (!confirm('명함 이미지를 삭제할까요?')) return
+    await fetch(`/api/customers/${customer.id}/contact-card`, { method: 'DELETE' })
+    setMainCardUrl(null)
+  }
+
+  /* B2B 관계자 목록 */
+  type Contact = { id: string; name: string; phone: string; title: string; role: string; email: string; note: string; cardUrl: string | null }
+  const [contacts, setContacts] = useState<Contact[]>(() => {
+    if (!customer.contactsJson) return []
+    try {
+      const parsed = JSON.parse(customer.contactsJson)
+      return Array.isArray(parsed) ? parsed : []
+    } catch { return [] }
+  })
+  const [contactUploading, setContactUploading] = useState<string | null>(null)
+
+  const updateContact = (id: string, patch: Partial<Contact>) => {
+    setContacts(prev => prev.map(c => c.id === id ? { ...c, ...patch } : c))
+    setSaved(false)
+  }
+  const addContact = () => {
+    setContacts(prev => [...prev, { id: crypto.randomUUID(), name: '', phone: '', title: '', role: '', email: '', note: '', cardUrl: null }])
+    setSaved(false)
+  }
+  const removeContact = async (id: string) => {
+    const target = contacts.find(c => c.id === id)
+    if (target?.cardUrl) {
+      await fetch(`/api/customers/${customer.id}/contact-card?contactId=${encodeURIComponent(id)}`, { method: 'DELETE' }).catch(() => {})
+    }
+    setContacts(prev => prev.filter(c => c.id !== id))
+    setSaved(false)
+  }
+  const handleContactCardUpload = async (contactId: string, file: File) => {
+    setContactUploading(contactId)
+    try {
+      const fd = new FormData()
+      fd.append('file', file)
+      fd.append('contactId', contactId)
+      const res = await fetch(`/api/customers/${customer.id}/contact-card`, { method: 'POST', body: fd })
+      const data = await res.json()
+      setContacts(prev => prev.map(c => c.id === contactId ? { ...c, cardUrl: data.url } : c))
+    } finally { setContactUploading(null) }
+  }
+  const handleContactCardDelete = async (contactId: string) => {
+    if (!confirm('명함 이미지를 삭제할까요?')) return
+    await fetch(`/api/customers/${customer.id}/contact-card?contactId=${encodeURIComponent(contactId)}`, { method: 'DELETE' })
+    setContacts(prev => prev.map(c => c.id === contactId ? { ...c, cardUrl: null } : c))
+  }
+
   /* 리드 전환 */
   const [converting, setConverting] = useState(false)
 
@@ -288,6 +353,7 @@ export default function CustomerDetailClient({ customer, returnTo }: { customer:
           companyAddress:   f.companyAddress   || null,
           companyPhone:     f.companyPhone     || null,
           employeeCount:    f.employeeCount ? parseInt(f.employeeCount.replace(/,/g, ''), 10) : null,
+          contactsJson:     f.customerSegment === 'B2B' ? JSON.stringify(contacts) : null,
           b2bRevenue1:      f.b2bRevenue1      || null,
           b2bRevenue2:      f.b2bRevenue2      || null,
           b2bRevenue3:      f.b2bRevenue3      || null,
@@ -775,6 +841,28 @@ export default function CustomerDetailClient({ customer, returnTo }: { customer:
                       {CONTACT_TITLES.map(t => <option key={t} value={t}>{t}</option>)}
                     </select>
                   </div>
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-400 mb-1.5 uppercase tracking-wide">명함</label>
+                    <div className="flex items-center gap-2">
+                      {mainCardUrl ? (
+                        <a href={mainCardUrl} target="_blank" rel="noreferrer" className="shrink-0">
+                          <img src={mainCardUrl} alt="명함" className="w-14 h-9 object-cover rounded border border-slate-200" />
+                        </a>
+                      ) : (
+                        <div className="w-14 h-9 rounded border border-dashed border-slate-200 flex items-center justify-center text-[9px] text-slate-300 shrink-0">없음</div>
+                      )}
+                      <label className={`cursor-pointer px-3 py-1.5 text-xs font-semibold rounded-lg border transition
+                        ${mainCardUploading ? 'opacity-50 cursor-not-allowed' : 'border-slate-200 text-slate-600 hover:bg-white hover:border-slate-400'}`}>
+                        {mainCardUploading ? '업로드 중...' : mainCardUrl ? '재업로드' : '업로드'}
+                        <input type="file" className="hidden" disabled={mainCardUploading} accept="image/*"
+                          onChange={e => { const file = e.target.files?.[0]; if (file) handleMainCardUpload(file); e.target.value = '' }} />
+                      </label>
+                      {mainCardUrl && (
+                        <button type="button" onClick={handleMainCardDelete}
+                          className="text-[10px] text-red-400 hover:text-red-600 transition font-semibold">삭제</button>
+                      )}
+                    </div>
+                  </div>
                   <div>{label('회사 / 법인명')}{input('companyName', '회사명')}</div>
                   <div>{label('사업자등록번호')}{input('businessRegNo', '000-00-00000')}</div>
                   <div>
@@ -834,6 +922,76 @@ export default function CustomerDetailClient({ customer, returnTo }: { customer:
                       className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-slate-300" />
                   </div>
                 </div>
+              </div>
+
+              {/* 관계자 목록 */}
+              <div className="border-t border-slate-100 pt-5">
+                <div className="flex items-center gap-2 mb-3">
+                  <div className="w-0.5 h-3.5 rounded-full bg-sky-400 shrink-0" />
+                  <span className="text-[13px] font-bold text-sky-600 uppercase tracking-widest whitespace-nowrap">관계자 목록</span>
+                  <div className="flex-1 h-px bg-sky-100" />
+                </div>
+                <div className="overflow-x-auto">
+                  <div style={{ minWidth: 760 }}>
+                    <div className="grid gap-2 mb-1" style={{ gridTemplateColumns: '1fr 110px 90px 1fr 140px 1fr 76px 24px' }}>
+                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">이름</span>
+                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">전화번호</span>
+                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">직위</span>
+                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">담당업무</span>
+                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">이메일</span>
+                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">비고</span>
+                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest text-center">명함</span>
+                      <span />
+                    </div>
+                    <div className="space-y-2">
+                      {contacts.map(c => (
+                        <div key={c.id} className="grid gap-2 items-center" style={{ gridTemplateColumns: '1fr 110px 90px 1fr 140px 1fr 76px 24px' }}>
+                          <input value={c.name} onChange={e => updateContact(c.id, { name: e.target.value })}
+                            placeholder="이름" className="w-full text-sm border border-slate-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-slate-300" />
+                          <input value={c.phone} onChange={e => updateContact(c.id, { phone: e.target.value })}
+                            placeholder="010-0000-0000" className="w-full text-sm border border-slate-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-slate-300" />
+                          <input value={c.title} onChange={e => updateContact(c.id, { title: e.target.value })}
+                            placeholder="직위" className="w-full text-sm border border-slate-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-slate-300" />
+                          <input value={c.role} onChange={e => updateContact(c.id, { role: e.target.value })}
+                            placeholder="담당업무" className="w-full text-sm border border-slate-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-slate-300" />
+                          <input value={c.email} onChange={e => updateContact(c.id, { email: e.target.value })}
+                            placeholder="example@email.com" className="w-full text-sm border border-slate-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-slate-300" />
+                          <input value={c.note} onChange={e => updateContact(c.id, { note: e.target.value })}
+                            placeholder="비고" className="w-full text-sm border border-slate-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-slate-300" />
+                          <div className="flex items-center justify-center">
+                            {c.cardUrl ? (
+                              <div className="flex items-center gap-1">
+                                <a href={c.cardUrl} target="_blank" rel="noreferrer">
+                                  <img src={c.cardUrl} alt="명함" className="w-10 h-7 object-cover rounded border border-slate-200" />
+                                </a>
+                                <button type="button" onClick={() => handleContactCardDelete(c.id)}
+                                  className="text-[10px] text-red-400 hover:text-red-600 transition">✕</button>
+                              </div>
+                            ) : (
+                              <label className={`flex items-center justify-center w-10 h-7 rounded border border-dashed text-[9px] transition
+                                ${contactUploading === c.id ? 'opacity-50 cursor-not-allowed border-slate-200 text-slate-300' : 'cursor-pointer border-slate-300 text-slate-400 hover:border-slate-400 hover:text-slate-600'}`}>
+                                {contactUploading === c.id ? '...' : '업로드'}
+                                <input type="file" className="hidden" accept="image/*" disabled={contactUploading === c.id}
+                                  onChange={e => { const file = e.target.files?.[0]; if (file) handleContactCardUpload(c.id, file); e.target.value = '' }} />
+                              </label>
+                            )}
+                          </div>
+                          <button type="button" onClick={() => removeContact(c.id)}
+                            className="flex items-center justify-center w-6 h-6 rounded-md text-slate-300 hover:text-red-400 hover:bg-red-50 transition">
+                            ✕
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                    {contacts.length === 0 && (
+                      <p className="text-xs text-slate-400 text-center py-3">등록된 관계자가 없습니다</p>
+                    )}
+                  </div>
+                </div>
+                <button type="button" onClick={addContact}
+                  className="mt-2 w-full py-1.5 text-xs font-semibold text-slate-400 border border-dashed border-slate-200 rounded-lg hover:border-slate-400 hover:text-slate-600 transition">
+                  + 관계자 추가
+                </button>
               </div>
 
               {/* 보유차량 + 법인매출 좌우 배치 */}

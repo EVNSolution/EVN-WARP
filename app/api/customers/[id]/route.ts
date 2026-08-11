@@ -59,6 +59,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
         ...(b.companyAddress   !== undefined && { companyAddress:   n(b.companyAddress) }),
         ...(b.companyPhone     !== undefined && { companyPhone:     n(b.companyPhone) }),
         ...(b.employeeCount    !== undefined && { employeeCount:    b.employeeCount ?? null }),
+        ...(b.contactsJson     !== undefined && { contactsJson:     n(b.contactsJson) }),
 
         /* ── B2B 법인 매출 ── */
         ...(b.b2bRevenue1      !== undefined && { b2bRevenue1:      n(b.b2bRevenue1) }),
