@@ -573,7 +573,6 @@ function NoteList({ items, emptyText }: { items: any[]; emptyText: string }) {
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 mb-0.5">
                 <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${meta?.bg ?? ''} ${meta?.text ?? ''}`}>{act.type}</span>
-                {act.task && <span className="text-[10px] font-mono text-slate-400">{act.task.code}</span>}
               </div>
               <p className="text-sm font-semibold text-slate-800 truncate group-hover:text-indigo-600 transition-colors">{act.title}</p>
               {act.content && <p className="text-xs text-slate-400 truncate mt-0.5">{act.content}</p>}
