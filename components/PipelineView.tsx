@@ -579,8 +579,12 @@ export default function PipelineView({ deals, salesTarget, initialStage, initial
         )
       case 'contactTitle':
         return (
-          <td key={c.key} style={{ width: W_PX[c.width] }} className="px-3 py-2.5 text-xs text-slate-500">
-            {d.customerSegment === 'B2B' ? (d.contactTitle ?? <span className="text-slate-300">—</span>) : <span className="text-slate-200">—</span>}
+          <td key={c.key} style={{ width: W_PX[c.width] }} className="px-3 py-2.5 text-xs">
+            {d.customerSegment === 'B2B' ? (
+              d.name
+                ? <span className="text-slate-600">{d.name}{d.contactTitle && <span className="text-slate-400"> · {d.contactTitle}</span>}</span>
+                : <span className="text-slate-300">—</span>
+            ) : <span className="text-slate-200">—</span>}
           </td>
         )
       case 'vehicleCount':
