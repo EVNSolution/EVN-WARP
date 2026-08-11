@@ -565,7 +565,7 @@ export default function NewDealModal({ onClose, onCreated }: Props) {
 
                       <input value={newAgentName} onChange={e => setNewAgentName(e.target.value)}
                         placeholder="이름 *" className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-300" />
-                      <input value={newAgentPhone} onChange={e => setNewAgentPhone(e.target.value)}
+                      <input value={newAgentPhone} onChange={e => setNewAgentPhone(formatPhone(e.target.value))}
                         placeholder="연락처" className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-300" />
                       {newAgentType === '외부' && (
                         <input value={newAgentCompany} onChange={e => setNewAgentCompany(e.target.value)}

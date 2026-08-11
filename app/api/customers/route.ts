@@ -15,9 +15,14 @@ export async function GET(req: NextRequest) {
         ? { OR: [
             { phone: { contains: q } },
             ...(digitsOnly ? [{ phone: { contains: digitsOnly } }] : []),
+            { contactsJson: { contains: q } },
+            ...(digitsOnly ? [{ contactsJson: { contains: digitsOnly } }] : []),
           ] }
         : mode === 'name'
-          ? { name: { contains: q } }
+          ? { OR: [
+              { name: { contains: q } },
+              { contactsJson: { contains: q } },
+            ] }
           : mode === 'company'
             ? { OR: [
                 { companyName:      { contains: q } },
@@ -29,6 +34,7 @@ export async function GET(req: NextRequest) {
                   { name:        { contains: q } },
                   { phone:       { contains: q } },
                   { companyName: { contains: q } },
+                  { contactsJson: { contains: q } },
                 ] }
       : undefined,
     orderBy: { createdAt: 'desc' },

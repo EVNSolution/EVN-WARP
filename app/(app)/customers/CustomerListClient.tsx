@@ -33,6 +33,7 @@ type Customer = {
   isAgent: boolean | null
   companyName: string | null
   cargoType: string | null
+  contactsJson: string | null
   leads: Lead[]
   activities: Activity[]
   createdAt: string
@@ -209,7 +210,8 @@ export default function CustomerListClient({ customers: initial }: Props) {
         const q = search.toLowerCase()
         if (!c.name.toLowerCase().includes(q) &&
             !(c.phone ?? '').includes(q) &&
-            !(c.companyName ?? '').toLowerCase().includes(q)) return false
+            !(c.companyName ?? '').toLowerCase().includes(q) &&
+            !(c.contactsJson ?? '').toLowerCase().includes(q)) return false
       }
       return true
     })

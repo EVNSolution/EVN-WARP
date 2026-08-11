@@ -948,7 +948,7 @@ export default function CustomerDetailClient({ customer, returnTo }: { customer:
                         <div key={c.id} className="grid gap-2 items-center" style={{ gridTemplateColumns: '1fr 110px 90px 1fr 140px 1fr 76px 24px' }}>
                           <input value={c.name} onChange={e => updateContact(c.id, { name: e.target.value })}
                             placeholder="이름" className="w-full text-sm border border-slate-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-slate-300" />
-                          <input value={c.phone} onChange={e => updateContact(c.id, { phone: e.target.value })}
+                          <input value={c.phone} onChange={e => updateContact(c.id, { phone: formatPhone(e.target.value) })}
                             placeholder="010-0000-0000" className="w-full text-sm border border-slate-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-slate-300" />
                           <input value={c.title} onChange={e => updateContact(c.id, { title: e.target.value })}
                             placeholder="직위" className="w-full text-sm border border-slate-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-slate-300" />
