@@ -881,7 +881,9 @@ export default function AdminClient({
                       <span className="font-semibold text-sm text-slate-800">{u.name}</span>
                       {u.nickname && <span className="text-xs text-slate-400">({u.nickname})</span>}
                       {u.phone && <span className="text-xs text-slate-400">{u.phone}</span>}
+                      {u.team && <span className="text-[10px] text-slate-400">{u.team.name}</span>}
                     </div>
+                    <p className="text-xs text-slate-400 mt-0.5">{u.email}</p>
                   </div>
                   {canManageUsers && (
                     <div className="flex items-center gap-2 shrink-0">
@@ -936,10 +938,9 @@ export default function AdminClient({
                       }`}>
                         {u.employmentType === '사외' ? `사외 · ${u.externalRole ?? '-'}` : '사내'}
                       </span>
-                      {u.team && <span className="text-[10px] text-slate-400">{u.team.name}</span>}
                     </div>
                     <p className="text-xs text-slate-500">
-                      {u.email}{u.position ? ` · ${u.position}` : ''}
+                      {u.position ?? '직책 미입력'}
                       {u.ssnFront ? ` · ${u.ssnFront}` : ''}
                       {u.hireDate ? ` · 입사 ${u.hireDate.slice(0, 10)} (${formatTenure(u.hireDate)})` : ''}
                     </p>
