@@ -75,14 +75,14 @@ export default function Sidebar({ userName, userEmail, isAdmin = false }: Props)
         })}
       </nav>
 
-      {/* 제안함 */}
+      {/* 알림 */}
       <div className="px-3 pb-0.5">
-        <SuggestionNavItem isAdmin={isAdmin} />
+        <NotificationBell />
       </div>
 
-      {/* 알림 */}
+      {/* 제안함 */}
       <div className="px-3 pb-1">
-        <NotificationBell />
+        <SuggestionNavItem isAdmin={isAdmin} />
       </div>
 
       {/* 보조 메뉴 */}
