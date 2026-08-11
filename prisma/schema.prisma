@@ -683,6 +683,21 @@ model Notification {
   createdAt DateTime @default(now())
 }
 
+model Suggestion {
+  id            String    @id @default(cuid())
+  userId        String
+  userName      String
+  type          String    // '제안' | '버그' | '질문'
+  title         String
+  content       String
+  status        String    @default("대기")  // '대기' | '검토중' | '답변완료'
+  replyContent  String?
+  repliedByName String?
+  repliedAt     DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
+
 model WeeklyUpdate {
   id        String       @id @default(cuid())
   taskId    String

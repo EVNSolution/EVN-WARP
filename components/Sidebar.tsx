@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation'
 import { LayoutDashboard, Target, Users, BookOpen, Filter, BarChart2, UserRound, Settings2, CircleUserRound } from 'lucide-react'
 import LogoutButton from './LogoutButton'
 import NotificationBell from './NotificationBell'
+import SuggestionNavItem from './SuggestionNavItem'
 
 const navItems = [
   { href: '/dashboard',    label: '경영 대시보드',  icon: LayoutDashboard },
@@ -15,9 +16,9 @@ const navItems = [
   { href: '/sales-report', label: '영업 리포트',    icon: BarChart2 },
 ]
 
-interface Props { userName: string; userEmail: string }
+interface Props { userName: string; userEmail: string; isAdmin?: boolean }
 
-export default function Sidebar({ userName, userEmail }: Props) {
+export default function Sidebar({ userName, userEmail, isAdmin = false }: Props) {
   const pathname = usePathname()
 
   return (
@@ -73,6 +74,11 @@ export default function Sidebar({ userName, userEmail }: Props) {
           )
         })}
       </nav>
+
+      {/* 제안함 */}
+      <div className="px-3 pb-0.5">
+        <SuggestionNavItem isAdmin={isAdmin} />
+      </div>
 
       {/* 알림 */}
       <div className="px-3 pb-1">
