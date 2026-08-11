@@ -18,18 +18,19 @@ export async function POST(req: NextRequest) {
   if (!me?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const body = await req.json()
-  const { type, title, content } = body
+  const { type, title, content, images } = body
   if (!title?.trim() || !content?.trim()) {
     return NextResponse.json({ error: '제목과 내용을 입력해주세요.' }, { status: 400 })
   }
 
   const suggestion = await prisma.suggestion.create({
     data: {
-      userId:   me.id,
-      userName: me.name ?? '이름 없음',
-      type:     ['제안', '버그', '질문'].includes(type) ? type : '제안',
-      title:    title.trim(),
-      content:  content.trim(),
+      userId:     me.id,
+      userName:   me.name ?? '이름 없음',
+      type:       ['제안', '버그', '질문'].includes(type) ? type : '제안',
+      title:      title.trim(),
+      content:    content.trim(),
+      imagesJson: Array.isArray(images) && images.length > 0 ? JSON.stringify(images) : null,
     },
   })
   return NextResponse.json(suggestion, { status: 201 })

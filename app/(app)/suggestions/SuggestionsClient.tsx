@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Plus, MessageSquareText, ChevronDown, Trash2 } from 'lucide-react'
+import { Plus, MessageSquareText, ChevronDown, Trash2, X } from 'lucide-react'
 
 type Suggestion = {
   id: string
@@ -10,8 +10,10 @@ type Suggestion = {
   type: string
   title: string
   content: string
+  imagesJson: string | null
   status: string
   replyContent: string | null
+  replyImagesJson: string | null
   repliedByName: string | null
   repliedAt: string | null
   createdAt: string
@@ -33,6 +35,44 @@ function fmt(d: string) {
   return new Date(d).toLocaleString('ko-KR', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
 }
 
+function parseImages(json: string | null): string[] {
+  if (!json) return []
+  try {
+    const arr = JSON.parse(json)
+    return Array.isArray(arr) ? arr : []
+  } catch { return [] }
+}
+
+async function uploadPastedImage(file: File): Promise<string | null> {
+  const fd = new FormData()
+  fd.append('file', file)
+  const res = await fetch('/api/suggestions/upload-image', { method: 'POST', body: fd })
+  if (!res.ok) return null
+  const data = await res.json()
+  return data.url ?? null
+}
+
+function ImageThumbs({ urls, onRemove }: { urls: string[]; onRemove?: (i: number) => void }) {
+  if (urls.length === 0) return null
+  return (
+    <div className="flex flex-wrap gap-2 mt-2">
+      {urls.map((url, i) => (
+        <div key={url + i} className="relative group shrink-0">
+          <a href={url} target="_blank" rel="noreferrer">
+            <img src={url} alt="첨부 이미지" className="w-16 h-16 object-cover rounded-lg border border-slate-200" />
+          </a>
+          {onRemove && (
+            <button type="button" onClick={() => onRemove(i)}
+              className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-slate-700 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition">
+              <X size={10} />
+            </button>
+          )}
+        </div>
+      ))}
+    </div>
+  )
+}
+
 export default function SuggestionsClient({
   initialSuggestions, myUserId, isAdmin,
 }: {
@@ -50,7 +90,24 @@ export default function SuggestionsClient({
   const [newType, setNewType] = useState<string>('제안')
   const [newTitle, setNewTitle] = useState('')
   const [newContent, setNewContent] = useState('')
+  const [newImages, setNewImages] = useState<string[]>([])
+  const [newImageUploading, setNewImageUploading] = useState(false)
   const [posting, setPosting] = useState(false)
+
+  const handleNewContentPaste = async (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    const imageItems = Array.from(e.clipboardData.items).filter(it => it.type.startsWith('image/'))
+    if (imageItems.length === 0) return
+    e.preventDefault()
+    setNewImageUploading(true)
+    try {
+      for (const item of imageItems) {
+        const file = item.getAsFile()
+        if (!file) continue
+        const url = await uploadPastedImage(file)
+        if (url) setNewImages(prev => [...prev, url])
+      }
+    } finally { setNewImageUploading(false) }
+  }
 
   const handleSubmit = async () => {
     if (!newTitle.trim() || !newContent.trim()) return
@@ -59,18 +116,35 @@ export default function SuggestionsClient({
       const res = await fetch('/api/suggestions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ type: newType, title: newTitle, content: newContent }),
+        body: JSON.stringify({ type: newType, title: newTitle, content: newContent, images: newImages }),
       })
       const data = await res.json()
       setItems(prev => [data, ...prev])
-      setNewTitle(''); setNewContent(''); setNewType('제안')
+      setNewTitle(''); setNewContent(''); setNewType('제안'); setNewImages([])
       setShowForm(false)
     } finally { setPosting(false) }
   }
 
   /* 관리자 답변/상태변경 */
   const [replyDraft, setReplyDraft] = useState<Record<string, string>>({})
+  const [replyImages, setReplyImages] = useState<Record<string, string[]>>({})
+  const [replyImageUploading, setReplyImageUploading] = useState<string | null>(null)
   const [replying, setReplying] = useState<string | null>(null)
+
+  const handleReplyPaste = async (id: string, e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    const imageItems = Array.from(e.clipboardData.items).filter(it => it.type.startsWith('image/'))
+    if (imageItems.length === 0) return
+    e.preventDefault()
+    setReplyImageUploading(id)
+    try {
+      for (const item of imageItems) {
+        const file = item.getAsFile()
+        if (!file) continue
+        const url = await uploadPastedImage(file)
+        if (url) setReplyImages(prev => ({ ...prev, [id]: [...(prev[id] ?? []), url] }))
+      }
+    } finally { setReplyImageUploading(null) }
+  }
 
   const handleReply = async (id: string) => {
     const text = replyDraft[id]?.trim()
@@ -80,11 +154,12 @@ export default function SuggestionsClient({
       const res = await fetch(`/api/suggestions/${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ replyContent: text }),
+        body: JSON.stringify({ replyContent: text, replyImages: replyImages[id] ?? [] }),
       })
       const data = await res.json()
       setItems(prev => prev.map(s => s.id === id ? data : s))
       setReplyDraft(prev => ({ ...prev, [id]: '' }))
+      setReplyImages(prev => ({ ...prev, [id]: [] }))
     } finally { setReplying(null) }
   }
 
@@ -140,9 +215,11 @@ export default function SuggestionsClient({
           <input value={newTitle} onChange={e => setNewTitle(e.target.value)}
             placeholder="제목"
             className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 mb-2 focus:outline-none focus:ring-1 focus:ring-slate-300" />
-          <textarea value={newContent} onChange={e => setNewContent(e.target.value)} rows={4}
-            placeholder="내용을 자유롭게 적어주세요"
+          <textarea value={newContent} onChange={e => setNewContent(e.target.value)} onPaste={handleNewContentPaste} rows={4}
+            placeholder="내용을 자유롭게 적어주세요 (이미지는 복사 붙여넣기로 첨부할 수 있습니다)"
             className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 resize-none focus:outline-none focus:ring-1 focus:ring-slate-300" />
+          <ImageThumbs urls={newImages} onRemove={i => setNewImages(prev => prev.filter((_, idx) => idx !== i))} />
+          {newImageUploading && <p className="text-[11px] text-slate-400 mt-1.5">이미지 업로드 중...</p>}
           <div className="flex justify-end gap-2 mt-3">
             <button onClick={() => setShowForm(false)}
               className="px-4 py-2 text-xs font-semibold text-slate-500 hover:text-slate-700 transition">취소</button>
@@ -186,6 +263,8 @@ export default function SuggestionsClient({
             const typeStyle = TYPE_STYLE[s.type] ?? TYPE_STYLE['제안']
             const statusStyle = STATUS_STYLE[s.status] ?? STATUS_STYLE['대기']
             const canManage = isAdmin || s.userId === myUserId
+            const contentImages = parseImages(s.imagesJson)
+            const replyImgs = parseImages(s.replyImagesJson)
             return (
               <div key={s.id} className="bg-white rounded-xl border border-slate-200 overflow-hidden">
                 <button onClick={() => setExpandedId(isOpen ? null : s.id)}
@@ -200,36 +279,44 @@ export default function SuggestionsClient({
                 {isOpen && (
                   <div className="px-5 pb-4 border-t border-slate-100">
                     <p className="text-sm text-slate-700 whitespace-pre-wrap leading-relaxed pt-3">{s.content}</p>
+                    <ImageThumbs urls={contentImages} />
 
                     {s.replyContent && (
                       <div className="mt-3 flex gap-2 bg-slate-50 rounded-lg px-4 py-3">
                         <span className="shrink-0 text-[11px] font-bold text-slate-400">답변</span>
                         <div className="flex-1 min-w-0">
                           <p className="text-sm text-slate-700 whitespace-pre-wrap leading-relaxed">{s.replyContent}</p>
+                          <ImageThumbs urls={replyImgs} />
                           <p className="text-[10px] text-slate-400 mt-1.5">{s.repliedByName} · {s.repliedAt ? fmt(s.repliedAt) : ''}</p>
                         </div>
                       </div>
                     )}
 
                     {isAdmin && (
-                      <div className="mt-3 flex items-start gap-2">
-                        <textarea
-                          value={replyDraft[s.id] ?? ''}
-                          onChange={e => setReplyDraft(prev => ({ ...prev, [s.id]: e.target.value }))}
-                          rows={2}
-                          placeholder={s.replyContent ? '답변 수정...' : '답변 작성...'}
-                          className="flex-1 text-sm border border-slate-200 rounded-lg px-3 py-2 resize-none focus:outline-none focus:ring-1 focus:ring-slate-300"
-                        />
-                        <div className="flex flex-col gap-1.5 shrink-0">
-                          <button onClick={() => handleReply(s.id)} disabled={replying === s.id || !(replyDraft[s.id] ?? '').trim()}
-                            className="px-3 py-1.5 text-xs font-semibold text-white bg-slate-800 rounded-lg hover:bg-slate-700 transition disabled:opacity-40 whitespace-nowrap">
-                            {replying === s.id ? '등록 중...' : '답변 등록'}
-                          </button>
-                          <select value={s.status} onChange={e => handleStatusChange(s.id, e.target.value)}
-                            className="text-xs border border-slate-200 rounded-lg px-2 py-1 bg-white focus:outline-none focus:ring-1 focus:ring-slate-300">
-                            {Object.keys(STATUS_STYLE).map(st => <option key={st} value={st}>{st}</option>)}
-                          </select>
+                      <div className="mt-3">
+                        <div className="flex items-start gap-2">
+                          <textarea
+                            value={replyDraft[s.id] ?? ''}
+                            onChange={e => setReplyDraft(prev => ({ ...prev, [s.id]: e.target.value }))}
+                            onPaste={e => handleReplyPaste(s.id, e)}
+                            rows={2}
+                            placeholder={s.replyContent ? '답변 수정... (이미지 붙여넣기 가능)' : '답변 작성... (이미지 붙여넣기 가능)'}
+                            className="flex-1 text-sm border border-slate-200 rounded-lg px-3 py-2 resize-none focus:outline-none focus:ring-1 focus:ring-slate-300"
+                          />
+                          <div className="flex flex-col gap-1.5 shrink-0">
+                            <button onClick={() => handleReply(s.id)} disabled={replying === s.id || !(replyDraft[s.id] ?? '').trim()}
+                              className="px-3 py-1.5 text-xs font-semibold text-white bg-slate-800 rounded-lg hover:bg-slate-700 transition disabled:opacity-40 whitespace-nowrap">
+                              {replying === s.id ? '등록 중...' : '답변 등록'}
+                            </button>
+                            <select value={s.status} onChange={e => handleStatusChange(s.id, e.target.value)}
+                              className="text-xs border border-slate-200 rounded-lg px-2 py-1 bg-white focus:outline-none focus:ring-1 focus:ring-slate-300">
+                              {Object.keys(STATUS_STYLE).map(st => <option key={st} value={st}>{st}</option>)}
+                            </select>
+                          </div>
                         </div>
+                        <ImageThumbs urls={replyImages[s.id] ?? []}
+                          onRemove={i => setReplyImages(prev => ({ ...prev, [s.id]: (prev[s.id] ?? []).filter((_, idx) => idx !== i) }))} />
+                        {replyImageUploading === s.id && <p className="text-[11px] text-slate-400 mt-1.5">이미지 업로드 중...</p>}
                       </div>
                     )}
 

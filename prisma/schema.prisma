@@ -690,8 +690,10 @@ model Suggestion {
   type          String    // '제안' | '버그' | '질문'
   title         String
   content       String
+  imagesJson    String?   // 내용에 붙여넣은 이미지 URL [url, ...] JSON
   status        String    @default("대기")  // '대기' | '검토중' | '답변완료'
   replyContent  String?
+  replyImagesJson String? // 답변에 붙여넣은 이미지 URL [url, ...] JSON
   repliedByName String?
   repliedAt     DateTime?
   createdAt     DateTime  @default(now())
