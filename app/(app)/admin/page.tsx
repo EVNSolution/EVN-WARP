@@ -1,7 +1,12 @@
 import { prisma } from '@/lib/db'
+import { auth } from '@/auth'
+import { canManageUsers } from '@/lib/permissions'
 import AdminClient from './AdminClient'
 
 export default async function AdminPage() {
+  const session = await auth()
+  const canManageUsersFlag = canManageUsers(session?.user as any)
+
   const [
     totalCustomers, linkedDeals, unlinkedDeals, customersWithDetail,
     users, teams, products, vehicles,
@@ -49,6 +54,7 @@ export default async function AdminPage() {
       products={products}
       vehicles={vehicles}
       corporateCards={corporateCards.map(c => ({ ...c, createdAt: c.createdAt.toISOString() }))}
+      canManageUsers={canManageUsersFlag}
     />
   )
 }

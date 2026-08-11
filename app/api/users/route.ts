@@ -1,8 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
+import { auth } from '@/auth'
+import { canManageUsers } from '@/lib/permissions'
 import bcrypt from 'bcryptjs'
 
-const SELECT_FIELDS = {
+// GET은 AssigneePicker/UserPicker 등 전 사용자가 담당자 선택용으로 호출 — 최소 정보만 노출
+const PUBLIC_SELECT_FIELDS = {
+  id: true, name: true, role: true, teamId: true,
+  team: { select: { name: true } },
+} as const
+
+// POST/PATCH 응답용 — 사용자 관리 권한자에게만 반환됨
+const FULL_SELECT_FIELDS = {
   id: true, name: true, email: true, role: true, teamId: true,
   team: { select: { name: true } },
   nickname: true, position: true, ssnFront: true, hireDate: true, phone: true,
@@ -12,14 +21,17 @@ const SELECT_FIELDS = {
 
 export async function GET() {
   const users = await prisma.user.findMany({
-    select: SELECT_FIELDS,
+    select: PUBLIC_SELECT_FIELDS,
     orderBy: { name: 'asc' },
   })
   return NextResponse.json(users)
 }
 
 export async function POST(req: NextRequest) {
-  const body = await req.json()
+  const [body, session] = await Promise.all([req.json(), auth()])
+  if (!canManageUsers(session?.user as any)) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  }
   const { name, email, password, role, teamId, nickname, position, ssnFront, hireDate, phone, employmentType, externalRole } = body
 
   if (!name?.trim() || !email?.trim() || !password?.trim()) {
@@ -47,7 +59,7 @@ export async function POST(req: NextRequest) {
       employmentType: employmentType === '사외' ? '사외' : '사내',
       externalRole:   employmentType === '사외' ? (externalRole || null) : null,
     },
-    select: SELECT_FIELDS,
+    select: FULL_SELECT_FIELDS,
   })
   return NextResponse.json(user, { status: 201 })
 }

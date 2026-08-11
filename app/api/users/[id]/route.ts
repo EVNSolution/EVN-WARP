@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
+import { auth } from '@/auth'
+import { canManageUsers } from '@/lib/permissions'
 import bcrypt from 'bcryptjs'
 
 export async function PATCH(
@@ -7,7 +9,10 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params
-  const body = await req.json()
+  const [body, session] = await Promise.all([req.json(), auth()])
+  if (!canManageUsers(session?.user as any)) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  }
   const { name, email, role, teamId, password, nickname, position, ssnFront, hireDate, phone, employmentType, externalRole } = body
 
   const data: Record<string, unknown> = {}
@@ -45,6 +50,10 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params
+  const session = await auth()
+  if (!canManageUsers(session?.user as any)) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  }
   await prisma.user.delete({ where: { id } })
   return NextResponse.json({ ok: true })
 }

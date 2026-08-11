@@ -95,10 +95,10 @@ const PRODUCT_CATEGORIES = ['냉동', '상온', '특장', '기타']
 
 export default function AdminClient({
   stats, users: initialUsers, teams: initialTeams, products: initialProducts, vehicles: initialVehicles,
-  corporateCards: initialCards,
+  corporateCards: initialCards, canManageUsers,
 }: {
   stats: Stats; users: UserRow[]; teams: TeamRow[]; products: ProductRow[]; vehicles: VehicleRow[]
-  corporateCards: CardRow[]
+  corporateCards: CardRow[]; canManageUsers: boolean
 }) {
   const router = useRouter()
 
@@ -311,6 +311,7 @@ export default function AdminClient({
   const [addLoading, setAddLoading] = useState(false)
   const [delId,       setDelId]       = useState<string | null>(null)
   const [delLoading,  setDelLoading]  = useState(false)
+  const [detailId,    setDetailId]    = useState<string | null>(null)
   const [editId,      setEditId]      = useState<string | null>(null)
   const [editVal,     setEditVal]     = useState({
     name: '', email: '', role: 'user', teamId: '', newPassword: '',
@@ -697,12 +698,14 @@ export default function AdminClient({
             </h2>
             <p className="text-slate-400 text-xs mt-0.5">직원 계정 추가 · 비밀번호 초기화 · 삭제</p>
           </div>
-          <button
-            onClick={() => { setShowAdd(v => !v); setAddErr('') }}
-            className="flex items-center gap-1.5 px-4 py-2 bg-white/10 hover:bg-white/20 text-white text-xs font-semibold rounded-lg transition">
-            <UserPlus size={13} />
-            사용자 추가
-          </button>
+          {canManageUsers && (
+            <button
+              onClick={() => { setShowAdd(v => !v); setAddErr('') }}
+              className="flex items-center gap-1.5 px-4 py-2 bg-white/10 hover:bg-white/20 text-white text-xs font-semibold rounded-lg transition">
+              <UserPlus size={13} />
+              사용자 추가
+            </button>
+          )}
         </div>
 
         <div className="divide-y divide-slate-100 flex-1 overflow-y-auto">
@@ -877,6 +880,52 @@ export default function AdminClient({
                     <div className="flex items-center gap-2">
                       <span className="font-semibold text-sm text-slate-800">{u.name}</span>
                       {u.nickname && <span className="text-xs text-slate-400">({u.nickname})</span>}
+                      {u.phone && <span className="text-xs text-slate-400">{u.phone}</span>}
+                    </div>
+                  </div>
+                  {canManageUsers && (
+                    <div className="flex items-center gap-2 shrink-0">
+                      {delId === u.id ? (
+                        <>
+                          <span className="text-xs text-red-600 font-medium">정말 삭제하시겠어요?</span>
+                          <button onClick={() => handleDelete(u.id)} disabled={delLoading}
+                            className="px-2.5 py-1.5 text-xs font-bold rounded-lg bg-red-600 text-white hover:bg-red-700 disabled:opacity-40 transition">
+                            {delLoading ? '...' : '삭제'}
+                          </button>
+                          <button onClick={() => setDelId(null)} className="p-1.5 text-slate-400 hover:text-slate-600">
+                            <X size={13} />
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          <button
+                            onClick={() => setDetailId(detailId === u.id ? null : u.id)}
+                            className={`flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold rounded-lg border transition ${detailId === u.id ? 'bg-slate-100 border-slate-300 text-slate-700' : 'border-slate-200 text-slate-500 hover:bg-slate-50'}`}>
+                            세부정보
+                          </button>
+                          <button
+                            onClick={() => { setEditId(editId === u.id ? null : u.id); setEditVal({
+                              name: u.name, email: u.email, role: u.role, teamId: u.teamId ?? '', newPassword: '',
+                              nickname: u.nickname ?? '', position: u.position ?? '', ssnFront: u.ssnFront ?? '',
+                              hireDate: u.hireDate ? u.hireDate.slice(0, 10) : '', phone: u.phone ?? '',
+                              employmentType: u.employmentType ?? '사내', externalRole: u.externalRole ?? '영업',
+                            }); setDelId(null); setDetailId(null) }}
+                            className={`flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold rounded-lg border transition ${editId === u.id ? 'bg-slate-100 border-slate-300 text-slate-700' : 'border-slate-200 text-slate-500 hover:bg-slate-50'}`}>
+                            <Pencil size={11} /> 정보 수정
+                          </button>
+                          <button
+                            onClick={() => { setDelId(u.id); setEditId(null) }}
+                            className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold rounded-lg border border-red-200 text-red-500 hover:bg-red-50 transition">
+                            <Trash2 size={11} /> 삭제
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  )}
+                </div>
+                {canManageUsers && detailId === u.id && (
+                  <div className="mx-5 mb-4 px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl">
+                    <div className="flex flex-wrap items-center gap-2 mb-2">
                       <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
                         u.role === 'admin' ? 'bg-violet-100 text-violet-700' : 'bg-slate-100 text-slate-500'
                       }`}>
@@ -889,45 +938,14 @@ export default function AdminClient({
                       </span>
                       {u.team && <span className="text-[10px] text-slate-400">{u.team.name}</span>}
                     </div>
-                    <p className="text-xs text-slate-400 mt-0.5">
-                      {u.email}{u.position ? ` · ${u.position}` : ''}{u.phone ? ` · ${u.phone}` : ''}
+                    <p className="text-xs text-slate-500">
+                      {u.email}{u.position ? ` · ${u.position}` : ''}
+                      {u.ssnFront ? ` · ${u.ssnFront}` : ''}
                       {u.hireDate ? ` · 입사 ${u.hireDate.slice(0, 10)} (${formatTenure(u.hireDate)})` : ''}
                     </p>
                   </div>
-                  <div className="flex items-center gap-2 shrink-0">
-                    {delId === u.id ? (
-                      <>
-                        <span className="text-xs text-red-600 font-medium">정말 삭제하시겠어요?</span>
-                        <button onClick={() => handleDelete(u.id)} disabled={delLoading}
-                          className="px-2.5 py-1.5 text-xs font-bold rounded-lg bg-red-600 text-white hover:bg-red-700 disabled:opacity-40 transition">
-                          {delLoading ? '...' : '삭제'}
-                        </button>
-                        <button onClick={() => setDelId(null)} className="p-1.5 text-slate-400 hover:text-slate-600">
-                          <X size={13} />
-                        </button>
-                      </>
-                    ) : (
-                      <>
-                        <button
-                          onClick={() => { setEditId(editId === u.id ? null : u.id); setEditVal({
-                            name: u.name, email: u.email, role: u.role, teamId: u.teamId ?? '', newPassword: '',
-                            nickname: u.nickname ?? '', position: u.position ?? '', ssnFront: u.ssnFront ?? '',
-                            hireDate: u.hireDate ? u.hireDate.slice(0, 10) : '', phone: u.phone ?? '',
-                            employmentType: u.employmentType ?? '사내', externalRole: u.externalRole ?? '영업',
-                          }); setDelId(null) }}
-                          className={`flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold rounded-lg border transition ${editId === u.id ? 'bg-slate-100 border-slate-300 text-slate-700' : 'border-slate-200 text-slate-500 hover:bg-slate-50'}`}>
-                          <Pencil size={11} /> 정보 수정
-                        </button>
-                        <button
-                          onClick={() => { setDelId(u.id); setEditId(null) }}
-                          className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold rounded-lg border border-red-200 text-red-500 hover:bg-red-50 transition">
-                          <Trash2 size={11} /> 삭제
-                        </button>
-                      </>
-                    )}
-                  </div>
-                </div>
-                {editId === u.id && (
+                )}
+                {canManageUsers && editId === u.id && (
                   <div className="mx-5 mb-4 p-4 bg-slate-50 border border-slate-200 rounded-xl">
                     <div className="grid grid-cols-2 gap-3">
                       <div>
