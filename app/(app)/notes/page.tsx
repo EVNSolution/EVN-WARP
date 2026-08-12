@@ -297,6 +297,9 @@ export default async function NotesPage({ searchParams }: { searchParams: Promis
 
   // 업무노트 탭 섹션 데이터
   const meetings = activities.filter(a => a.type === '내부회의' || a.type === '외부미팅' || a.type === '외부회의')
+  const expenseActivities = activities.filter(a =>
+    a.expenseTransport != null || a.expenseAccomm != null || a.expenseMeal != null || a.expenseOther != null
+  )
 
   return (
     <div className="p-6" style={{ maxWidth: '1440px' }}>
@@ -509,8 +512,61 @@ export default async function NotesPage({ searchParams }: { searchParams: Promis
             <VehicleLogList items={recentVehicleLogs} />
           </section>
 
+          {/* ④ 비용 신청 내역 */}
+          <section className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
+            <div className="px-5 py-3 border-b border-amber-100 bg-amber-50/60 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Receipt size={14} className="text-amber-600" />
+                <h2 className="text-sm font-bold text-amber-900">비용 신청 내역</h2>
+                <span className="text-xs text-amber-600 bg-amber-100 px-1.5 py-0.5 rounded-full font-semibold">{expenseActivities.length}건</span>
+              </div>
+            </div>
+            <ExpenseList items={expenseActivities} />
+          </section>
+
         </div>
       )}
+    </div>
+  )
+}
+
+/* ── 비용 신청 내역 ── */
+const EXPENSE_STATUS_STYLE: Record<string, { bg: string; text: string }> = {
+  '신청': { bg: 'bg-amber-100', text: 'text-amber-700' },
+  '승인': { bg: 'bg-green-100', text: 'text-green-700' },
+  '반려': { bg: 'bg-red-100',   text: 'text-red-600' },
+}
+
+function ExpenseList({ items }: { items: any[] }) {
+  if (items.length === 0) {
+    return <div className="px-5 py-8 text-center text-xs text-slate-400">비용을 신청한 활동이 없습니다.</div>
+  }
+  return (
+    <div className="divide-y divide-slate-100">
+      {items.map((act: any) => {
+        const total = (act.expenseTransport ?? 0) + (act.expenseAccomm ?? 0) + (act.expenseMeal ?? 0) + (act.expenseOther ?? 0)
+        const status = act.expenseStatus ?? '미신청'
+        const st = EXPENSE_STATUS_STYLE[status] ?? { bg: 'bg-slate-100', text: 'text-slate-500' }
+        return (
+          <Link key={act.id} href={`/notes/${act.id}/edit`}
+            className="flex items-center gap-3 px-5 py-3.5 hover:bg-slate-50 transition-colors group">
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 mb-0.5 flex-wrap">
+                <span className="text-sm font-semibold text-slate-800 truncate group-hover:text-indigo-600 transition-colors">{act.title}</span>
+                <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${st.bg} ${st.text}`}>{status}</span>
+                {act.expensePaymentMethod && (
+                  <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded bg-slate-100 text-slate-500">{act.expensePaymentMethod}</span>
+                )}
+              </div>
+              <p className="text-[10px] text-slate-400">
+                {act.date} · {act.userName ?? act.user?.name ?? '알 수 없음'} · {act.team?.name ?? ''}
+                {status === '반려' && act.expenseApproverNote ? ` · 반려사유: ${act.expenseApproverNote}` : ''}
+              </p>
+            </div>
+            <p className="text-sm font-bold text-slate-800 tabular-nums shrink-0">{total.toLocaleString()}원</p>
+          </Link>
+        )
+      })}
     </div>
   )
 }
