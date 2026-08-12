@@ -48,6 +48,10 @@ export async function POST(req: NextRequest) {
     const resolvedUserId   = userId   || me?.id   || null
     const resolvedUserName = userName || me?.name  || null
 
+    // 비용 금액이 하나라도 있으면 정산 승인 대기 상태로 자동 신청
+    const hasExpenseAmount = [expenseTransport, expenseAccomm, expenseMeal, expenseOther]
+      .some((v: unknown) => v != null && Number(v) > 0)
+
     const week = getWeekId(new Date(date))
     const activity = await prisma.workActivity.create({
       data: {
@@ -70,6 +74,7 @@ export async function POST(req: NextRequest) {
         expenseOther:            expenseOther            ?? null,
         expensePaymentMethod:    expensePaymentMethod    || null,
         expenseCardId:           expenseCardId           || null,
+        expenseStatus:           hasExpenseAmount ? '신청' : null,
         expenseNote:             expenseNote             || null,
         expenseTransportReceipt: expenseTransportReceipt || null,
         expenseAccommReceipt:    expenseAccommReceipt    || null,

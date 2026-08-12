@@ -703,6 +703,47 @@ model CorporateCard {
   createdAt  DateTime @default(now())
 }
 
+/* ── HR: 근태(연차/반차) ── */
+model LeaveRequest {
+  id           String    @id @default(cuid())
+  userId       String
+  userName     String
+  type         String    // '연차' | '반차(오전)' | '반차(오후)' | '경조사' | '기타'
+  startDate    String    // YYYY-MM-DD
+  endDate      String    // YYYY-MM-DD
+  days         Float     // 소진 일수 (반차 = 0.5)
+  reason       String?
+  status       String    @default("대기")  // '대기' | '승인' | '반려'
+  approverName String?
+  approvedAt   DateTime?
+  rejectReason String?
+  createdAt    DateTime  @default(now())
+}
+
+/* ── HR: 인사기록카드 ── */
+model HrRecord {
+  id            String   @id @default(cuid())
+  userId        String
+  userName      String
+  type          String   // '입사' | '직급변경' | '부서이동' | '평가' | '기타'
+  title         String
+  detail        String?
+  effectiveDate String   // YYYY-MM-DD
+  createdByName String?
+  createdAt     DateTime @default(now())
+}
+
+/* ── HR: 증명서 발급 이력 ── */
+model CertificateIssue {
+  id       String   @id @default(cuid())
+  userId   String
+  userName String
+  certType String   // '재직증명서' | '사직서'
+  purpose  String?
+  extra    String?  // JSON: 사직서의 사유/희망일 등 부가정보
+  issuedAt DateTime @default(now())
+}
+
 model Suggestion {
   id            String    @id @default(cuid())
   userId        String

@@ -2,24 +2,28 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { LayoutDashboard, Target, Users, BookOpen, Filter, BarChart2, UserRound, Settings2, CircleUserRound } from 'lucide-react'
+import { LayoutDashboard, Target, Users, BookOpen, Filter, BarChart2, UserRound, Settings2, CircleUserRound, UserCog, Wallet } from 'lucide-react'
 import LogoutButton from './LogoutButton'
 import NotificationBell from './NotificationBell'
 import SuggestionNavItem from './SuggestionNavItem'
 
-const navItems = [
+const BASE_NAV_ITEMS = [
   { href: '/dashboard',    label: '경영 대시보드',  icon: LayoutDashboard },
   { href: '/a3',           label: '전략과제 A3',    icon: Target },
   { href: '/weekly',       label: '주간업무',       icon: Users },
   { href: '/notes',        label: '업무공간',       icon: BookOpen },
   { href: '/funnel',       label: '영업 파이프라인', icon: Filter },
   { href: '/sales-report', label: '영업 리포트',    icon: BarChart2 },
+  { href: '/hr',           label: '인사 (HR)',      icon: UserCog },
 ]
 
-interface Props { userName: string; userEmail: string; isAdmin?: boolean; isExternal?: boolean }
+interface Props { userName: string; userEmail: string; isAdmin?: boolean; isExternal?: boolean; isFinanceAdmin?: boolean }
 
-export default function Sidebar({ userName, userEmail, isAdmin = false, isExternal = false }: Props) {
+export default function Sidebar({ userName, userEmail, isAdmin = false, isExternal = false, isFinanceAdmin = false }: Props) {
   const pathname = usePathname()
+  const navItems = isFinanceAdmin
+    ? [...BASE_NAV_ITEMS, { href: '/finance', label: '재무 / 회계', icon: Wallet }]
+    : BASE_NAV_ITEMS
   const visibleNavItems = isExternal ? navItems.filter(n => n.href === '/funnel') : navItems
 
   return (
