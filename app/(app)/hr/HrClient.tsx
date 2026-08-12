@@ -1,8 +1,11 @@
 'use client'
 
 import { useState } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { UserCog, CalendarDays, FileText, Network, Plus, Check, X } from 'lucide-react'
 import { calcAnnualLeaveGranted, tenureLabel } from '@/lib/leave'
+
+const VALID_TABS = ['attendance', 'certificate', 'record', 'orgchart'] as const
 
 type LeaveRequest = {
   id: string; userId: string; userName: string; type: string
@@ -39,7 +42,11 @@ export default function HrClient({
   allUsers: UserOpt[]
   myHrRecords: HrRecord[]
 }) {
-  const [tab, setTab] = useState<'attendance' | 'certificate' | 'record' | 'orgchart'>('attendance')
+  const searchParams = useSearchParams()
+  const initialTab = (VALID_TABS as readonly string[]).includes(searchParams.get('tab') ?? '')
+    ? (searchParams.get('tab') as typeof VALID_TABS[number])
+    : 'attendance'
+  const [tab, setTab] = useState<'attendance' | 'certificate' | 'record' | 'orgchart'>(initialTab)
 
   /* ── 근태 ── */
   const [myLeaves, setMyLeaves] = useState(initialMyLeaves)

@@ -900,7 +900,13 @@ export default function ActivityForm({ teams, tasks, users = [], vehicles = [], 
                       <div className="flex flex-col gap-1.5">
                         <div className="flex flex-wrap gap-1.5">
                           {HR_GROUPS.map(g => (
-                            <button key={g.label} type="button" onClick={() => setType(g.types[0])}
+                            <button key={g.label} type="button" onClick={() => {
+                                if (mode !== 'edit') {
+                                  router.push(g.label === '근태' ? '/hr?tab=attendance' : '/hr?tab=certificate')
+                                  return
+                                }
+                                setType(g.types[0])
+                              }}
                               className={`flex items-center gap-1 px-2.5 py-1 rounded-lg border text-[11px] font-semibold transition-colors ${
                                 activeGroup?.label === g.label
                                   ? 'bg-green-600 text-white border-green-600'
@@ -910,7 +916,7 @@ export default function ActivityForm({ teams, tasks, users = [], vehicles = [], 
                             </button>
                           ))}
                         </div>
-                        {activeGroup && (
+                        {mode === 'edit' && activeGroup && (
                           <div className="flex flex-wrap gap-1.5 pl-1">
                             {activeGroup.types.map(t => {
                               const m = TYPE_META[t] ?? TYPE_META['문서·자료작성']
