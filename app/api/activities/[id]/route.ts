@@ -6,7 +6,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   const body = await req.json()
   const { type, title, content, mentions, date, endDate, kpiItemId, kpiWeek, actualNum, countermeasureId, planStatus, referenceUrl,
     taskId, teamId, userId, userName,
-    expenseTransport, expenseAccomm, expenseMeal, expenseOther, expenseNote,
+    expenseTransport, expenseAccomm, expenseMeal, expenseOther, expensePaymentMethod, expenseCardId, expenseNote,
     expenseTransportReceipt, expenseAccommReceipt, expenseMealReceipt, expenseOtherReceipt,
     documentUrl } = body
 
@@ -43,6 +43,8 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
       ...(expenseAccomm           !== undefined && { expenseAccomm:           expenseAccomm           ?? null }),
       ...(expenseMeal             !== undefined && { expenseMeal:             expenseMeal             ?? null }),
       ...(expenseOther            !== undefined && { expenseOther:            expenseOther            ?? null }),
+      ...(expensePaymentMethod    !== undefined && { expensePaymentMethod:    expensePaymentMethod    || null }),
+      ...(expenseCardId           !== undefined && { expenseCardId:           expenseCardId           || null }),
       ...(expenseNote             !== undefined && { expenseNote:             expenseNote             || null }),
       ...(expenseTransportReceipt !== undefined && { expenseTransportReceipt: expenseTransportReceipt || null }),
       ...(expenseAccommReceipt    !== undefined && { expenseAccommReceipt:    expenseAccommReceipt    || null }),

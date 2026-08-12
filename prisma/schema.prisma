@@ -195,6 +195,8 @@ model WorkActivity {
   expenseAccomm           Float?   // 숙박비 (원)
   expenseMeal             Float?   // 식비 (원)
   expenseOther            Float?   // 기타비용 (원)
+  expensePaymentMethod    String?  // "현금" | "법인카드" | "개인카드"
+  expenseCardId           String?  // 법인카드 결제 시 CorporateCard.id (단순 참조, 관계 없음)
   expenseNote             String?  // 비용 메모
   expenseTransportReceipt String?  // 교통비 영수증 URL (| 구분 다중)
   expenseAccommReceipt    String?  // 숙박비 영수증 URL
@@ -696,6 +698,8 @@ model CorporateCard {
   id         String   @id @default(cuid())
   holderName String   // 카드상 이름
   cardNumber String   // 카드번호
+  userId     String?  // 배정된 사용자 id (단순 참조, 관계 없음)
+  userName   String?  // 배정된 사용자 이름 (표시용)
   createdAt  DateTime @default(now())
 }
 

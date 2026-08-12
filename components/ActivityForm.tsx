@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   Save, Users, Building2, MapPin, Globe, Paperclip, AtSign,
@@ -290,6 +290,8 @@ interface Props {
     expenseAccomm?:           number | null
     expenseMeal?:             number | null
     expenseOther?:            number | null
+    expensePaymentMethod?:    string | null
+    expenseCardId?:           string | null
     expenseNote?:             string | null
     expenseTransportReceipt?: string | null
     expenseAccommReceipt?:    string | null
@@ -382,6 +384,9 @@ export default function ActivityForm({ teams, tasks, users = [], vehicles = [], 
   const [expenseAccomm,    setExpenseAccomm]    = useState<string>(initial?.expenseAccomm    ? String(initial.expenseAccomm)    : '')
   const [expenseMeal,      setExpenseMeal]      = useState<string>(initial?.expenseMeal      ? String(initial.expenseMeal)      : '')
   const [expenseOther,     setExpenseOther]     = useState<string>(initial?.expenseOther     ? String(initial.expenseOther)     : '')
+  const [expensePaymentMethod, setExpensePaymentMethod] = useState(initial?.expensePaymentMethod ?? '')
+  const [expenseCardId,        setExpenseCardId]        = useState(initial?.expenseCardId ?? '')
+  const [corporateCards, setCorporateCards] = useState<{ id: string; holderName: string; cardNumberMasked: string; userId: string | null; userName: string | null }[]>([])
   const [expenseNote,      setExpenseNote]      = useState(initial?.expenseNote ?? '')
   const [expenseTransportReceipt, setExpenseTransportReceipt] = useState(initial?.expenseTransportReceipt ?? '')
   const [expenseAccommReceipt,    setExpenseAccommReceipt]    = useState(initial?.expenseAccommReceipt    ?? '')
@@ -398,6 +403,18 @@ export default function ActivityForm({ teams, tasks, users = [], vehicles = [], 
     { key: 'meal',     label: '식비',   amount: expenseMeal,      setAmount: setExpenseMeal,      receipt: expenseMealReceipt,      setReceipt: setExpenseMealReceipt },
     { key: 'other',    label: '기타',   amount: expenseOther,     setAmount: setExpenseOther,     receipt: expenseOtherReceipt,     setReceipt: setExpenseOtherReceipt },
   ] as const
+
+  // 법인카드 목록 로드 (결제수단에서 "법인카드" 선택 시 사용)
+  useEffect(() => {
+    fetch('/api/corporate-cards').then(r => r.json()).then(setCorporateCards).catch(() => {})
+  }, [])
+
+  // "법인카드" 선택 시, 담당자 본인 명의로 배정된 카드가 있으면 기본값으로 선택
+  useEffect(() => {
+    if (expensePaymentMethod !== '법인카드' || expenseCardId) return
+    const myCard = corporateCards.find(c => c.userId === userId)
+    if (myCard) setExpenseCardId(myCard.id)
+  }, [expensePaymentMethod, corporateCards, userId])
 
   async function uploadReceipt(category: string, file: File) {
     if (!initial?.id) return
@@ -539,6 +556,8 @@ export default function ActivityForm({ teams, tasks, users = [], vehicles = [], 
         expenseAccomm:    expenseAccomm    ? Number(expenseAccomm)    : null,
         expenseMeal:      expenseMeal      ? Number(expenseMeal)      : null,
         expenseOther:     expenseOther     ? Number(expenseOther)     : null,
+        expensePaymentMethod: expensePaymentMethod || null,
+        expenseCardId:        expensePaymentMethod === '법인카드' ? (expenseCardId || null) : null,
         expenseNote:      expenseNote.trim() || null,
         expenseTransportReceipt: expenseTransportReceipt || null,
         expenseAccommReceipt:    expenseAccommReceipt    || null,
@@ -546,6 +565,7 @@ export default function ActivityForm({ teams, tasks, users = [], vehicles = [], 
         expenseOtherReceipt:     expenseOtherReceipt     || null,
       } : hasExpense ? {
         expenseTransport: null, expenseAccomm: null, expenseMeal: null, expenseOther: null,
+        expensePaymentMethod: null, expenseCardId: null,
         expenseNote: null, expenseTransportReceipt: null, expenseAccommReceipt: null,
         expenseMealReceipt: null, expenseOtherReceipt: null,
       } : {}),
@@ -1215,6 +1235,34 @@ export default function ActivityForm({ teams, tasks, users = [], vehicles = [], 
                   )
                 })}
               </div>
+
+              <div className="flex items-center gap-2 mb-3">
+                <label className="w-14 text-xs font-medium text-slate-500 shrink-0">결제수단</label>
+                <div className="flex-1 flex gap-1.5">
+                  {(['현금', '법인카드', '개인카드'] as const).map(m => (
+                    <button key={m} type="button"
+                      onClick={() => { setExpensePaymentMethod(expensePaymentMethod === m ? '' : m); if (m !== '법인카드') setExpenseCardId('') }}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition ${
+                        expensePaymentMethod === m ? 'bg-amber-600 text-white border-amber-600' : 'bg-white border-slate-200 text-slate-500 hover:border-slate-400'
+                      }`}>
+                      {m}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              {expensePaymentMethod === '법인카드' && (
+                <div className="flex items-center gap-2 mb-3">
+                  <label className="w-14 text-xs font-medium text-slate-500 shrink-0">사용 카드</label>
+                  <select value={expenseCardId} onChange={e => setExpenseCardId(e.target.value)}
+                    className="flex-1 border border-slate-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300">
+                    <option value="">카드 선택</option>
+                    {corporateCards.map(c => (
+                      <option key={c.id} value={c.id}>{c.holderName} {c.cardNumberMasked}{c.userName ? ` · ${c.userName}` : ''}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
               {expenseTotal > 0 && (
                 <div className="flex justify-end items-center gap-2 py-2 border-t border-amber-100 mb-3">
                   <span className="text-xs text-slate-500">합계</span>

@@ -28,7 +28,7 @@ export async function POST(req: NextRequest) {
   try {
     const [body, session] = await Promise.all([req.json(), auth()])
     const { taskId, teamId, date, endDate, type, title, content, mentions, kpiItemId, kpiWeek, actualNum, countermeasureId, userId, userName, planStatus, referenceUrl,
-      expenseTransport, expenseAccomm, expenseMeal, expenseOther, expenseNote,
+      expenseTransport, expenseAccomm, expenseMeal, expenseOther, expensePaymentMethod, expenseCardId, expenseNote,
       expenseTransportReceipt, expenseAccommReceipt, expenseMealReceipt, expenseOtherReceipt,
       documentUrl } = body
 
@@ -68,6 +68,8 @@ export async function POST(req: NextRequest) {
         expenseAccomm:           expenseAccomm           ?? null,
         expenseMeal:             expenseMeal             ?? null,
         expenseOther:            expenseOther            ?? null,
+        expensePaymentMethod:    expensePaymentMethod    || null,
+        expenseCardId:           expenseCardId           || null,
         expenseNote:             expenseNote             || null,
         expenseTransportReceipt: expenseTransportReceipt || null,
         expenseAccommReceipt:    expenseAccommReceipt    || null,

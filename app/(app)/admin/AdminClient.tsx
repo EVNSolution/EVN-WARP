@@ -55,6 +55,8 @@ interface CardRow {
   id:         string
   holderName: string
   cardNumber: string
+  userId:     string | null
+  userName:   string | null
   createdAt:  string
 }
 
@@ -265,11 +267,14 @@ export default function AdminClient({
   /* ── 법인카드 관리 ── */
   const [cards,        setCards]        = useState<CardRow[]>(initialCards)
   const [showCardAdd,  setShowCardAdd]  = useState(false)
-  const [newCard, setNewCard] = useState({ holderName: '', cardNumber: '' })
+  const [newCard, setNewCard] = useState({ holderName: '', cardNumber: '', userId: '' })
   const [cardAddLoading, setCardAddLoading] = useState(false)
   const [cardAddErr,     setCardAddErr]     = useState('')
   const [cardDelId,      setCardDelId]      = useState<string | null>(null)
   const [cardDelLoading, setCardDelLoading] = useState(false)
+  const [cardEditId,     setCardEditId]     = useState<string | null>(null)
+  const [cardEditVal,    setCardEditVal]    = useState({ holderName: '', cardNumber: '', userId: '' })
+  const [cardEditLoading, setCardEditLoading] = useState(false)
 
   const handleAddCard = async () => {
     setCardAddErr('')
@@ -279,16 +284,34 @@ export default function AdminClient({
     }
     setCardAddLoading(true)
     try {
+      const assignedUser = users.find(u => u.id === newCard.userId)
       const res  = await fetch('/api/corporate-cards', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(newCard),
+        body: JSON.stringify({ ...newCard, userName: assignedUser?.name ?? null }),
       })
       const data = await res.json()
       if (!res.ok) { setCardAddErr(data.error ?? '등록 실패'); return }
       setCards(prev => [data, ...prev])
-      setNewCard({ holderName: '', cardNumber: '' })
+      setNewCard({ holderName: '', cardNumber: '', userId: '' })
       setShowCardAdd(false)
     } finally { setCardAddLoading(false) }
+  }
+
+  const handleEditCard = async (id: string) => {
+    if (!cardEditVal.holderName.trim() || !cardEditVal.cardNumber.trim()) return
+    setCardEditLoading(true)
+    try {
+      const assignedUser = users.find(u => u.id === cardEditVal.userId)
+      const res = await fetch(`/api/corporate-cards/${id}`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...cardEditVal, userName: assignedUser?.name ?? null }),
+      })
+      if (res.ok) {
+        const data = await res.json()
+        setCards(prev => prev.map(c => c.id === id ? data : c))
+        setCardEditId(null)
+      }
+    } finally { setCardEditLoading(false) }
   }
 
   const handleDeleteCard = async (id: string) => {
@@ -1292,7 +1315,7 @@ export default function AdminClient({
             <h2 className="text-white font-bold text-sm flex items-center gap-2">
               <CreditCard size={15} /> 법인카드 관리
             </h2>
-            <p className="text-slate-300 text-xs mt-0.5">카드상 이름 · 카드번호 등록</p>
+            <p className="text-slate-300 text-xs mt-0.5">카드상 이름 · 카드번호 · 배정 대상자 등록</p>
           </div>
           <button
             onClick={() => { setShowCardAdd(v => !v); setCardAddErr('') }}
@@ -1319,6 +1342,14 @@ export default function AdminClient({
                     placeholder="0000-0000-0000-0000"
                     className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-slate-400" />
                 </div>
+                <div className="col-span-2">
+                  <label className="text-xs text-slate-500 mb-1 block">배정 대상자</label>
+                  <select value={newCard.userId} onChange={e => setNewCard(c => ({ ...c, userId: e.target.value }))}
+                    className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-1 focus:ring-slate-400">
+                    <option value="">미배정</option>
+                    {users.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
+                  </select>
+                </div>
               </div>
               {cardAddErr && <p className="text-xs text-red-500 mt-2">{cardAddErr}</p>}
               <div className="flex gap-2 mt-4">
@@ -1339,30 +1370,79 @@ export default function AdminClient({
             <p className="text-xs text-slate-400 text-center py-8">등록된 법인카드가 없습니다.</p>
           ) : (
             cards.map(c => (
-              <div key={c.id} className="px-5 py-3.5 flex items-center justify-between gap-4">
-                <div className="min-w-0">
-                  <p className="font-semibold text-sm text-slate-800">{c.holderName}</p>
-                  <p className="text-xs text-slate-400 mt-0.5">{c.cardNumber}</p>
+              <div key={c.id}>
+                <div className="px-5 py-3.5 flex items-center justify-between gap-4">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <p className="font-semibold text-sm text-slate-800">{c.holderName}</p>
+                      <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${c.userName ? 'bg-violet-100 text-violet-700' : 'bg-slate-100 text-slate-400'}`}>
+                        {c.userName ? `배정: ${c.userName}` : '미배정'}
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-400 mt-0.5">{c.cardNumber}</p>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    {cardDelId === c.id ? (
+                      <>
+                        <span className="text-xs text-red-600 font-medium">정말 삭제하시겠어요?</span>
+                        <button onClick={() => handleDeleteCard(c.id)} disabled={cardDelLoading}
+                          className="px-2.5 py-1.5 text-xs font-bold rounded-lg bg-red-600 text-white hover:bg-red-700 disabled:opacity-40 transition">
+                          {cardDelLoading ? '...' : '삭제'}
+                        </button>
+                        <button onClick={() => setCardDelId(null)} className="p-1.5 text-slate-400 hover:text-slate-600">
+                          <X size={13} />
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        <button
+                          onClick={() => { setCardEditId(cardEditId === c.id ? null : c.id); setCardEditVal({ holderName: c.holderName, cardNumber: c.cardNumber, userId: c.userId ?? '' }); setCardDelId(null) }}
+                          className={`flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold rounded-lg border transition ${cardEditId === c.id ? 'bg-slate-100 border-slate-300 text-slate-700' : 'border-slate-200 text-slate-500 hover:bg-slate-50'}`}>
+                          <Pencil size={11} /> 수정
+                        </button>
+                        <button onClick={() => setCardDelId(c.id)}
+                          className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold rounded-lg border border-red-200 text-red-500 hover:bg-red-50 transition">
+                          <Trash2 size={11} /> 삭제
+                        </button>
+                      </>
+                    )}
+                  </div>
                 </div>
-                <div className="flex items-center gap-2 shrink-0">
-                  {cardDelId === c.id ? (
-                    <>
-                      <span className="text-xs text-red-600 font-medium">정말 삭제하시겠어요?</span>
-                      <button onClick={() => handleDeleteCard(c.id)} disabled={cardDelLoading}
-                        className="px-2.5 py-1.5 text-xs font-bold rounded-lg bg-red-600 text-white hover:bg-red-700 disabled:opacity-40 transition">
-                        {cardDelLoading ? '...' : '삭제'}
+                {cardEditId === c.id && (
+                  <div className="mx-5 mb-4 p-4 bg-slate-50 border border-slate-200 rounded-xl">
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="text-xs text-slate-500 mb-1 block">카드상 이름 *</label>
+                        <input value={cardEditVal.holderName} onChange={e => setCardEditVal(p => ({ ...p, holderName: e.target.value }))}
+                          className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-slate-400" />
+                      </div>
+                      <div>
+                        <label className="text-xs text-slate-500 mb-1 block">카드번호 *</label>
+                        <input value={cardEditVal.cardNumber} onChange={e => setCardEditVal(p => ({ ...p, cardNumber: e.target.value }))}
+                          className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-slate-400" />
+                      </div>
+                      <div className="col-span-2">
+                        <label className="text-xs text-slate-500 mb-1 block">배정 대상자</label>
+                        <select value={cardEditVal.userId} onChange={e => setCardEditVal(p => ({ ...p, userId: e.target.value }))}
+                          className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-1 focus:ring-slate-400">
+                          <option value="">미배정</option>
+                          {users.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
+                        </select>
+                      </div>
+                    </div>
+                    <div className="flex gap-2 mt-3">
+                      <button onClick={() => handleEditCard(c.id)} disabled={cardEditLoading || !cardEditVal.holderName.trim() || !cardEditVal.cardNumber.trim()}
+                        className="px-4 py-2 text-sm font-bold rounded-lg bg-slate-800 text-white hover:bg-slate-700 disabled:opacity-40 transition flex items-center gap-1.5">
+                        {cardEditLoading ? <RefreshCw size={12} className="animate-spin" /> : null}
+                        {cardEditLoading ? '저장 중...' : '저장'}
                       </button>
-                      <button onClick={() => setCardDelId(null)} className="p-1.5 text-slate-400 hover:text-slate-600">
-                        <X size={13} />
+                      <button onClick={() => setCardEditId(null)}
+                        className="px-4 py-2 text-sm font-semibold rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-100 transition">
+                        취소
                       </button>
-                    </>
-                  ) : (
-                    <button onClick={() => setCardDelId(c.id)}
-                      className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold rounded-lg border border-red-200 text-red-500 hover:bg-red-50 transition">
-                      <Trash2 size={11} /> 삭제
-                    </button>
-                  )}
-                </div>
+                    </div>
+                  </div>
+                )}
               </div>
             ))
           )}
