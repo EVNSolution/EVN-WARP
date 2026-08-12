@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useMemo, useEffect, useRef } from 'react'
-import { formatPhone, hasPlateSpacing, unknownCustomerName } from '@/lib/format'
+import { unknownCustomerName } from '@/lib/format'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { Phone, Truck } from 'lucide-react'
@@ -181,9 +181,31 @@ export default function CustomerListClient({ customers: initial }: Props) {
   const [customers, setCustomers] = useState<Customer[]>(initial)
   const [seg,          setSeg]          = useState<Seg>('all')
   const [search,       setSearch]       = useState('')
-  const [showNew,      setShowNew]      = useState(false)
   const [cols,         setCols]         = useState<ColCfg[]>(() => mkCfg(COL_DEFS))
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [creating,     setCreating]     = useState(false)
+
+  /* 모달 없이 바로 고객상세 페이지로 이동 — 이름은 "미상"으로 임시 생성 후 상세페이지에서 채움 */
+  const handleQuickAdd = async () => {
+    if (creating) return
+    setCreating(true)
+    try {
+      const res = await fetch('/api/customers', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name:        unknownCustomerName({}),
+          customerSegment: 'B2C',
+          collectedAt: new Date().toISOString(),
+        }),
+      })
+      if (!res.ok) return
+      const c = await res.json()
+      router.push(`/customers/${c.id}`)
+    } finally {
+      setCreating(false)
+    }
+  }
 
   /* localStorage에서 컬럼 설정 로드 (SSR 안전) */
   useEffect(() => {
@@ -294,9 +316,9 @@ export default function CustomerListClient({ customers: initial }: Props) {
           className="px-3 py-1.5 text-xs font-semibold rounded-lg border border-slate-300 text-slate-600 hover:bg-slate-50 transition">
           엑셀 일괄 등록
         </Link>
-        <button onClick={() => setShowNew(true)}
-          className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-slate-800 text-white hover:bg-slate-700 transition">
-          + 고객 추가
+        <button onClick={handleQuickAdd} disabled={creating}
+          className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-slate-800 text-white hover:bg-slate-700 transition disabled:opacity-50">
+          {creating ? '생성 중...' : '+ 고객 추가'}
         </button>
       </div>
 
@@ -411,192 +433,6 @@ export default function CustomerListClient({ customers: initial }: Props) {
           </table>
         )}
       </div>
-
-      {/* 신규 고객 추가 모달 */}
-      {showNew && <NewCustomerModal onClose={() => setShowNew(false)} onCreated={c => { setCustomers(prev => [c, ...prev]); setShowNew(false) }} />}
     </div>
-  )
-}
-
-/* ── 신규 고객 추가 모달 ── */
-function NewCustomerModal({ onClose, onCreated }: { onClose: () => void; onCreated: (c: Customer) => void }) {
-  const router = useRouter()
-  const [name,    setName]    = useState('')
-  const [phone,   setPhone]   = useState('')
-  const [seg,     setSeg]     = useState<'B2C' | 'B2B'>('B2C')
-  const [source,  setSource]  = useState('')
-  const [company, setCompany] = useState('')
-  const [plateNo, setPlateNo] = useState('')
-
-  // "신원미상" 모드(이름이 "미상"으로 시작)일 때는 차량번호·전화번호가 바뀔 때마다 이름을 자동으로 갱신한다.
-  useEffect(() => {
-    if (!name.startsWith('미상')) return
-    const next = unknownCustomerName({ plateNo, phone })
-    if (next !== name) setName(next)
-  }, [plateNo, phone])
-  const [saving,  setSaving]  = useState(false)
-  const [error,   setError]   = useState('')
-
-  /* 기존 고객 중복 검색 */
-  type DupHit = { id: string; name: string; phone: string | null; customerSegment: string | null }
-  const [dupHits,   setDupHits]   = useState<DupHit[]>([])
-  const [searching, setSearching] = useState(false)
-  const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
-
-  useEffect(() => {
-    const phoneQ = phone.replace(/\D/g, '')
-    const nameQ  = name.trim()
-    const isPhone = phoneQ.length >= 4
-    const q    = isPhone ? phoneQ : nameQ
-    const mode = isPhone ? 'phone' : 'name'
-    if (q.length < 2) { setDupHits([]); return }
-    if (searchTimer.current) clearTimeout(searchTimer.current)
-    searchTimer.current = setTimeout(async () => {
-      setSearching(true)
-      try {
-        const res  = await fetch(`/api/customers?q=${encodeURIComponent(q)}&mode=${mode}`)
-        const list = await res.json()
-        setDupHits(Array.isArray(list) ? list.slice(0, 3) : [])
-      } finally {
-        setSearching(false)
-      }
-    }, 300)
-  }, [name, phone])
-
-  const SOURCES = ['소개', '온라인', '전시장/이벤트', '직접방문', '전단지/명함', '기타']
-
-  const handleSubmit = async () => {
-    if (!name.trim()) { setError('고객명은 필수입니다.'); return }
-    setSaving(true)
-    try {
-      const res = await fetch('/api/customers', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name:            name.trim(),
-          phone:           phone    || null,
-          customerSegment: seg,
-          source:          source   || null,
-          companyName:     company  || null,
-          vehiclePlateNo:  plateNo  || null,
-          collectedAt:     new Date().toISOString(),
-        }),
-      })
-      if (!res.ok) { const j = await res.json(); setError(j.error ?? '오류'); setSaving(false); return }
-      const c = await res.json()
-      onCreated({ ...c, leads: [], activities: [] })
-    } catch {
-      setError('네트워크 오류')
-      setSaving(false)
-    }
-  }
-
-  return (
-    <>
-      <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-40" onClick={onClose} />
-      <div className="fixed right-0 top-0 bottom-0 w-[380px] bg-white shadow-2xl z-50 flex flex-col overflow-hidden">
-        <div className="shrink-0 px-6 pt-6 pb-5" style={{ background: 'linear-gradient(135deg,#1e293b 0%,#334155 100%)' }}>
-          <button onClick={onClose} className="absolute top-3 right-3 w-7 h-7 flex items-center justify-center rounded-full bg-white/10 hover:bg-white/20 text-white/70 transition text-xl leading-none">×</button>
-          <p className="text-white/60 text-xs font-semibold uppercase tracking-widest mb-1">신규 고객 등록</p>
-          <p className="text-white font-bold text-lg">고객 기본 정보</p>
-          <div className="flex gap-2 mt-4">
-            {(['B2C', 'B2B'] as const).map(s => (
-              <button key={s} onClick={() => setSeg(s)}
-                className={`px-4 py-1.5 rounded-full text-xs font-bold transition ${seg === s ? 'bg-white text-slate-800' : 'bg-white/15 text-white/70 hover:bg-white/25'}`}>
-                {s === 'B2C' ? 'B2C 개인' : 'B2B 법인'}
-              </button>
-            ))}
-          </div>
-        </div>
-        <div className="flex-1 overflow-y-auto px-6 py-5 flex flex-col gap-4">
-          <div>
-            <div className="flex items-center justify-between mb-1">
-              <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-widest">
-                {seg === 'B2B' ? '거래처 담당자 이름' : '고객 이름'} <span className="text-red-400">*</span>
-              </label>
-              {seg === 'B2C' && (
-                <button type="button"
-                  onClick={() => setName(unknownCustomerName({ plateNo, phone }))}
-                  className="text-[10px] font-semibold text-slate-400 hover:text-slate-600 border border-slate-200 rounded-full px-2 py-0.5 transition">
-                  이름을 모를 때 · 신원미상
-                </button>
-              )}
-            </div>
-            <input autoFocus value={name} onChange={e => setName(e.target.value)}
-              className="w-full text-sm border border-slate-200 rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-slate-300" />
-            {error && <p className="text-red-500 text-xs mt-1">{error}</p>}
-          </div>
-          <div>
-            <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-widest mb-1">
-              연락처
-              {searching && <span className="ml-2 text-[10px] text-slate-400 font-normal">검색 중...</span>}
-            </label>
-            <input value={phone} onChange={e => setPhone(formatPhone(e.target.value))} placeholder="010-0000-0000"
-              className="w-full text-sm border border-slate-200 rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-slate-300" />
-          </div>
-          {seg === 'B2C' && (
-            <div>
-              <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-widest mb-1">차량번호</label>
-              <input value={plateNo} onChange={e => setPlateNo(e.target.value)}
-                onBlur={e => { if (!hasPlateSpacing(e.target.value)) alert('차량번호 끝 4자리 앞에 띄어쓰기를 추가해주세요. (예: 97보 8003)') }}
-                placeholder="예: 97보 8003"
-                className="w-full text-sm border border-slate-200 rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-slate-300" />
-              <p className="text-[10px] text-slate-400 mt-1">이름·연락처를 모르는 고객은 차량번호로 구분할 수 있습니다</p>
-            </div>
-          )}
-
-          {/* 기존 고객 중복 경고 */}
-          {dupHits.length > 0 && (
-            <div className="bg-amber-50 border border-amber-200 rounded-xl p-3">
-              <p className="text-xs font-bold text-amber-700 mb-2">⚠ 이미 등록된 고객이 있습니다</p>
-              <div className="space-y-1.5">
-                {dupHits.map(c => (
-                  <button key={c.id} type="button"
-                    onClick={() => { onClose(); router.push(`/customers/${c.id}`) }}
-                    className="w-full flex items-center gap-2 px-3 py-2 bg-white rounded-lg border border-amber-200 hover:border-amber-400 transition text-left">
-                    <div className="w-6 h-6 rounded-full bg-amber-100 flex items-center justify-center text-xs font-bold text-amber-800 shrink-0">
-                      {c.name.charAt(0)}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs font-semibold text-slate-800">{c.name}</p>
-                      <p className="text-[10px] text-slate-400">{c.phone ?? '연락처 없음'} · {c.customerSegment ?? 'B2C'}</p>
-                    </div>
-                    <span className="text-[10px] text-amber-600 font-semibold shrink-0">보기 →</span>
-                  </button>
-                ))}
-              </div>
-              <p className="text-[10px] text-amber-500 mt-2">해당 고객이 아닌 경우 계속 입력하여 신규 등록하세요.</p>
-            </div>
-          )}
-
-          {seg === 'B2B' && (
-            <div>
-              <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-widest mb-1">회사명</label>
-              <input value={company} onChange={e => setCompany(e.target.value)} placeholder="(주)회사명"
-                className="w-full text-sm border border-slate-200 rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-slate-300" />
-            </div>
-          )}
-          <div>
-            <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-widest mb-2">유입 경로</label>
-            <div className="flex gap-2 flex-wrap">
-              {SOURCES.map(s => (
-                <button key={s} type="button" onClick={() => setSource(source === s ? '' : s)}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition
-                    ${source === s ? 'bg-slate-800 text-white border-slate-800' : 'bg-white border-slate-200 text-slate-500 hover:border-slate-400'}`}>
-                  {s}
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-        <div className="shrink-0 border-t border-slate-100 px-6 py-4 flex items-center justify-between bg-white">
-          <button onClick={onClose} className="px-5 py-2 text-sm font-semibold rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50 transition">취소</button>
-          <button onClick={handleSubmit} disabled={saving}
-            className="px-6 py-2 text-sm font-bold rounded-lg bg-slate-800 text-white hover:bg-slate-700 transition disabled:opacity-50">
-            {saving ? '등록 중...' : '등록하기'}
-          </button>
-        </div>
-      </div>
-    </>
   )
 }

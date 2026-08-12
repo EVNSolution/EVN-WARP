@@ -112,6 +112,11 @@ export const PIPELINE: PipelinePhase[] = [
           { key: 'quotation',             label: '견적서' },
           { key: 'special_contract',      label: '특장계약서' },
         ],
+        documentsB2B: [
+          { key: 'business_reg_1_3',      label: '사업자등록증' },
+          { key: 'quotation',             label: '견적서' },
+          { key: 'special_contract',      label: '특장계약서' },
+        ],
       },
     ],
   },

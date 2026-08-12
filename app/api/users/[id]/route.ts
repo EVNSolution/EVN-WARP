@@ -10,7 +10,7 @@ export async function PATCH(
 ) {
   const { id } = await params
   const [body, session] = await Promise.all([req.json(), auth()])
-  if (!canManageUsers(session?.user as any)) {
+  if (!(await canManageUsers((session?.user as any)?.id))) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
   const { name, email, role, teamId, password, nickname, position, ssnFront, hireDate, phone, employmentType, externalRole } = body
@@ -51,7 +51,7 @@ export async function DELETE(
 ) {
   const { id } = await params
   const session = await auth()
-  if (!canManageUsers(session?.user as any)) {
+  if (!(await canManageUsers((session?.user as any)?.id))) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
   await prisma.user.delete({ where: { id } })

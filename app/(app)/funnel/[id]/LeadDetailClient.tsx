@@ -829,7 +829,7 @@ export default function LeadDetailClient({ deal, customer = null, products = [],
 
   /* ── 단계 카드 렌더링 ── */
   const renderStageCard = (
-    proc: { code: string; name: string; checks: { key: string; label: string }[]; documents: { key: string; label: string }[] },
+    proc: { code: string; name: string; checks: { key: string; label: string }[]; documents: { key: string; label: string }[]; documentsB2B?: { key: string; label: string }[] },
     phase: number
   ) => {
     const col       = PHASE_COL[phase]
@@ -838,6 +838,9 @@ export default function LeadDetailClient({ deal, customer = null, products = [],
     const isCurrent = proc.code === stageCode
     const isFuture  = procIdx > currentIdx
     const isOpen    = isCurrent || expanded.has(proc.code)
+    // B2B 전용 증빙서류 목록이 있고 현재 고객이 B2B면 우선 사용
+    const isB2BSeg  = (customer?.customerSegment ?? deal.customerSegment) === 'B2B'
+    const docs      = (isB2BSeg && proc.documentsB2B) ? proc.documentsB2B : proc.documents
 
     const fDefs       = STAGE_FIELDS[proc.code] ?? []
     const req         = STAGE_REQUIRED[proc.code] ?? []
@@ -1246,11 +1249,11 @@ export default function LeadDetailClient({ deal, customer = null, products = [],
         )}
 
         {/* 증빙서류 */}
-        {isOpen && proc.documents.length > 0 && (
+        {isOpen && docs.length > 0 && (
           <div className="px-4 py-3 border-t border-slate-100 bg-white">
             <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">증빙서류</p>
             <div className="space-y-1.5">
-              {proc.documents.map(doc => {
+              {docs.map(doc => {
                 const uploaded   = dealDocs.filter(d => d.docKey === doc.key)
                 const hasFile    = uploaded.length > 0
                 const isUploading = uploadingDoc === doc.key

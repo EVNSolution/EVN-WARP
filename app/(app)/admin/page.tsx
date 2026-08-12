@@ -5,7 +5,7 @@ import AdminClient from './AdminClient'
 
 export default async function AdminPage() {
   const session = await auth()
-  const canManageUsersFlag = canManageUsers(session?.user as any)
+  const canManageUsersFlag = await canManageUsers((session?.user as any)?.id)
 
   const [
     totalCustomers, linkedDeals, unlinkedDeals, customersWithDetail,

@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 
-interface User { id: string; name: string }
+interface User { id: string; name: string; employmentType: string; externalRole: string | null }
 
 interface Props {
   value: string
@@ -20,12 +20,24 @@ export default function AssigneePicker({ value, onChange, className }: Props) {
       .catch(() => {})
   }, [])
 
+  const internal = users.filter(u => u.employmentType !== '사외')
+  const external = users.filter(u => u.employmentType === '사외')
+
   return (
     <select value={value} onChange={e => onChange(e.target.value)} className={className}>
       <option value="">미배정</option>
-      {users.map(u => (
-        <option key={u.id} value={u.name}>{u.name}</option>
-      ))}
+      <optgroup label="사내">
+        {internal.map(u => (
+          <option key={u.id} value={u.name}>{u.name}</option>
+        ))}
+      </optgroup>
+      {external.length > 0 && (
+        <optgroup label="사외">
+          {external.map(u => (
+            <option key={u.id} value={u.name}>{u.name}{u.externalRole ? ` (${u.externalRole})` : ''}</option>
+          ))}
+        </optgroup>
+      )}
     </select>
   )
 }
