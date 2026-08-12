@@ -97,8 +97,6 @@ export default function HrClient({
 
   /* ── 증명서 ── */
   const [purpose, setPurpose] = useState('')
-  const [resignReason, setResignReason] = useState('')
-  const [desiredDate,  setDesiredDate]  = useState('')
   const [issuing, setIssuing] = useState(false)
 
   const issueEmployment = async () => {
@@ -109,17 +107,6 @@ export default function HrClient({
         body: JSON.stringify({ certType: '재직증명서', purpose }),
       })
       window.open(`/hr/certificate/employment/print?purpose=${encodeURIComponent(purpose)}`, '_blank')
-    } finally { setIssuing(false) }
-  }
-  const issueResignation = async () => {
-    if (!desiredDate) { alert('사직희망일을 입력해주세요.'); return }
-    setIssuing(true)
-    try {
-      await fetch('/api/certificates', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ certType: '사직서', extra: { reason: resignReason, desiredDate } }),
-      })
-      window.open(`/hr/certificate/resignation/print?reason=${encodeURIComponent(resignReason)}&desiredDate=${encodeURIComponent(desiredDate)}`, '_blank')
     } finally { setIssuing(false) }
   }
 
@@ -323,24 +310,12 @@ export default function HrClient({
         <div className="grid grid-cols-2 gap-4">
           <div className="bg-white rounded-2xl border border-slate-200 p-5">
             <p className="text-sm font-bold text-slate-700 mb-3">재직증명서</p>
+            <p className="text-xs text-slate-400 mb-3">성명·입사일·직위·소속은 시스템에 등록된 정보가 자동으로 반영됩니다.</p>
             <label className="text-xs text-slate-500 mb-1 block">용도</label>
             <input value={purpose} onChange={e => setPurpose(e.target.value)}
               placeholder="예: 은행 제출용"
               className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 mb-3 focus:outline-none focus:ring-1 focus:ring-slate-400" />
             <button onClick={issueEmployment} disabled={issuing}
-              className="w-full px-4 py-2.5 text-sm font-bold rounded-xl bg-slate-800 text-white hover:bg-slate-700 transition disabled:opacity-40">
-              발급 (새 탭에서 인쇄)
-            </button>
-          </div>
-          <div className="bg-white rounded-2xl border border-slate-200 p-5">
-            <p className="text-sm font-bold text-slate-700 mb-3">사직서</p>
-            <label className="text-xs text-slate-500 mb-1 block">사직 사유</label>
-            <input value={resignReason} onChange={e => setResignReason(e.target.value)}
-              className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 mb-3 focus:outline-none focus:ring-1 focus:ring-slate-400" />
-            <label className="text-xs text-slate-500 mb-1 block">사직희망일</label>
-            <input type="date" value={desiredDate} onChange={e => setDesiredDate(e.target.value)}
-              className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 mb-3 focus:outline-none focus:ring-1 focus:ring-slate-400" />
-            <button onClick={issueResignation} disabled={issuing}
               className="w-full px-4 py-2.5 text-sm font-bold rounded-xl bg-slate-800 text-white hover:bg-slate-700 transition disabled:opacity-40">
               발급 (새 탭에서 인쇄)
             </button>

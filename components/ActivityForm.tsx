@@ -143,14 +143,15 @@ const TYPE_GUIDE = [
     ],
   },
   {
-    category: '근태',
+    category: 'HR',
     color: 'bg-green-50 border-green-200',
     labelColor: 'text-green-700 bg-green-100',
-    desc: '연차·반차 등 휴가 기록',
+    desc: '근태 기록 및 증명서 발급',
     types: [
       { name: '연차',      desc: '하루 전체 연차 사용' },
       { name: '반차(오전)', desc: '오전 반차 (~오후 1시)' },
       { name: '반차(오후)', desc: '오후 반차 (오후 1시~)' },
+      { name: '재직증명서', desc: '재직증명서 발급 — 직원정보가 자동 반영되어 별도 입력이 필요하지 않음' },
     ],
   },
 ] as const
@@ -168,7 +169,13 @@ const ACTIVITY_CATEGORIES = [
   { label: '투자·IR',        types: ['IR 발표', '투자자 미팅', '투자행사'] },
   { label: '수주·발행',      types: ['견적서 발행', 'PO 발행', '수주 확정', '세금계산서 발행'] },
   { label: '경영·행정',      types: ['대관·신청', '세무·회계', '신고·갱신', '법무·계약', '경영기획'] },
-  { label: '근태',           types: ['연차', '반차(오전)', '반차(오후)'] },
+  { label: 'HR',             types: ['연차', '반차(오전)', '반차(오후)', '재직증명서'] },
+] as const
+
+/* HR 카테고리 전용 2단 선택 — 근태 / 증명서발급 */
+const HR_GROUPS = [
+  { label: '근태',       types: ['연차', '반차(오전)', '반차(오후)'] },
+  { label: '증명서발급', types: ['재직증명서'] },
 ] as const
 
 const TYPE_META: Record<string, { icon: React.ReactNode; color: string; activeColor: string; placeholder: string }> = {
@@ -211,6 +218,7 @@ const TYPE_META: Record<string, { icon: React.ReactNode; color: string; activeCo
   '연차':       { icon: <CalendarDays size={13} />, color: 'border-green-200 text-green-700 bg-green-50', activeColor: 'bg-green-600  text-white border-green-600',  placeholder: '연차 사유 또는 일정을 입력하세요 (선택)' },
   '반차(오전)': { icon: <CalendarDays size={13} />, color: 'border-green-200 text-green-700 bg-green-50', activeColor: 'bg-green-600  text-white border-green-600',  placeholder: '오전 반차 사유 또는 일정을 입력하세요 (선택)' },
   '반차(오후)': { icon: <CalendarDays size={13} />, color: 'border-green-200 text-green-700 bg-green-50', activeColor: 'bg-green-600  text-white border-green-600',  placeholder: '오후 반차 사유 또는 일정을 입력하세요 (선택)' },
+  '재직증명서': { icon: <FileText size={13} />,     color: 'border-green-200 text-green-700 bg-green-50', activeColor: 'bg-green-600  text-white border-green-600',  placeholder: '직원정보가 자동으로 반영됩니다 (선택 입력 불필요)' },
   // 레거시 (기존 데이터 표시용)
   '외부회의':  { icon: <Building2 size={13} />, color: 'border-purple-200 text-purple-600 bg-purple-50', activeColor: 'bg-purple-600 text-white border-purple-600', placeholder: '미팅 내용, 상대방 정보, 후속 조치 등을 기록하세요' },
   '발표/보고': { icon: <BarChart2 size={13} />, color: 'border-teal-200   text-teal-600   bg-teal-50',   activeColor: 'bg-teal-600   text-white border-teal-600',   placeholder: '발표 내용, 대상, 주요 피드백 등을 기록하세요' },
@@ -307,6 +315,7 @@ interface Props {
 const TRIP_TYPES  = new Set(['국내출장', '해외출장'])
 const LEAVE_TYPES = new Set(['연차', '반차(오전)', '반차(오후)'])
 const DOC_TYPES   = new Set(['견적서 발행', 'PO 발행', '수주 확정', '세금계산서 발행'])
+const CERT_TYPES  = new Set(['재직증명서'])
 
 export default function ActivityForm({ teams, tasks, users = [], vehicles = [], initial, mode, returnUrl = '/notes', expensePrintUrl }: Props) {
   const router = useRouter()
@@ -345,6 +354,8 @@ export default function ActivityForm({ teams, tasks, users = [], vehicles = [], 
   })
   const [activePicker, setActivePicker] = useState<'team' | 'user' | null>(null)
   const [referenceUrl, setReferenceUrl] = useState(initial?.referenceUrl ?? '')
+  const [certPurpose, setCertPurpose] = useState('')
+  const [certIssuing, setCertIssuing] = useState(false)
   const [kpiItemId,        setKpiItemId]        = useState(initial?.kpiItemId        ?? '')
   const [kpiWeek,          setKpiWeek]          = useState(initial?.kpiWeek          || currentWeekId)
   const [countermeasureId, setCountermeasureId] = useState(initial?.countermeasureId ?? '')
@@ -517,6 +528,17 @@ export default function ActivityForm({ teams, tasks, users = [], vehicles = [], 
     setCountermeasureId('')
   }
 
+  async function issueCertificate() {
+    setCertIssuing(true)
+    try {
+      await fetch('/api/certificates', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ certType: '재직증명서', purpose: certPurpose }),
+      })
+      window.open(`/hr/certificate/employment/print?purpose=${encodeURIComponent(certPurpose)}`, '_blank')
+    } finally { setCertIssuing(false) }
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
 
@@ -532,13 +554,13 @@ export default function ActivityForm({ teams, tasks, users = [], vehicles = [], 
         finalTitle = `${selectedKpi?.label ?? 'KPI'} 실적 — ${fmtComma(actualStr)}${unit} (${kpiWeek})`
       }
     }
-    if (LEAVE_TYPES.has(type) && !finalTitle) finalTitle = type
+    if ((LEAVE_TYPES.has(type) || CERT_TYPES.has(type)) && !finalTitle) finalTitle = type
     if (!finalTitle) { setError('제목을 입력해주세요.'); return }
     setSaving(true); setError('')
 
     const actualNum = IS_KPI_TYPE ? parseInt(digitsOnly(actualStr), 10) : undefined
     const isTrip = TRIP_TYPES.has(type)
-    const hasExpense = type !== '해외출장' && !LEAVE_TYPES.has(type)
+    const hasExpense = type !== '해외출장' && !LEAVE_TYPES.has(type) && !CERT_TYPES.has(type)
     const payload = {
       taskId: finalTaskId,
       teamId: finalTeamId,
@@ -867,32 +889,73 @@ export default function ActivityForm({ teams, tasks, users = [], vehicles = [], 
               </button>
             </div>
             <div className="space-y-2">
-              {ACTIVITY_CATEGORIES.map(cat => (
-                <div key={cat.label} className="flex items-start gap-3">
-                  <span className="text-[9px] font-bold text-slate-400 tracking-wide w-20 shrink-0 pt-1.5 text-right">
-                    {cat.label}
-                  </span>
-                  <div className="flex flex-wrap gap-1.5">
-                    {cat.types.map(t => {
-                      const m = TYPE_META[t] ?? TYPE_META['문서·자료작성']
-                      return (
-                        <button key={t} type="button" onClick={() => {
-                            if (t === '해외출장' && mode !== 'edit') {
-                              router.push(`/trip/new?type=해외출장${date ? `&date=${date}` : ''}`)
-                              return
-                            }
-                            setType(t)
-                          }}
-                          className={`flex items-center gap-1 px-2.5 py-1 rounded-lg border text-[11px] font-semibold transition-colors ${
-                            type === t ? m.activeColor : m.color
-                          }`}>
-                          {m.icon}{t}
-                        </button>
-                      )
-                    })}
+              {ACTIVITY_CATEGORIES.map(cat => {
+                if (cat.label === 'HR') {
+                  const activeGroup = HR_GROUPS.find(g => (g.types as readonly string[]).includes(type)) ?? null
+                  return (
+                    <div key="HR" className="flex items-start gap-3">
+                      <span className="text-[9px] font-bold text-slate-400 tracking-wide w-20 shrink-0 pt-1.5 text-right">
+                        HR
+                      </span>
+                      <div className="flex flex-col gap-1.5">
+                        <div className="flex flex-wrap gap-1.5">
+                          {HR_GROUPS.map(g => (
+                            <button key={g.label} type="button" onClick={() => setType(g.types[0])}
+                              className={`flex items-center gap-1 px-2.5 py-1 rounded-lg border text-[11px] font-semibold transition-colors ${
+                                activeGroup?.label === g.label
+                                  ? 'bg-green-600 text-white border-green-600'
+                                  : 'border-green-200 text-green-700 bg-green-50'
+                              }`}>
+                              {g.label}
+                            </button>
+                          ))}
+                        </div>
+                        {activeGroup && (
+                          <div className="flex flex-wrap gap-1.5 pl-1">
+                            {activeGroup.types.map(t => {
+                              const m = TYPE_META[t] ?? TYPE_META['문서·자료작성']
+                              return (
+                                <button key={t} type="button" onClick={() => setType(t)}
+                                  className={`flex items-center gap-1 px-2.5 py-1 rounded-lg border text-[11px] font-semibold transition-colors ${
+                                    type === t ? m.activeColor : m.color
+                                  }`}>
+                                  {m.icon}{t}
+                                </button>
+                              )
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )
+                }
+                return (
+                  <div key={cat.label} className="flex items-start gap-3">
+                    <span className="text-[9px] font-bold text-slate-400 tracking-wide w-20 shrink-0 pt-1.5 text-right">
+                      {cat.label}
+                    </span>
+                    <div className="flex flex-wrap gap-1.5">
+                      {cat.types.map(t => {
+                        const m = TYPE_META[t] ?? TYPE_META['문서·자료작성']
+                        return (
+                          <button key={t} type="button" onClick={() => {
+                              if (t === '해외출장' && mode !== 'edit') {
+                                router.push(`/trip/new?type=해외출장${date ? `&date=${date}` : ''}`)
+                                return
+                              }
+                              setType(t)
+                            }}
+                            className={`flex items-center gap-1 px-2.5 py-1 rounded-lg border text-[11px] font-semibold transition-colors ${
+                              type === t ? m.activeColor : m.color
+                            }`}>
+                            {m.icon}{t}
+                          </button>
+                        )
+                      })}
+                    </div>
                   </div>
-                </div>
-              ))}
+                )
+              })}
             </div>
           </div>
 
@@ -919,6 +982,27 @@ export default function ActivityForm({ teams, tasks, users = [], vehicles = [], 
             </div>
           </div>
         </div>
+
+        {/* ⑤-a2 증명서 발급 패널 */}
+        {CERT_TYPES.has(type) && (
+          <div className="bg-green-50 border border-green-200 rounded-xl p-5">
+            <div className="flex items-center gap-2 mb-1">
+              <FileText size={14} className="text-green-600" />
+              <p className="text-sm font-bold text-green-800">재직증명서 발급</p>
+            </div>
+            <p className="text-xs text-green-600 mb-3">
+              성명·입사일·직위·소속 등 직원정보는 시스템에 등록된 내용이 자동으로 반영되어 별도 입력이 필요하지 않습니다.
+            </p>
+            <label className="block text-xs font-semibold text-green-700 mb-1.5">용도 (선택)</label>
+            <input type="text" value={certPurpose} onChange={e => setCertPurpose(e.target.value)}
+              placeholder="예: 은행 제출용"
+              className="w-full border border-green-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-green-400 mb-3" />
+            <button type="button" onClick={issueCertificate} disabled={certIssuing}
+              className="px-4 py-2 text-sm font-bold rounded-lg bg-green-600 text-white hover:bg-green-700 transition disabled:opacity-40">
+              {certIssuing ? '발급 중...' : '발급 (새 탭에서 인쇄)'}
+            </button>
+          </div>
+        )}
 
         {/* ⑤-a 이메일 URL 패널 */}
         {type === '이메일' && (
@@ -1002,7 +1086,7 @@ export default function ActivityForm({ teams, tasks, users = [], vehicles = [], 
           <div>
             <label className="block text-sm font-semibold text-slate-700 mb-1.5">
               제목
-              {(type === '실적추가' || LEAVE_TYPES.has(type))
+              {(type === '실적추가' || LEAVE_TYPES.has(type) || CERT_TYPES.has(type))
                 ? <span className="ml-1.5 text-xs text-slate-400 font-normal">— 비워두면 자동 생성됩니다</span>
                 : linked
                   ? <span className="ml-1.5 text-xs text-slate-400 font-normal">— 3페이지 주간업무에 자동 표시됩니다</span>
@@ -1067,7 +1151,7 @@ export default function ActivityForm({ teams, tasks, users = [], vehicles = [], 
             </button>
 
             {/* 🚗 차량 */}
-            {vehicles.length > 0 && !LEAVE_TYPES.has(type) && (
+            {vehicles.length > 0 && !LEAVE_TYPES.has(type) && !CERT_TYPES.has(type) && (
               <button type="button"
                 onClick={() => resvDone ? setResvDone(false) : setShowVehicleModal(true)}
                 className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg border transition-colors ${
@@ -1081,7 +1165,7 @@ export default function ActivityForm({ teams, tasks, users = [], vehicles = [], 
             )}
 
             {/* 💰 비용 */}
-            {type !== '해외출장' && !LEAVE_TYPES.has(type) && (
+            {type !== '해외출장' && !LEAVE_TYPES.has(type) && !CERT_TYPES.has(type) && (
               <button type="button" onClick={() => togglePanel('expense')}
                 className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg border transition-colors ${
                   useExpense || openPanel === 'expense'

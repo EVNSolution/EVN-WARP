@@ -27,6 +27,8 @@ interface UserRow {
   nickname:  string | null
   position:  string | null
   ssnFront:  string | null
+  ssnBack:   string | null
+  address:   string | null
   hireDate:  string | null
   phone:     string | null
   employmentType: string
@@ -327,7 +329,7 @@ export default function AdminClient({
   const [showAdd,    setShowAdd]    = useState(false)
   const [newUser,    setNewUser]    = useState({
     name: '', email: '', password: '', role: 'user', teamId: '',
-    nickname: '', position: '', ssnFront: '', hireDate: '', phone: '',
+    nickname: '', position: '', ssnFront: '', ssnBack: '', address: '', hireDate: '', phone: '',
     employmentType: '사내', externalRole: '영업',
   })
   const [addErr,     setAddErr]     = useState('')
@@ -338,7 +340,7 @@ export default function AdminClient({
   const [editId,      setEditId]      = useState<string | null>(null)
   const [editVal,     setEditVal]     = useState({
     name: '', email: '', role: 'user', teamId: '', newPassword: '',
-    nickname: '', position: '', ssnFront: '', hireDate: '', phone: '',
+    nickname: '', position: '', ssnFront: '', ssnBack: '', address: '', hireDate: '', phone: '',
     employmentType: '사내', externalRole: '영업',
   })
   const [editLoading, setEditLoading] = useState(false)
@@ -360,7 +362,7 @@ export default function AdminClient({
       setUsers(prev => [...prev, data].sort((a, b) => a.name.localeCompare(b.name)))
       setNewUser({
         name: '', email: '', password: '', role: 'user', teamId: '',
-        nickname: '', position: '', ssnFront: '', hireDate: '', phone: '',
+        nickname: '', position: '', ssnFront: '', ssnBack: '', address: '', hireDate: '', phone: '',
         employmentType: '사내', externalRole: '영업',
       })
       setShowAdd(false)
@@ -383,6 +385,7 @@ export default function AdminClient({
         name: editVal.name, email: editVal.email, role: editVal.role,
         teamId: editVal.teamId || null,
         nickname: editVal.nickname, position: editVal.position, ssnFront: editVal.ssnFront,
+        ssnBack: editVal.ssnBack, address: editVal.address,
         hireDate: editVal.hireDate || null, phone: editVal.phone,
         employmentType: editVal.employmentType, externalRole: editVal.externalRole,
       }
@@ -812,6 +815,24 @@ export default function AdminClient({
                   />
                 </div>
                 <div>
+                  <label className="text-xs text-slate-500 mb-1 block">주민번호 뒷자리</label>
+                  <input
+                    value={newUser.ssnBack}
+                    onChange={e => setNewUser(p => ({ ...p, ssnBack: e.target.value.replace(/[^0-9]/g, '').slice(0, 7) }))}
+                    placeholder="1234567"
+                    className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-slate-400"
+                  />
+                </div>
+                <div className="col-span-2">
+                  <label className="text-xs text-slate-500 mb-1 block">현주소</label>
+                  <input
+                    value={newUser.address}
+                    onChange={e => setNewUser(p => ({ ...p, address: e.target.value }))}
+                    placeholder="서울시 ..."
+                    className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-slate-400"
+                  />
+                </div>
+                <div>
                   <label className="text-xs text-slate-500 mb-1 block">전화번호</label>
                   <input
                     value={newUser.phone}
@@ -932,6 +953,7 @@ export default function AdminClient({
                             onClick={() => { setEditId(editId === u.id ? null : u.id); setEditVal({
                               name: u.name, email: u.email, role: u.role, teamId: u.teamId ?? '', newPassword: '',
                               nickname: u.nickname ?? '', position: u.position ?? '', ssnFront: u.ssnFront ?? '',
+                              ssnBack: u.ssnBack ?? '', address: u.address ?? '',
                               hireDate: u.hireDate ? u.hireDate.slice(0, 10) : '', phone: u.phone ?? '',
                               employmentType: u.employmentType ?? '사내', externalRole: u.externalRole ?? '영업',
                             }); setDelId(null); setDetailId(null) }}
@@ -964,9 +986,10 @@ export default function AdminClient({
                     </div>
                     <p className="text-xs text-slate-500">
                       {u.position ?? '직책 미입력'}
-                      {u.ssnFront ? ` · ${u.ssnFront}` : ''}
+                      {u.ssnFront ? ` · ${u.ssnFront}${u.ssnBack ? `-${u.ssnBack}` : ''}` : ''}
                       {u.hireDate ? ` · 입사 ${u.hireDate.slice(0, 10)} (${formatTenure(u.hireDate)})` : ''}
                     </p>
+                    {u.address && <p className="text-xs text-slate-400 mt-1">주소: {u.address}</p>}
                   </div>
                 )}
                 {canManageUsers && editId === u.id && (
@@ -1013,6 +1036,20 @@ export default function AdminClient({
                         <input value={editVal.ssnFront}
                           onChange={e => setEditVal(p => ({ ...p, ssnFront: e.target.value.replace(/[^0-9]/g, '').slice(0, 6) }))}
                           placeholder="990101"
+                          className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-slate-400" />
+                      </div>
+                      <div>
+                        <label className="text-xs text-slate-500 mb-1 block">주민번호 뒷자리</label>
+                        <input value={editVal.ssnBack}
+                          onChange={e => setEditVal(p => ({ ...p, ssnBack: e.target.value.replace(/[^0-9]/g, '').slice(0, 7) }))}
+                          placeholder="1234567"
+                          className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-slate-400" />
+                      </div>
+                      <div className="col-span-2">
+                        <label className="text-xs text-slate-500 mb-1 block">현주소</label>
+                        <input value={editVal.address}
+                          onChange={e => setEditVal(p => ({ ...p, address: e.target.value }))}
+                          placeholder="서울시 ..."
                           className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-slate-400" />
                       </div>
                       <div>

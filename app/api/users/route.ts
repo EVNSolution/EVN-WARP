@@ -16,7 +16,7 @@ const PUBLIC_SELECT_FIELDS = {
 const FULL_SELECT_FIELDS = {
   id: true, name: true, email: true, role: true, teamId: true,
   team: { select: { name: true } },
-  nickname: true, position: true, ssnFront: true, hireDate: true, phone: true,
+  nickname: true, position: true, ssnFront: true, ssnBack: true, address: true, hireDate: true, phone: true,
   employmentType: true, externalRole: true,
   createdAt: true,
 } as const
@@ -34,7 +34,7 @@ export async function POST(req: NextRequest) {
   if (!(await canManageUsers((session?.user as any)?.id))) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
-  const { name, email, password, role, teamId, nickname, position, ssnFront, hireDate, phone, employmentType, externalRole } = body
+  const { name, email, password, role, teamId, nickname, position, ssnFront, ssnBack, address, hireDate, phone, employmentType, externalRole } = body
 
   if (!name?.trim() || !email?.trim() || !password?.trim()) {
     return NextResponse.json({ error: '이름, 이메일, 비밀번호는 필수입니다.' }, { status: 400 })
@@ -56,6 +56,8 @@ export async function POST(req: NextRequest) {
       nickname:       nickname || null,
       position:       position || null,
       ssnFront:       ssnFront || null,
+      ssnBack:        ssnBack || null,
+      address:        address || null,
       hireDate:       hireDate ? new Date(hireDate) : null,
       phone:          phone || null,
       employmentType: employmentType === '사외' ? '사외' : '사내',

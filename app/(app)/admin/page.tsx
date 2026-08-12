@@ -29,7 +29,7 @@ export default async function AdminPage() {
       select: {
         id: true, name: true, email: true, role: true, teamId: true,
         team: { select: { name: true } },
-        nickname: true, position: true, ssnFront: true, hireDate: true, phone: true,
+        nickname: true, position: true, ssnFront: true, ssnBack: true, address: true, hireDate: true, phone: true,
         employmentType: true, externalRole: true,
         createdAt: true,
       },

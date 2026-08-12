@@ -31,6 +31,8 @@ model User {
   nickname       String?   // 닉네임
   position       String?   // 직책
   ssnFront       String?   // 주민번호 앞자리
+  ssnBack        String?   // 주민번호 뒷자리 (재직증명서 등 인사서식용)
+  address        String?   // 현주소 (재직증명서 등 인사서식용)
   hireDate       DateTime? // 입사일 (근속기간은 이 값에서 매번 계산)
   phone          String?
   employmentType String    @default("사내")  // "사내" | "사외"

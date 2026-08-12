@@ -13,7 +13,7 @@ export async function PATCH(
   if (!(await canManageUsers((session?.user as any)?.id))) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
-  const { name, email, role, teamId, password, nickname, position, ssnFront, hireDate, phone, employmentType, externalRole } = body
+  const { name, email, role, teamId, password, nickname, position, ssnFront, ssnBack, address, hireDate, phone, employmentType, externalRole } = body
 
   const data: Record<string, unknown> = {}
   if (name)              data.name     = name.trim()
@@ -24,6 +24,8 @@ export async function PATCH(
   if (nickname !== undefined) data.nickname = nickname || null
   if (position !== undefined) data.position = position || null
   if (ssnFront !== undefined) data.ssnFront = ssnFront || null
+  if (ssnBack  !== undefined) data.ssnBack  = ssnBack || null
+  if (address  !== undefined) data.address  = address || null
   if (hireDate !== undefined) data.hireDate = hireDate ? new Date(hireDate) : null
   if (phone    !== undefined) data.phone    = phone || null
   if (employmentType !== undefined) {
@@ -37,7 +39,7 @@ export async function PATCH(
     select: {
       id: true, name: true, email: true, role: true, teamId: true,
       team: { select: { name: true } },
-      nickname: true, position: true, ssnFront: true, hireDate: true, phone: true,
+      nickname: true, position: true, ssnFront: true, ssnBack: true, address: true, hireDate: true, phone: true,
       employmentType: true, externalRole: true,
       createdAt: true,
     },

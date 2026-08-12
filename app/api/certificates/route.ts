@@ -8,7 +8,8 @@ export async function POST(req: NextRequest) {
   if (!me?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const { certType, purpose, extra } = body
-  if (!['재직증명서', '사직서'].includes(certType)) {
+  // 사직서·경력증명서는 추후 지원 예정
+  if (!['재직증명서'].includes(certType)) {
     return NextResponse.json({ error: 'certType이 올바르지 않습니다.' }, { status: 400 })
   }
 
