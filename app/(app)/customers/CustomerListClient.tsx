@@ -33,6 +33,7 @@ type Customer = {
   isAgent: boolean | null
   companyName: string | null
   cargoType: string | null
+  vehiclePlateNo: string | null
   contactsJson: string | null
   leads: Lead[]
   activities: Activity[]
@@ -233,7 +234,8 @@ export default function CustomerListClient({ customers: initial }: Props) {
         if (!c.name.toLowerCase().includes(q) &&
             !(c.phone ?? '').includes(q) &&
             !(c.companyName ?? '').toLowerCase().includes(q) &&
-            !(c.contactsJson ?? '').toLowerCase().includes(q)) return false
+            !(c.contactsJson ?? '').toLowerCase().includes(q) &&
+            !(c.vehiclePlateNo ?? '').toLowerCase().includes(q)) return false
       }
       return true
     })
@@ -287,7 +289,7 @@ export default function CustomerListClient({ customers: initial }: Props) {
         <input
           value={search}
           onChange={e => setSearch(e.target.value)}
-          placeholder="이름·연락처·회사명 검색"
+          placeholder="이름·연락처·회사명·차량번호 검색"
           className="ml-auto text-xs border border-slate-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-slate-300 w-52"
         />
 
