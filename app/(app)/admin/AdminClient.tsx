@@ -787,6 +787,7 @@ export default function AdminClient({
                     className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-1 focus:ring-slate-400">
                     <option value="user">일반 사용자</option>
                     <option value="admin">관리자</option>
+                    <option value="ceo">대표이사 (CEO)</option>
                   </select>
                 </div>
                 <div>
@@ -974,9 +975,9 @@ export default function AdminClient({
                   <div className="mx-5 mb-4 px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl">
                     <div className="flex flex-wrap items-center gap-2 mb-2">
                       <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
-                        u.role === 'admin' ? 'bg-violet-100 text-violet-700' : 'bg-slate-100 text-slate-500'
+                        u.role === 'admin' || u.role === 'ceo' ? 'bg-violet-100 text-violet-700' : 'bg-slate-100 text-slate-500'
                       }`}>
-                        {u.role === 'admin' ? '관리자' : '사용자'}
+                        {u.role === 'ceo' ? '대표이사 (CEO)' : u.role === 'admin' ? '관리자' : '사용자'}
                       </span>
                       <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
                         u.employmentType === '사외' ? 'bg-amber-100 text-amber-700' : 'bg-emerald-50 text-emerald-600'
@@ -1019,6 +1020,7 @@ export default function AdminClient({
                           className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-1 focus:ring-slate-400">
                           <option value="user">일반 사용자</option>
                           <option value="admin">관리자</option>
+                          <option value="ceo">대표이사 (CEO)</option>
                         </select>
                       </div>
                       <div>

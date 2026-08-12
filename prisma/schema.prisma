@@ -22,7 +22,7 @@ model User {
   name           String
   email          String         @unique
   password       String
-  role           String         @default("user")  // "admin" | "user"
+  role           String         @default("user")  // "admin" | "ceo" | "user" — admin·ceo는 모든 권한 보유
   teamId         String?
   team           Team?          @relation(fields: [teamId], references: [id])
   agentProfile   Agent?

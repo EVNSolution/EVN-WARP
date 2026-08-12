@@ -2,12 +2,13 @@ import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/auth'
 import { prisma } from '@/lib/db'
 import { createNotification } from '@/lib/createNotification'
+import { isAdminRole } from '@/lib/permissions'
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const session = await auth()
   const me = session?.user as any
-  if (me?.role !== 'admin') return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  if (!isAdminRole(me?.role)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
   const body = await req.json()
   const { status, replyContent, replyImages } = body
@@ -43,7 +44,7 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
   const { id } = await params
   const session = await auth()
   const me = session?.user as any
-  if (me?.role !== 'admin') return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  if (!isAdminRole(me?.role)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
   await prisma.suggestion.delete({ where: { id } })
   return NextResponse.json({ ok: true })

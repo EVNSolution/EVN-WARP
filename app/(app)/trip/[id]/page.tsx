@@ -1,5 +1,6 @@
 import { auth } from '@/auth'
 import { prisma } from '@/lib/db'
+import { isAdminRole } from '@/lib/permissions'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { MapPin, Plane, Edit2, ArrowLeft } from 'lucide-react'
@@ -56,7 +57,7 @@ export default async function TripDetailPage({ params }: { params: Promise<{ id:
     approversArr.some(a => a.userId === currentUser?.id)
 
   const isPreApprover = (trip as any).preApproverId === currentUser?.id
-  const isAdmin    = currentUser?.role === 'admin'
+  const isAdmin    = isAdminRole(currentUser?.role)
   const isOverseas = trip.type === '해외출장'
 
   // 현재 처리 차례인 결재자 계산 (동의 전원 완료 후 결재 차례)

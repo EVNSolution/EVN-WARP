@@ -14,16 +14,19 @@ const BASE_NAV_ITEMS = [
   { href: '/notes',        label: '업무공간',       icon: BookOpen },
   { href: '/funnel',       label: '영업 파이프라인', icon: Filter },
   { href: '/sales-report', label: '영업 리포트',    icon: BarChart2 },
-  { href: '/hr',           label: '인사 (HR)',      icon: UserCog },
 ]
 
-interface Props { userName: string; userEmail: string; isAdmin?: boolean; isExternal?: boolean; isFinanceAdmin?: boolean }
+// 경영관리 권한(경영관리팀·경영진·admin·CEO) 전용 메뉴
+const MANAGEMENT_NAV_ITEMS = [
+  { href: '/hr',      label: '인사 (HR)',   icon: UserCog },
+  { href: '/finance', label: '재무 / 회계', icon: Wallet },
+]
 
-export default function Sidebar({ userName, userEmail, isAdmin = false, isExternal = false, isFinanceAdmin = false }: Props) {
+interface Props { userName: string; userEmail: string; isAdmin?: boolean; isExternal?: boolean; isManagement?: boolean }
+
+export default function Sidebar({ userName, userEmail, isAdmin = false, isExternal = false, isManagement = false }: Props) {
   const pathname = usePathname()
-  const navItems = isFinanceAdmin
-    ? [...BASE_NAV_ITEMS, { href: '/finance', label: '재무 / 회계', icon: Wallet }]
-    : BASE_NAV_ITEMS
+  const navItems = isManagement ? [...BASE_NAV_ITEMS, ...MANAGEMENT_NAV_ITEMS] : BASE_NAV_ITEMS
   const visibleNavItems = isExternal ? navItems.filter(n => n.href === '/funnel') : navItems
 
   return (

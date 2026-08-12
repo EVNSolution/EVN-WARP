@@ -1,5 +1,6 @@
 import { auth } from '@/auth'
 import { prisma } from '@/lib/db'
+import { isAdminRole } from '@/lib/permissions'
 import SuggestionsClient from './SuggestionsClient'
 
 export default async function SuggestionsPage() {
@@ -14,7 +15,7 @@ export default async function SuggestionsPage() {
     <SuggestionsClient
       initialSuggestions={JSON.parse(JSON.stringify(suggestions))}
       myUserId={me?.id ?? ''}
-      isAdmin={me?.role === 'admin'}
+      isAdmin={isAdminRole(me?.role)}
     />
   )
 }

@@ -10,6 +10,7 @@ export default async function HrPage() {
   if (!meSession?.id) redirect('/login')
 
   const isManager = await canManageUsers(meSession.id)
+  if (!isManager) redirect('/dashboard')
 
   const [me, myLeaves, pendingLeaves, teams, allUsers, myHrRecords] = await Promise.all([
     prisma.user.findUnique({
