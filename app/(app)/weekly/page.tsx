@@ -24,7 +24,7 @@ type SearchParams = { week?: string; tab?: string; view?: string; presentTeam?: 
 
 export default async function WeeklyPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
   const { week: weekParam, tab, view: viewParam, presentTeam: presentTeamParam } = await searchParams
-  const activeTab  = tab === 'weekly' ? 'weekly' : 'gantt'
+  const activeTab  = tab === 'gantt' ? 'gantt' : 'weekly'
   const activeView = (viewParam === 'team' || viewParam === 'personal') ? viewParam : 'company'
 
   const currentWeekId = getWeekId(new Date())
@@ -280,16 +280,6 @@ export default async function WeeklyPage({ searchParams }: { searchParams: Promi
       {/* ── 탭 네비게이션 ── */}
       <div className="flex gap-0 mb-4 border-b border-slate-200">
         <Link
-          href={`/weekly?week=${weekId}&tab=gantt&view=${activeView}`}
-          className={`px-6 py-2.5 text-sm font-semibold rounded-t-lg border-b-2 transition-colors ${
-            activeTab === 'gantt'
-              ? 'border-[#C5D42A] text-[#7a9200] bg-white'
-              : 'border-transparent text-slate-500 hover:text-slate-700'
-          }`}
-        >
-          간트<span className="text-[80%] font-normal">(과제별 진도 확인)</span>
-        </Link>
-        <Link
           href={`/weekly?week=${weekId}&tab=weekly&view=${activeView}`}
           className={`px-6 py-2.5 text-sm font-semibold rounded-t-lg border-b-2 transition-colors ${
             activeTab === 'weekly'
@@ -298,6 +288,16 @@ export default async function WeeklyPage({ searchParams }: { searchParams: Promi
           }`}
         >
           주간업무보고<span className="text-[80%] font-normal">(과제별 활동 실적 및 계획)</span>
+        </Link>
+        <Link
+          href={`/weekly?week=${weekId}&tab=gantt&view=${activeView}`}
+          className={`px-6 py-2.5 text-sm font-semibold rounded-t-lg border-b-2 transition-colors ${
+            activeTab === 'gantt'
+              ? 'border-[#C5D42A] text-[#7a9200] bg-white'
+              : 'border-transparent text-slate-500 hover:text-slate-700'
+          }`}
+        >
+          간트<span className="text-[80%] font-normal">(과제별 진도 확인)</span>
         </Link>
       </div>
 
