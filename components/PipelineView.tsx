@@ -391,6 +391,7 @@ export default function PipelineView({ deals, salesTarget, initialStage, initial
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [activeTab,    setActiveTab]    = useState<Tab>((initialSeg as Tab | null) ?? 'all')
   const [searchQuery,  setSearchQuery]  = useState('')
+  const [assigneeFilter, setAssigneeFilter] = useState('')
   const [quickMtgDeal, setQuickMtgDeal] = useState<PipelineDeal | null>(null)
 
   /* 컬럼 설정 — SSR 안전하게 useEffect에서 로드 */
@@ -434,6 +435,8 @@ export default function PipelineView({ deals, salesTarget, initialStage, initial
     return activeTab === 'b2c' ? seg === 'B2C' : seg === 'B2B'
   })
 
+  const assigneeOptions = [...new Set(tabDeals.map(d => d.assignee).filter((a): a is string => !!a))].sort()
+
   const activeDeals = tabDeals.filter(d => d.salesStatus !== '이탈' && d.salesStatus !== '완료' && d.salesStatus !== '판매보류' && d.salesStatus !== '고객전환')
   const lostDeals   = tabDeals.filter(d => d.salesStatus === '이탈')
   const doneDeals   = tabDeals.filter(d => d.salesStatus === '완료')
@@ -454,9 +457,10 @@ export default function PipelineView({ deals, salesTarget, initialStage, initial
     const byStage = selectedCode && selectedCode !== '이탈' && selectedCode !== '완료' && selectedCode !== '판매보류'
       ? pool.filter(d => d.stageCode === selectedCode)
       : pool
-    if (!searchQuery.trim()) return byStage
+    const byAssignee = assigneeFilter ? byStage.filter(d => d.assignee === assigneeFilter) : byStage
+    if (!searchQuery.trim()) return byAssignee
     const q = searchQuery.trim().toLowerCase().replace(/\D/g, '') || searchQuery.trim().toLowerCase()
-    return byStage.filter(d => {
+    return byAssignee.filter(d => {
       const nameMatch  = d.name.toLowerCase().includes(searchQuery.trim().toLowerCase())
       const phoneDigits = (d.phone ?? '').replace(/\D/g, '')
       const phoneMatch  = phoneDigits.includes(q) || (d.phone ?? '').toLowerCase().includes(searchQuery.trim().toLowerCase())
@@ -938,12 +942,22 @@ export default function PipelineView({ deals, salesTarget, initialStage, initial
             {!crmView && (
               <span className="text-xs text-slate-400 font-medium">
                 {filteredDeals.length}건
-                {searchQuery && <span className="ml-1 text-blue-400">· 검색 중</span>}
+                {(searchQuery || assigneeFilter) && <span className="ml-1 text-blue-400">· 검색 중</span>}
               </span>
             )}
           </div>
 
           <div className="flex gap-2 items-center relative">
+            {/* 영업담당 필터 */}
+            {!crmView && assigneeOptions.length > 0 && (
+              <select
+                value={assigneeFilter}
+                onChange={e => setAssigneeFilter(e.target.value)}
+                className="text-xs border border-slate-200 rounded-lg px-2 py-1.5 bg-white focus:outline-none focus:ring-1 focus:ring-slate-300 text-slate-600">
+                <option value="">영업담당 전체</option>
+                {assigneeOptions.map(a => <option key={a} value={a}>{a}</option>)}
+              </select>
+            )}
             {/* 검색창 */}
             {!crmView && (
               <div className="relative">
