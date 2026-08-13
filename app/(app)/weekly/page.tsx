@@ -247,7 +247,7 @@ export default async function WeeklyPage({ searchParams }: { searchParams: Promi
       </div>
 
       {/* ── 스코프 바 ── */}
-      <div className="flex items-center gap-2 mb-3">
+      <div className="flex items-center gap-2 mb-3 flex-wrap">
         <span className="text-xs text-slate-400 font-medium">보기:</span>
         {([
           { v: 'company',  label: '전사' },
@@ -274,6 +274,37 @@ export default async function WeeklyPage({ searchParams }: { searchParams: Promi
         )}
         {activeView === 'team' && myTeamId && (
           <span className="text-xs text-slate-400">{teamMap.get(myTeamId)?.teamName ?? ''} 과제만 표시</span>
+        )}
+
+        {/* 발표 모드 — 주간업무보고 탭 · 전사 보기일 때만 */}
+        {activeTab === 'weekly' && activeView === 'company' && (
+          <>
+            <span className="w-px h-4 bg-slate-200 mx-1" />
+            <span className="text-xs text-slate-400 font-medium">발표 모드:</span>
+            {presentTeamId ? (
+              <div className="flex items-center border border-slate-200 rounded-lg overflow-hidden bg-white">
+                <Link href={withParams({ presentTeam: prevTeamId })}
+                  className="px-2 py-1 text-slate-400 hover:text-slate-700 hover:bg-slate-50 transition-colors border-r border-slate-200">
+                  <ChevronLeft size={14} />
+                </Link>
+                <span className="px-3 py-1 text-xs font-bold text-slate-700 min-w-[130px] text-center">
+                  {presentTeamName} ({presentTeamIdx + 1}/{teamEntries.length})
+                </span>
+                <Link href={withParams({ presentTeam: nextTeamId })}
+                  className="px-2 py-1 text-slate-400 hover:text-slate-700 hover:bg-slate-50 transition-colors border-l border-slate-200">
+                  <ChevronRight size={14} />
+                </Link>
+              </div>
+            ) : (
+              <span className="text-xs text-slate-300">전체 팀 표시 중</span>
+            )}
+            <Link
+              href={presentTeamId ? withParams({ presentTeam: null }) : withParams({ presentTeam: teamEntries[0]?.[0] ?? null })}
+              className="px-3 py-1 text-xs font-semibold rounded-full border border-slate-200 text-slate-500 hover:border-slate-400 transition-colors"
+            >
+              {presentTeamId ? '전체 팀 보기' : '팀별로 보기 시작'}
+            </Link>
+          </>
         )}
       </div>
 
@@ -356,34 +387,6 @@ export default async function WeeklyPage({ searchParams }: { searchParams: Promi
       ══════════════════════════════ */}
       {activeTab === 'weekly' && (
         <>
-          {activeView === 'company' && (
-            <div className="flex items-center gap-2 mb-3">
-              <span className="text-xs text-slate-400 font-medium">발표 모드:</span>
-              {presentTeamId ? (
-                <div className="flex items-center border border-slate-200 rounded-lg overflow-hidden bg-white">
-                  <Link href={withParams({ presentTeam: prevTeamId })}
-                    className="px-2 py-1 text-slate-400 hover:text-slate-700 hover:bg-slate-50 transition-colors border-r border-slate-200">
-                    <ChevronLeft size={14} />
-                  </Link>
-                  <span className="px-3 py-1 text-xs font-bold text-slate-700 min-w-[130px] text-center">
-                    {presentTeamName} ({presentTeamIdx + 1}/{teamEntries.length})
-                  </span>
-                  <Link href={withParams({ presentTeam: nextTeamId })}
-                    className="px-2 py-1 text-slate-400 hover:text-slate-700 hover:bg-slate-50 transition-colors border-l border-slate-200">
-                    <ChevronRight size={14} />
-                  </Link>
-                </div>
-              ) : (
-                <span className="text-xs text-slate-300">전체 팀 표시 중</span>
-              )}
-              <Link
-                href={presentTeamId ? withParams({ presentTeam: null }) : withParams({ presentTeam: teamEntries[0]?.[0] ?? null })}
-                className="px-3 py-1 text-xs font-semibold rounded-full border border-slate-200 text-slate-500 hover:border-slate-400 transition-colors"
-              >
-                {presentTeamId ? '전체 팀 보기' : '팀별로 보기 시작'}
-              </Link>
-            </div>
-          )}
           <section className="grid grid-cols-2 gap-4 mb-4">
 
             {/* Weekly Completed Works */}
