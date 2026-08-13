@@ -63,7 +63,23 @@ NEXTAUTH_URL="http://localhost:3000"
 # AI (선택)
 ANTHROPIC_API_KEY="..."
 GOOGLE_AI_API_KEY="..."
+
+# CLEVER HQ Account Control (로컬 dispatcher 검증 시)
+CLEVER_HQ_GATEWAY_URL="http://127.0.0.1:8000"
+CLEVER_HQ_CLIENT_KEY="warp-web"
+CLEVER_HQ_CLIENT_SECRET="..."  # 저장소·로그·DB에 기록하지 않음
 ```
+
+### CLEVER HQ Account Control 파일럿
+
+`CLEVER-HQ-ACCOUNT-INTERCEPTOR / contract 1.0`을 적용한다. Account authority는 `system:warp`, 불변 subject는 NextAuth의 `session.user.id`이며 현재 실제 업무 적용 범위는 `/api/account/team`이다. 업무 변경과 `AccountEvidenceOutbox`는 같은 Prisma 트랜잭션으로 커밋되고 HQ 전송은 별도 실행한다.
+
+```bash
+npm run test:account-control
+npm run account-evidence:dispatch
+```
+
+Dispatcher 장애는 WARP 업무 트랜잭션을 되돌리지 않는다. 같은 idempotency key로 재전송하며, 운영 스케줄·SSM Secret·HTTPS Gateway는 로컬 검증 완료 후 별도 Deliver 단계에서 구성한다. 적용 증거와 알려진 한계는 `clever_account_interceptor/INTEGRATION_EVIDENCE.md`를 따른다.
 
 ---
 

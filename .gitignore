@@ -43,7 +43,12 @@ next-env.d.ts
 # prisma
 /app/generated/prisma
 
-# SQLite local database
+# local dev
+dev.log
+*.log
+/.omx/
+
+# SQLite local database (contains real user data — never commit)
 dev.db
 dev.db-journal
 *.db-shm

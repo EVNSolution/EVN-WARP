@@ -52,14 +52,21 @@ export default function AccountClient({ userName, userEmail, teams, currentTeamI
 
   async function handleTeamSave() {
     setTeamSaving(true); setTeamSaved(false)
+    setError(null)
     try {
-      await fetch('/api/account/team', {
+      const response = await fetch('/api/account/team', {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Idempotency-Key': crypto.randomUUID(),
+        },
         body: JSON.stringify({ teamId: teamId || null }),
       })
+      if (!response.ok) throw new Error('team_update_failed')
       setTeamSaved(true)
       setTimeout(() => setTeamSaved(false), 2000)
+    } catch {
+      setError('소속팀 변경을 저장하지 못했습니다.')
     } finally {
       setTeamSaving(false)
     }
