@@ -362,22 +362,21 @@ export default async function NotesPage({ searchParams }: { searchParams: Promis
               </Link>
             </div>
           )}
+          {/* ── 팀 · 작성자 선택 ── */}
+          <FilterSelects
+            monthId={monthId}
+            activeTab={activeTab}
+            userParam={userParam}
+            teamParam={teamParam}
+            userNames={userNames}
+            teams={allTeams}
+          />
           <Link href={`/notes/new?date=${todayStr}`}
             className="flex items-center gap-1.5 text-white border border-white/20 px-3.5 py-2 rounded-lg text-sm font-medium hover:bg-white/10 transition-colors">
             <Plus size={14} /> 활동 추가
           </Link>
         </div>
       </div>
-
-      {/* ── 팀 · 작성자 선택 ── */}
-      <FilterSelects
-        monthId={monthId}
-        activeTab={activeTab}
-        userParam={userParam}
-        teamParam={teamParam}
-        userNames={userNames}
-        teams={allTeams}
-      />
 
       {/* ── 탭 ── */}
       <div className="flex gap-0 mb-4 border-b border-slate-200">

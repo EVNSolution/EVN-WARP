@@ -25,26 +25,28 @@ export default function FilterSelects({ monthId, activeTab, userParam, teamParam
     router.push(`/notes?${params.toString()}`)
   }
 
+  const selectCls = "text-xs font-semibold text-white bg-white/10 border border-white/20 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-white/40 [color-scheme:dark]"
+
   return (
-    <div className="flex items-center gap-4 mb-3 flex-wrap">
-      <div className="flex items-center gap-2">
-        <label className="text-xs font-semibold text-slate-500">팀</label>
+    <div className="flex items-center gap-3 shrink-0">
+      <div className="flex items-center gap-1.5">
+        <label className="text-xs font-semibold text-white/50">팀</label>
         <select
           value={teamParam ?? ''}
           onChange={e => navigate({ teamName: e.target.value })}
-          className="text-xs border border-slate-200 rounded-lg px-2.5 py-1.5 bg-white focus:outline-none focus:ring-1 focus:ring-slate-400"
+          className={selectCls}
         >
           <option value="">전체</option>
           {teams.map(t => <option key={t.id} value={t.name}>{t.name}</option>)}
         </select>
       </div>
       {userNames.length > 1 && (
-        <div className="flex items-center gap-2">
-          <label className="text-xs font-semibold text-slate-500">작성자</label>
+        <div className="flex items-center gap-1.5">
+          <label className="text-xs font-semibold text-white/50">작성자</label>
           <select
             value={userParam ?? ''}
             onChange={e => navigate({ user: e.target.value })}
-            className="text-xs border border-slate-200 rounded-lg px-2.5 py-1.5 bg-white focus:outline-none focus:ring-1 focus:ring-slate-400"
+            className={selectCls}
           >
             <option value="">전체</option>
             {userNames.map(name => <option key={name} value={name}>{name}</option>)}
