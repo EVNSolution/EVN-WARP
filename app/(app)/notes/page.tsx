@@ -11,6 +11,7 @@ import {
   Building, Receipt, RefreshCw, Scale, Car,
 } from 'lucide-react'
 import CalendarView, { type CalActivity, type CalVehicleReservation } from '@/components/CalendarView'
+import FilterSelects from './FilterSelects'
 import { auth } from '@/auth'
 
 /* ── 상수 ── */
@@ -59,7 +60,7 @@ const TYPE_META: Record<string, { icon: React.ReactNode; bg: string; text: strin
   '사무업무':  { icon: <Briefcase size={9} />, bg: 'bg-slate-100',  text: 'text-slate-600' },
 }
 type WeekDay = { dateStr: string; day: number; inMonth: boolean; dow: number }
-type SearchParams = { month?: string; tab?: string; user?: string; uid?: string; teamName?: string; scope?: string }
+type SearchParams = { month?: string; tab?: string; user?: string; uid?: string; teamName?: string }
 
 /* ── 출장보고 목록 ── */
 const TRIP_STATUS: Record<string, { bg: string; text: string }> = {
@@ -103,9 +104,8 @@ function TripList({ items }: { items: any[] }) {
 }
 
 export default async function NotesPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
-  const { month: monthParam, tab, user: userParam, uid: uidParam, teamName: teamParam, scope } = await searchParams
+  const { month: monthParam, tab, user: userParam, uid: uidParam, teamName: teamParam } = await searchParams
   const activeTab  = tab === 'notes' ? 'notes' : 'calendar'
-  const teamMode   = scope === 'team'   // 팀 선택 모드
 
   const session  = await auth()
   const myName   = (session?.user as any)?.name as string | undefined
@@ -160,6 +160,18 @@ export default async function NotesPage({ searchParams }: { searchParams: Promis
   const nextM     = new Date(Date.UTC(year, month, 1))
   const prevMonth = `${prevM.getUTCFullYear()}-${String(prevM.getUTCMonth() + 1).padStart(2, '0')}`
   const nextMonth = `${nextM.getUTCFullYear()}-${String(nextM.getUTCMonth() + 1).padStart(2, '0')}`
+
+  // 월/탭 이동 시 현재 작성자·팀 필터를 유지한 링크를 만든다
+  const buildHref = (over: { month?: string; tab?: string; user?: string | null; team?: string | null } = {}) => {
+    const params = new URLSearchParams()
+    params.set('month', over.month ?? monthId)
+    params.set('tab', over.tab ?? activeTab)
+    const u = over.user !== undefined ? over.user : userParam
+    const t = over.team !== undefined ? over.team : teamParam
+    if (u) params.set('user', u)
+    if (t) params.set('teamName', t)
+    return `/notes?${params.toString()}`
+  }
 
   /* ── DB 조회 ── */
   const [activities, userRows, tripReports, recentVehicleLogs, rawReservations] = await Promise.all([
@@ -312,24 +324,24 @@ export default async function NotesPage({ searchParams }: { searchParams: Promis
         </div>
         <div className="flex items-center gap-3">
           <div className="flex items-center border border-white/20 rounded-lg overflow-hidden" style={{ backgroundColor: 'rgba(255,255,255,0.08)' }}>
-            <Link href={`/notes?month=${prevMonth}&tab=${activeTab}${userParam ? `&user=${encodeURIComponent(userParam)}` : ''}${uidParam ? `&uid=${encodeURIComponent(uidParam)}` : ''}${teamMode || teamParam ? `&scope=team` : ''}${teamParam ? `&teamName=${encodeURIComponent(teamParam)}` : ''}`}
+            <Link href={buildHref({ month: prevMonth })}
               className="px-2.5 py-1.5 text-white/50 hover:text-white hover:bg-white/10 transition-colors border-r border-white/20">
               <ChevronLeft size={16} />
             </Link>
             <span className="px-5 py-1.5 text-sm font-bold text-white min-w-[130px] text-center">
               {year}년 {month}월
             </span>
-            <Link href={`/notes?month=${nextMonth}&tab=${activeTab}${userParam ? `&user=${encodeURIComponent(userParam)}` : ''}${uidParam ? `&uid=${encodeURIComponent(uidParam)}` : ''}${teamMode || teamParam ? `&scope=team` : ''}${teamParam ? `&teamName=${encodeURIComponent(teamParam)}` : ''}`}
+            <Link href={buildHref({ month: nextMonth })}
               className="px-2.5 py-1.5 text-white/50 hover:text-white hover:bg-white/10 transition-colors border-l border-white/20">
               <ChevronRight size={16} />
             </Link>
           </div>
-          {/* 개인 / 팀 / 전사 토글 */}
+          {/* 개인 / 전체 토글 — 작성자 필터만 전환, 팀 필터는 별도 유지 */}
           {myName && (
             <div className="flex border border-white/20 rounded-lg overflow-hidden text-xs font-bold">
               {/* 개인 — 이름 문자열이 아닌 로그인 계정 id로 매칭해, 이름 변경/오탈자와 무관하게 본인 활동을 찾는다 */}
               <Link
-                href={`/notes?month=${monthId}&tab=${activeTab}&user=${encodeURIComponent(myName)}${myUserId ? `&uid=${encodeURIComponent(myUserId)}` : ''}`}
+                href={`${buildHref({ user: myName })}${myUserId ? `&uid=${encodeURIComponent(myUserId)}` : ''}`}
                 className={`px-3.5 py-2 transition-colors ${
                   (uidParam ? uidParam === myUserId : userParam === myName)
                     ? 'text-[#111] font-black'
@@ -338,29 +350,15 @@ export default async function NotesPage({ searchParams }: { searchParams: Promis
                 style={(uidParam ? uidParam === myUserId : userParam === myName) ? { backgroundColor: '#C5D42A' } : {}}>
                 개인
               </Link>
-              {/* 팀 — 항상 표시, 클릭 시 팀 선택 row 활성화 */}
               <Link
-                href={teamParam
-                  ? `/notes?month=${monthId}&tab=${activeTab}&scope=team&teamName=${encodeURIComponent(teamParam)}`
-                  : `/notes?month=${monthId}&tab=${activeTab}&scope=team`}
+                href={buildHref({ user: null })}
                 className={`px-3.5 py-2 border-l border-white/20 transition-colors ${
-                  teamMode || teamParam
+                  !userParam && !uidParam
                     ? 'text-[#111] font-black'
                     : 'text-white/60 hover:text-white hover:bg-white/10'
                 }`}
-                style={teamMode || teamParam ? { backgroundColor: '#C5D42A' } : {}}>
-                {teamParam ? `팀` : '팀'}
-              </Link>
-              {/* 전사 */}
-              <Link
-                href={`/notes?month=${monthId}&tab=${activeTab}`}
-                className={`px-3.5 py-2 border-l border-white/20 transition-colors ${
-                  !userParam && !uidParam && !teamParam && !teamMode
-                    ? 'text-[#111] font-black'
-                    : 'text-white/60 hover:text-white hover:bg-white/10'
-                }`}
-                style={!userParam && !uidParam && !teamParam && !teamMode ? { backgroundColor: '#C5D42A' } : {}}>
-                전사
+                style={!userParam && !uidParam ? { backgroundColor: '#C5D42A' } : {}}>
+                전체
               </Link>
             </div>
           )}
@@ -371,54 +369,22 @@ export default async function NotesPage({ searchParams }: { searchParams: Promis
         </div>
       </div>
 
-      {/* ── 팀 선택 row (팀 모드일 때) ── */}
-      {(teamMode || teamParam) && (
-        <div className="flex items-center gap-2 mb-3 flex-wrap">
-          <span className="text-xs font-semibold text-slate-500">팀 선택</span>
-          {allTeams.map(t => (
-            <Link key={t.id}
-              href={`/notes?month=${monthId}&tab=${activeTab}&scope=team&teamName=${encodeURIComponent(t.name)}`}
-              className={`px-3 py-1 rounded-full text-xs font-semibold transition-colors ${
-                teamParam === t.name
-                  ? 'text-[#111] font-black'
-                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-              }`}
-              style={teamParam === t.name ? { backgroundColor: '#C5D42A' } : {}}>
-              {t.name}
-            </Link>
-          ))}
-        </div>
-      )}
-
-      {/* ── 작성자 필터 (2인 이상일 때) ── */}
-      {userNames.length > 1 && (
-        <div className="flex items-center gap-2 mb-3 flex-wrap">
-          <span className="text-xs font-semibold text-slate-500">작성자</span>
-          <Link href={`/notes?month=${monthId}&tab=${activeTab}`}
-            className={`px-3 py-1 rounded-full text-xs font-semibold transition-colors ${
-              !userParam ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-            }`}>전체</Link>
-          {userNames.map(name => (
-            <Link key={name} href={`/notes?month=${monthId}&tab=${activeTab}&user=${encodeURIComponent(name)}`}
-              className={`px-3 py-1 rounded-full text-xs font-semibold transition-colors ${
-                userParam === name ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-              }`}>{name}</Link>
-          ))}
-        </div>
-      )}
+      {/* ── 팀 · 작성자 선택 ── */}
+      <FilterSelects
+        monthId={monthId}
+        activeTab={activeTab}
+        userParam={userParam}
+        teamParam={teamParam}
+        userNames={userNames}
+        teams={allTeams}
+      />
 
       {/* ── 탭 ── */}
       <div className="flex gap-0 mb-4 border-b border-slate-200">
         {(['캘린더', '업무노트'] as const).map(label => {
           const val    = label === '캘린더' ? 'calendar' : 'notes'
           const active = activeTab === val
-          const tabHref = userParam
-            ? `/notes?month=${monthId}&tab=${val}&user=${encodeURIComponent(userParam)}${uidParam ? `&uid=${encodeURIComponent(uidParam)}` : ''}`
-            : teamParam
-            ? `/notes?month=${monthId}&tab=${val}&scope=team&teamName=${encodeURIComponent(teamParam)}`
-            : teamMode
-            ? `/notes?month=${monthId}&tab=${val}&scope=team`
-            : `/notes?month=${monthId}&tab=${val}`
+          const tabHref = `${buildHref({ tab: val })}${userParam && uidParam ? `&uid=${encodeURIComponent(uidParam)}` : ''}`
           return (
             <Link key={label} href={tabHref}
               className={`px-6 py-2.5 text-sm font-semibold rounded-t-lg border-b-2 transition-colors ${
