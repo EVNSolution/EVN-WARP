@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useMemo, useEffect, useRef } from 'react'
-import { unknownCustomerName } from '@/lib/format'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { Phone, Truck } from 'lucide-react'
@@ -186,7 +185,7 @@ export default function CustomerListClient({ customers: initial }: Props) {
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [creating,     setCreating]     = useState(false)
 
-  /* 모달 없이 바로 고객상세 페이지로 이동 — 이름은 "미상"으로 임시 생성 후 상세페이지에서 채움 */
+  /* 모달 없이 바로 고객상세 페이지로 이동 — 이름은 비워둔 채 생성 후 상세페이지에서 채움 */
   const handleQuickAdd = async () => {
     if (creating) return
     setCreating(true)
@@ -195,7 +194,7 @@ export default function CustomerListClient({ customers: initial }: Props) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          name:        unknownCustomerName({}),
+          allowBlankName: true,
           customerSegment: 'B2C',
           collectedAt: new Date().toISOString(),
         }),

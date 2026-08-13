@@ -419,10 +419,10 @@ export default function CustomerDetailClient({ customer, returnTo }: { customer:
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           customerId:      customer.id,
-          name:            customer.name,
-          phone:           customer.phone     || null,
-          companyName:     customer.companyName || null,
-          customerSegment: customer.customerSegment || 'B2C',
+          name:            f.name,
+          phone:           f.phone       || null,
+          companyName:     f.companyName || null,
+          customerSegment: f.customerSegment || 'B2C',
           stageCode:       '1-1',
           salesStatus:     '진행중',
           collectedAt:     new Date().toISOString(),
@@ -490,7 +490,7 @@ export default function CustomerDetailClient({ customer, returnTo }: { customer:
         <div className="flex items-center gap-3">
           <Link href="/customers" className="text-slate-400 hover:text-slate-600 text-sm transition">← 고객 목록</Link>
           <div>
-            <h1 className="text-2xl font-bold text-slate-800">{customer.name}</h1>
+            <h1 className="text-2xl font-bold text-slate-800">{f.name || '이름 미입력'}</h1>
             <div className="flex items-center gap-2 mt-0.5">
               {customer.phone && <span className="text-sm text-slate-500">{customer.phone}</span>}
               <button type="button"
@@ -518,7 +518,7 @@ export default function CustomerDetailClient({ customer, returnTo }: { customer:
           </button>
           <button
             onClick={async () => {
-              if (!confirm(`"${customer.name}" 고객을 삭제할까요? 이 작업은 되돌릴 수 없습니다.`)) return
+              if (!confirm(`"${f.name || '이름 미입력'}" 고객을 삭제할까요? 이 작업은 되돌릴 수 없습니다.`)) return
               await fetch(`/api/customers/${customer.id}`, { method: 'DELETE' })
               router.push('/customers')
             }}
@@ -556,7 +556,11 @@ export default function CustomerDetailClient({ customer, returnTo }: { customer:
                           plateNo: f.vehiclePlateNo,
                           phone:   f.phone,
                         }))}
-                        className="text-[10px] font-semibold text-slate-400 hover:text-slate-600 border border-slate-200 rounded-full px-2 py-0.5 transition">
+                        className={`text-[10px] font-semibold rounded-full px-2 py-0.5 transition ${
+                          !f.name
+                            ? 'text-amber-700 bg-amber-50 border border-amber-300 hover:bg-amber-100'
+                            : 'text-slate-400 hover:text-slate-600 border border-slate-200'
+                        }`}>
                         이름을 모를 때 · 신원미상
                       </button>
                     </div>

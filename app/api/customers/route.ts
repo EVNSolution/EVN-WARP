@@ -50,7 +50,10 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const [body, session] = await Promise.all([req.json(), auth()])
-    if (!body.name?.trim()) return NextResponse.json({ error: '고객명은 필수입니다.' }, { status: 400 })
+    // 빠른 고객 추가 — 상세 페이지에서 이름을 채우는 것을 전제로 이름 없이 생성 허용
+    if (!body.allowBlankName && !body.name?.trim()) {
+      return NextResponse.json({ error: '고객명은 필수입니다.' }, { status: 400 })
+    }
 
     // 사외 계정은 항상 본인을 담당자로 등록 (다른 사람 이름으로 배정 불가)
     const me = session?.user as any
@@ -58,7 +61,7 @@ export async function POST(req: NextRequest) {
 
     const customer = await prisma.customer.create({
       data: {
-        name:             body.name.trim(),
+        name:             body.name?.trim() ?? '',
         phone:            body.phone            || null,
         email:            body.email            || null,
         customerSegment:  body.customerSegment  || null,
