@@ -436,15 +436,14 @@ export default async function WeeklyPage({ searchParams }: { searchParams: Promi
                         </div>
                         <div className="pl-3 space-y-0.5">
                           {taskActs.map((act: any) => (
-                            <div key={act.id} className="flex items-start gap-1.5 text-xs text-slate-600">
+                            <Link key={act.id} href={`/notes/${act.id}/edit`}
+                              className="flex items-start gap-1.5 text-xs text-slate-600 hover:bg-slate-50 rounded px-1 -mx-1 transition-colors">
                               <span className="shrink-0 text-xs" style={{ color: dotCls }}>●</span>
                               <span>
-                                {act.type === '이메일' && act.referenceUrl
-                                  ? <a href={act.referenceUrl} target="_blank" rel="noopener noreferrer" className="text-sky-600 hover:underline">{act.title}</a>
-                                  : act.title}
+                                <span className="hover:underline hover:text-indigo-600">{act.title}</span>
                                 <span className="ml-1 text-slate-400">({act.userName ?? '담당자 미상'}, {act.planStatus === '완료' ? '완료' : '계획'} {+act.date.slice(5,7)}/{+act.date.slice(8,10)})</span>
                               </span>
-                            </div>
+                            </Link>
                           ))}
                         </div>
                         {lines.length > 0 && (
@@ -566,15 +565,14 @@ export default async function WeeklyPage({ searchParams }: { searchParams: Promi
                         </div>
                         <div className="pl-3 space-y-0.5">
                           {taskActs.map((act: any) => (
-                            <div key={act.id} className="flex items-start gap-1.5 text-xs text-slate-600">
+                            <Link key={act.id} href={`/notes/${act.id}/edit`}
+                              className="flex items-start gap-1.5 text-xs text-slate-600 hover:bg-slate-50 rounded px-1 -mx-1 transition-colors">
                               <span className="shrink-0 text-xs" style={{ color: dotCls }}>●</span>
                               <span>
-                                {act.type === '이메일' && act.referenceUrl
-                                  ? <a href={act.referenceUrl} target="_blank" rel="noopener noreferrer" className="text-sky-600 hover:underline">{act.title}</a>
-                                  : act.title}
+                                <span className="hover:underline hover:text-indigo-600">{act.title}</span>
                                 <span className="ml-1 text-slate-400">({act.userName ?? '담당자 미상'}, {act.planStatus === '완료' ? '완료' : '계획'} {+act.date.slice(5,7)}/{+act.date.slice(8,10)})</span>
                               </span>
-                            </div>
+                            </Link>
                           ))}
                         </div>
                         {lines.length > 0 && (
