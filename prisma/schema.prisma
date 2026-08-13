@@ -696,6 +696,32 @@ model Notification {
   createdAt DateTime @default(now())
 }
 
+// CLEVER-HQ-ACCOUNT-INTERCEPTOR / contract 1.0
+// Account Control boundary — owner: @OziinG
+// Tracking: EVNSolution/EVN-WARP#2
+model AccountEvidenceOutbox {
+  id                 String   @id @default(cuid())
+  idempotencyKey     String   @unique
+  requestFingerprint String
+  accountAuthority   String
+  accountSubject     String
+  correlationId      String
+  action             String
+  outcome            String   @default("committed")
+  occurredAt         DateTime
+  status             String   @default("pending")
+  attemptCount       Int      @default(0)
+  nextAttemptAt      DateTime @default(now())
+  lastErrorCode      String?
+  hqOperationId      String?
+  hqGatewayRequestId String?
+  deliveredAt        DateTime?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@index([status, nextAttemptAt])
+}
+
 model CorporateCard {
   id         String   @id @default(cuid())
   holderName String   // 카드상 이름

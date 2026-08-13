@@ -6,7 +6,10 @@
     "dev": "next dev --webpack",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test:account-control": "tsx --test clever_account_interceptor/typescript/core.test.ts lib/account-control/*.test.ts",
+    "account-evidence:dispatch": "tsx scripts/dispatch-account-evidence.ts",
+    "account-control:hq-probe": "tsx scripts/hq-local-integration-probe.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.105.0",
