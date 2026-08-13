@@ -257,6 +257,7 @@ export default function LeadDetailClient({ deal, customer = null, products = [],
 
   const [meetings,       setMeetings]       = useState<Meeting[]>([])
   const [expandedMtgIds, setExpandedMtgIds] = useState<Set<string>>(new Set())
+  const [lightbox, setLightbox] = useState<{ images: MFile[]; index: number } | null>(null)
   const [showMtgForm,    setShowMtgForm]    = useState(false)
   const [editingMtgId,   setEditingMtgId]   = useState<string | null>(null)
   const [mtgTab,         setMtgTab]         = useState<'record' | 'plan' | 'history'>('record')
@@ -273,6 +274,18 @@ export default function LeadDetailClient({ deal, customer = null, products = [],
     setShowMtgForm(true)
     setTimeout(() => mtgSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50)
   }
+
+  // 이미지 라이트박스 — ESC로 닫기, ←/→로 이전·다음 사진 이동
+  useEffect(() => {
+    if (!lightbox) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setLightbox(null)
+      else if (e.key === 'ArrowRight') setLightbox(lb => lb && { ...lb, index: (lb.index + 1) % lb.images.length })
+      else if (e.key === 'ArrowLeft')  setLightbox(lb => lb && { ...lb, index: (lb.index - 1 + lb.images.length) % lb.images.length })
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [lightbox])
 
   useEffect(() => {
     fetch(`/api/deals/${deal.id}/meetings`)
@@ -1881,13 +1894,21 @@ export default function LeadDetailClient({ deal, customer = null, products = [],
                       </div>
                       {files.length > 0 && (
                         <div className="flex flex-wrap gap-1.5 mb-2">
-                          {files.map((f, i) => (
-                            <a key={i} href={f.path} target="_blank" rel="noopener noreferrer"
-                              className="flex items-center gap-1 px-2 py-0.5 bg-slate-50 border border-slate-200 rounded text-[10px] text-slate-600 hover:text-blue-600 hover:border-blue-200 transition">
-                              {f.mime?.startsWith('audio') ? '🎙' : f.mime?.startsWith('image') ? '📷' : '📎'} {f.name}
-                              <span className="text-slate-300">{(f.size / 1024).toFixed(0)}KB</span>
-                            </a>
-                          ))}
+                          {files.map((f, i) => {
+                            const images = files.filter(x => x.mime?.startsWith('image'))
+                            const isImage = f.mime?.startsWith('image')
+                            return (
+                              <a key={i} href={f.path} target="_blank" rel="noopener noreferrer"
+                                onClick={isImage ? (e) => {
+                                  e.preventDefault()
+                                  setLightbox({ images, index: images.findIndex(x => x.path === f.path) })
+                                } : undefined}
+                                className="flex items-center gap-1 px-2 py-0.5 bg-slate-50 border border-slate-200 rounded text-[10px] text-slate-600 hover:text-blue-600 hover:border-blue-200 transition">
+                                {f.mime?.startsWith('audio') ? '🎙' : isImage ? '📷' : '📎'} {f.name}
+                                <span className="text-slate-300">{(f.size / 1024).toFixed(0)}KB</span>
+                              </a>
+                            )
+                          })}
                         </div>
                       )}
                       <div className="flex items-center gap-3">
@@ -1928,6 +1949,39 @@ export default function LeadDetailClient({ deal, customer = null, products = [],
             setShowMtgForm(true)
           }}
         />
+      )}
+
+      {/* 이미지 라이트박스 — 첨부 사진 넘겨보기 */}
+      {lightbox && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50" onClick={() => setLightbox(null)}>
+          <button onClick={() => setLightbox(null)}
+            className="absolute top-4 right-4 w-9 h-9 flex items-center justify-center rounded-full bg-white/10 text-white hover:bg-white/20 transition text-lg">
+            ✕
+          </button>
+          <span className="absolute top-4 left-4 text-xs font-semibold text-white/70">
+            {lightbox.index + 1} / {lightbox.images.length} · {lightbox.images[lightbox.index].name}
+          </span>
+          {lightbox.images.length > 1 && (
+            <button
+              onClick={e => { e.stopPropagation(); setLightbox(lb => lb && { ...lb, index: (lb.index - 1 + lb.images.length) % lb.images.length }) }}
+              className="absolute left-2 sm:left-6 w-10 h-10 flex items-center justify-center rounded-full bg-white/10 text-white hover:bg-white/20 transition text-2xl">
+              ‹
+            </button>
+          )}
+          <img
+            src={lightbox.images[lightbox.index].path}
+            alt={lightbox.images[lightbox.index].name}
+            onClick={e => e.stopPropagation()}
+            className="max-w-[90vw] max-h-[85vh] object-contain rounded-lg shadow-2xl"
+          />
+          {lightbox.images.length > 1 && (
+            <button
+              onClick={e => { e.stopPropagation(); setLightbox(lb => lb && { ...lb, index: (lb.index + 1) % lb.images.length }) }}
+              className="absolute right-2 sm:right-6 w-10 h-10 flex items-center justify-center rounded-full bg-white/10 text-white hover:bg-white/20 transition text-2xl">
+              ›
+            </button>
+          )}
+        </div>
       )}
 
       {/* 이탈 원인 모달 */}
