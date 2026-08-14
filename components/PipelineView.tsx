@@ -428,6 +428,23 @@ export default function PipelineView({ deals, salesTarget, initialStage, initial
     } catch { setLocalDeals(deals) }
   }
 
+  /* 담당 영업사원 변경 — 표에서 바로 재배정 */
+  type PickerUser = { id: string; name: string; employmentType: string; externalRole: string | null }
+  const [assigneeUsers, setAssigneeUsers] = useState<PickerUser[]>([])
+  useEffect(() => {
+    fetch('/api/users').then(r => r.json()).then((data: PickerUser[]) => setAssigneeUsers(data)).catch(() => {})
+  }, [])
+  const handleAssigneeChange = async (id: string, newAssignee: string) => {
+    setLocalDeals(prev => prev.map(d => d.id === id ? { ...d, assignee: newAssignee || null } : d))
+    try {
+      await fetch(`/api/deals/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ assignee: newAssignee || null }),
+      })
+    } catch { setLocalDeals(deals) }
+  }
+
   /* 탭 필터: null/undefined → B2C(개인)로 취급 */
   const tabDeals = localDeals.filter(d => {
     if (activeTab === 'all') return true
@@ -561,8 +578,29 @@ export default function PipelineView({ deals, salesTarget, initialStage, initial
         return <td key={c.key} style={{ width: W_PX[c.width] }} className="px-3 py-2.5 text-slate-400 truncate">{d.source ?? '—'}</td>
       case 'collectedAt':
         return <td key={c.key} style={{ width: W_PX[c.width] }} className="px-3 py-2.5 text-slate-400">{fmtDate(d.collectedAt)}</td>
-      case 'assignee':
-        return <td key={c.key} style={{ width: W_PX[c.width] }} className="px-3 py-2.5 text-slate-500 truncate">{d.assignee ?? '—'}</td>
+      case 'assignee': {
+        const internal = assigneeUsers.filter(u => u.employmentType !== '사외')
+        const external = assigneeUsers.filter(u => u.employmentType === '사외')
+        return (
+          <td key={c.key} style={{ width: W_PX[c.width] }} className="px-3 py-2.5">
+            <select
+              value={d.assignee ?? ''}
+              onChange={e => handleAssigneeChange(d.id, e.target.value)}
+              onClick={e => e.stopPropagation()}
+              className="w-full text-[11px] text-slate-600 border border-slate-200 rounded-md px-1.5 py-1 bg-white focus:outline-none focus:ring-1 focus:ring-slate-300 cursor-pointer">
+              <option value="">미배정</option>
+              <optgroup label="사내">
+                {internal.map(u => <option key={u.id} value={u.name}>{u.name}</option>)}
+              </optgroup>
+              {external.length > 0 && (
+                <optgroup label="사외">
+                  {external.map(u => <option key={u.id} value={u.name}>{u.name}{u.externalRole ? ` (${u.externalRole})` : ''}</option>)}
+                </optgroup>
+              )}
+            </select>
+          </td>
+        )
+      }
       case 'productName':
         return (
           <td key={c.key} style={{ width: W_PX[c.width] }} className="px-3 py-2.5">

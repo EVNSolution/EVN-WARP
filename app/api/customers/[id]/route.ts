@@ -100,6 +100,10 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     if (b.isAgent !== undefined) {
       await prisma.$executeRaw`UPDATE "Customer" SET "isAgent" = ${b.isAgent ? 1 : 0} WHERE id = ${id}`
     }
+    // 고객명이 바뀌면 이 고객에서 생성된 리드(SalesDeal)의 이름도 함께 갱신
+    if (b.name !== undefined && b.name?.trim()) {
+      await prisma.salesDeal.updateMany({ where: { customerId: id }, data: { name: b.name.trim() } })
+    }
     return NextResponse.json(customer)
   } catch {
     return NextResponse.json({ error: '수정 실패' }, { status: 500 })
