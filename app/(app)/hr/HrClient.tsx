@@ -203,7 +203,7 @@ export default function HrClient({
           </div>
           {me.hireDate && (
             <p className="text-[11px] text-slate-400">
-              입사일 {fmt(me.hireDate)} · 근속 {tenureLabel(new Date(me.hireDate))} 기준 근사 계산 (사규와 다를 수 있습니다)
+              입사일 {fmt(me.hireDate)} · 근속 {tenureLabel(new Date(me.hireDate))} · 회계연도(1/1~12/31) 기준 15일 부여
             </p>
           )}
 
