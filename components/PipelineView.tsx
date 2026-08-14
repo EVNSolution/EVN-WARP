@@ -942,7 +942,7 @@ export default function PipelineView({ deals, salesTarget, initialStage, initial
           <button
             onClick={() => setSelectedCode(selectedCode === '판매보류' ? null : '판매보류')}
             className={`w-full rounded-lg overflow-hidden shadow-sm transition-all flex items-center justify-between px-3 py-2
-              ${selectedCode === '판매보류' ? 'ring-2 ring-amber-400' : ''} bg-amber-500`}>
+              ${selectedCode === '판매보류' ? 'ring-2 ring-lime-400' : ''} bg-lime-500`}>
             <span className="text-white font-bold text-[13px]">판매보류</span>
             <span className="text-white font-black text-[16px] tabular-nums">{holdDeals.length}</span>
           </button>
