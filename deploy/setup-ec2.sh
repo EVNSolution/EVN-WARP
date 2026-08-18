@@ -1,123 +1,102 @@
 #!/usr/bin/env bash
-set -euo pipefail
+set -Eeuo pipefail
 
 SERVER_NAME="${SERVER_NAME:-warp.cleversystem.ai}"
-PORT="${PORT:-3000}"
-CERTBOT_EMAIL="${CERTBOT_EMAIL:-}"
-APP_DIR="${APP_DIR:-/opt/evn-warp}"
+LEGACY_PORT="${LEGACY_PORT:-3000}"
+RUNTIME_DIR="${RUNTIME_DIR:-/opt/evn-warp-runtime}"
+LEGACY_APP_DIR="${LEGACY_APP_DIR:-/opt/evn-warp}"
+NGINX_CONF="${NGINX_CONF:-/etc/nginx/conf.d/${SERVER_NAME}.conf}"
+UPSTREAM_CONF="${UPSTREAM_CONF:-/etc/nginx/conf.d/warp-active-upstream.conf}"
+SETUP_MARKER="$RUNTIME_DIR/.container-blue-green-ready"
+DATABASE_DIR="$RUNTIME_DIR/database"
+DATABASE_TARGET="$DATABASE_DIR/dev.db"
+LEGACY_DATABASE="$LEGACY_APP_DIR/dev.db"
+PM2_STOPPED=0
 
-need_cmd() { command -v "$1" >/dev/null 2>&1; }
+need() { command -v "$1" >/dev/null 2>&1; }
 
-if ! need_cmd apt-get; then
-  echo 'Unsupported Linux package manager. This deploy script targets the Ubuntu EC2 instance.' >&2
+restore_legacy_process() {
+  if [ "$PM2_STOPPED" = 1 ]; then
+    set +e
+    pm2 restart evn-warp --update-env >/dev/null 2>&1
+  fi
+}
+
+trap restore_legacy_process ERR
+
+if ! need apt-get; then
+  echo 'Unsupported package manager; WARP production uses Ubuntu.' >&2
   exit 1
 fi
 
-export DEBIAN_FRONTEND=noninteractive
-apt-get update
-apt-get install -y ca-certificates curl git nginx openssl unzip certbot python3-certbot-nginx
+install -d -m 0750 "$RUNTIME_DIR" "$RUNTIME_DIR/manifests" "$RUNTIME_DIR/cache/blue" "$RUNTIME_DIR/cache/green" "$RUNTIME_DIR/backups"
+install -d -m 2770 -o root -g 1001 "$DATABASE_DIR"
 
-
-if ! swapon --show=NAME | grep -qx '/swapfile'; then
-  fallocate -l 2G /swapfile
-  chmod 600 /swapfile
-  mkswap /swapfile
-  swapon /swapfile
-  grep -q '^/swapfile ' /etc/fstab || echo '/swapfile none swap sw 0 0' >> /etc/fstab
+if ! need docker; then
+  export DEBIAN_FRONTEND=noninteractive
+  apt-get update
+  apt-get install -y --no-install-recommends docker.io
 fi
+systemctl enable --now docker >/dev/null
+systemctl is-active --quiet nginx
+test -f "$NGINX_CONF"
+test -f "$LEGACY_DATABASE"
 
-if ! need_cmd aws; then
-  arch="$(uname -m)"
-  case "$arch" in
-    x86_64) aws_arch=x86_64 ;;
-    aarch64|arm64) aws_arch=aarch64 ;;
-    *) echo "Unsupported AWS CLI architecture: $arch" >&2; exit 1 ;;
-  esac
-  curl -fsSL "https://awscli.amazonaws.com/awscli-exe-linux-${aws_arch}.zip" -o /tmp/awscliv2.zip
-  rm -rf /tmp/aws
-  unzip -q /tmp/awscliv2.zip -d /tmp
-  /tmp/aws/install --update
-fi
-
-if ! need_cmd node || [ "$(node -p 'Number(process.versions.node.split(`.`)[0])')" -lt 20 ]; then
-  curl -fsSL https://deb.nodesource.com/setup_22.x | bash -
-  apt-get install -y nodejs
-fi
-
-if ! need_cmd pm2; then
-  npm install -g pm2
-fi
-
-mkdir -p "$APP_DIR" /opt/evn-warp-backups
-
-NGINX_CONF="/etc/nginx/conf.d/${SERVER_NAME}.conf"
-CERT_DIR="/etc/letsencrypt/live/${SERVER_NAME}"
-CERT_FILE="${CERT_DIR}/fullchain.pem"
-CERT_KEY="${CERT_DIR}/privkey.pem"
-
-write_http_proxy_conf() {
-  cat >"$NGINX_CONF" <<EOF_NGINX
-server {
-    listen 80;
-    server_name ${SERVER_NAME};
-
-    client_max_body_size 50m;
-
-    location / {
-        proxy_pass http://127.0.0.1:${PORT};
-        proxy_http_version 1.1;
-        proxy_set_header Host \$host;
-        proxy_set_header X-Real-IP \$remote_addr;
-        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto \$scheme;
-        proxy_set_header Upgrade \$http_upgrade;
-        proxy_set_header Connection "upgrade";
-    }
-}
-EOF_NGINX
-}
-
-write_https_proxy_conf() {
-  cat >"$NGINX_CONF" <<EOF_NGINX
-server {
-    listen 80;
-    server_name ${SERVER_NAME};
-    return 301 https://\$host\$request_uri;
-}
-
-server {
-    listen 443 ssl;
-    server_name ${SERVER_NAME};
-
-    ssl_certificate ${CERT_FILE};
-    ssl_certificate_key ${CERT_KEY};
-    client_max_body_size 50m;
-
-    location / {
-        proxy_pass http://127.0.0.1:${PORT};
-        proxy_http_version 1.1;
-        proxy_set_header Host \$host;
-        proxy_set_header X-Real-IP \$remote_addr;
-        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto \$scheme;
-        proxy_set_header Upgrade \$http_upgrade;
-        proxy_set_header Connection "upgrade";
-    }
-}
-EOF_NGINX
-}
-
-if [ -f "$CERT_FILE" ] && [ -f "$CERT_KEY" ]; then
-  write_https_proxy_conf
+if [ ! -L "$LEGACY_DATABASE" ]; then
+  test ! -e "$DATABASE_TARGET"
+  if command -v pm2 >/dev/null 2>&1 && [ "$(pm2 pid evn-warp 2>/dev/null || echo 0)" != 0 ]; then
+    pm2 stop evn-warp >/dev/null
+    PM2_STOPPED=1
+    for _ in $(seq 1 25); do
+      [ "$(pm2 pid evn-warp 2>/dev/null || echo 0)" = 0 ] && break
+      sleep 0.2
+    done
+    [ "$(pm2 pid evn-warp 2>/dev/null || echo 0)" = 0 ]
+  fi
+  cp --reflink=auto "$LEGACY_DATABASE" "$RUNTIME_DIR/backups/dev-$(date +%Y%m%d-%H%M%S)-pre-shared-path.db"
+  /tmp/evn-migrate-shared-db.py "$LEGACY_DATABASE" "$DATABASE_TARGET"
+  chgrp 1001 "$DATABASE_TARGET"
+  chmod 0660 "$DATABASE_TARGET"
+  if [ "$PM2_STOPPED" = 1 ]; then
+    pm2 restart evn-warp --update-env >/dev/null
+    PM2_STOPPED=0
+  fi
 else
-  write_http_proxy_conf
+  test "$(readlink -f "$LEGACY_DATABASE")" = "$DATABASE_TARGET"
+fi
+chgrp 1001 "$DATABASE_TARGET"
+chmod 0660 "$DATABASE_TARGET"
+
+if [ ! -f "$UPSTREAM_CONF" ]; then
+  cat >"$UPSTREAM_CONF" <<EOF_UPSTREAM
+upstream warp_active {
+    server 127.0.0.1:${LEGACY_PORT};
+    keepalive 32;
+}
+EOF_UPSTREAM
 fi
 
-systemctl enable nginx
+if grep -qE 'proxy_pass[[:space:]]+http://127\.0\.0\.1:[0-9]+;' "$NGINX_CONF"; then
+  candidate="$(mktemp)"
+  trap 'rm -f "$candidate"' EXIT
+  sed -E 's#proxy_pass[[:space:]]+http://127\.0\.0\.1:[0-9]+;#proxy_pass http://warp_active;#' "$NGINX_CONF" >"$candidate"
+  [ -f "$RUNTIME_DIR/legacy-nginx.conf" ] || cp "$NGINX_CONF" "$RUNTIME_DIR/legacy-nginx.conf"
+  cp "$candidate" "$NGINX_CONF"
+  if ! nginx -t; then
+    cp "$RUNTIME_DIR/legacy-nginx.conf" "$NGINX_CONF"
+    nginx -t
+    echo 'Nginx upstream bootstrap failed; restored legacy config.' >&2
+    exit 1
+  fi
+  systemctl reload nginx
+elif ! grep -q 'proxy_pass http://warp_active;' "$NGINX_CONF"; then
+  echo "Unexpected Nginx proxy contract: $NGINX_CONF" >&2
+  exit 1
+fi
+
 nginx -t
-systemctl restart nginx
-
-if [ ! -f "$CERT_FILE" ] || [ ! -f "$CERT_KEY" ]; then
-  test -n "$CERTBOT_EMAIL" || { echo 'CERTBOT_EMAIL secret is required for first HTTPS cert.' >&2; exit 1; }
-  certbot --nginx --non-interactive --agree-tos --redirect -m "$CERTBOT_EMAIL" -d "$SERVER_NAME"
-fi
+curl -fsS --max-time 5 "http://127.0.0.1:${LEGACY_PORT}/login" >/dev/null
+[ -f "$RUNTIME_DIR/active-slot" ] || printf 'legacy\n' >"$RUNTIME_DIR/active-slot"
+touch "$SETUP_MARKER"
+trap - ERR
+echo 'WARP container Blue/Green bootstrap is ready; traffic remains on the recorded active slot.'
