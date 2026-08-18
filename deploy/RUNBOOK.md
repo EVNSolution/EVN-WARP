@@ -37,7 +37,7 @@ aws iam put-role-policy \
 
 ## 2. 배포 순서
 
-GitHub Actions의 **Deploy WARP Blue-Green via SSM**에서 `release`를 한 번 실행한다. 실행 그래프는 `1 · Validate source and prepare artifact`와 `2 · release and verify` 두 job을 순서대로 표시한다. 첫 job이 실패하면 두 번째 job은 시작하지 않으며, 두 번째 job은 다음 운영 단계를 한 SSM command로 수행한다.
+GitHub Actions의 **Deploy WARP Blue-Green via SSM**에서 `release`를 한 번 실행한다. 실행 그래프는 `Validate source and prepare image`와 `Execute release and verify` 두 job을 순서대로 표시한다. 첫 job이 실패하면 두 번째 job은 시작하지 않으며, 두 번째 job은 다음 운영 단계를 한 SSM command로 수행한다.
 
 1. source·ENV 검증 및 image 준비
    - ENV 값은 출력하지 않는다.
