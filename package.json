@@ -7,6 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
+    "typecheck": "next typegen && tsc --noEmit",
     "test:account-control": "tsx --test clever_account_interceptor/typescript/core.test.ts lib/account-control/*.test.ts",
     "test:external-lookup": "tsx --test lib/external-lookup/*.test.ts",
     "test:deployment": "python3 -m unittest discover -s deploy/tests -p 'test_*.py' && prisma generate && tsx --test lib/db.test.ts app/api/healthz/route.test.ts",

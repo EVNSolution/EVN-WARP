@@ -71,7 +71,7 @@ jobs:
           npm run test:external-lookup
           npm run test:buildup-import
           npm run test:deployment
-          npx tsc --noEmit
+          npm run typecheck
           npm audit --omit=dev --audit-level=critical
 
       - name: Enable Docker Buildx
