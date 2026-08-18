@@ -110,6 +110,8 @@ jobs:
             aws ecr get-login-password | docker login --username AWS --password-stdin "${repository_uri%%/*}" >/dev/null
             docker buildx build \
               --platform linux/amd64 \
+              --provenance=false \
+              --sbom=false \
               --secret "id=next_actions_key,src=$build_key" \
               --build-arg "WARP_RELEASE_ID=${GITHUB_SHA:0:12}" \
               --build-arg "WARP_SOURCE_REVISION=$GITHUB_SHA" \
