@@ -26,7 +26,7 @@ jobs:
         run: |
           cat > /tmp/migrate.json << 'EOF'
           {"commands": [
-            "set -euo pipefail",
+            "set -eu",
             "TS=$(date +%Y%m%d-%H%M%S)",
             "BACKUP=/opt/evn-warp-runtime/backups/dev-$TS-pre-issue26-manual.db",
             "cp --reflink=auto /opt/evn-warp-runtime/database/dev.db $BACKUP",
