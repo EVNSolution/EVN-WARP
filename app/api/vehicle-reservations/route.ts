@@ -40,6 +40,24 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: '차량, 목적, 시작/반납 일시는 필수입니다.' }, { status: 400 })
     }
 
+    const startIso = toKstDate(startAt).toISOString()
+    const endIso   = toKstDate(endAt).toISOString()
+
+    // 같은 차량의 기존 예약과 시간이 겹치면 신청 자체를 막는다 (기존 예약은 손대지 않고, 필요 시 수동으로 수정)
+    const conflict = await prisma.vehicleReservation.findFirst({
+      where: {
+        vehicleId,
+        startAt: { lt: new Date(endIso) },
+        endAt:   { gt: new Date(startIso) },
+      },
+    })
+    if (conflict) {
+      const fmt = (d: Date) => d.toLocaleString('ko-KR', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
+      return NextResponse.json({
+        error: `이미 예약이 있어 신청할 수 없습니다. (${conflict.userName ?? '미입력'} · ${fmt(conflict.startAt)} ~ ${fmt(conflict.endAt)})`,
+      }, { status: 409 })
+    }
+
     const id  = randomUUID()
     const now = new Date().toISOString()
     const resolvedName = userName || me?.name || '미입력'
@@ -51,7 +69,7 @@ export async function POST(req: NextRequest) {
          "status","createdAt","updatedAt")
       VALUES
         (${id}, ${vehicleId}, ${me?.id ?? null}, ${resolvedName}, ${teamName ?? null},
-         ${purpose}, ${toKstDate(startAt).toISOString()}, ${toKstDate(endAt).toISOString()},
+         ${purpose}, ${startIso}, ${endIso},
          ${pickupLocation ?? null}, ${returnLocation ?? null}, ${notes ?? null},
          '신청', ${now}, ${now})
     `
