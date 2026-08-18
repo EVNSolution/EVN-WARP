@@ -1,0 +1,175 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Isolated, SSM-only WARP blue/green validation lab. No production routing resources.
+
+Parameters:
+  LabId:
+    Type: String
+    AllowedPattern: '[a-z0-9-]{3,32}'
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+  SubnetId:
+    Type: AWS::EC2::Subnet::Id
+  ExpiresAt:
+    Type: String
+    Description: Human-readable teardown deadline in ISO-8601 format.
+  InstanceType:
+    Type: String
+    Default: t3.small
+    AllowedValues: [t3.small, t3.medium]
+  AmiId:
+    Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
+    Default: /aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-x86_64
+
+Resources:
+  ImageRepository:
+    Type: AWS::ECR::Repository
+    Properties:
+      RepositoryName: !Sub evn-warp-blue-green-lab-${LabId}
+      EmptyOnDelete: true
+      ImageTagMutability: IMMUTABLE
+      ImageScanningConfiguration:
+        ScanOnPush: true
+      EncryptionConfiguration:
+        EncryptionType: AES256
+      LifecyclePolicy:
+        LifecyclePolicyText: |
+          {
+            "rules": [
+              {
+                "rulePriority": 1,
+                "description": "Remove untagged lab images after one day",
+                "selection": {
+                  "tagStatus": "untagged",
+                  "countType": "sinceImagePushed",
+                  "countUnit": "days",
+                  "countNumber": 1
+                },
+                "action": {"type": "expire"}
+              }
+            ]
+          }
+      Tags:
+        - Key: Owner
+          Value: OziinG
+        - Key: Environment
+          Value: isolated-lab
+        - Key: ExpiresAt
+          Value: !Ref ExpiresAt
+
+  InstanceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ec2.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - !Sub arn:${AWS::Partition}:iam::aws:policy/AmazonSSMManagedInstanceCore
+      Policies:
+        - PolicyName: PullLabImagesOnly
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: ecr:GetAuthorizationToken
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - ecr:BatchCheckLayerAvailability
+                  - ecr:BatchGetImage
+                  - ecr:GetDownloadUrlForLayer
+                Resource: !GetAtt ImageRepository.Arn
+      Tags:
+        - Key: Owner
+          Value: OziinG
+        - Key: Environment
+          Value: isolated-lab
+
+  InstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Roles: [!Ref InstanceRole]
+
+  SecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: WARP blue-green lab - no inbound, HTTPS outbound only
+      VpcId: !Ref VpcId
+      SecurityGroupEgress:
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIp: 0.0.0.0/0
+          Description: AWS APIs, ECR layers and package/image registries
+      Tags:
+        - Key: Name
+          Value: !Sub warp-bg-lab-${LabId}
+        - Key: Owner
+          Value: OziinG
+        - Key: Environment
+          Value: isolated-lab
+        - Key: ExpiresAt
+          Value: !Ref ExpiresAt
+
+  Instance:
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: !Ref AmiId
+      InstanceType: !Ref InstanceType
+      IamInstanceProfile: !Ref InstanceProfile
+      NetworkInterfaces:
+        - AssociatePublicIpAddress: true
+          DeleteOnTermination: true
+          DeviceIndex: '0'
+          GroupSet: [!Ref SecurityGroup]
+          SubnetId: !Ref SubnetId
+      MetadataOptions:
+        HttpEndpoint: enabled
+        HttpTokens: required
+        HttpPutResponseHopLimit: 1
+        InstanceMetadataTags: disabled
+      BlockDeviceMappings:
+        - DeviceName: /dev/xvda
+          Ebs:
+            DeleteOnTermination: true
+            Encrypted: true
+            VolumeSize: 24
+            VolumeType: gp3
+      InstanceInitiatedShutdownBehavior: terminate
+      Monitoring: false
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash
+          set -euo pipefail
+          dnf install -y curl docker gzip openssl python3 tar
+          install -d -m 0755 /etc/docker /opt/warp-bg-lab
+          install -d -m 0777 /var/lib/warp-bg-lab
+          printf '%s\n' '{"log-driver":"local","log-opts":{"max-size":"10m","max-file":"3"}}' > /etc/docker/daemon.json
+          systemctl enable --now docker
+          systemctl enable --now amazon-ssm-agent
+          usermod -aG docker ssm-user
+          printf '%s\n' '${AWS::StackName}' > /opt/warp-bg-lab/stack-name
+      Tags:
+        - Key: Name
+          Value: !Sub warp-bg-lab-${LabId}
+        - Key: Owner
+          Value: OziinG
+        - Key: Environment
+          Value: isolated-lab
+        - Key: ProductionImpact
+          Value: none
+        - Key: ExpiresAt
+          Value: !Ref ExpiresAt
+
+Outputs:
+  InstanceId:
+    Value: !Ref Instance
+  RepositoryName:
+    Value: !Ref ImageRepository
+  RepositoryUri:
+    Value: !GetAtt ImageRepository.RepositoryUri
+  SecurityGroupId:
+    Value: !Ref SecurityGroup
