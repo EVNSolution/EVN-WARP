@@ -88,19 +88,21 @@ ssm_run() {
     --parameters "$parameters" \
     --query 'Command.CommandId' \
     --output text)"
-  aws ssm wait command-executed \
-    --region "$REGION" \
-    --command-id "$command_id" \
-    --instance-id "$instance_id" >/dev/null 2>&1 || true
-  invocation="$(aws ssm get-command-invocation \
-    --region "$REGION" \
-    --command-id "$command_id" \
-    --instance-id "$instance_id" \
-    --output json)"
+  for _ in $(seq 1 180); do
+    invocation="$(aws ssm get-command-invocation \
+      --region "$REGION" \
+      --command-id "$command_id" \
+      --instance-id "$instance_id" \
+      --output json)"
+    status="$(printf '%s' "$invocation" | jq -r '.Status')"
+    case "$status" in
+      Pending|InProgress|Delayed) sleep 5 ;;
+      *) break ;;
+    esac
+  done
   printf '%s' "$invocation" | jq -r '.StandardOutputContent' | sed '/^[[:space:]]*$/d'
   stderr="$(printf '%s' "$invocation" | jq -r '.StandardErrorContent')"
   [ -z "$stderr" ] || printf '%s\n' "$stderr" >&2
-  status="$(printf '%s' "$invocation" | jq -r '.Status')"
   [ "$status" = Success ] || die "SSM command failed with status: $status"
 }
 
@@ -200,14 +202,13 @@ push_all() {
 }
 
 install_remote() {
-  local repository_uri registry scripts_bundle database_bundle remote_env user_count outbox_count
+  local repository_uri scripts_bundle database_bundle remote_env user_count outbox_count
   repository_uri="$(stack_output RepositoryUri)"
-  registry="${repository_uri%%/*}"
   [ -f "$RUNTIME_DIR/shared/dev.db" ] || die 'Run labctl.sh init before installing the remote lab.'
   user_count="$(sqlite3 "$RUNTIME_DIR/shared/dev.db" 'SELECT count(*) FROM User;')"
   outbox_count="$(sqlite3 "$RUNTIME_DIR/shared/dev.db" 'SELECT count(*) FROM AccountEvidenceOutbox;')"
   [ "$user_count" = 0 ] && [ "$outbox_count" = 0 ] || die 'Seed database is not empty; refusing to transfer it.'
-  scripts_bundle="$(tar -czf - -C "$LAB_DIR" labctl.sh nginx.conf probe.py verify.sh | base64 | tr -d '\n')"
+  scripts_bundle="$(COPYFILE_DISABLE=1 tar --no-xattrs -czf - -C "$LAB_DIR" labctl.sh nginx.conf probe.py verify.sh | base64 | tr -d '\n')"
   database_bundle="$(gzip -c "$RUNTIME_DIR/shared/dev.db" | base64 | tr -d '\n')"
 
   ssm_run "set -euo pipefail
@@ -223,7 +224,6 @@ chmod 0666 /var/lib/warp-bg-lab/shared/dev.db"
   remote_env="$(remote_environment "$repository_uri")"
   ssm_run "set -euo pipefail
 $remote_env
-aws ecr get-login-password --region '$REGION' | docker login --username AWS --password-stdin '$registry' >/dev/null
 /opt/warp-bg-lab/labctl.sh init"
 }
 
@@ -244,20 +244,30 @@ $remote_env"
 }
 
 verify_remote() {
-  local repository_uri remote_env
+  local repository_uri registry remote_env
   repository_uri="$(stack_output RepositoryUri)"
+  registry="${repository_uri%%/*}"
   remote_env="$(remote_environment "$repository_uri")"
   ssm_run "set -euo pipefail
 $remote_env
+aws ecr get-login-password --region '$REGION' | docker login --username AWS --password-stdin '$registry' >/dev/null 2>&1
 cd /opt/warp-bg-lab
-./verify.sh"
+if ./verify.sh; then
+  docker logout '$registry' >/dev/null 2>&1 || true
+else
+  result=\$?
+  docker logout '$registry' >/dev/null 2>&1 || true
+  exit \"\$result\"
+fi"
 }
 
 collect_evidence() {
-  local repository_name repository_uri instance_id project remote_env evidence_dir build_id
+  local repository_name repository_uri registry instance_id security_group_id project remote_env evidence_dir build_id release
   repository_name="$(stack_output RepositoryName)"
   repository_uri="$(stack_output RepositoryUri)"
+  registry="${repository_uri%%/*}"
   instance_id="$(stack_output InstanceId)"
+  security_group_id="$(stack_output SecurityGroupId)"
   project="$(stack_output BuildProjectName)"
   remote_env="$(remote_environment "$repository_uri")"
   evidence_dir="$RUNTIME_DIR/aws-evidence"
@@ -265,7 +275,11 @@ collect_evidence() {
   aws cloudformation describe-stacks --region "$REGION" --stack-name "$STACK_NAME" --output json > "$evidence_dir/stack.json"
   aws cloudformation list-stack-resources --region "$REGION" --stack-name "$STACK_NAME" --output json > "$evidence_dir/resources.json"
   aws ec2 describe-instances --region "$REGION" --instance-ids "$instance_id" --output json > "$evidence_dir/instance.json"
+  aws ec2 describe-security-groups --region "$REGION" --group-ids "$security_group_id" --output json > "$evidence_dir/security-group.json"
   aws ecr describe-images --region "$REGION" --repository-name "$repository_name" --output json > "$evidence_dir/images.json"
+  for release in "${RELEASES[@]}"; do
+    aws ecr describe-image-scan-findings --region "$REGION" --repository-name "$repository_name" --image-id "imageTag=$release" --output json > "$evidence_dir/scan-$release.json"
+  done
   build_id="$(aws codebuild list-builds-for-project --region "$REGION" --project-name "$project" --query 'ids[0]' --output text)"
   if [ "$build_id" != None ]; then
     aws codebuild batch-get-builds --region "$REGION" --ids "$build_id" --output json > "$evidence_dir/builds.json"
@@ -273,6 +287,15 @@ collect_evidence() {
   ssm_run "set -euo pipefail
 $remote_env
 cat /var/lib/warp-bg-lab/evidence.jsonl" > "$evidence_dir/scenarios.jsonl"
+  ssm_run "set -euo pipefail
+$remote_env
+/opt/warp-bg-lab/labctl.sh status
+if [ -f /root/.docker/config.json ] && grep -Fq '$registry' /root/.docker/config.json; then
+  echo ecr-credential=present
+else
+  echo ecr-credential=absent
+fi" > "$evidence_dir/remote-status.txt"
+  jq -n --arg revision "$(git -C "$REPO_DIR" rev-parse HEAD)" --arg stack "$STACK_NAME" '{controllerRevision: $revision, stack: $stack}' > "$evidence_dir/controller.json"
   echo "Evidence saved: $evidence_dir"
 }
 

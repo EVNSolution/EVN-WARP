@@ -243,15 +243,15 @@ reload_proxy() {
   docker exec "$PROXY" nginx -s reload
 }
 
-proxy_digest() {
-  curl -fsS --max-time 2 "http://127.0.0.1:${PROXY_PORT}/api/healthz" |
-    python3 -c 'import json,sys; print(json.load(sys.stdin)["imageDigest"])'
+proxy_ready_digest() {
+  curl -fs --max-time 2 -H 'X-Warp-External-Check: 1' "http://127.0.0.1:${PROXY_PORT}/api/readyz" |
+    python3 -c 'import json,sys; body=json.load(sys.stdin); print(body["imageDigest"] if body.get("ok") is True else "")'
 }
 
-wait_proxy_digest() {
+wait_proxy_ready_digest() {
   local expected="$1" actual
-  for _ in $(seq 1 20); do
-    if actual="$(proxy_digest 2>/dev/null)" && [ "$actual" = "$expected" ]; then
+  for _ in $(seq 1 40); do
+    if actual="$(proxy_ready_digest 2>/dev/null)" && [ "$actual" = "$expected" ]; then
       return 0
     fi
     sleep 0.25
@@ -299,10 +299,10 @@ switch_slot() {
   render_upstream "$slot"
   mv "$NGINX_DIR/active-upstream.conf.new" "$NGINX_DIR/active-upstream.conf"
   start_proxy
-  if ! reload_proxy || ! wait_proxy_digest "$digest" || ! curl -fs --max-time 5 -H 'X-Warp-External-Check: 1' "http://127.0.0.1:${PROXY_PORT}/api/readyz" >/dev/null 2>&1; then
+  if ! reload_proxy || ! wait_proxy_ready_digest "$digest"; then
     if [ -n "$previous" ] && [ -f "$backup" ]; then
       mv "$backup" "$NGINX_DIR/active-upstream.conf"
-      if ! reload_proxy || ! wait_proxy_digest "$previous_digest" || ! curl -fs --max-time 5 "http://127.0.0.1:${PROXY_PORT}/api/readyz" >/dev/null 2>&1; then
+      if ! reload_proxy || ! wait_proxy_ready_digest "$previous_digest"; then
         append_evidence "event=rollback-failed" "candidateSlot=$slot" "candidateRelease=$release" "candidateDigest=$digest" "restoredSlot=$previous"
         echo "External verification and rollback verification failed." >&2
         return 2
