@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { ChevronRight, Pencil, X, Layers, CornerDownRight } from 'lucide-react'
+import { ChevronRight, Pencil, X, Layers, CornerDownRight, ChevronUp, ChevronDown } from 'lucide-react'
 import { STATUS_STYLE, dDay } from '@/lib/a3'
 import { teamOrderIndex } from '@/lib/teamOrder'
 import { useA3Expand } from '@/components/A3ExpandContext'
@@ -80,6 +80,20 @@ export default function A3SubTaskGroups({ subTasks, parentTaskId, teamSummaries 
       else next.add(key)
       return next
     })
+  }
+
+  const [reordering, setReordering] = useState<string | null>(null)
+  const handleReorder = async (e: React.MouseEvent, leafId: string, direction: 'up' | 'down') => {
+    e.preventDefault()
+    e.stopPropagation()
+    setReordering(leafId)
+    try {
+      const res = await fetch(`/api/a3/${leafId}/reorder`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ direction }),
+      })
+      if (res.ok) router.refresh()
+    } finally { setReordering(null) }
   }
 
   const handleSaveSummary = async (teamId: string) => {
@@ -187,7 +201,7 @@ export default function A3SubTaskGroups({ subTasks, parentTaskId, teamSummaries 
                         {subDd && <span className={`text-xs font-medium shrink-0 ${subDd.cls}`}>{subDd.label}</span>}
                         <ChevronRight size={14} className="text-slate-300 group-hover:text-slate-500 transition-colors shrink-0" />
                       </Link>
-                      {leaves.map((leaf: any) => {
+                      {leaves.map((leaf: any, leafIdx: number) => {
                         const leafDd = dDay(leaf.endDate)
                         const leafStCls = STATUS_STYLE[leaf.status] ?? 'bg-gray-100 text-gray-500'
                         return (
@@ -195,6 +209,18 @@ export default function A3SubTaskGroups({ subTasks, parentTaskId, teamSummaries 
                             className={`flex items-center gap-3 ml-32 mr-3 my-0.5 pl-3 pr-3 py-1 rounded-lg bg-slate-50/70 border border-l-[3px] border-slate-100 ${c.bar} hover:bg-white hover:border-slate-200 hover:shadow-sm transition-all group`}>
                             <CornerDownRight size={11} className="text-slate-300 shrink-0" />
                             <span className="flex-1 text-xs text-slate-600 truncate">{leaf.title}</span>
+                            <div className="flex flex-col shrink-0 -my-1">
+                              <button type="button" disabled={leafIdx === 0 || reordering === leaf.id}
+                                onClick={e => handleReorder(e, leaf.id, 'up')}
+                                className="text-slate-300 hover:text-slate-600 disabled:opacity-20 disabled:hover:text-slate-300 transition-colors leading-none">
+                                <ChevronUp size={12} />
+                              </button>
+                              <button type="button" disabled={leafIdx === leaves.length - 1 || reordering === leaf.id}
+                                onClick={e => handleReorder(e, leaf.id, 'down')}
+                                className="text-slate-300 hover:text-slate-600 disabled:opacity-20 disabled:hover:text-slate-300 transition-colors leading-none">
+                                <ChevronDown size={12} />
+                              </button>
+                            </div>
                             <span className="text-xs text-slate-400 font-medium shrink-0">오너 {leaf.owner ?? '미배정'}</span>
                             <span className={`text-xs font-medium px-2 py-0.5 rounded-full shrink-0 ${leafStCls}`}>{leaf.status}</span>
                             {leaf.confirmed && <span className="text-xs text-green-500 shrink-0">✓확정</span>}
