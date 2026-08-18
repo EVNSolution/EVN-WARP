@@ -22,6 +22,15 @@ restore_legacy_process() {
   fi
 }
 
+wait_legacy_ready() {
+  for _ in $(seq 1 60); do
+    curl -fsS --max-time 2 "http://127.0.0.1:${LEGACY_PORT}/login" >/dev/null 2>&1 && return 0
+    sleep 1
+  done
+  echo "Legacy WARP did not become ready on port ${LEGACY_PORT}." >&2
+  return 1
+}
+
 trap restore_legacy_process ERR
 
 if ! need apt-get; then
@@ -59,6 +68,7 @@ if [ ! -L "$LEGACY_DATABASE" ]; then
   chmod 0660 "$DATABASE_TARGET"
   if [ "$PM2_STOPPED" = 1 ]; then
     pm2 restart evn-warp --update-env >/dev/null
+    wait_legacy_ready
     PM2_STOPPED=0
   fi
 else
@@ -95,7 +105,7 @@ elif ! grep -q 'proxy_pass http://warp_active;' "$NGINX_CONF"; then
 fi
 
 nginx -t
-curl -fsS --max-time 5 "http://127.0.0.1:${LEGACY_PORT}/login" >/dev/null
+wait_legacy_ready
 [ -f "$RUNTIME_DIR/active-slot" ] || printf 'legacy\n' >"$RUNTIME_DIR/active-slot"
 touch "$SETUP_MARKER"
 trap - ERR
