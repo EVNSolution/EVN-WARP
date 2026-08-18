@@ -18,6 +18,7 @@ const TYPE_ICON: Record<string, string> = {
   approval_request: '📋',
   approved:         '✅',
   rejected:         '❌',
+  announcement:     '📢',
 }
 
 export default function NotificationBell() {

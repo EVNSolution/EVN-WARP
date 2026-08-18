@@ -763,6 +763,16 @@ model Suggestion {
   updatedAt     DateTime  @updatedAt
 }
 
+model Announcement {
+  id          String   @id @default(cuid())
+  title       String
+  content     String
+  authorName  String
+  targetScope String   @default("전체") // "전체" | "팀"
+  targetTeamsJson String? // targetScope가 "팀"일 때 대상 팀명 JSON 배열: ["CLEVER팀", ...]
+  createdAt   DateTime @default(now())
+}
+
 model WeeklyUpdate {
   id        String       @id @default(cuid())
   taskId    String

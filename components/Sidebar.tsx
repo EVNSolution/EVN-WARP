@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { LayoutDashboard, Target, Users, BookOpen, Filter, BarChart2, UserRound, Settings2, CircleUserRound, UserCog, Wallet } from 'lucide-react'
+import { LayoutDashboard, Target, Users, BookOpen, Filter, BarChart2, UserRound, Settings2, CircleUserRound, UserCog, Wallet, Megaphone } from 'lucide-react'
 import LogoutButton from './LogoutButton'
 import NotificationBell from './NotificationBell'
 import SuggestionNavItem from './SuggestionNavItem'
@@ -93,6 +93,20 @@ export default function Sidebar({ userName, userEmail, isAdmin = false, isExtern
           {/* 제안함 */}
           <div className="px-3 pb-1">
             <SuggestionNavItem isAdmin={isAdmin} />
+          </div>
+
+          {/* 공지사항 */}
+          <div className="px-3 pb-1">
+            <Link
+              href="/notices"
+              className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs transition-all"
+              style={{ color: pathname.startsWith('/notices') ? '#C5D42A' : '#555' }}
+              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = pathname.startsWith('/notices') ? '#C5D42A' : '#999' }}
+              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = pathname.startsWith('/notices') ? '#C5D42A' : '#555' }}
+            >
+              <Megaphone size={13} />
+              공지사항
+            </Link>
           </div>
         </>
       )}
