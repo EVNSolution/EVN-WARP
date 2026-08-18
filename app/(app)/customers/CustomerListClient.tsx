@@ -4,6 +4,7 @@ import { useState, useMemo, useEffect, useRef } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { Phone, Truck } from 'lucide-react'
+import { BuildupImportModal } from '@/components/BuildupImportModal'
 
 /**
  * "미상(...)" 이름에 박아둔 이모지 아이콘(📞/🚚)을 전화/차량번호 바로 앞에
@@ -184,6 +185,13 @@ export default function CustomerListClient({ customers: initial }: Props) {
   const [cols,         setCols]         = useState<ColCfg[]>(() => mkCfg(COL_DEFS))
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [creating,     setCreating]     = useState(false)
+  const [importOpen,   setImportOpen]   = useState(false)
+
+  /** buildup 가져오기 승인 후 목록 재조회 — props 초기값이라 router.refresh 로는 안 바뀐다 */
+  const reloadCustomers = async () => {
+    const res = await fetch('/api/customers')
+    if (res.ok) setCustomers(await res.json())
+  }
 
   /* 모달 없이 바로 고객상세 페이지로 이동 — 이름은 비워둔 채 생성 후 상세페이지에서 채움 */
   const handleQuickAdd = async () => {
@@ -312,6 +320,12 @@ export default function CustomerListClient({ customers: initial }: Props) {
           )}
         </div>
 
+        {/* buildup 견적 시스템에서 생긴 고객 수집 — 승인 팝업을 거쳐 등록된다 (#7) */}
+        <button onClick={() => setImportOpen(true)}
+          className="px-3 py-1.5 text-xs font-semibold rounded-lg border border-slate-300 text-slate-600 hover:bg-slate-50 transition">
+          buildup에서 불러오기
+        </button>
+
         {/* 신규 고객 추가 */}
         <Link href="/import"
           className="px-3 py-1.5 text-xs font-semibold rounded-lg border border-slate-300 text-slate-600 hover:bg-slate-50 transition">
@@ -322,6 +336,13 @@ export default function CustomerListClient({ customers: initial }: Props) {
           {creating ? '생성 중...' : '+ 고객 추가'}
         </button>
       </div>
+
+      {importOpen && (
+        <BuildupImportModal
+          onClose={() => setImportOpen(false)}
+          onDone={() => void reloadCustomers()}
+        />
+      )}
 
       {/* 테이블 */}
       <div className="flex-1 overflow-auto">

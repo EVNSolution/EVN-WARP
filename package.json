@@ -10,6 +10,7 @@
     "test:account-control": "tsx --test clever_account_interceptor/typescript/core.test.ts lib/account-control/*.test.ts",
     "test:external-lookup": "tsx --test lib/external-lookup/*.test.ts",
     "test:deployment": "prisma generate && tsx --test lib/db.test.ts app/api/healthz/route.test.ts",
+    "test:buildup-import": "tsx --test lib/buildup-import/*.test.ts",
     "account-evidence:dispatch": "tsx scripts/dispatch-account-evidence.ts",
     "account-control:hq-probe": "tsx scripts/hq-local-integration-probe.ts"
   },
