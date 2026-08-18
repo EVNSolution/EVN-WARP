@@ -76,7 +76,7 @@ jobs:
 
       - name: Enable Docker Buildx
         if: inputs.action == 'prepare'
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v4
 
       - name: Build or reuse immutable image
         if: inputs.action == 'prepare'
