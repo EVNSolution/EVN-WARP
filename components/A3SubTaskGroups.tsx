@@ -8,14 +8,16 @@ import { STATUS_STYLE, dDay } from '@/lib/a3'
 import { teamOrderIndex } from '@/lib/teamOrder'
 import { useA3Expand } from '@/components/A3ExpandContext'
 
-/* 팀 이름 해시 기반 고정 색상 — 같은 전사과제 안에서 팀별로 시각 구분 */
+/* 팀 이름 해시 기반 고정 색상 — 같은 전사과제 안에서 팀별로 시각 구분
+   subRow: 팀과제(중간 레벨) 행 배경·테두리 — 진하게 강조
+   leaf 행은 팀 컬러를 쓰지 않고 중립 회색으로 남겨 "세부 항목"임을 분리한다 */
 const TEAM_PALETTE = [
-  { chip: 'bg-indigo-50 text-indigo-700 border-indigo-100', dot: 'bg-indigo-400', bar: 'border-l-indigo-300' },
-  { chip: 'bg-violet-50 text-violet-700 border-violet-100', dot: 'bg-violet-400', bar: 'border-l-violet-300' },
-  { chip: 'bg-teal-50 text-teal-700 border-teal-100',       dot: 'bg-teal-400',   bar: 'border-l-teal-300' },
-  { chip: 'bg-amber-50 text-amber-700 border-amber-100',    dot: 'bg-amber-400',  bar: 'border-l-amber-300' },
-  { chip: 'bg-rose-50 text-rose-700 border-rose-100',       dot: 'bg-rose-400',   bar: 'border-l-rose-300' },
-  { chip: 'bg-sky-50 text-sky-700 border-sky-100',          dot: 'bg-sky-400',    bar: 'border-l-sky-300' },
+  { chip: 'bg-indigo-50 text-indigo-700 border-indigo-100', dot: 'bg-indigo-400', subRow: 'bg-indigo-50/80 border-l-indigo-400 hover:bg-indigo-50' },
+  { chip: 'bg-violet-50 text-violet-700 border-violet-100', dot: 'bg-violet-400', subRow: 'bg-violet-50/80 border-l-violet-400 hover:bg-violet-50' },
+  { chip: 'bg-teal-50 text-teal-700 border-teal-100',       dot: 'bg-teal-400',   subRow: 'bg-teal-50/80 border-l-teal-400 hover:bg-teal-50' },
+  { chip: 'bg-amber-50 text-amber-700 border-amber-100',    dot: 'bg-amber-400',  subRow: 'bg-amber-50/80 border-l-amber-400 hover:bg-amber-50' },
+  { chip: 'bg-rose-50 text-rose-700 border-rose-100',       dot: 'bg-rose-400',   subRow: 'bg-rose-50/80 border-l-rose-400 hover:bg-rose-50' },
+  { chip: 'bg-sky-50 text-sky-700 border-sky-100',          dot: 'bg-sky-400',    subRow: 'bg-sky-50/80 border-l-sky-400 hover:bg-sky-50' },
 ]
 function teamColor(name: string) {
   let hash = 0
@@ -192,23 +194,23 @@ export default function A3SubTaskGroups({ subTasks, parentTaskId, teamSummaries 
                   return (
                     <div key={sub.id}>
                       <Link href={`/a3/${sub.id}`}
-                        className={`flex items-center gap-3 ml-20 mr-3 my-0.5 pl-3 pr-3 py-1 rounded-lg bg-white border border-l-[3px] border-slate-100 ${c.bar} hover:border-slate-200 hover:shadow-sm transition-all group`}>
-                        <Layers size={12} className="text-slate-300 shrink-0" />
-                        <span className="flex-1 text-xs text-slate-700 font-medium truncate">{sub.title}</span>
-                        <span className="text-xs text-slate-400 font-medium shrink-0">오너 {sub.owner ?? '미배정'}</span>
+                        className={`flex items-center gap-3 ml-20 mr-3 my-1 pl-3 pr-3 py-1.5 rounded-lg border border-l-[5px] shadow-sm ${c.subRow} hover:shadow transition-all group`}>
+                        <Layers size={13} className="text-slate-500 shrink-0" />
+                        <span className="flex-1 text-[13px] text-slate-800 font-bold truncate">{sub.title}</span>
+                        <span className="text-xs text-slate-500 font-medium shrink-0">오너 {sub.owner ?? '미배정'}</span>
                         <span className={`text-xs font-medium px-2 py-0.5 rounded-full shrink-0 ${subStCls}`}>{sub.status}</span>
                         {sub.confirmed && <span className="text-xs text-green-500 shrink-0">✓확정</span>}
                         {subDd && <span className={`text-xs font-medium shrink-0 ${subDd.cls}`}>{subDd.label}</span>}
-                        <ChevronRight size={14} className="text-slate-300 group-hover:text-slate-500 transition-colors shrink-0" />
+                        <ChevronRight size={14} className="text-slate-400 group-hover:text-slate-600 transition-colors shrink-0" />
                       </Link>
                       {leaves.map((leaf: any, leafIdx: number) => {
                         const leafDd = dDay(leaf.endDate)
                         const leafStCls = STATUS_STYLE[leaf.status] ?? 'bg-gray-100 text-gray-500'
                         return (
                           <Link key={leaf.id} href={`/a3/${leaf.id}`}
-                            className={`flex items-center gap-3 ml-32 mr-3 my-0.5 pl-3 pr-3 py-1 rounded-lg bg-slate-50/70 border border-l-[3px] border-slate-100 ${c.bar} hover:bg-white hover:border-slate-200 hover:shadow-sm transition-all group`}>
+                            className="flex items-center gap-3 ml-32 mr-3 my-0.5 pl-3 pr-3 py-1 rounded-lg bg-white border border-l-2 border-slate-200 hover:bg-slate-50 hover:border-slate-300 transition-all group">
                             <CornerDownRight size={11} className="text-slate-300 shrink-0" />
-                            <span className="flex-1 text-xs text-slate-600 truncate">{leaf.title}</span>
+                            <span className="flex-1 text-xs text-slate-500 font-normal truncate">{leaf.title}</span>
                             <div className="flex flex-col shrink-0 -my-1">
                               <button type="button" disabled={leafIdx === 0 || reordering === leaf.id}
                                 onClick={e => handleReorder(e, leaf.id, 'up')}
