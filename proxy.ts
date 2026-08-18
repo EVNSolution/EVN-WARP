@@ -50,5 +50,6 @@ export default auth((req) => {
 })
 
 export const config = {
-  matcher: ['/((?!api/auth|_next/static|_next/image|favicon.ico).*)'],
+  // api/external 은 세션이 아니라 자체 API 키로 인증하는 서버 간 경로 — 로그인 리다이렉트 제외
+  matcher: ['/((?!api/auth|api/external|_next/static|_next/image|favicon.ico).*)'],
 }
