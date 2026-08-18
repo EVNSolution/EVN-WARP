@@ -1,7 +1,10 @@
 /**
  * 외부 고객조회 매칭·변환 순수 함수.
  *
- * 매칭 키 = 이름 완전일치 + 전화번호 숫자 완전일치.
+ * 매칭 키 = 이름(개인명 또는 상호) 완전일치 + 전화번호(휴대폰 또는 회사번호) 숫자 완전일치.
+ * B2B 고객은 WARP 에 name=담당자, companyName=상호, phone=담당자 휴대폰,
+ * companyPhone=회사번호로 나뉘어 저장되는데, buildup 법인 폼은 상호+휴대폰을 넣으므로
+ * 어느 조합이든 완전일치하면 같은 고객으로 본다. 부분검색은 여전히 없다.
  * SQLite 에서는 하이픈을 제거한 비교 쿼리를 못 쓰므로, 이름으로 좁힌 뒤 JS 에서
  * 전화번호를 정규화(digitsOnly)해 거른다.
  *
@@ -14,13 +17,19 @@ export function digitsOnly(v: string | null | undefined): string {
   return (v ?? '').replace(/\D/g, '')
 }
 
-/** 정규화한 전화번호가 완전일치하는 고객만 남긴다. */
-export function filterByPhone<T extends { phone: string | null }>(
+/**
+ * 정규화한 전화번호가 완전일치하는 고객만 남긴다.
+ * B2B 고객은 담당자 휴대폰(phone) 대신 회사 대표번호(companyPhone)로
+ * 기억되는 경우가 많아 **둘 중 하나**가 일치하면 매칭으로 본다.
+ */
+export function filterByPhone<T extends { phone: string | null; companyPhone?: string | null }>(
   customers: readonly T[],
   phoneDigits: string,
 ): T[] {
   if (!phoneDigits) return []
-  return customers.filter(c => digitsOnly(c.phone) === phoneDigits)
+  return customers.filter(c =>
+    digitsOnly(c.phone) === phoneDigits || digitsOnly(c.companyPhone) === phoneDigits,
+  )
 }
 
 /** 외부(buildup-ev)로 내보내는 고객 필드 — 이 목록 밖의 값은 절대 싣지 않는다. */
