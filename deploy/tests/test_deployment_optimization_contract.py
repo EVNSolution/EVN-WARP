@@ -14,7 +14,7 @@ ROOT = Path(__file__).parents[2]
 class DeploymentOptimizationContractTest(unittest.TestCase):
     def test_release_runs_as_two_job_bounded_pipeline(self):
         workflow = (ROOT / ".github/workflows/deploy-ec2-ssm.yml").read_text(encoding="utf-8")
-        self.assertIn("run-name: WARP ${{ inputs.action }}", workflow)
+        self.assertIn("run-name: WARP ${{ inputs.action }}", workflow.splitlines())
         self.assertIn("default: release", workflow)
         self.assertIn("- release", workflow)
         self.assertIn("  artifact:", workflow)
