@@ -35,7 +35,6 @@ require_command() {
 
 require_tools() {
   require_command aws
-  require_command docker
   require_command jq
   require_command python3
   require_command sqlite3
@@ -149,29 +148,46 @@ require_clean_commit() {
 
 push_all() {
   require_clean_commit
-  docker buildx version >/dev/null
-  "$LAB_DIR/labctl.sh" init
-  "$LAB_DIR/labctl.sh" reset-slots
-  local repository_uri repository_name registry revision release digest
-  repository_uri="$(stack_output RepositoryUri)"
+  local repository_name bucket project revision archive build_id status phase last_phase release digest log_group log_stream
   repository_name="$(stack_output RepositoryName)"
-  registry="${repository_uri%%/*}"
+  bucket="$(stack_output SourceBucketName)"
+  project="$(stack_output BuildProjectName)"
   revision="$(git -C "$REPO_DIR" rev-parse HEAD)"
-  aws ecr get-login-password --region "$REGION" | docker login --username AWS --password-stdin "$registry" >/dev/null
-  trap 'docker logout "$registry" >/dev/null 2>&1 || true' EXIT
-
   for release in "${RELEASES[@]}"; do
     if aws ecr describe-images --region "$REGION" --repository-name "$repository_name" --image-ids "imageTag=$release" >/dev/null 2>&1; then
       die "Immutable ECR tag already exists: $release"
     fi
-    docker buildx build \
-      --quiet \
-      --platform linux/amd64 \
-      --secret "id=next_actions_key,src=$RUNTIME_DIR/next-actions.key" \
-      --build-arg "WARP_RELEASE_ID=$release" \
-      --build-arg "WARP_SOURCE_REVISION=$revision" \
-      --tag "$repository_uri:$release" \
-      --push "$REPO_DIR"
+  done
+  mkdir -p "$RUNTIME_DIR/aws-source"
+  archive="$RUNTIME_DIR/aws-source/source.zip"
+  git -C "$REPO_DIR" archive --format=zip --output "$archive" HEAD
+  aws s3 cp "$archive" "s3://$bucket/source.zip" --region "$REGION" --sse AES256 --only-show-errors
+  build_id="$(aws codebuild start-build \
+    --region "$REGION" \
+    --project-name "$project" \
+    --environment-variables-override "name=SOURCE_REVISION,value=$revision,type=PLAINTEXT" \
+    --query 'build.id' \
+    --output text)"
+  last_phase=''
+  while true; do
+    status="$(aws codebuild batch-get-builds --region "$REGION" --ids "$build_id" --query 'builds[0].buildStatus' --output text)"
+    phase="$(aws codebuild batch-get-builds --region "$REGION" --ids "$build_id" --query 'builds[0].currentPhase' --output text)"
+    if [ "$phase" != "$last_phase" ]; then
+      echo "codebuild status=$status phase=$phase"
+      last_phase="$phase"
+    fi
+    [ "$status" = IN_PROGRESS ] || break
+    sleep 15
+  done
+  if [ "$status" != SUCCEEDED ]; then
+    log_group="$(aws codebuild batch-get-builds --region "$REGION" --ids "$build_id" --query 'builds[0].logs.groupName' --output text)"
+    log_stream="$(aws codebuild batch-get-builds --region "$REGION" --ids "$build_id" --query 'builds[0].logs.streamName' --output text)"
+    if [ "$log_group" != None ] && [ "$log_stream" != None ]; then
+      aws logs get-log-events --region "$REGION" --log-group-name "$log_group" --log-stream-name "$log_stream" --start-from-head --query 'events[].message' --output text | tr '\t' '\n' | tail -n 120
+    fi
+    die "CodeBuild failed: $build_id ($status)"
+  fi
+  for release in "${RELEASES[@]}"; do
     digest="$(aws ecr describe-images \
       --region "$REGION" \
       --repository-name "$repository_name" \
@@ -181,8 +197,6 @@ push_all() {
     [[ "$digest" =~ ^sha256:[0-9a-f]{64}$ ]] || die "Invalid ECR digest for $release: $digest"
     echo "pushed release=$release digest=$digest revision=$revision"
   done
-  docker logout "$registry" >/dev/null 2>&1 || true
-  trap - EXIT
 }
 
 install_remote() {
@@ -240,10 +254,11 @@ cd /opt/warp-bg-lab
 }
 
 collect_evidence() {
-  local repository_name repository_uri instance_id remote_env evidence_dir
+  local repository_name repository_uri instance_id project remote_env evidence_dir build_id
   repository_name="$(stack_output RepositoryName)"
   repository_uri="$(stack_output RepositoryUri)"
   instance_id="$(stack_output InstanceId)"
+  project="$(stack_output BuildProjectName)"
   remote_env="$(remote_environment "$repository_uri")"
   evidence_dir="$RUNTIME_DIR/aws-evidence"
   mkdir -p "$evidence_dir"
@@ -251,6 +266,10 @@ collect_evidence() {
   aws cloudformation list-stack-resources --region "$REGION" --stack-name "$STACK_NAME" --output json > "$evidence_dir/resources.json"
   aws ec2 describe-instances --region "$REGION" --instance-ids "$instance_id" --output json > "$evidence_dir/instance.json"
   aws ecr describe-images --region "$REGION" --repository-name "$repository_name" --output json > "$evidence_dir/images.json"
+  build_id="$(aws codebuild list-builds-for-project --region "$REGION" --project-name "$project" --query 'ids[0]' --output text)"
+  if [ "$build_id" != None ]; then
+    aws codebuild batch-get-builds --region "$REGION" --ids "$build_id" --output json > "$evidence_dir/builds.json"
+  fi
   ssm_run "set -euo pipefail
 $remote_env
 cat /var/lib/warp-bg-lab/evidence.jsonl" > "$evidence_dir/scenarios.jsonl"
@@ -268,6 +287,12 @@ $remote_env
 }
 
 destroy_stack() {
+  local bucket
+  bucket="$(stack_output SourceBucketName 2>/dev/null || true)"
+  if [ -n "$bucket" ] && [ "$bucket" != None ]; then
+    [[ "$bucket" = warp-blue-green-lab-* ]] || die "Refusing unexpected bucket: $bucket"
+    aws s3 rm "s3://$bucket" --recursive --region "$REGION" --only-show-errors
+  fi
   aws cloudformation delete-stack --region "$REGION" --stack-name "$STACK_NAME"
   aws cloudformation wait stack-delete-complete --region "$REGION" --stack-name "$STACK_NAME"
   echo "Deleted isolated stack: $STACK_NAME"

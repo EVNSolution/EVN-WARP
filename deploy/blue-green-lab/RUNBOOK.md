@@ -39,7 +39,7 @@ done
 ./deploy/blue-green-lab/aws-labctl.sh destroy
 ```
 
-생성되는 것은 lab 전용 ECR, IAM Role, Instance Profile, 인바운드가 없는 Security Group, 일회성 EC2와 암호화된 gp3 볼륨뿐이다. 운영 WARP의 EC2, DNS, Load Balancer, Security Group, SSM Parameter와 배포 경로는 참조하지 않는다.
+생성되는 것은 lab 전용 ECR, 암호화·비공개 S3 source bucket, CodeBuild, IAM Role, Instance Profile, 인바운드가 없는 Security Group, 일회성 EC2와 암호화된 gp3 볼륨뿐이다. CodeBuild가 clean commit archive에서 5개 이미지를 만들며 서빙 EC2에서는 빌드하지 않는다. 운영 WARP의 EC2, DNS, Load Balancer, Security Group, SSM Parameter와 배포 경로는 참조하지 않는다.
 
 기본값은 서울 리전, `t3.small`, 24 GiB gp3, 24시간 만료 표시다. 실제 삭제는 마지막 `destroy`가 수행한다. 실패해도 먼저 `collect`를 실행하고, 원인을 확인한 뒤 `destroy`한다.
 

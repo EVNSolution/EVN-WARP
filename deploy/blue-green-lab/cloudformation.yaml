@@ -56,6 +56,126 @@ Resources:
         - Key: ExpiresAt
           Value: !Ref ExpiresAt
 
+  SourceBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      OwnershipControls:
+        Rules:
+          - ObjectOwnership: BucketOwnerEnforced
+      LifecycleConfiguration:
+        Rules:
+          - Id: RemoveLabSource
+            Status: Enabled
+            ExpirationInDays: 1
+      Tags:
+        - Key: Owner
+          Value: OziinG
+        - Key: Environment
+          Value: isolated-lab
+        - Key: ExpiresAt
+          Value: !Ref ExpiresAt
+
+  BuildRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: codebuild.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: BuildLabImages
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/codebuild/warp-bg-lab-${LabId}:*
+              - Effect: Allow
+                Action:
+                  - s3:GetBucketAcl
+                  - s3:GetBucketLocation
+                Resource: !GetAtt SourceBucket.Arn
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:GetObjectVersion
+                Resource: !Sub ${SourceBucket.Arn}/source.zip
+              - Effect: Allow
+                Action: ecr:GetAuthorizationToken
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - ecr:BatchCheckLayerAvailability
+                  - ecr:BatchGetImage
+                  - ecr:CompleteLayerUpload
+                  - ecr:DescribeImages
+                  - ecr:GetDownloadUrlForLayer
+                  - ecr:InitiateLayerUpload
+                  - ecr:PutImage
+                  - ecr:UploadLayerPart
+                Resource: !GetAtt ImageRepository.Arn
+      Tags:
+        - Key: Owner
+          Value: OziinG
+        - Key: Environment
+          Value: isolated-lab
+
+  BuildProject:
+    Type: AWS::CodeBuild::Project
+    Properties:
+      Name: !Sub warp-bg-lab-${LabId}
+      Description: Builds five WARP lab images outside the serving instance.
+      ServiceRole: !GetAtt BuildRole.Arn
+      Source:
+        Type: S3
+        Location: !Sub ${SourceBucket}/source.zip
+        BuildSpec: deploy/blue-green-lab/buildspec.yml
+      Artifacts:
+        Type: NO_ARTIFACTS
+      Environment:
+        Type: LINUX_CONTAINER
+        ComputeType: BUILD_GENERAL1_MEDIUM
+        Image: aws/codebuild/standard:8.0
+        ImagePullCredentialsType: CODEBUILD
+        PrivilegedMode: true
+        EnvironmentVariables:
+          - Name: REPOSITORY_URI
+            Value: !GetAtt ImageRepository.RepositoryUri
+          - Name: SOURCE_REVISION
+            Value: unset
+      Cache:
+        Type: LOCAL
+        Modes:
+          - LOCAL_DOCKER_LAYER_CACHE
+      TimeoutInMinutes: 30
+      QueuedTimeoutInMinutes: 10
+      LogsConfig:
+        CloudWatchLogs:
+          Status: ENABLED
+          GroupName: !Sub /aws/codebuild/warp-bg-lab-${LabId}
+      Tags:
+        - Key: Owner
+          Value: OziinG
+        - Key: Environment
+          Value: isolated-lab
+        - Key: ExpiresAt
+          Value: !Ref ExpiresAt
+
   InstanceRole:
     Type: AWS::IAM::Role
     Properties:
@@ -170,5 +290,9 @@ Outputs:
     Value: !Ref ImageRepository
   RepositoryUri:
     Value: !GetAtt ImageRepository.RepositoryUri
+  SourceBucketName:
+    Value: !Ref SourceBucket
+  BuildProjectName:
+    Value: !Ref BuildProject
   SecurityGroupId:
     Value: !Ref SecurityGroup
