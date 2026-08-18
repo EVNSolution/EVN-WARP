@@ -32,6 +32,7 @@ dev.log
 
 # env files
 .env*
+!.env.example
 
 # vercel
 .vercel
@@ -47,6 +48,7 @@ next-env.d.ts
 dev.log
 *.log
 /.omx/
+/deploy/blue-green-lab/runtime/
 
 # SQLite local database (contains real user data — never commit)
 dev.db

@@ -23,7 +23,7 @@ export async function DELETE(
     ? doc.filePath.slice('/api/uploads/'.length)
     : null
   const absPath = relPath
-    ? path.join(UPLOADS_DIR, relPath)
+    ? path.join(/* turbopackIgnore: true */ UPLOADS_DIR, relPath)
     : path.join(process.cwd(), 'public', doc.filePath)
   if (existsSync(absPath)) {
     await unlink(absPath).catch(() => {})

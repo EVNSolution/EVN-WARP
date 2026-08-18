@@ -1,0 +1,35 @@
+version: 0.2
+
+env:
+  shell: bash
+
+phases:
+  pre_build:
+    commands:
+      - set -euo pipefail
+      - REGISTRY="${REPOSITORY_URI%%/*}"
+      - aws ecr get-login-password | docker login --username AWS --password-stdin "$REGISTRY" >/dev/null
+      - NEXT_SERVER_ACTIONS_ENCRYPTION_KEY="$(openssl rand -base64 32 | tr -d '\n')"
+      - export NEXT_SERVER_ACTIONS_ENCRYPTION_KEY
+  build:
+    commands:
+      - |
+        set -euo pipefail
+        for release in lab-a lab-b lab-c lab-d lab-e; do
+          DOCKER_BUILDKIT=1 docker build \
+            --quiet \
+            --secret id=next_actions_key,env=NEXT_SERVER_ACTIONS_ENCRYPTION_KEY \
+            --build-arg "WARP_RELEASE_ID=$release" \
+            --build-arg "WARP_SOURCE_REVISION=$SOURCE_REVISION" \
+            --tag "$REPOSITORY_URI:$release" .
+          docker push "$REPOSITORY_URI:$release" >/dev/null
+          digest="$(aws ecr describe-images \
+            --repository-name "${REPOSITORY_URI#*/}" \
+            --image-ids "imageTag=$release" \
+            --query 'imageDetails[0].imageDigest' \
+            --output text)"
+          printf 'pushed release=%s digest=%s revision=%s\n' "$release" "$digest" "$SOURCE_REVISION"
+        done
+  post_build:
+    commands:
+      - docker logout "${REPOSITORY_URI%%/*}" >/dev/null 2>&1 || true
