@@ -8,6 +8,7 @@ This directory is an isolated validation surface owned by `OziinG`. It does not 
 - Use only the CloudFormation stack selected by `WARP_AWS_STACK_NAME`; the default stack name contains `blue-green-lab`.
 - The temporary instance has no inbound security-group rule. Operate it only through AWS Systems Manager.
 - Build from a clean commit. Promote and verify images by `repository@sha256:digest`, never by a mutable tag.
+- Do not cross-build linux/amd64 images in the 2 GiB local Colima VM. Use the isolated CodeBuild path; local memory exhaustion can terminate CLEVER HQ.
 - Keep one `NEXT_SERVER_ACTIONS_ENCRYPTION_KEY` value across all five images in a test series. Never print the key.
 - Transfer only the generated empty seed database. If `User` or `AccountEvidenceOutbox` contains a row, stop.
 - Collect evidence before deleting the lab stack. Do not copy secrets, authorization headers, production databases or uploads into evidence.

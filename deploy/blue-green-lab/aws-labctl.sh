@@ -318,6 +318,7 @@ destroy_stack() {
   fi
   aws cloudformation delete-stack --region "$REGION" --stack-name "$STACK_NAME"
   aws cloudformation wait stack-delete-complete --region "$REGION" --stack-name "$STACK_NAME"
+  aws logs delete-log-group --region "$REGION" --log-group-name "/aws/codebuild/warp-bg-lab-$LAB_ID" >/dev/null 2>&1 || true
   echo "Deleted isolated stack: $STACK_NAME"
 }
 

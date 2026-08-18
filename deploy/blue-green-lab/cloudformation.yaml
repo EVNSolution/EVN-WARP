@@ -101,7 +101,6 @@ Resources:
             Statement:
               - Effect: Allow
                 Action:
-                  - logs:CreateLogGroup
                   - logs:CreateLogStream
                   - logs:PutLogEvents
                 Resource: !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/codebuild/warp-bg-lab-${LabId}:*
@@ -135,6 +134,19 @@ Resources:
         - Key: Environment
           Value: isolated-lab
 
+  BuildLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/codebuild/warp-bg-lab-${LabId}
+      RetentionInDays: 1
+      Tags:
+        - Key: Owner
+          Value: OziinG
+        - Key: Environment
+          Value: isolated-lab
+        - Key: ExpiresAt
+          Value: !Ref ExpiresAt
+
   BuildProject:
     Type: AWS::CodeBuild::Project
     Properties:
@@ -167,7 +179,7 @@ Resources:
       LogsConfig:
         CloudWatchLogs:
           Status: ENABLED
-          GroupName: !Sub /aws/codebuild/warp-bg-lab-${LabId}
+          GroupName: !Ref BuildLogGroup
       Tags:
         - Key: Owner
           Value: OziinG

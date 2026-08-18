@@ -43,6 +43,8 @@ done
 
 기본값은 서울 리전, `t3.small`, 24 GiB gp3, 24시간 만료 표시다. 실제 삭제는 마지막 `destroy`가 수행한다. 실패해도 먼저 `collect`를 실행하고, 원인을 확인한 뒤 `destroy`한다.
 
+Mac의 2 GiB Colima에서 `linux/amd64` cross-build를 직접 실행하지 않는다. 메모리 부족이 같은 Docker VM의 CLEVER HQ까지 종료시킬 수 있다. `push-all`은 이 작업을 CodeBuild로 분리한다.
+
 ## 3. 증거 확인
 
 로컬 증거는 아래 ignored 경로에 남는다.
@@ -73,3 +75,4 @@ deploy/blue-green-lab/runtime/aws-evidence/
 - 저장소 전체 lint는 기존 코드에서 364 errors, 67 warnings가 발생한다. 이번 변경 파일의 targeted lint와 TypeScript 검사는 통과했다.
 - standalone 빌드가 동적 업로드 경로 때문에 전체 프로젝트를 추적할 수 있다는 NFT 경고가 남아 있다. 이미지 크기와 불필요 파일 포함 여부를 운영 PR 전에 해소한다.
 - 본 A–E 검증은 readiness의 DB 조회와 HTTP 연속성까지 확인한다. 인증된 실제 업무 쓰기와 schema migration 호환성은 운영 전 별도 시나리오가 필요하다.
+- 2026-08-18 격리 ECR scan은 각 이미지에서 critical 3건, high 6건을 보고했다. critical은 Debian base의 Perl, high 일부는 OpenSSL이며 해당 scan에는 fixed version이 제시되지 않았다.
