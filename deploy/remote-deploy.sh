@@ -228,12 +228,17 @@ prepare() {
   find "$UPLOADS_DIR" "$DATA_DIR" -type d -exec chmod g+s {} +
   cp --reflink=auto "$RUNTIME_DIR/database/dev.db" "$RUNTIME_DIR/backups/dev-$(date +%Y%m%d-%H%M%S)-pre-${RELEASE_ID}.db"
 
-  aws ecr get-login-password | docker login --username AWS --password-stdin "$registry" >/dev/null
-  if ! docker pull "$IMAGE_REF" >/dev/null; then
-    docker logout "$registry" >/dev/null 2>&1 || true
+  if ! (
+    docker_config="$(mktemp -d)"
+    chmod 0700 "$docker_config"
+    trap 'rm -rf -- "$docker_config"' EXIT
+    if ! aws ecr get-login-password | docker --config "$docker_config" login --username AWS --password-stdin "$registry" >/dev/null 2>&1; then
+      exit 1
+    fi
+    docker --config "$docker_config" pull "$IMAGE_REF" >/dev/null
+  ); then
     return 1
   fi
-  docker logout "$registry" >/dev/null 2>&1 || true
   docker container inspect "$name" >/dev/null 2>&1 && docker rm -f "$name" >/dev/null
   docker run -d \
     --name "$name" \
