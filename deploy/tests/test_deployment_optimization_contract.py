@@ -12,14 +12,23 @@ ROOT = Path(__file__).parents[2]
 
 
 class DeploymentOptimizationContractTest(unittest.TestCase):
-    def test_release_runs_as_one_bounded_pipeline(self):
+    def test_release_runs_as_two_job_bounded_pipeline(self):
         workflow = (ROOT / ".github/workflows/deploy-ec2-ssm.yml").read_text(encoding="utf-8")
         self.assertIn("run-name: WARP ${{ inputs.action }}", workflow)
         self.assertIn("default: release", workflow)
         self.assertIn("- release", workflow)
+        self.assertIn("  artifact:", workflow)
+        self.assertIn("  operate:", workflow)
+        self.assertIn("needs: artifact", workflow)
+        self.assertIn("image_digest: ${{ steps.image.outputs.image_digest }}", workflow)
+        self.assertIn("IMAGE_DIGEST: ${{ needs.artifact.outputs.image_digest }}", workflow)
+        self.assertIn('IMAGE_REF="${account_id}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPOSITORY}@${IMAGE_DIGEST}"', workflow)
+        self.assertIn("needs.artifact.result == 'success'", workflow)
+        self.assertIn("needs.artifact.result == 'skipped'", workflow)
         self.assertIn("remote_actions = ['prepare', 'status', 'switch', 'status']", workflow)
         self.assertIn("commands.extend(remote_command(action) for action in remote_actions)", workflow)
         self.assertEqual(workflow.count("aws ssm send-command"), 1)
+        self.assertEqual(workflow.count("image_ref: ${{ steps.image.outputs.image_ref }}"), 0)
 
         generator = workflow.split("python3 - <<'PY' > /tmp/evn-warp-ssm.json\n", 1)[1].split(
             "\n          PY", 1
@@ -59,6 +68,16 @@ class DeploymentOptimizationContractTest(unittest.TestCase):
             ],
         )
 
+    def test_only_the_governed_deployment_workflow_remains(self):
+        workflows = {
+            path.name
+            for path in (ROOT / ".github/workflows").iterdir()
+            if path.suffix in {".yml", ".yaml"}
+        }
+        self.assertEqual(workflows, {"deploy-ec2-ssm.yml"})
+        self.assertFalse((ROOT / "scripts/a3-kpi-export.sql").exists())
+        self.assertFalse((ROOT / "scripts/export-a3-kpi.mjs").exists())
+
     def test_non_runtime_material_is_excluded_from_build_context(self):
         ignored = set((ROOT / ".dockerignore").read_text(encoding="utf-8").splitlines())
         self.assertTrue(
@@ -77,10 +96,7 @@ class DeploymentOptimizationContractTest(unittest.TestCase):
 
     def test_prepare_reuses_dependencies_and_builder_layers(self):
         workflow = (ROOT / ".github/workflows/deploy-ec2-ssm.yml").read_text(encoding="utf-8")
-        self.assertGreaterEqual(
-            workflow.count("inputs.action == 'prepare' || inputs.action == 'release'"),
-            6,
-        )
+        self.assertIn("if: inputs.action == 'release' || inputs.action == 'prepare'", workflow)
         self.assertIn("uses: actions/setup-node@v7", workflow)
         self.assertIn("cache: npm", workflow)
         self.assertIn("id: buildx", workflow)

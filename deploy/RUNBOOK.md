@@ -37,7 +37,7 @@ aws iam put-role-policy \
 
 ## 2. 배포 순서
 
-GitHub Actions의 **Deploy WARP Blue-Green via SSM**에서 `release`를 한 번 실행한다. `release`는 같은 runner와 SSM command 안에서 다음 단계를 중단 조건과 함께 순서대로 수행한다.
+GitHub Actions의 **Deploy WARP Blue-Green via SSM**에서 `release`를 한 번 실행한다. 실행 그래프는 `1 · Validate source and prepare artifact`와 `2 · release and verify` 두 job을 순서대로 표시한다. 첫 job이 실패하면 두 번째 job은 시작하지 않으며, 두 번째 job은 다음 운영 단계를 한 SSM command로 수행한다.
 
 1. source·ENV 검증 및 image 준비
    - ENV 값은 출력하지 않는다.
@@ -56,6 +56,7 @@ GitHub Actions의 **Deploy WARP Blue-Green via SSM**에서 `release`를 한 번 
    - Nginx reload 후 공개 HTTPS readiness에서 expected digest를 확인한다.
 4. 최종 상태 확인
    - active, previous, candidate slot을 다시 출력하고 candidate가 남지 않았는지 확인한다.
+   - Actions Job Summary에서 Revision, image digest, slot, SSM command와 결과를 확인한다.
 5. 최소 30분 관찰
    - HTTP 5xx, Docker restart, OOM, `SQLITE_BUSY`, upload 404를 확인한다.
 6. 최초 배포에서는 `rollback` 후 공개 `/login`을 확인하고, 같은 Revision을 다시 `prepare`·`switch`하여 복구 절차를 증명한다.
@@ -81,3 +82,7 @@ DB schema/data migration은 이 workflow에서 수행하지 않는다. 필요한
 ## 5. 과거 노출 대응
 
 2026-07-09 실행된 과거 `Export EC2 env`, `Check OCR Environment`, `Test API Keys` workflow는 값을 출력할 수 있었다. 해당 workflow와 test script는 제거한다. 당시와 같은 credential이 현재도 유지된다면 provider에서 회전하고 SSM version을 기록한다. 과거 Actions log를 근거로 secret 값을 Issue나 문서에 복사하지 않는다.
+
+## 6. 폐기된 직접조작 workflow
+
+`Start EC2 Instance`, `Import A3/KPI Data to EC2`, `Check DB Counts on EC2`는 운영 workflow가 아니다. 완료되었거나 실패한 일회성 경로이므로 파일과 지원 SQL·export script는 제거하고 Git·Actions 이력만 감사 증거로 보존한다. 운영 배포와 상태 확인은 **Deploy WARP Blue-Green via SSM**의 승인된 action만 사용한다.

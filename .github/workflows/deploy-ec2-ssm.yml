@@ -37,9 +37,12 @@ env:
   DEPLOY_ACTION: ${{ inputs.action }}
 
 jobs:
-  deploy:
-    name: ${{ inputs.action }} production release
+  artifact:
+    name: 1 · Validate source and prepare artifact
+    if: inputs.action == 'release' || inputs.action == 'prepare'
     runs-on: ubuntu-latest
+    outputs:
+      image_digest: ${{ steps.image.outputs.image_digest }}
     steps:
       - name: Checkout exact deployment source
         uses: actions/checkout@v5
@@ -65,7 +68,6 @@ jobs:
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Verify ECR release and cache boundaries
-        if: inputs.action == 'prepare' || inputs.action == 'release'
         run: |
           set -euo pipefail
           release_mutability="$(aws ecr describe-repositories \
@@ -80,14 +82,12 @@ jobs:
           test "$cache_mutability" = MUTABLE
 
       - name: Configure Node.js dependency cache
-        if: inputs.action == 'prepare' || inputs.action == 'release'
         uses: actions/setup-node@v7
         with:
           node-version: '22.23.1'
           cache: npm
 
       - name: Verify source when preparing an image
-        if: inputs.action == 'prepare' || inputs.action == 'release'
         run: |
           set -euo pipefail
           npm ci
@@ -99,12 +99,10 @@ jobs:
           npm audit --omit=dev --audit-level=critical
 
       - name: Enable Docker Buildx
-        if: inputs.action == 'prepare' || inputs.action == 'release'
         id: buildx
         uses: docker/setup-buildx-action@v4
 
       - name: Build or reuse immutable image
-        if: inputs.action == 'prepare' || inputs.action == 'release'
         id: image
         run: |
           set -euo pipefail
@@ -164,7 +162,6 @@ jobs:
           echo "Prepared immutable image digest $digest"
 
       - name: Require clean ECR operating-system scan
-        if: inputs.action == 'prepare' || inputs.action == 'release'
         env:
           IMAGE_DIGEST: ${{ steps.image.outputs.image_digest }}
         run: |
@@ -199,12 +196,46 @@ jobs:
           test "$critical" = 0
           test "$high" = 0
 
+  operate:
+    name: 2 · ${{ inputs.action }} and verify
+    needs: artifact
+    if: ${{ always() && (needs.artifact.result == 'success' || (needs.artifact.result == 'skipped' && inputs.action != 'release' && inputs.action != 'prepare')) }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout exact deployment source
+        uses: actions/checkout@v5
+
+      - name: Enforce main and deployment contract
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF" = refs/heads/main
+          test "$GITHUB_SHA" = "$(git rev-parse HEAD)"
+          test -n "$AWS_REGION"
+          test -n "$AWS_ROLE_ARN"
+          test -n "$EC2_INSTANCE_ID"
+          if grep -R -n -E -f .github/forbidden-deploy-patterns \
+            .github/workflows deploy/remote-deploy.sh deploy/setup-ec2.sh; then
+            echo 'Forbidden deployment or secret-output command found.' >&2
+            exit 1
+          fi
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: ${{ env.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
       - name: Send bounded SSM command
         id: ssm
         env:
-          IMAGE_REF: ${{ steps.image.outputs.image_ref }}
+          IMAGE_DIGEST: ${{ needs.artifact.outputs.image_digest }}
         run: |
           set -euo pipefail
+          IMAGE_REF=''
+          if [ -n "$IMAGE_DIGEST" ]; then
+            account_id="$(aws sts get-caller-identity --query Account --output text)"
+            IMAGE_REF="${account_id}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPOSITORY}@${IMAGE_DIGEST}"
+          fi
           remote_b64="$(base64 -w 0 deploy/remote-deploy.sh)"
           setup_b64="$(base64 -w 0 deploy/setup-ec2.sh)"
           validator_b64="$(base64 -w 0 deploy/validate-env.py)"
@@ -254,6 +285,7 @@ jobs:
       - name: Wait for bounded SSM command
         env:
           COMMAND_ID: ${{ steps.ssm.outputs.command_id }}
+          IMAGE_DIGEST: ${{ needs.artifact.outputs.image_digest }}
         run: |
           set -euo pipefail
           deadline=$((SECONDS + 3600))
@@ -272,15 +304,31 @@ jobs:
             sleep 5
           done
 
-          aws ssm get-command-invocation \
+          stdout="$(aws ssm get-command-invocation \
             --command-id "$COMMAND_ID" \
             --instance-id "$EC2_INSTANCE_ID" \
             --query StandardOutputContent \
-            --output text || true
+            --output text || true)"
+          printf '%s\n' "$stdout"
           echo '--- stderr ---'
-          aws ssm get-command-invocation \
+          stderr="$(aws ssm get-command-invocation \
             --command-id "$COMMAND_ID" \
             --instance-id "$EC2_INSTANCE_ID" \
             --query StandardErrorContent \
-            --output text || true
+            --output text || true)"
+          printf '%s\n' "$stderr"
+
+          final_slots="$(printf '%s\n' "$stdout" | awk '/^active=/{value=$0} END{print value}')"
+          {
+            echo "## WARP ${DEPLOY_ACTION}"
+            echo
+            echo '| Field | Value |'
+            echo '| --- | --- |'
+            echo "| Revision | \`$GITHUB_SHA\` |"
+            [ -z "$IMAGE_DIGEST" ] || echo "| Image digest | \`$IMAGE_DIGEST\` |"
+            [ -z "$final_slots" ] || echo "| Slots | \`$final_slots\` |"
+            echo "| SSM command | \`$COMMAND_ID\` |"
+            echo "| Result | \`$status\` |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
           test "$status" = Success
