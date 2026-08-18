@@ -50,6 +50,6 @@ export default auth((req) => {
 })
 
 export const config = {
-  // api/external 은 세션이 아니라 자체 API 키로 인증하는 서버 간 경로 — 로그인 리다이렉트 제외
-  matcher: ['/((?!api/auth|api/external|_next/static|_next/image|favicon.ico).*)'],
+  // api/external 은 공유키, healthz/readyz 는 배포 경계가 직접 인증·제한한다.
+  matcher: ['/((?!api/auth|api/external|api/healthz|api/readyz|_next/static|_next/image|favicon.ico).*)'],
 }

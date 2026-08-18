@@ -1,161 +1,332 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-APP_DIR="${APP_DIR:-/opt/evn-warp}"
-BACKUP_DIR="${BACKUP_DIR:-/opt/evn-warp-backups}"
-REPO_URL="${REPO_URL:-https://github.com/EVNSolution/EVN-WARP.git}"
-DEPLOY_REF="${DEPLOY_REF:-main}"
-PM2_APP_NAME="${PM2_APP_NAME:-evn-warp}"
-PORT="${PORT:-3000}"
+ACTION="${DEPLOY_ACTION:-validate}"
 SERVER_NAME="${SERVER_NAME:-warp.cleversystem.ai}"
+RUNTIME_DIR="${RUNTIME_DIR:-/opt/evn-warp-runtime}"
+LEGACY_APP_DIR="${LEGACY_APP_DIR:-/opt/evn-warp}"
+UPLOADS_DIR="${UPLOADS_DIR:-/opt/evn-uploads}"
+DATA_DIR="${DATA_DIR:-$LEGACY_APP_DIR/data}"
 SSM_APP_ENV_PARAM="${SSM_APP_ENV_PARAM:-/evn-warp/app-env}"
+UPSTREAM_CONF="${UPSTREAM_CONF:-/etc/nginx/conf.d/warp-active-upstream.conf}"
+IMAGE_REF="${IMAGE_REF:-}"
+SOURCE_REVISION="${SOURCE_REVISION:-}"
+RELEASE_ID="${RELEASE_ID:-}"
+ACTOR="${ACTOR:-OziinG}"
+VALIDATOR="${VALIDATOR:-/tmp/evn-validate-env.py}"
+EVIDENCE_FILE="$RUNTIME_DIR/deploy-evidence.jsonl"
+APP_ENV_FILE="$RUNTIME_DIR/app.env"
 
-/tmp/evn-setup.sh
-
-get_param() {
-  aws ssm get-parameter --name "$1" --with-decryption --query 'Parameter.Value' --output text 2>/dev/null || true
+slot_port() {
+  case "$1" in
+    legacy) echo 3000 ;;
+    blue) echo 3101 ;;
+    green) echo 3102 ;;
+    *) echo "Invalid slot: $1" >&2; return 2 ;;
+  esac
 }
 
-mkdir -p "$BACKUP_DIR"
-ts="$(date +%Y%m%d-%H%M%S)"
-if [ -f "$APP_DIR/dev.db" ]; then
-  cp "$APP_DIR/dev.db" "$BACKUP_DIR/dev-${ts}-preclone.db"
-fi
+container_name() {
+  case "$1" in
+    blue|green) echo "evn-warp-$1" ;;
+    *) echo "No container for slot: $1" >&2; return 2 ;;
+  esac
+}
 
-if [ ! -d "$APP_DIR/.git" ]; then
-  rm -rf "$APP_DIR"
-  git clone "$REPO_URL" "$APP_DIR"
-fi
+cleanup_file() {
+  local target="$1"
+  [ ! -e "$target" ] || shred -u "$target" 2>/dev/null || rm -f "$target"
+}
 
-cd "$APP_DIR"
-old_commit="$(git rev-parse --short HEAD 2>/dev/null || true)"
-git fetch --prune origin "$DEPLOY_REF"
+append_evidence() {
+  python3 - "$EVIDENCE_FILE" "$ACTOR" "$@" <<'PY'
+import datetime, json, os, sys
+path, actor, *pairs = sys.argv[1:]
+event = dict(pair.split('=', 1) for pair in pairs)
+event['actor'] = actor
+event['timestamp'] = datetime.datetime.now(datetime.timezone.utc).isoformat()
+os.makedirs(os.path.dirname(path), exist_ok=True)
+with open(path, 'a', encoding='utf-8') as target:
+    target.write(json.dumps(event, ensure_ascii=False) + '\n')
+PY
+}
 
-# git 작업 전에 public/uploads 정리 (실제 디렉터리 또는 심볼릭 링크 모두 처리)
-# git에서 삭제된 파일이 EC2에 남아 있으면 checkout이 실패하므로 선행 처리
-UPLOADS_PERSIST="/opt/evn-uploads"
-mkdir -p "$UPLOADS_PERSIST"
-if [ -d "public/uploads" ] && [ ! -L "public/uploads" ]; then
-  # 실제 디렉터리: 파일을 영구 보존 디렉터리로 복사 후 삭제
-  cp -rn "public/uploads/." "$UPLOADS_PERSIST/" 2>/dev/null || true
-  rm -rf "public/uploads"
-  echo "Migrated public/uploads -> $UPLOADS_PERSIST"
-elif [ -L "public/uploads" ]; then
-  # 심볼릭 링크: 링크만 제거 (파일은 이미 $UPLOADS_PERSIST에 있음)
-  rm "public/uploads"
-  echo "Removed public/uploads symlink"
-fi
+write_manifest() {
+  local slot="$1" digest="$2" ssm_version="$3"
+  local target="$RUNTIME_DIR/manifests/$slot.json"
+  python3 - "$target" "$slot" "$RELEASE_ID" "$SOURCE_REVISION" "$IMAGE_REF" "$digest" "$ssm_version" <<'PY'
+import datetime, json, os, sys, tempfile
+target, slot, release, revision, image_ref, digest, ssm_version = sys.argv[1:]
+data = {
+    'slot': slot,
+    'release': release,
+    'revision': revision,
+    'imageRef': image_ref,
+    'imageDigest': digest,
+    'ssmParameterVersion': int(ssm_version),
+    'preparedAt': datetime.datetime.now(datetime.timezone.utc).isoformat(),
+}
+os.makedirs(os.path.dirname(target), exist_ok=True)
+fd, temporary = tempfile.mkstemp(dir=os.path.dirname(target), prefix='.manifest-', text=True)
+with os.fdopen(fd, 'w', encoding='utf-8') as output:
+    json.dump(data, output, ensure_ascii=False, indent=2)
+    output.write('\n')
+os.replace(temporary, target)
+PY
+}
 
-git checkout -B deploy-target FETCH_HEAD
-git reset --hard FETCH_HEAD
-new_commit="$(git rev-parse --short HEAD)"
+manifest_field() {
+  python3 - "$RUNTIME_DIR/manifests/$1.json" "$2" <<'PY'
+import json, sys
+with open(sys.argv[1], encoding='utf-8') as source:
+    print(json.load(source)[sys.argv[2]])
+PY
+}
 
-if [ -f dev.db ]; then
-  cp dev.db "$BACKUP_DIR/dev-${ts}-${old_commit:-unknown}.db"
-fi
+fetch_and_validate_env() {
+  local install_runtime="$1" payload env_candidate
+  payload="$(mktemp)"
+  env_candidate="$(mktemp)"
+  chmod 600 "$payload" "$env_candidate"
 
-echo "Uploads directory: $UPLOADS_PERSIST"
-
-app_env="$(get_param "$SSM_APP_ENV_PARAM")"
-previous_auth_secret=""
-if [ -f .env ]; then
-  previous_auth_secret="$(grep '^AUTH_SECRET=' .env | tail -1 || true)"
-fi
-umask 077
-if [ -n "$app_env" ] && [ "$app_env" != "None" ]; then
-  printf '%s\n' "$app_env" > .env
-elif [ ! -f .env ]; then
-  cat > .env <<EOF_ENV
-DATABASE_URL="file:./dev.db"
-NEXTAUTH_URL="https://${SERVER_NAME}"
-AUTH_URL="https://${SERVER_NAME}"
-AUTH_TRUST_HOST="true"
-AUTH_SECRET="$(openssl rand -base64 32)"
-EOF_ENV
-fi
-
-grep -q '^DATABASE_URL=' .env || printf '\nDATABASE_URL="file:./dev.db"\n' >> .env
-grep -q '^NEXTAUTH_URL=' .env || printf '\nNEXTAUTH_URL="https://%s"\n' "$SERVER_NAME" >> .env
-grep -q '^AUTH_URL=' .env || printf '\nAUTH_URL="https://%s"\n' "$SERVER_NAME" >> .env
-grep -q '^AUTH_TRUST_HOST=' .env || printf '\nAUTH_TRUST_HOST="true"\n' >> .env
-grep -q '^UPLOADS_DIR=' .env || printf '\nUPLOADS_DIR="%s"\n' "$UPLOADS_PERSIST" >> .env
-if ! grep -q '^AUTH_SECRET=' .env; then
-  if [ -n "$previous_auth_secret" ]; then
-    printf '\n%s\n' "$previous_auth_secret" >> .env
-  else
-    printf '\nAUTH_SECRET="%s"\n' "$(openssl rand -base64 32)" >> .env
+  if ! aws ssm get-parameter --name "$SSM_APP_ENV_PARAM" --with-decryption --output json >"$payload"; then
+    cleanup_file "$payload"
+    cleanup_file "$env_candidate"
+    echo "Unable to read SSM SecureString: $SSM_APP_ENV_PARAM" >&2
+    return 1
   fi
-fi
+  SSM_VERSION="$(python3 - "$payload" "$env_candidate" <<'PY'
+import json, os, sys
+payload, target = sys.argv[1:]
+with open(payload, encoding='utf-8') as source:
+    parameter = json.load(source)['Parameter']
+with open(target, 'w', encoding='utf-8') as output:
+    output.write(parameter['Value'].rstrip('\n') + '\n')
+os.chmod(target, 0o600)
+print(parameter['Version'])
+PY
+)"
+  if ! "$VALIDATOR" "$env_candidate"; then
+    cleanup_file "$payload"
+    cleanup_file "$env_candidate"
+    return 1
+  fi
 
-# 마이그레이션 스크립트 실행 중 아직 살아있는 이전 앱 프로세스와 SQLite 쓰기가 겹쳐
-# "database is locked"로 실패하는 경우가 있어, 짧게 대기 후 재시도한다
-run_with_retry() {
-  local attempts=0
-  local max=5
-  until "$@"; do
-    attempts=$((attempts + 1))
-    if [ "$attempts" -ge "$max" ]; then
-      echo "Command failed after $attempts attempts: $*" >&2
-      return 1
+  if [ -f "$LEGACY_APP_DIR/.env" ]; then
+    python3 - "$LEGACY_APP_DIR/.env" "$env_candidate" <<'PY'
+from pathlib import Path
+import sys
+left, right = (Path(path).read_text(encoding='utf-8').rstrip('\n') for path in sys.argv[1:])
+print('legacy_env_matches_ssm=' + str(left == right).lower())
+PY
+  fi
+  if [ "$install_runtime" = 1 ]; then
+    install -m 0600 "$env_candidate" "$APP_ENV_FILE.candidate"
+    mv "$APP_ENV_FILE.candidate" "$APP_ENV_FILE"
+  fi
+  cleanup_file "$payload"
+  cleanup_file "$env_candidate"
+  export SSM_VERSION
+}
+
+wait_ready() {
+  local slot="$1" expected="$2" port
+  port="$(slot_port "$slot")"
+  for _ in $(seq 1 45); do
+    if curl -fsS --max-time 3 "http://127.0.0.1:${port}/api/readyz" 2>/dev/null |
+      python3 -c 'import json,sys; body=json.load(sys.stdin); expected=sys.argv[1]; raise SystemExit(0 if body.get("ok") is True and body.get("imageDigest")==expected else 1)' "$expected"; then
+      return 0
     fi
-    echo "Command failed (attempt $attempts/$max) — retrying in 3s: $*"
-    sleep 3
+    sleep 1
+  done
+  return 1
+}
+
+external_ready() {
+  local slot="$1"
+  if [ "$slot" = legacy ]; then
+    curl -fsS --max-time 10 "https://${SERVER_NAME}/login" >/dev/null
+    return
+  fi
+  local expected
+  expected="$(manifest_field "$slot" imageDigest)"
+  for _ in $(seq 1 15); do
+    if curl -fsS --max-time 3 -H 'X-Warp-External-Check: 1' "https://${SERVER_NAME}/api/readyz" 2>/dev/null |
+      python3 -c 'import json,sys; body=json.load(sys.stdin); expected=sys.argv[1]; raise SystemExit(0 if body.get("ok") is True and body.get("imageDigest")==expected else 1)' "$expected" 2>/dev/null; then
+      return 0
+    fi
+    sleep 1
+  done
+  return 1
+}
+
+render_upstream() {
+  local slot="$1" target="$2" port
+  port="$(slot_port "$slot")"
+  cat >"$target" <<EOF_UPSTREAM
+upstream warp_active {
+    server 127.0.0.1:${port};
+    keepalive 32;
+}
+EOF_UPSTREAM
+}
+
+activate_slot() {
+  local target="$1" current backup candidate
+  current="$(cat "$RUNTIME_DIR/active-slot" 2>/dev/null || echo legacy)"
+  [ "$target" != "$current" ] || { echo "Slot already active: $target"; return 0; }
+  if [ "$target" != legacy ]; then
+    test -f "$RUNTIME_DIR/manifests/$target.json"
+    wait_ready "$target" "$(manifest_field "$target" imageDigest)"
+  fi
+
+  backup="$RUNTIME_DIR/upstream.previous"
+  candidate="$RUNTIME_DIR/upstream.candidate"
+  cp "$UPSTREAM_CONF" "$backup"
+  render_upstream "$target" "$candidate"
+  cp "$candidate" "$UPSTREAM_CONF"
+  if ! nginx -t || ! systemctl reload nginx || ! external_ready "$target"; then
+    cp "$backup" "$UPSTREAM_CONF"
+    nginx -t
+    systemctl reload nginx
+    if ! external_ready "$current"; then
+      append_evidence "event=rollback-failed" "candidate=$target" "restored=$current"
+      echo 'Candidate verification and automatic rollback verification both failed.' >&2
+      return 2
+    fi
+    append_evidence "event=switch-rolled-back" "candidate=$target" "restored=$current"
+    echo "Candidate verification failed; restored $current." >&2
+    return 1
+  fi
+
+  printf '%s\n' "$current" >"$RUNTIME_DIR/previous-slot"
+  printf '%s\n' "$target" >"$RUNTIME_DIR/active-slot"
+  rm -f "$RUNTIME_DIR/candidate-slot"
+  append_evidence "event=switch-succeeded" "previous=$current" "active=$target"
+  echo "Active slot: $target (previous: $current)"
+}
+
+prepare() {
+  [[ "$IMAGE_REF" =~ ^.+@sha256:[0-9a-f]{64}$ ]] || { echo 'IMAGE_REF must be an immutable repository digest.' >&2; exit 2; }
+  [[ "$SOURCE_REVISION" =~ ^[0-9a-f]{40}$ ]] || { echo 'SOURCE_REVISION must be a full Git SHA.' >&2; exit 2; }
+  [ -n "$RELEASE_ID" ]
+  /tmp/evn-setup.sh
+  fetch_and_validate_env 1
+
+  local active slot port name digest registry
+  active="$(cat "$RUNTIME_DIR/active-slot" 2>/dev/null || echo legacy)"
+  if [ "$active" = blue ]; then slot=green; else slot=blue; fi
+  port="$(slot_port "$slot")"
+  name="$(container_name "$slot")"
+  digest="${IMAGE_REF##*@}"
+  registry="${IMAGE_REF%%/*}"
+
+  test -f "$LEGACY_APP_DIR/dev.db"
+  install -d -m 2770 -o root -g 1001 "$UPLOADS_DIR" "$DATA_DIR" "$RUNTIME_DIR/cache/$slot"
+  chgrp -R 1001 "$UPLOADS_DIR" "$DATA_DIR"
+  chmod -R g+rwX "$UPLOADS_DIR" "$DATA_DIR"
+  find "$UPLOADS_DIR" "$DATA_DIR" -type d -exec chmod g+s {} +
+  cp --reflink=auto "$RUNTIME_DIR/database/dev.db" "$RUNTIME_DIR/backups/dev-$(date +%Y%m%d-%H%M%S)-pre-${RELEASE_ID}.db"
+
+  if ! (
+    docker_config="$(mktemp -d)"
+    chmod 0700 "$docker_config"
+    trap 'rm -rf -- "$docker_config"' EXIT
+    if ! aws ecr get-login-password | docker --config "$docker_config" login --username AWS --password-stdin "$registry" >/dev/null 2>&1; then
+      exit 1
+    fi
+    docker --config "$docker_config" pull "$IMAGE_REF" >/dev/null
+  ); then
+    return 1
+  fi
+  docker container inspect "$name" >/dev/null 2>&1 && docker rm -f "$name" >/dev/null
+  docker run -d \
+    --name "$name" \
+    --restart unless-stopped \
+    --read-only \
+    --cap-drop ALL \
+    --security-opt no-new-privileges \
+    --pids-limit 256 \
+    --memory 384m \
+    --memory-swap 768m \
+    --log-opt max-size=10m \
+    --log-opt max-file=3 \
+    -p "127.0.0.1:${port}:3000" \
+    --env-file "$APP_ENV_FILE" \
+    -e "AUTH_URL=https://${SERVER_NAME}" \
+    -e "NEXTAUTH_URL=https://${SERVER_NAME}" \
+    -e 'AUTH_TRUST_HOST=true' \
+    -e 'DATABASE_URL=file:/app/database/dev.db' \
+    -e 'UPLOADS_DIR=/app/uploads' \
+    -e 'DATA_DIR=/app/data' \
+    -e 'NODE_OPTIONS=--max-old-space-size=256' \
+    -e "WARP_SLOT=$slot" \
+    -e "WARP_RELEASE_ID=$RELEASE_ID" \
+    -e "WARP_SOURCE_REVISION=$SOURCE_REVISION" \
+    -e "WARP_IMAGE_DIGEST=$digest" \
+    -v "$RUNTIME_DIR/database:/app/database" \
+    -v "$UPLOADS_DIR:/app/uploads" \
+    -v "$UPLOADS_DIR:/app/public/uploads" \
+    -v "$DATA_DIR:/app/data" \
+    -v "$RUNTIME_DIR/cache/$slot:/app/.next/cache" \
+    --tmpfs /tmp:rw,noexec,nosuid,size=64m \
+    "$IMAGE_REF" >/dev/null
+
+  if ! wait_ready "$slot" "$digest"; then
+    docker logs --tail 80 "$name" >&2 || true
+    append_evidence "event=prepare-blocked" "slot=$slot" "release=$RELEASE_ID" "digest=$digest" "ssmVersion=$SSM_VERSION"
+    echo "Candidate did not become ready: $slot" >&2
+    return 1
+  fi
+  write_manifest "$slot" "$digest" "$SSM_VERSION"
+  printf '%s\n' "$slot" >"$RUNTIME_DIR/candidate-slot"
+  append_evidence "event=prepared" "slot=$slot" "release=$RELEASE_ID" "revision=$SOURCE_REVISION" "digest=$digest" "ssmVersion=$SSM_VERSION"
+  echo "Prepared $slot release=$RELEASE_ID digest=$digest ssmVersion=$SSM_VERSION; traffic unchanged on $active."
+}
+
+status() {
+  local active previous candidate
+  active="$(cat "$RUNTIME_DIR/active-slot" 2>/dev/null || echo legacy)"
+  previous="$(cat "$RUNTIME_DIR/previous-slot" 2>/dev/null || echo none)"
+  candidate="$(cat "$RUNTIME_DIR/candidate-slot" 2>/dev/null || echo none)"
+  echo "active=$active previous=$previous candidate=$candidate"
+  if ! command -v docker >/dev/null 2>&1; then
+    echo 'docker=absent'
+    return
+  fi
+  for slot in blue green; do
+    local name state image
+    name="$(container_name "$slot")"
+    if docker container inspect "$name" >/dev/null 2>&1; then
+      state="$(docker inspect -f '{{.State.Status}}' "$name")"
+      image="$(docker inspect -f '{{.Config.Image}}' "$name")"
+      echo "$slot state=$state image=$image"
+    else
+      echo "$slot state=absent"
+    fi
   done
 }
 
-npm ci
-npx prisma generate
-npx prisma db push --accept-data-loss
-run_with_retry npx tsx scripts/dedup-teams.ts
-run_with_retry npx tsx scripts/migrate-lead-sources.ts
-run_with_retry npx tsx scripts/migrate-meeting-upload-paths.ts
-run_with_retry npx tsx scripts/migrate-deal-document-paths.ts
-run_with_retry npx tsx scripts/migrate-customer-document-paths.ts
-run_with_retry npx tsx scripts/backfill-stage-history.ts
-
-admin_email="$(node -e "const fs=require('fs');const dotenv=require('dotenv');const e=dotenv.parse(fs.readFileSync('.env'));process.stdout.write(e.ADMIN_EMAIL||'')")"
-admin_password="$(node -e "const fs=require('fs');const dotenv=require('dotenv');const e=dotenv.parse(fs.readFileSync('.env'));process.stdout.write(e.ADMIN_PASSWORD||'')")"
-if [ -n "$admin_email" ] && [ -n "$admin_password" ]; then
-  admin_name="$(node -e "const fs=require('fs');const dotenv=require('dotenv');const e=dotenv.parse(fs.readFileSync('.env'));process.stdout.write(e.ADMIN_NAME||'관리자')")"
-  admin_role="$(node -e "const fs=require('fs');const dotenv=require('dotenv');const e=dotenv.parse(fs.readFileSync('.env'));process.stdout.write(e.ADMIN_ROLE||'admin')")"
-  admin_hash="$(node -e "require('bcryptjs').hash(process.argv[1],12).then(v=>process.stdout.write(v))" "$admin_password")"
-  ADMIN_NAME="$admin_name" ADMIN_EMAIL="$admin_email" ADMIN_HASH="$admin_hash" ADMIN_ROLE="$admin_role" node <<'NODE' >/tmp/evn-admin.sql
-const crypto = require('crypto')
-const q = v => `'${String(v).replace(/'/g, "''")}'`
-const id = `user-${crypto.randomUUID()}`
-console.log('PRAGMA busy_timeout = 5000;')
-console.log(`INSERT INTO "User" ("id","name","email","password","role","createdAt","updatedAt") VALUES (${q(id)},${q(process.env.ADMIN_NAME)},${q(process.env.ADMIN_EMAIL)},${q(process.env.ADMIN_HASH)},${q(process.env.ADMIN_ROLE)},CURRENT_TIMESTAMP,CURRENT_TIMESTAMP) ON CONFLICT("email") DO UPDATE SET "name"=excluded."name", "password"=excluded."password", "role"=excluded."role", "updatedAt"=CURRENT_TIMESTAMP;`)
-NODE
-  run_with_retry npx prisma db execute --file /tmp/evn-admin.sql
-  echo "Admin user ensured: $admin_email"
-fi
-
-# WorkActivity 중 userId가 있고 userName이 없는 기존 데이터 백필
-cat > /tmp/evn-backfill.sql <<'BACKFILL_SQL'
-PRAGMA busy_timeout = 5000;
-UPDATE "WorkActivity"
-SET "userName" = (SELECT "name" FROM "User" WHERE "User"."id" = "WorkActivity"."userId")
-WHERE "userName" IS NULL AND "userId" IS NOT NULL;
-BACKFILL_SQL
-run_with_retry npx prisma db execute --file /tmp/evn-backfill.sql
-echo "Backfilled WorkActivity userName from userId"
-
-NODE_OPTIONS="--max-old-space-size=3072" npm run build
-
-if pm2 describe "$PM2_APP_NAME" >/dev/null 2>&1; then
-  pm2 reload "$PM2_APP_NAME" --update-env
-else
-  pm2 start npm --name "$PM2_APP_NAME" -- start -- -p "$PORT"
-fi
-pm2 save
-
-for i in {1..30}; do
-  if curl -fsS "http://127.0.0.1:${PORT}/login" >/dev/null; then
-    echo "Deployed ${new_commit} to ${APP_DIR} on port ${PORT}."
-    exit 0
-  fi
-  sleep 2
-done
-
-echo "App did not become healthy on http://127.0.0.1:${PORT}/login" >&2
-exit 1
+case "$ACTION" in
+  validate)
+    fetch_and_validate_env 0
+    echo "Validation only completed for SSM version $SSM_VERSION; runtime and traffic were not changed."
+    ;;
+  prepare) prepare ;;
+  switch)
+    target="$(cat "$RUNTIME_DIR/candidate-slot" 2>/dev/null || true)"
+    [ -n "$target" ] || { echo 'No prepared candidate slot.' >&2; exit 1; }
+    [ "$(manifest_field "$target" revision)" = "$SOURCE_REVISION" ] || {
+      echo 'Prepared candidate does not match the current main revision.' >&2
+      exit 1
+    }
+    activate_slot "$target"
+    ;;
+  rollback)
+    target="$(cat "$RUNTIME_DIR/previous-slot" 2>/dev/null || true)"
+    [ -n "$target" ] || { echo 'No previous slot is recorded.' >&2; exit 1; }
+    activate_slot "$target"
+    ;;
+  status) status ;;
+  *) echo "Unsupported DEPLOY_ACTION: $ACTION" >&2; exit 2 ;;
+esac
