@@ -23,15 +23,15 @@ export async function GET(req: NextRequest) {
     await prisma.$queryRawUnsafe('SELECT 1')
     await prisma.accountEvidenceOutbox.findFirst({ select: { id: true } })
     await Promise.all([writableDirectory('UPLOADS_DIR'), writableDirectory('DATA_DIR')])
-    const labIdentity = process.env.WARP_DEPLOYMENT_LAB === '1'
+    const deploymentIdentity = process.env.WARP_IMAGE_DIGEST
       ? {
           slot: process.env.WARP_SLOT ?? 'unknown',
           release: process.env.WARP_RELEASE_ID ?? 'unknown',
           revision: process.env.WARP_SOURCE_REVISION ?? 'unknown',
           imageDigest: process.env.WARP_IMAGE_DIGEST ?? 'unknown',
-        }
+      }
       : {}
-    return NextResponse.json({ ok: true, ...labIdentity }, { headers: { 'Cache-Control': 'no-store' } })
+    return NextResponse.json({ ok: true, ...deploymentIdentity }, { headers: { 'Cache-Control': 'no-store' } })
   } catch (error) {
     console.error('[readyz]', error instanceof Error ? error.message : 'unknown_error')
     return NextResponse.json({ ok: false, code: 'not_ready' }, { status: 503 })

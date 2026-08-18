@@ -1,9 +1,8 @@
 # syntax=docker/dockerfile:1.7
-FROM node:22-bookworm-slim@sha256:d649c27dae7ba0137b3cef5dd75baa422c08dc3d9e3fc0c23dfb172dc3cc6436 AS dependencies
+FROM node:22.23.1-alpine3.23@sha256:8516dce0483394d5708d4b2ee6cacb79fb1d617ea4e2787c2120bcca92ce372e AS dependencies
 WORKDIR /app
 COPY package.json package-lock.json ./
-RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates openssl && rm -rf /var/lib/apt/lists/* && \
-    npm ci
+RUN apk add --no-cache libc6-compat openssl && npm ci
 
 FROM dependencies AS builder
 ARG WARP_RELEASE_ID=local
@@ -18,12 +17,17 @@ RUN --mount=type=secret,id=next_actions_key,required=true \
     npx prisma generate && \
     npx prisma db push && \
     npm run build
+RUN test ! -e .next/standalone/dev.db && \
+    test ! -e .next/standalone/deploy && \
+    ! find .next/standalone -type f \
+      \( -name '.env*' -o -name '*.pem' -o -name '*.db' -o -name '*.xlsx' -o -name '*.docx' -o -name '*.pptx' \) \
+      -print -quit | grep -q .
 
-FROM node:22-bookworm-slim@sha256:d649c27dae7ba0137b3cef5dd75baa422c08dc3d9e3fc0c23dfb172dc3cc6436 AS runtime
+FROM node:22.23.1-alpine3.23@sha256:8516dce0483394d5708d4b2ee6cacb79fb1d617ea4e2787c2120bcca92ce372e AS runtime
 ARG WARP_RELEASE_ID=local
 ARG WARP_SOURCE_REVISION=unknown
-RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates openssl && rm -rf /var/lib/apt/lists/* && \
-    groupadd --system --gid 1001 nodejs && useradd --system --uid 1001 --gid nodejs nextjs
+RUN apk add --no-cache libc6-compat openssl && \
+    addgroup --system --gid 1001 nodejs && adduser --system --uid 1001 --ingroup nodejs nextjs
 WORKDIR /app
 ENV NODE_ENV=production PORT=3000 HOSTNAME=0.0.0.0
 LABEL org.opencontainers.image.revision=${WARP_SOURCE_REVISION} \

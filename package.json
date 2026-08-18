@@ -9,7 +9,7 @@
     "lint": "eslint",
     "test:account-control": "tsx --test clever_account_interceptor/typescript/core.test.ts lib/account-control/*.test.ts",
     "test:external-lookup": "tsx --test lib/external-lookup/*.test.ts",
-    "test:deployment": "prisma generate && tsx --test lib/db.test.ts app/api/healthz/route.test.ts",
+    "test:deployment": "python3 -m unittest discover -s deploy/tests -p 'test_*.py' && prisma generate && tsx --test lib/db.test.ts app/api/healthz/route.test.ts",
     "test:buildup-import": "tsx --test lib/buildup-import/*.test.ts",
     "account-evidence:dispatch": "tsx scripts/dispatch-account-evidence.ts",
     "account-control:hq-probe": "tsx scripts/hq-local-integration-probe.ts"
@@ -17,22 +17,21 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.105.0",
     "@google/generative-ai": "^0.24.1",
-    "@libsql/client": "^0.17.3",
+    "@libsql/client": "^0.17.4",
     "@prisma/adapter-libsql": "^7.8.0",
     "@prisma/client": "^7.8.0",
     "@types/bcryptjs": "^2.4.6",
     "bcryptjs": "^3.0.3",
     "dotenv": "^17.4.2",
     "lucide-react": "^1.17.0",
-    "next": "16.2.7",
-    "next-auth": "^5.0.0-beta.31",
+    "next": "^16.3.1",
+    "next-auth": "^5.0.0-beta.32",
     "pptxgenjs": "^4.0.1",
-    "prisma": "^7.8.0",
     "react": "19.2.4",
     "react-dom": "19.2.4",
     "server-only": "^0.0.1",
     "tesseract.js": "^7.0.0",
-    "xlsx": "^0.18.5"
+    "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
@@ -40,7 +39,8 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
-    "eslint-config-next": "16.2.7",
+    "eslint-config-next": "^16.3.1",
+    "prisma": "^7.8.0",
     "tailwindcss": "^4",
     "tsx": "^4.23.6",
     "typescript": "^5"

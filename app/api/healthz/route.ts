@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server'
 export const dynamic = 'force-dynamic'
 
 export async function GET() {
-  const labIdentity = process.env.WARP_DEPLOYMENT_LAB === '1'
+  const deploymentIdentity = process.env.WARP_IMAGE_DIGEST
     ? {
         slot: process.env.WARP_SLOT ?? 'unknown',
         release: process.env.WARP_RELEASE_ID ?? 'unknown',
@@ -11,5 +11,5 @@ export async function GET() {
         imageDigest: process.env.WARP_IMAGE_DIGEST ?? 'unknown',
       }
     : {}
-  return NextResponse.json({ ok: true, ...labIdentity }, { headers: { 'Cache-Control': 'no-store' } })
+  return NextResponse.json({ ok: true, ...deploymentIdentity }, { headers: { 'Cache-Control': 'no-store' } })
 }
