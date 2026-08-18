@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/db'
 import { auth } from '@/auth'
 import CustomerListClient from './CustomerListClient'
+import BuildupEventNotice from '@/components/BuildupEventNotice'
 
 export default async function CustomersPage() {
   const session    = await auth()
@@ -25,6 +26,9 @@ export default async function CustomersPage() {
           잠재고객 발굴 · 활동이력 · 리드 전환
         </p>
       </div>
+
+      {/* buildup 미처리 이벤트 배지 — 이 화면에 온 사람에게만 보인다 (#27) */}
+      <BuildupEventNotice />
 
       <CustomerListClient customers={customers as any} />
     </div>

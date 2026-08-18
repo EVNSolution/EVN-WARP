@@ -308,6 +308,27 @@ model Customer {
   updatedAt       DateTime @updatedAt
 }
 
+// buildup-ev 딜 이벤트 수신함 (#27) — 견적작성·계약체결 알림을 쌓아두고
+// 담당자가 확인 후 파이프라인에 직접 기입한다(자동 기입 없음).
+// 전역 알림에는 싣지 않는다 — 고객관리·파이프라인 화면에서만 배지로 보인다.
+model BuildupEvent {
+  id             String    @id @default(cuid())
+  eventKey       String    @unique   // "quote_created:123" — 재전송 멱등
+  type           String               // "quote_created" | "contract_completed"
+  buildupQuoteId Int
+  quoteNo        String?
+  customerName   String?
+  warpCustomerId String?              // 연결된 WARP 고객(있으면 바로 이동 가능)
+  payloadJson    String               // 요약 원문(견적번호·차종·금액 등)
+  status         String    @default("pending") // "pending" | "confirmed"
+  confirmedBy    String?
+  confirmedAt    DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@index([status])
+}
+
 model CustomerActivity {
   id          String   @id @default(cuid())
   customerId  String
