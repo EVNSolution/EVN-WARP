@@ -9,12 +9,31 @@
 AWS 관리자는 한 번만 다음을 확인한다.
 
 - ECR `evn-warp`가 `IMMUTABLE`, scan-on-push로 존재한다.
+- ECR `evn-warp-buildcache`가 `MUTABLE`, AES256으로 존재하며 untagged cache를 3일 후 정리한다.
 - `/evn-warp/next-server-actions-key`가 16, 24 또는 32 byte AES key의 Base64 SecureString이다.
 - GitHub deploy role trust가 `repo:EVNSolution/EVN-WARP:ref:refs/heads/main`으로 제한되어 있다.
-- GitHub role에는 `ssm:PutParameter`가 없고 exact build key read, ECR push, 지정 EC2 SSM command만 있다.
+- GitHub role에는 `ssm:PutParameter`가 없고 exact build key read, release ECR push·scan, cache ECR push·pull, 지정 EC2 SSM command만 있다.
 - EC2 role에는 `/evn-warp/*` read와 ECR `evn-warp` pull만 있다.
 
 정책 정본은 [`aws/github-trust-main.json`](./aws/github-trust-main.json), [`aws/github-deploy-policy.json`](./aws/github-deploy-policy.json), [`aws/instance-policy.json`](./aws/instance-policy.json)이다.
+
+빌드 캐시 저장소는 최초 한 번만 아래와 같이 생성한다. release 저장소의 tag mutability는 변경하지 않는다.
+
+```bash
+aws ecr create-repository \
+  --repository-name evn-warp-buildcache \
+  --image-tag-mutability MUTABLE \
+  --image-scanning-configuration scanOnPush=false \
+  --encryption-configuration encryptionType=AES256 \
+  --tags Key=System,Value=EVN-WARP Key=Purpose,Value=BuildCache Key=Owner,Value=OziinG
+aws ecr put-lifecycle-policy \
+  --repository-name evn-warp-buildcache \
+  --lifecycle-policy-text file://deploy/aws/buildcache-lifecycle-policy.json
+aws iam put-role-policy \
+  --role-name EVNWarpGitHubDeployRole \
+  --policy-name EVNWarpGitHubDeployPolicy \
+  --policy-document file://deploy/aws/github-deploy-policy.json
+```
 
 ## 2. 배포 순서
 
@@ -27,6 +46,7 @@ GitHub Actions의 **Deploy WARP Blue-Green via SSM**에서 아래 action을 순�
 2. `prepare`
    - critical npm audit과 source tests를 통과한다.
    - image를 build하거나 같은 SHA image를 재사용한다.
+   - immutable release ECR과 mutable cache ECR의 경계를 먼저 검증한다.
    - ECR OS scan의 critical/high가 모두 0이어야 한다.
    - Docker와 Nginx upstream bootstrap은 최초 한 번만 수행한다.
    - 최초 bootstrap은 SQLite 경로를 안전하게 공유하기 위해 legacy PM2를 정지 후 재기동한다. 이 한 번의 짧은 재기동은 무정지로 간주하지 않으며, 이용이 적은 시간에 수행한다.
