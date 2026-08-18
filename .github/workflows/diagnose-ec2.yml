@@ -1,0 +1,83 @@
+name: Diagnose EC2 Deploy State
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  AWS_REGION: ${{ secrets.AWS_REGION }}
+  AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
+  EC2_INSTANCE_ID: ${{ secrets.EC2_INSTANCE_ID }}
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: ${{ env.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Run diagnostics
+        id: ssm
+        run: |
+          cat > /tmp/check.json << 'EOF'
+          {"commands": [
+            "echo '--- pm2 list ---'",
+            "pm2 jlist 2>&1 || true",
+            "echo '--- ps aux | grep node ---'",
+            "ps aux | grep -i 'next\\|node' | grep -v grep || true",
+            "echo '--- git HEAD in /opt/evn-warp ---'",
+            "cd /opt/evn-warp && git log -1 --format='%H %ci %s' || true",
+            "echo '--- BUILD_ID ---'",
+            "cat /opt/evn-warp/.next/BUILD_ID 2>&1 || true",
+            "echo '--- BUILD_ID mtime ---'",
+            "stat /opt/evn-warp/.next/BUILD_ID 2>&1 || true",
+            "echo '--- grep weekly page for 발표 모드 marker ---'",
+            "grep -rl '발표 모드' /opt/evn-warp/.next/server/app/weekly 2>&1 | head -5 || true",
+            "echo '--- nginx sites ---'",
+            "cat /etc/nginx/sites-enabled/* 2>&1 | grep -i 'proxy_pass\\|cache\\|listen' || true",
+            "echo '--- local curl login ---'",
+            "curl -sI http://127.0.0.1:3000/login | head -5 || true"
+          ]}
+          EOF
+
+          command_id="$(aws ssm send-command \
+            --instance-ids "$EC2_INSTANCE_ID" \
+            --document-name AWS-RunShellScript \
+            --comment "EVN-WARP deploy diagnostics" \
+            --timeout-seconds 60 \
+            --parameters file:///tmp/check.json \
+            --query 'Command.CommandId' \
+            --output text)"
+          echo "command_id=$command_id" >> "$GITHUB_OUTPUT"
+          echo "Command: $command_id"
+
+      - name: Get result
+        env:
+          COMMAND_ID: ${{ steps.ssm.outputs.command_id }}
+        run: |
+          for i in $(seq 1 15); do
+            status="$(aws ssm get-command-invocation \
+              --command-id "$COMMAND_ID" \
+              --instance-id "$EC2_INSTANCE_ID" \
+              --query Status --output text 2>/dev/null || echo Pending)"
+            echo "[$i] $status"
+            case "$status" in
+              Success|Failed|Cancelled|TimedOut) break ;;
+            esac
+            sleep 5
+          done
+          echo "=== STDOUT ==="
+          aws ssm get-command-invocation \
+            --command-id "$COMMAND_ID" \
+            --instance-id "$EC2_INSTANCE_ID" \
+            --query StandardOutputContent --output text || true
+          echo "=== STDERR ==="
+          aws ssm get-command-invocation \
+            --command-id "$COMMAND_ID" \
+            --instance-id "$EC2_INSTANCE_ID" \
+            --query StandardErrorContent --output text || true
