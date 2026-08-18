@@ -1,5 +1,5 @@
 name: Deploy WARP Blue-Green via SSM
-run-name: WARP ${{ inputs.action }} · ${{ github.sha }}
+run-name: WARP ${{ inputs.action }} ${{ github.sha }}
 
 on:
   workflow_dispatch:
@@ -38,7 +38,7 @@ env:
 
 jobs:
   artifact:
-    name: 1 · Validate source and prepare artifact
+    name: Validate source and prepare image
     if: inputs.action == 'release' || inputs.action == 'prepare'
     runs-on: ubuntu-latest
     outputs:
@@ -197,7 +197,7 @@ jobs:
           test "$high" = 0
 
   operate:
-    name: 2 · ${{ inputs.action }} and verify
+    name: Execute ${{ inputs.action }} and verify
     needs: artifact
     if: ${{ always() && (needs.artifact.result == 'success' || (needs.artifact.result == 'skipped' && inputs.action != 'release' && inputs.action != 'prepare')) }}
     runs-on: ubuntu-latest
