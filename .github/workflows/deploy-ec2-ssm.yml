@@ -107,7 +107,11 @@ jobs:
           if len(decoded) not in (16, 24, 32):
               raise SystemExit('Invalid NEXT_SERVER_ACTIONS_ENCRYPTION_KEY length')
           PY
-            aws ecr get-login-password | docker login --username AWS --password-stdin "${repository_uri%%/*}" >/dev/null
+            docker_config="$(mktemp -d)"
+            chmod 0700 "$docker_config"
+            trap 'rm -rf -- "$docker_config"' EXIT
+            export DOCKER_CONFIG="$docker_config"
+            aws ecr get-login-password | docker login --username AWS --password-stdin "${repository_uri%%/*}" >/dev/null 2>&1
             docker buildx build \
               --platform linux/amd64 \
               --provenance=false \
