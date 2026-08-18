@@ -151,12 +151,14 @@ push_all() {
   require_clean_commit
   docker buildx version >/dev/null
   "$LAB_DIR/labctl.sh" init
+  "$LAB_DIR/labctl.sh" reset-slots
   local repository_uri repository_name registry revision release digest
   repository_uri="$(stack_output RepositoryUri)"
   repository_name="$(stack_output RepositoryName)"
   registry="${repository_uri%%/*}"
   revision="$(git -C "$REPO_DIR" rev-parse HEAD)"
   aws ecr get-login-password --region "$REGION" | docker login --username AWS --password-stdin "$registry" >/dev/null
+  trap 'docker logout "$registry" >/dev/null 2>&1 || true' EXIT
 
   for release in "${RELEASES[@]}"; do
     if aws ecr describe-images --region "$REGION" --repository-name "$repository_name" --image-ids "imageTag=$release" >/dev/null 2>&1; then
@@ -179,6 +181,8 @@ push_all() {
     [[ "$digest" =~ ^sha256:[0-9a-f]{64}$ ]] || die "Invalid ECR digest for $release: $digest"
     echo "pushed release=$release digest=$digest revision=$revision"
   done
+  docker logout "$registry" >/dev/null 2>&1 || true
+  trap - EXIT
 }
 
 install_remote() {
