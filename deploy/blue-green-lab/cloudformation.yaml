@@ -144,13 +144,12 @@ Resources:
         Fn::Base64: !Sub |
           #!/bin/bash
           set -euo pipefail
-          dnf install -y curl docker gzip openssl python3 tar
+          dnf install -y docker gzip openssl python3 tar
           install -d -m 0755 /etc/docker /opt/warp-bg-lab
           install -d -m 0777 /var/lib/warp-bg-lab
           printf '%s\n' '{"log-driver":"local","log-opts":{"max-size":"10m","max-file":"3"}}' > /etc/docker/daemon.json
           systemctl enable --now docker
           systemctl enable --now amazon-ssm-agent
-          usermod -aG docker ssm-user
           printf '%s\n' '${AWS::StackName}' > /opt/warp-bg-lab/stack-name
       Tags:
         - Key: Name
