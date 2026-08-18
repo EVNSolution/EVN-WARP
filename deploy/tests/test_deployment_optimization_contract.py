@@ -26,6 +26,7 @@ class DeploymentOptimizationContractTest(unittest.TestCase):
         workflow = (ROOT / ".github/workflows/deploy-ec2-ssm.yml").read_text(encoding="utf-8")
         self.assertIn("uses: actions/setup-node@v7", workflow)
         self.assertIn("cache: npm", workflow)
+        self.assertIn("id: buildx", workflow)
         self.assertIn("ECR_CACHE_REPOSITORY: evn-warp-buildcache", workflow)
         self.assertIn('test "$release_mutability" = IMMUTABLE', workflow)
         self.assertIn('test "$cache_mutability" = MUTABLE', workflow)
@@ -38,6 +39,9 @@ class DeploymentOptimizationContractTest(unittest.TestCase):
         self.assertEqual(build_step.count("trap '"), 1)
         self.assertIn('shred -u "$build_key"', build_step)
         self.assertIn('rm -rf -- "$docker_config"', build_step)
+        self.assertIn('buildx_config="${DOCKER_CONFIG:-$HOME/.docker}/buildx"', build_step)
+        self.assertIn('export BUILDX_CONFIG="$buildx_config"', build_step)
+        self.assertIn('export BUILDX_BUILDER="${{ steps.buildx.outputs.name }}"', build_step)
 
     def test_release_and_cache_repositories_have_separate_iam_scopes(self):
         policy = (ROOT / "deploy/aws/github-deploy-policy.json").read_text(encoding="utf-8")
