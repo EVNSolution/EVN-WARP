@@ -23,7 +23,13 @@
       "Resource": "arn:aws:ssm:ap-northeast-2:902837199612:parameter/evn-warp/next-server-actions-key"
     },
     {
-      "Sid": "PushWarpImages",
+      "Sid": "VerifyWarpRepositories",
+      "Effect": "Allow",
+      "Action": "ecr:DescribeRepositories",
+      "Resource": "*"
+    },
+    {
+      "Sid": "PushWarpReleaseImages",
       "Effect": "Allow",
       "Action": [
         "ecr:BatchCheckLayerAvailability",
@@ -38,6 +44,20 @@
         "ecr:UploadLayerPart"
       ],
       "Resource": "arn:aws:ecr:ap-northeast-2:902837199612:repository/evn-warp"
+    },
+    {
+      "Sid": "UseWarpBuildCache",
+      "Effect": "Allow",
+      "Action": [
+        "ecr:BatchCheckLayerAvailability",
+        "ecr:BatchGetImage",
+        "ecr:CompleteLayerUpload",
+        "ecr:GetDownloadUrlForLayer",
+        "ecr:InitiateLayerUpload",
+        "ecr:PutImage",
+        "ecr:UploadLayerPart"
+      ],
+      "Resource": "arn:aws:ecr:ap-northeast-2:902837199612:repository/evn-warp-buildcache"
     },
     {
       "Sid": "LoginToEcr",

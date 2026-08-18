@@ -12,6 +12,7 @@ WARP 운영 배포는 GitHub Actions, AWS OIDC, ECR immutable digest, SSM Run Co
 | Server Functions build key | SSM SecureString `/evn-warp/next-server-actions-key` |
 | 배포 코드 | `main`의 exact Git SHA |
 | 배포 이미지 | ECR `evn-warp@sha256:...` digest |
+| 빌드 캐시 | 별도 ECR `evn-warp-buildcache:buildcache-main` 가변 태그 |
 | 서버 `.env` | SSM에서 생성하는 권한 `0600` 런타임 사본 |
 
 GitHub Secrets는 `AWS_REGION`, `AWS_ROLE_ARN`, `EC2_INSTANCE_ID`만 사용한다. `APP_ENV`와 `CERTBOT_EMAIL`은 배포 workflow에서 사용하지 않는다.
@@ -26,5 +27,7 @@ GitHub Secrets는 `AWS_REGION`, `AWS_ROLE_ARN`, `EC2_INSTANCE_ID`만 사용한�
 - `rollback`은 직전 slot 또는 최초 legacy PM2 port 3000으로 돌아간다. DB restore나 digest 수기 입력은 하지 않는다.
 - routine deploy는 `prisma db push`, seed, backfill, OS setup 반복 실행을 하지 않는다.
 - `.env`, API key 일부, PM2 environment를 Actions와 SSM 출력에 기록하지 않는다.
+- ECR `evn-warp`는 immutable release 전용이다. 가변 BuildKit cache를 release 저장소에 기록하지 않는다.
+- ECR `evn-warp-buildcache`는 실행·배포하지 않으며 EC2 instance role에 pull 권한을 부여하지 않는다.
 
 운영 순서는 [`RUNBOOK.md`](./RUNBOOK.md)를 따른다. 격리 검증 도구와 결과는 [`blue-green-lab/RUNBOOK.md`](./blue-green-lab/RUNBOOK.md), [`blue-green-lab/VALIDATION_RESULT.md`](./blue-green-lab/VALIDATION_RESULT.md)에 보존한다.

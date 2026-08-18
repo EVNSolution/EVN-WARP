@@ -30,6 +30,7 @@ env:
   SSM_APP_ENV_PARAM: /evn-warp/app-env
   SSM_BUILD_KEY_PARAM: /evn-warp/next-server-actions-key
   ECR_REPOSITORY: evn-warp
+  ECR_CACHE_REPOSITORY: evn-warp-buildcache
   SERVER_NAME: warp.cleversystem.ai
   DEPLOY_ACTION: ${{ inputs.action }}
 
@@ -61,16 +62,37 @@ jobs:
           role-to-assume: ${{ env.AWS_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
 
+      - name: Verify ECR release and cache boundaries
+        if: inputs.action == 'prepare'
+        run: |
+          set -euo pipefail
+          release_mutability="$(aws ecr describe-repositories \
+            --repository-names "$ECR_REPOSITORY" \
+            --query 'repositories[0].imageTagMutability' \
+            --output text)"
+          cache_mutability="$(aws ecr describe-repositories \
+            --repository-names "$ECR_CACHE_REPOSITORY" \
+            --query 'repositories[0].imageTagMutability' \
+            --output text)"
+          test "$release_mutability" = IMMUTABLE
+          test "$cache_mutability" = MUTABLE
+
+      - name: Configure Node.js dependency cache
+        if: inputs.action == 'prepare'
+        uses: actions/setup-node@v7
+        with:
+          node-version: '22.23.1'
+          cache: npm
+
       - name: Verify source when preparing an image
         if: inputs.action == 'prepare'
         run: |
           set -euo pipefail
           npm ci
-          npx prisma generate
+          npm run test:deployment
           npm run test:account-control
           npm run test:external-lookup
           npm run test:buildup-import
-          npm run test:deployment
           npm run typecheck
           npm audit --omit=dev --audit-level=critical
 
@@ -85,6 +107,7 @@ jobs:
           set -euo pipefail
           account_id="$(aws sts get-caller-identity --query Account --output text)"
           repository_uri="${account_id}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPOSITORY}"
+          cache_repository_uri="${account_id}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_CACHE_REPOSITORY}"
           digest="$(aws ecr describe-images \
             --repository-name "$ECR_REPOSITORY" \
             --image-ids "imageTag=$GITHUB_SHA" \
@@ -93,8 +116,10 @@ jobs:
 
           if [ -z "$digest" ] || [ "$digest" = None ]; then
             build_key="$(mktemp)"
-            trap 'shred -u "$build_key" 2>/dev/null || rm -f "$build_key"; docker logout "${repository_uri%%/*}" >/dev/null 2>&1 || true' EXIT
+            docker_config="$(mktemp -d)"
+            trap 'shred -u "$build_key" 2>/dev/null || rm -f "$build_key"; rm -rf -- "$docker_config"' EXIT
             chmod 600 "$build_key"
+            chmod 0700 "$docker_config"
             aws ssm get-parameter \
               --name "$SSM_BUILD_KEY_PARAM" \
               --with-decryption \
@@ -107,9 +132,6 @@ jobs:
           if len(decoded) not in (16, 24, 32):
               raise SystemExit('Invalid NEXT_SERVER_ACTIONS_ENCRYPTION_KEY length')
           PY
-            docker_config="$(mktemp -d)"
-            chmod 0700 "$docker_config"
-            trap 'rm -rf -- "$docker_config"' EXIT
             export DOCKER_CONFIG="$docker_config"
             aws ecr get-login-password | docker login --username AWS --password-stdin "${repository_uri%%/*}" >/dev/null 2>&1
             docker buildx build \
@@ -119,6 +141,8 @@ jobs:
               --secret "id=next_actions_key,src=$build_key" \
               --build-arg "WARP_RELEASE_ID=${GITHUB_SHA:0:12}" \
               --build-arg "WARP_SOURCE_REVISION=$GITHUB_SHA" \
+              --cache-from "type=registry,ref=$cache_repository_uri:buildcache-main" \
+              --cache-to "type=registry,ref=$cache_repository_uri:buildcache-main,mode=max,oci-mediatypes=true,image-manifest=true,ignore-error=true" \
               --tag "$repository_uri:$GITHUB_SHA" \
               --push .
             digest="$(aws ecr describe-images \
@@ -234,7 +258,7 @@ jobs:
             case "$status" in
               Success|Failed|Cancelled|TimedOut|Cancelling|Undeliverable|Terminated|DeliveryTimedOut) break ;;
             esac
-            sleep 15
+            sleep 5
           done
 
           aws ssm get-command-invocation \
