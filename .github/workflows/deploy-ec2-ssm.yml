@@ -1,14 +1,16 @@
 name: Deploy WARP Blue-Green via SSM
+run-name: WARP ${{ inputs.action }} · ${{ github.sha }}
 
 on:
   workflow_dispatch:
     inputs:
       action:
-        description: validate → prepare → switch; rollback restores the previous slot
+        description: release runs prepare → status → switch → status as one pipeline
         required: true
-        default: validate
+        default: release
         type: choice
         options:
+          - release
           - validate
           - prepare
           - switch
@@ -63,7 +65,7 @@ jobs:
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Verify ECR release and cache boundaries
-        if: inputs.action == 'prepare'
+        if: inputs.action == 'prepare' || inputs.action == 'release'
         run: |
           set -euo pipefail
           release_mutability="$(aws ecr describe-repositories \
@@ -78,14 +80,14 @@ jobs:
           test "$cache_mutability" = MUTABLE
 
       - name: Configure Node.js dependency cache
-        if: inputs.action == 'prepare'
+        if: inputs.action == 'prepare' || inputs.action == 'release'
         uses: actions/setup-node@v7
         with:
           node-version: '22.23.1'
           cache: npm
 
       - name: Verify source when preparing an image
-        if: inputs.action == 'prepare'
+        if: inputs.action == 'prepare' || inputs.action == 'release'
         run: |
           set -euo pipefail
           npm ci
@@ -97,12 +99,12 @@ jobs:
           npm audit --omit=dev --audit-level=critical
 
       - name: Enable Docker Buildx
-        if: inputs.action == 'prepare'
+        if: inputs.action == 'prepare' || inputs.action == 'release'
         id: buildx
         uses: docker/setup-buildx-action@v4
 
       - name: Build or reuse immutable image
-        if: inputs.action == 'prepare'
+        if: inputs.action == 'prepare' || inputs.action == 'release'
         id: image
         run: |
           set -euo pipefail
@@ -162,7 +164,7 @@ jobs:
           echo "Prepared immutable image digest $digest"
 
       - name: Require clean ECR operating-system scan
-        if: inputs.action == 'prepare'
+        if: inputs.action == 'prepare' || inputs.action == 'release'
         env:
           IMAGE_DIGEST: ${{ steps.image.outputs.image_digest }}
         run: |
@@ -211,16 +213,21 @@ jobs:
 
           python3 - <<'PY' > /tmp/evn-warp-ssm.json
           import json, os, shlex
-          remote_env = {
-              'DEPLOY_ACTION': os.environ['DEPLOY_ACTION'],
-              'SERVER_NAME': os.environ['SERVER_NAME'],
-              'SSM_APP_ENV_PARAM': os.environ['SSM_APP_ENV_PARAM'],
-              'SOURCE_REVISION': os.environ['GITHUB_SHA'],
-              'RELEASE_ID': os.environ['GITHUB_SHA'][:12],
-              'IMAGE_REF': os.environ.get('IMAGE_REF', ''),
-              'ACTOR': 'OziinG',
-          }
-          run_remote = ' '.join(f'{key}={shlex.quote(value)}' for key, value in remote_env.items()) + ' /tmp/evn-remote-deploy.sh'
+
+          def remote_command(action):
+              remote_env = {
+                  'DEPLOY_ACTION': action,
+                  'SERVER_NAME': os.environ['SERVER_NAME'],
+                  'SSM_APP_ENV_PARAM': os.environ['SSM_APP_ENV_PARAM'],
+                  'SOURCE_REVISION': os.environ['GITHUB_SHA'],
+                  'RELEASE_ID': os.environ['GITHUB_SHA'][:12],
+                  'IMAGE_REF': os.environ.get('IMAGE_REF', ''),
+                  'ACTOR': 'OziinG',
+              }
+              return ' '.join(f'{key}={shlex.quote(value)}' for key, value in remote_env.items()) + ' /tmp/evn-remote-deploy.sh'
+
+          requested_action = os.environ['DEPLOY_ACTION']
+          remote_actions = ['prepare', 'status', 'switch', 'status'] if requested_action == 'release' else [requested_action]
           commands = [
               'set -eu',
               "printf '%s' '" + os.environ['setup_b64'] + "' | base64 -d > /tmp/evn-setup.sh",
@@ -228,8 +235,8 @@ jobs:
               "printf '%s' '" + os.environ['database_migrator_b64'] + "' | base64 -d > /tmp/evn-migrate-shared-db.py",
               "printf '%s' '" + os.environ['remote_b64'] + "' | base64 -d > /tmp/evn-remote-deploy.sh",
               'chmod 700 /tmp/evn-setup.sh /tmp/evn-validate-env.py /tmp/evn-migrate-shared-db.py /tmp/evn-remote-deploy.sh',
-              run_remote,
           ]
+          commands.extend(remote_command(action) for action in remote_actions)
           print(json.dumps({'commands': commands}))
           PY
 

@@ -37,13 +37,11 @@ aws iam put-role-policy \
 
 ## 2. 배포 순서
 
-GitHub Actions의 **Deploy WARP Blue-Green via SSM**에서 아래 action을 순서대로 실행한다.
+GitHub Actions의 **Deploy WARP Blue-Green via SSM**에서 `release`를 한 번 실행한다. `release`는 같은 runner와 SSM command 안에서 다음 단계를 중단 조건과 함께 순서대로 수행한다.
 
-1. `validate`
+1. source·ENV 검증 및 image 준비
    - ENV 값은 출력하지 않는다.
    - 필수 key, URL, secret 길이, path 형식을 검사한다.
-   - `legacy_env_matches_ssm=true`와 Parameter version을 확인한다.
-2. `prepare`
    - critical npm audit과 source tests를 통과한다.
    - image를 build하거나 같은 SHA image를 재사용한다.
    - immutable release ECR과 mutable cache ECR의 경계를 먼저 검증한다.
@@ -51,14 +49,18 @@ GitHub Actions의 **Deploy WARP Blue-Green via SSM**에서 아래 action을 순�
    - Docker와 Nginx upstream bootstrap은 최초 한 번만 수행한다.
    - 최초 bootstrap은 SQLite 경로를 안전하게 공유하기 위해 legacy PM2를 정지 후 재기동한다. 이 한 번의 짧은 재기동은 무정지로 간주하지 않으며, 이용이 적은 시간에 수행한다.
    - 기존 PM2 port 3000 traffic을 유지한 채 inactive port 3101 또는 3102를 준비한다.
-3. `status`
-   - active, previous, candidate slot과 exact image reference를 확인한다.
-4. `switch`
+2. 후보 상태 확인
+   - active, previous, candidate slot과 exact image reference를 출력한다.
+3. traffic 전환
    - candidate readiness와 현재 `main` Revision 일치를 재검사한다.
    - Nginx reload 후 공개 HTTPS readiness에서 expected digest를 확인한다.
+4. 최종 상태 확인
+   - active, previous, candidate slot을 다시 출력하고 candidate가 남지 않았는지 확인한다.
 5. 최소 30분 관찰
    - HTTP 5xx, Docker restart, OOM, `SQLITE_BUSY`, upload 404를 확인한다.
 6. 최초 배포에서는 `rollback` 후 공개 `/login`을 확인하고, 같은 Revision을 다시 `prepare`·`switch`하여 복구 절차를 증명한다.
+
+`validate`는 SSM ENV 변경 직후의 traffic 비변경 preflight에 사용한다. `prepare`, `status`, `switch`는 실패 조사나 단계별 복구 확인에만 사용하고 일상 배포에서 수동으로 반복하지 않는다.
 
 ## 3. 실패 시
 

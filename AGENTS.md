@@ -9,7 +9,7 @@ This version has breaking changes — APIs, conventions, and file structure may 
 - Production deployment owner and evidence actor is `OziinG`.
 - Application ENV is read-only from SSM `/evn-warp/app-env`. Never restore GitHub `APP_ENV` write-back or local `.env` fallback.
 - Never print `.env`, secret fragments, fingerprints, PM2 environment or decrypted SSM values.
-- Run `validate`, `prepare`, `switch` in order. `rollback` restores the recorded previous slot. Never type an image digest by hand.
+- Run routine production deployment with the single `release` pipeline. It performs `prepare → status → switch → status` under one immutable Revision. Use `validate`, `prepare`, `status` and `switch` separately only for preflight or recovery diagnosis. `rollback` restores the recorded previous slot. Never type an image digest by hand.
 - Only exact `main` may assume the deployment role. Images are promoted by immutable ECR digest.
 - Routine deployment must not run schema/data migration, seed, backfill or `prisma db push`.
 - A failed candidate must leave the current Nginx upstream and active runtime healthy.
@@ -24,8 +24,8 @@ This version has breaking changes — APIs, conventions, and file structure may 
 ## Agent rules for every production release
 
 - Never rewrite or replace `main` after `prepare`. Git SHA, ECR tag, image digest, server manifest and candidate Revision are one release identity; changing the SHA invalidates the prepared candidate and forces a new build.
-- Use only the GitHub Actions `validate`, `prepare`, `status`, `switch` and `rollback` inputs. Do not run PM2, Nginx, Docker, SSM write or database commands as a substitute for the workflow.
-- After `prepare`, require `status` to show the expected inactive candidate. After `switch`, require public `/api/readyz` to return the exact `main` Revision and image digest before declaring the release complete.
+- Use only the GitHub Actions `release`, `validate`, `prepare`, `status`, `switch` and `rollback` inputs. Do not run PM2, Nginx, Docker, SSM write or database commands as a substitute for the workflow.
+- Routine `release` must show the prepared inactive candidate before switching and end with final slot status. Require public `/api/readyz` to return the exact `main` Revision and image digest before declaring the release complete.
 - Keep the recorded previous slot running through the observation window. Roll back through the workflow; do not restore a database or type an image digest manually.
 - Record the Issue, PR, final commit, Actions runs, SSM Parameter version, image digest, readiness result, rollback result and continuity probe counts. Never include secret values.
 - Deployment-speed optimization may reuse caches or shorten polling latency, but it must not remove source tests, immutable digest promotion, ECR critical/high scan gates, candidate readiness, external digest verification or automatic rollback.

@@ -1,11 +1,64 @@
+import contextlib
+import io
+import json
+import os
+import textwrap
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 
 ROOT = Path(__file__).parents[2]
 
 
 class DeploymentOptimizationContractTest(unittest.TestCase):
+    def test_release_runs_as_one_bounded_pipeline(self):
+        workflow = (ROOT / ".github/workflows/deploy-ec2-ssm.yml").read_text(encoding="utf-8")
+        self.assertIn("run-name: WARP ${{ inputs.action }}", workflow)
+        self.assertIn("default: release", workflow)
+        self.assertIn("- release", workflow)
+        self.assertIn("remote_actions = ['prepare', 'status', 'switch', 'status']", workflow)
+        self.assertIn("commands.extend(remote_command(action) for action in remote_actions)", workflow)
+        self.assertEqual(workflow.count("aws ssm send-command"), 1)
+
+        generator = workflow.split("python3 - <<'PY' > /tmp/evn-warp-ssm.json\n", 1)[1].split(
+            "\n          PY", 1
+        )[0]
+        environment = {
+            "DEPLOY_ACTION": "release",
+            "SERVER_NAME": "warp.example.test",
+            "SSM_APP_ENV_PARAM": "/evn-warp/app-env",
+            "GITHUB_SHA": "a" * 40,
+            "IMAGE_REF": "example.test/evn-warp@sha256:" + "b" * 64,
+            "setup_b64": "c2V0dXA=",
+            "validator_b64": "dmFsaWRhdGU=",
+            "database_migrator_b64": "bWlncmF0ZQ==",
+            "remote_b64": "cmVtb3Rl",
+        }
+        output = io.StringIO()
+        with patch.dict(os.environ, environment, clear=True), contextlib.redirect_stdout(output):
+            exec(compile(textwrap.dedent(generator), "deploy-ssm-generator", "exec"), {})
+
+        payload = json.loads(output.getvalue())
+        remote_commands = [
+            command
+            for command in payload["commands"]
+            if command.startswith("DEPLOY_ACTION=")
+            and command.endswith(" /tmp/evn-remote-deploy.sh")
+        ]
+        self.assertEqual(
+            [
+                next(field for field in command.split() if field.startswith("DEPLOY_ACTION="))
+                for command in remote_commands
+            ],
+            [
+                "DEPLOY_ACTION=prepare",
+                "DEPLOY_ACTION=status",
+                "DEPLOY_ACTION=switch",
+                "DEPLOY_ACTION=status",
+            ],
+        )
+
     def test_non_runtime_material_is_excluded_from_build_context(self):
         ignored = set((ROOT / ".dockerignore").read_text(encoding="utf-8").splitlines())
         self.assertTrue(
@@ -24,6 +77,10 @@ class DeploymentOptimizationContractTest(unittest.TestCase):
 
     def test_prepare_reuses_dependencies_and_builder_layers(self):
         workflow = (ROOT / ".github/workflows/deploy-ec2-ssm.yml").read_text(encoding="utf-8")
+        self.assertGreaterEqual(
+            workflow.count("inputs.action == 'prepare' || inputs.action == 'release'"),
+            6,
+        )
         self.assertIn("uses: actions/setup-node@v7", workflow)
         self.assertIn("cache: npm", workflow)
         self.assertIn("id: buildx", workflow)
