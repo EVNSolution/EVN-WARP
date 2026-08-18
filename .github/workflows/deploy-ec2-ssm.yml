@@ -1,10 +1,22 @@
-name: Deploy EC2 via SSM
+name: Deploy WARP Blue-Green via SSM
 
 on:
   workflow_dispatch:
+    inputs:
+      action:
+        description: validate → prepare → switch; rollback restores the previous slot
+        required: true
+        default: validate
+        type: choice
+        options:
+          - validate
+          - prepare
+          - switch
+          - rollback
+          - status
 
 concurrency:
-  group: deploy-ec2-ssm
+  group: deploy-evn-warp-production
   cancel-in-progress: false
 
 permissions:
@@ -15,29 +27,33 @@ env:
   AWS_REGION: ${{ secrets.AWS_REGION }}
   AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
   EC2_INSTANCE_ID: ${{ secrets.EC2_INSTANCE_ID }}
-  APP_ENV: ${{ secrets.APP_ENV }}
-  CERTBOT_EMAIL: ${{ secrets.CERTBOT_EMAIL }}
   SSM_APP_ENV_PARAM: /evn-warp/app-env
-  APP_DIR: /opt/evn-warp
-  REPO_URL: https://github.com/EVNSolution/EVN-WARP.git
-  PM2_APP_NAME: evn-warp
-  PORT: '3000'
+  SSM_BUILD_KEY_PARAM: /evn-warp/next-server-actions-key
+  ECR_REPOSITORY: evn-warp
   SERVER_NAME: warp.cleversystem.ai
+  DEPLOY_ACTION: ${{ inputs.action }}
 
 jobs:
   deploy:
-    name: Manual deploy
+    name: ${{ inputs.action }} production release
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout deploy scripts
+      - name: Checkout exact deployment source
         uses: actions/checkout@v5
 
-      - name: Validate required secrets
+      - name: Enforce main and deployment contract
         run: |
           set -euo pipefail
-          test -n "$AWS_REGION" || { echo 'Missing secret: AWS_REGION'; exit 1; }
-          test -n "$AWS_ROLE_ARN" || { echo 'Missing secret: AWS_ROLE_ARN'; exit 1; }
-          test -n "$EC2_INSTANCE_ID" || { echo 'Missing secret: EC2_INSTANCE_ID'; exit 1; }
+          test "$GITHUB_REF" = refs/heads/main
+          test "$GITHUB_SHA" = "$(git rev-parse HEAD)"
+          test -n "$AWS_REGION"
+          test -n "$AWS_ROLE_ARN"
+          test -n "$EC2_INSTANCE_ID"
+          if grep -R -n -E -f .github/forbidden-deploy-patterns \
+            .github/workflows deploy/remote-deploy.sh deploy/setup-ec2.sh; then
+            echo 'Forbidden deployment or secret-output command found.' >&2
+            exit 1
+          fi
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v6
@@ -45,47 +61,141 @@ jobs:
           role-to-assume: ${{ env.AWS_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
 
-      - name: Sync app environment
+      - name: Verify source when preparing an image
+        if: inputs.action == 'prepare'
         run: |
           set -euo pipefail
-          if [ -n "$APP_ENV" ]; then
-            aws ssm put-parameter \
-              --name "$SSM_APP_ENV_PARAM" \
-              --type SecureString \
-              --value "$APP_ENV" \
-              --overwrite >/dev/null
+          npm ci
+          npx prisma generate
+          npm run test:account-control
+          npm run test:external-lookup
+          npm run test:buildup-import
+          npm run test:deployment
+          npm run typecheck
+          npm audit --omit=dev --audit-level=critical
+
+      - name: Enable Docker Buildx
+        if: inputs.action == 'prepare'
+        uses: docker/setup-buildx-action@v4
+
+      - name: Build or reuse immutable image
+        if: inputs.action == 'prepare'
+        id: image
+        run: |
+          set -euo pipefail
+          account_id="$(aws sts get-caller-identity --query Account --output text)"
+          repository_uri="${account_id}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPOSITORY}"
+          digest="$(aws ecr describe-images \
+            --repository-name "$ECR_REPOSITORY" \
+            --image-ids "imageTag=$GITHUB_SHA" \
+            --query 'imageDetails[0].imageDigest' \
+            --output text 2>/dev/null || true)"
+
+          if [ -z "$digest" ] || [ "$digest" = None ]; then
+            build_key="$(mktemp)"
+            trap 'shred -u "$build_key" 2>/dev/null || rm -f "$build_key"; docker logout "${repository_uri%%/*}" >/dev/null 2>&1 || true' EXIT
+            chmod 600 "$build_key"
+            aws ssm get-parameter \
+              --name "$SSM_BUILD_KEY_PARAM" \
+              --with-decryption \
+              --query Parameter.Value \
+              --output text >"$build_key"
+            python3 - "$build_key" <<'PY'
+          import base64, pathlib, sys
+          value = pathlib.Path(sys.argv[1]).read_text().strip()
+          decoded = base64.b64decode(value, validate=True)
+          if len(decoded) not in (16, 24, 32):
+              raise SystemExit('Invalid NEXT_SERVER_ACTIONS_ENCRYPTION_KEY length')
+          PY
+            aws ecr get-login-password | docker login --username AWS --password-stdin "${repository_uri%%/*}" >/dev/null
+            docker buildx build \
+              --platform linux/amd64 \
+              --provenance=false \
+              --sbom=false \
+              --secret "id=next_actions_key,src=$build_key" \
+              --build-arg "WARP_RELEASE_ID=${GITHUB_SHA:0:12}" \
+              --build-arg "WARP_SOURCE_REVISION=$GITHUB_SHA" \
+              --tag "$repository_uri:$GITHUB_SHA" \
+              --push .
+            digest="$(aws ecr describe-images \
+              --repository-name "$ECR_REPOSITORY" \
+              --image-ids "imageTag=$GITHUB_SHA" \
+              --query 'imageDetails[0].imageDigest' \
+              --output text)"
           fi
 
-      - name: Send SSM deploy command
+          test "${digest#sha256:}" != "$digest"
+          echo "image_ref=$repository_uri@$digest" >> "$GITHUB_OUTPUT"
+          echo "image_digest=$digest" >> "$GITHUB_OUTPUT"
+          echo "Prepared immutable image digest $digest"
+
+      - name: Require clean ECR operating-system scan
+        if: inputs.action == 'prepare'
+        env:
+          IMAGE_DIGEST: ${{ steps.image.outputs.image_digest }}
+        run: |
+          set -euo pipefail
+          aws ecr start-image-scan \
+            --repository-name "$ECR_REPOSITORY" \
+            --image-id "imageDigest=$IMAGE_DIGEST" >/dev/null 2>&1 || true
+          status=IN_PROGRESS
+          for _ in $(seq 1 60); do
+            status="$(aws ecr describe-image-scan-findings \
+              --repository-name "$ECR_REPOSITORY" \
+              --image-id "imageDigest=$IMAGE_DIGEST" \
+              --query imageScanStatus.status \
+              --output text 2>/dev/null || true)"
+            [ "$status" != IN_PROGRESS ] || sleep 5
+            [ "$status" = COMPLETE ] && break
+          done
+          test "$status" = COMPLETE
+          critical="$(aws ecr describe-image-scan-findings \
+            --repository-name "$ECR_REPOSITORY" \
+            --image-id "imageDigest=$IMAGE_DIGEST" \
+            --query imageScanFindings.findingSeverityCounts.CRITICAL \
+            --output text)"
+          high="$(aws ecr describe-image-scan-findings \
+            --repository-name "$ECR_REPOSITORY" \
+            --image-id "imageDigest=$IMAGE_DIGEST" \
+            --query imageScanFindings.findingSeverityCounts.HIGH \
+            --output text)"
+          [ "$critical" != None ] || critical=0
+          [ "$high" != None ] || high=0
+          echo "ECR scan critical=$critical high=$high"
+          test "$critical" = 0
+          test "$high" = 0
+
+      - name: Send bounded SSM command
         id: ssm
         env:
-          DEPLOY_REF: ${{ github.ref_name }}
+          IMAGE_REF: ${{ steps.image.outputs.image_ref }}
         run: |
           set -euo pipefail
           remote_b64="$(base64 -w 0 deploy/remote-deploy.sh)"
           setup_b64="$(base64 -w 0 deploy/setup-ec2.sh)"
-          export remote_b64 setup_b64
+          validator_b64="$(base64 -w 0 deploy/validate-env.py)"
+          database_migrator_b64="$(base64 -w 0 deploy/migrate-shared-db.py)"
+          export remote_b64 setup_b64 validator_b64 database_migrator_b64 IMAGE_REF
 
-          python3 - <<'PY' > /tmp/evn-ssm-commands.json
+          python3 - <<'PY' > /tmp/evn-warp-ssm.json
           import json, os, shlex
           remote_env = {
+              'DEPLOY_ACTION': os.environ['DEPLOY_ACTION'],
               'SERVER_NAME': os.environ['SERVER_NAME'],
-              'CERTBOT_EMAIL': os.environ.get('CERTBOT_EMAIL', ''),
-              'DEPLOY_REF': os.environ['DEPLOY_REF'],
-              'APP_DIR': os.environ['APP_DIR'],
-              'REPO_URL': os.environ['REPO_URL'],
-              'PM2_APP_NAME': os.environ['PM2_APP_NAME'],
-              'PORT': os.environ['PORT'],
               'SSM_APP_ENV_PARAM': os.environ['SSM_APP_ENV_PARAM'],
+              'SOURCE_REVISION': os.environ['GITHUB_SHA'],
+              'RELEASE_ID': os.environ['GITHUB_SHA'][:12],
+              'IMAGE_REF': os.environ.get('IMAGE_REF', ''),
+              'ACTOR': 'OziinG',
           }
-          run_remote = ' '.join(f'{k}={shlex.quote(v)}' for k, v in remote_env.items()) + ' /tmp/evn-remote-deploy.sh'
+          run_remote = ' '.join(f'{key}={shlex.quote(value)}' for key, value in remote_env.items()) + ' /tmp/evn-remote-deploy.sh'
           commands = [
               'set -eu',
-              "cat >/tmp/evn-setup.b64 <<'EOF'\n" + os.environ['setup_b64'] + "\nEOF",
-              "cat >/tmp/evn-remote-deploy.b64 <<'EOF'\n" + os.environ['remote_b64'] + "\nEOF",
-              'base64 -d /tmp/evn-setup.b64 >/tmp/evn-setup.sh',
-              'base64 -d /tmp/evn-remote-deploy.b64 >/tmp/evn-remote-deploy.sh',
-              'chmod +x /tmp/evn-setup.sh /tmp/evn-remote-deploy.sh',
+              "printf '%s' '" + os.environ['setup_b64'] + "' | base64 -d > /tmp/evn-setup.sh",
+              "printf '%s' '" + os.environ['validator_b64'] + "' | base64 -d > /tmp/evn-validate-env.py",
+              "printf '%s' '" + os.environ['database_migrator_b64'] + "' | base64 -d > /tmp/evn-migrate-shared-db.py",
+              "printf '%s' '" + os.environ['remote_b64'] + "' | base64 -d > /tmp/evn-remote-deploy.sh",
+              'chmod 700 /tmp/evn-setup.sh /tmp/evn-validate-env.py /tmp/evn-migrate-shared-db.py /tmp/evn-remote-deploy.sh',
               run_remote,
           ]
           print(json.dumps({'commands': commands}))
@@ -94,22 +204,21 @@ jobs:
           command_id="$(aws ssm send-command \
             --instance-ids "$EC2_INSTANCE_ID" \
             --document-name AWS-RunShellScript \
-            --comment "EVN-WARP deploy ${DEPLOY_REF}" \
+            --comment "OziinG WARP ${DEPLOY_ACTION} ${GITHUB_SHA}" \
             --timeout-seconds 3600 \
-            --parameters file:///tmp/evn-ssm-commands.json \
-            --query 'Command.CommandId' \
+            --parameters file:///tmp/evn-warp-ssm.json \
+            --query Command.CommandId \
             --output text)"
           echo "command_id=$command_id" >> "$GITHUB_OUTPUT"
           echo "SSM command: $command_id"
 
-      - name: Wait for deployment
+      - name: Wait for bounded SSM command
         env:
           COMMAND_ID: ${{ steps.ssm.outputs.command_id }}
         run: |
           set -euo pipefail
           deadline=$((SECONDS + 3600))
           status=Pending
-
           while [ "$SECONDS" -lt "$deadline" ]; do
             status="$(aws ssm get-command-invocation \
               --command-id "$COMMAND_ID" \
@@ -129,12 +238,10 @@ jobs:
             --instance-id "$EC2_INSTANCE_ID" \
             --query StandardOutputContent \
             --output text || true
-
           echo '--- stderr ---'
           aws ssm get-command-invocation \
             --command-id "$COMMAND_ID" \
             --instance-id "$EC2_INSTANCE_ID" \
             --query StandardErrorContent \
             --output text || true
-
           test "$status" = Success

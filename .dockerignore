@@ -1,0 +1,13 @@
+.git
+.github
+.next
+.omx
+node_modules
+.env*
+*.db
+*.db-*
+data
+uploads
+public/uploads
+deploy/blue-green-lab/runtime
+npm-debug.log*
