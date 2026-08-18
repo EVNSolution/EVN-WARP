@@ -98,6 +98,7 @@ jobs:
 
       - name: Enable Docker Buildx
         if: inputs.action == 'prepare'
+        id: buildx
         uses: docker/setup-buildx-action@v4
 
       - name: Build or reuse immutable image
@@ -117,6 +118,7 @@ jobs:
           if [ -z "$digest" ] || [ "$digest" = None ]; then
             build_key="$(mktemp)"
             docker_config="$(mktemp -d)"
+            buildx_config="${DOCKER_CONFIG:-$HOME/.docker}/buildx"
             trap 'shred -u "$build_key" 2>/dev/null || rm -f "$build_key"; rm -rf -- "$docker_config"' EXIT
             chmod 600 "$build_key"
             chmod 0700 "$docker_config"
@@ -132,6 +134,8 @@ jobs:
           if len(decoded) not in (16, 24, 32):
               raise SystemExit('Invalid NEXT_SERVER_ACTIONS_ENCRYPTION_KEY length')
           PY
+            export BUILDX_CONFIG="$buildx_config"
+            export BUILDX_BUILDER="${{ steps.buildx.outputs.name }}"
             export DOCKER_CONFIG="$docker_config"
             aws ecr get-login-password | docker login --username AWS --password-stdin "${repository_uri%%/*}" >/dev/null 2>&1
             docker buildx build \

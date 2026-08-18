@@ -64,6 +64,7 @@ GitHub Actions의 **Deploy WARP Blue-Green via SSM**에서 아래 action을 순�
 
 - `validate` 실패: SSM을 수정하지 말고 누락 또는 형식 오류 key 이름만 확인한다.
 - `prepare` 실패: traffic은 기존 active에 남는다. 실패 container log에 secret 값이 없는지 확인한다.
+- `Cache export is not supported for the docker driver`: Buildx 단계가 `docker-container`를 생성했는지, 이미지 단계가 임시 `DOCKER_CONFIG`와 별도로 `BUILDX_CONFIG`·`BUILDX_BUILDER`를 유지했는지 확인한다. 자격 증명 격리를 해제해서 우회하지 않는다.
 - `switch` 실패: script가 직전 upstream을 자동 복구한다. `status`와 공개 `/login`을 확인한다.
 - 자동 복구까지 실패: `/opt/evn-warp-runtime/legacy-nginx.conf`와 legacy PM2 port 3000을 장애 대응 기준으로 사용한다.
 
