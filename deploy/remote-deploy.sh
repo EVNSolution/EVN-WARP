@@ -150,8 +150,14 @@ external_ready() {
   fi
   local expected
   expected="$(manifest_field "$slot" imageDigest)"
-  curl -fsS --max-time 10 -H 'X-Warp-External-Check: 1' "https://${SERVER_NAME}/api/readyz" |
-    python3 -c 'import json,sys; body=json.load(sys.stdin); expected=sys.argv[1]; raise SystemExit(0 if body.get("ok") is True and body.get("imageDigest")==expected else 1)' "$expected"
+  for _ in $(seq 1 15); do
+    if curl -fsS --max-time 3 -H 'X-Warp-External-Check: 1' "https://${SERVER_NAME}/api/readyz" 2>/dev/null |
+      python3 -c 'import json,sys; body=json.load(sys.stdin); expected=sys.argv[1]; raise SystemExit(0 if body.get("ok") is True and body.get("imageDigest")==expected else 1)' "$expected" 2>/dev/null; then
+      return 0
+    fi
+    sleep 1
+  done
+  return 1
 }
 
 render_upstream() {
