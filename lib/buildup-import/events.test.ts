@@ -27,6 +27,12 @@ test('고객 없는 이벤트도 유효하다 (customer: null)', () => {
   assert.equal(p.customer, null)
 })
 
+test('quote_updated 도 유효한 타입이다', () => {
+  const p = parseDealEvent({ ...VALID, type: 'quote_updated', event_key: 'quote_updated:12' })
+  assert.ok(p)
+  assert.equal(p.type, 'quote_updated')
+})
+
 test('형식 위반은 전부 null — 타입·키·quote.id', () => {
   assert.equal(parseDealEvent(null), null)
   assert.equal(parseDealEvent('str'), null)

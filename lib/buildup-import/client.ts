@@ -62,6 +62,31 @@ export async function fetchBuildupCustomers(): Promise<BuildupCustomer[]> {
   return all
 }
 
+/** buildup이 렌더·보관하는 문서를 받아온다 — 없으면(404) null. (#27 딜 서류함 첨부용) */
+export interface BuildupDocument {
+  buffer: Buffer
+  contentType: string
+  filename: string
+}
+
+export async function fetchQuoteDocument(
+  quoteId: number,
+  kind: 'quote-pdf' | 'contract-pdf',
+): Promise<BuildupDocument | null> {
+  const res = await fetch(`${baseUrl()}/api/external/quotes/${quoteId}/${kind}`, {
+    headers: { 'x-api-key': readLookupApiKey() },
+    signal: AbortSignal.timeout(30_000), // 즉석 렌더(puppeteer)가 있어 여유를 둔다
+    cache: 'no-store',
+  })
+  if (res.status === 404) return null
+  if (!res.ok) throw new BuildupImportError(`buildup 문서 수신 실패 (${res.status})`, res.status)
+  const contentType = res.headers.get('content-type') ?? 'application/octet-stream'
+  const disposition = res.headers.get('content-disposition') ?? ''
+  const filename = /filename="([^"]+)"/.exec(disposition)?.[1]
+    ?? `${kind === 'quote-pdf' ? 'quote' : 'contract'}_${quoteId}.pdf`
+  return { buffer: Buffer.from(await res.arrayBuffer()), contentType, filename }
+}
+
 /** WARP 승인 후 연결 write-back — buildup customer.warp_customer_id 에 기록. */
 export async function linkBuildupCustomers(links: ReadonlyArray<{ id: number; warp_customer_id: string }>): Promise<number> {
   if (links.length === 0) return 0

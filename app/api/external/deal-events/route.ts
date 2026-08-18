@@ -46,8 +46,10 @@ export async function POST(req: NextRequest) {
   }
   const saved = await prisma.buildupEvent.upsert({
     where: { eventKey: payload.event_key },
-    // 재전송 — 요약은 최신으로 갱신하되 확인 상태(status/confirmed*)는 건드리지 않는다
-    update: fields,
+    // 같은 키 재수신 = 내용이 바뀌었다는 뜻(buildup 은 액션당 1회만 보낸다).
+    // 이미 「확인 완료」였어도 **대기로 되돌려** 재확인을 요구한다 — 그래야
+    // 견적 수정·재계약이 조용히 묻히지 않는다.
+    update: { ...fields, status: 'pending', confirmedBy: null, confirmedAt: null },
     create: { eventKey: payload.event_key, ...fields },
   })
   console.info(`[deal-events] ${payload.type} quote=${payload.quote.id} → ${saved.status}`)

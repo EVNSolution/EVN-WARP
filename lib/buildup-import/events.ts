@@ -3,7 +3,7 @@
  * buildup services/warp-crm.ts 의 pushWarpDealEvent payload 와 동일 계약.
  */
 
-export const DEAL_EVENT_TYPES = ['quote_created', 'contract_completed'] as const
+export const DEAL_EVENT_TYPES = ['quote_created', 'quote_updated', 'contract_completed'] as const
 export type DealEventType = (typeof DEAL_EVENT_TYPES)[number]
 
 export interface DealEventPayload {
@@ -64,7 +64,9 @@ export function parseDealEvent(body: unknown): DealEventPayload | null {
 }
 
 export function eventTypeLabel(type: DealEventType): string {
-  return type === 'quote_created' ? '견적서 작성' : '계약 체결'
+  if (type === 'quote_created') return '견적서 작성'
+  if (type === 'quote_updated') return '견적서 수정'
+  return '계약 체결'
 }
 
 /** 수신함 목록에 보여줄 한 줄 요약. */
