@@ -1,0 +1,44 @@
+import assert from 'node:assert/strict'
+import test from 'node:test'
+
+import { eventSummary, parseDealEvent } from './events'
+
+const VALID = {
+  event_key: 'quote_created:12',
+  type: 'quote_created',
+  occurred_at: '2026-08-18T00:00:00Z',
+  quote: { id: 12, quote_no: '26-0012', status: 'draft', model_code: 'PV5_OPENBED', supply_price: 100, final_price: 45_000_000 },
+  customer: { id: 3, name: '홍길동', phone: '010-1234-5678', warp_customer_id: 'warp-1' },
+}
+
+test('정상 payload 를 파싱하고 초과 필드는 버린다', () => {
+  const p = parseDealEvent({ ...VALID, hacker_field: 'x', quote: { ...VALID.quote, memo: '내부' } })
+  assert.ok(p)
+  assert.equal(p.type, 'quote_created')
+  assert.equal(p.quote.final_price, 45_000_000)
+  assert.equal((p as unknown as Record<string, unknown>).hacker_field, undefined)
+  assert.equal((p.quote as unknown as Record<string, unknown>).memo, undefined)
+  assert.equal(p.customer?.warp_customer_id, 'warp-1')
+})
+
+test('고객 없는 이벤트도 유효하다 (customer: null)', () => {
+  const p = parseDealEvent({ ...VALID, customer: null })
+  assert.ok(p)
+  assert.equal(p.customer, null)
+})
+
+test('형식 위반은 전부 null — 타입·키·quote.id', () => {
+  assert.equal(parseDealEvent(null), null)
+  assert.equal(parseDealEvent('str'), null)
+  assert.equal(parseDealEvent({ ...VALID, type: 'unknown_type' }), null)
+  assert.equal(parseDealEvent({ ...VALID, event_key: '' }), null)
+  assert.equal(parseDealEvent({ ...VALID, event_key: 'k'.repeat(81) }), null)
+  assert.equal(parseDealEvent({ ...VALID, quote: { quote_no: 'x' } }), null)
+})
+
+test('요약 한 줄 — 고객·차종·금액·견적번호', () => {
+  const p = parseDealEvent(VALID)!
+  assert.equal(eventSummary(p), '홍길동 · PV5_OPENBED · 45,000,000원 · 견적번호 26-0012')
+  const noName = parseDealEvent({ ...VALID, customer: null, quote: { ...VALID.quote, quote_no: null, final_price: 0 } })!
+  assert.equal(eventSummary(noName), '고객 미상 · PV5_OPENBED · 견적 #12')
+})

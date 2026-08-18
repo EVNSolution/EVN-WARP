@@ -5,6 +5,7 @@ import { nextCallDueDate } from '@/lib/callCadence'
 import PipelineView, { type PipelineDeal } from '@/components/PipelineView'
 import ProcessGuideButton from '@/components/ProcessGuideButton'
 import ExcelImportExport from '@/components/ExcelImportExport'
+import BuildupEventNotice from '@/components/BuildupEventNotice'
 
 export default async function FunnelPage({ searchParams }: { searchParams: Promise<{ stage?: string; seg?: string }> }) {
   const sp = await searchParams
@@ -156,6 +157,9 @@ export default async function FunnelPage({ searchParams }: { searchParams: Promi
           <ProcessGuideButton />
         </div>
       </div>
+
+      {/* buildup 미처리 이벤트 배지 — 이 화면에 온 사람에게만 보인다 (#27) */}
+      <BuildupEventNotice />
 
       {/* ── 색상 범례 ── */}
       <div className="flex items-center gap-5 px-6 py-1.5 bg-white border-b border-slate-100 text-[11px] text-slate-500 shrink-0">
