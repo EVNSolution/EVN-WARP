@@ -23,9 +23,9 @@ export async function GET(
   const rel = segments.map(s => decodeURIComponent(s)).join('/')
   if (rel.includes('..')) return new NextResponse('Not found', { status: 404 })
 
-  const filePath = path.join(UPLOADS_DIR, rel)
+  const filePath = path.join(/* turbopackIgnore: true */ UPLOADS_DIR, rel)
   try {
-    const buffer = await readFile(filePath)
+    const buffer = await readFile(/* turbopackIgnore: true */ filePath)
     const contentType = MIME[path.extname(filePath).toLowerCase()] ?? 'application/octet-stream'
     return new NextResponse(buffer, {
       headers: {
