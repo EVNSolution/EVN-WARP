@@ -1,0 +1,5 @@
+ssm[[:space:]]+put-parameter
+cat[[:space:]].*\.env
+pm2[[:space:]]+env
+prisma[[:space:]]+db[[:space:]]+push
+accept-data-loss

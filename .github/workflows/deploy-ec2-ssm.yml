@@ -49,7 +49,7 @@ jobs:
           test -n "$AWS_REGION"
           test -n "$AWS_ROLE_ARN"
           test -n "$EC2_INSTANCE_ID"
-          if grep -R -n -E 'ssm[[:space:]]+put-parameter|cat[[:space:]].*\.env|pm2[[:space:]]+env|prisma[[:space:]]+db[[:space:]]+push|accept-data-loss' \
+          if grep -R -n -E -f .github/forbidden-deploy-patterns \
             .github/workflows deploy/remote-deploy.sh deploy/setup-ec2.sh; then
             echo 'Forbidden deployment or secret-output command found.' >&2
             exit 1
