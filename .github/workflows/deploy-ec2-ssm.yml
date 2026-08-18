@@ -1,5 +1,5 @@
 name: Deploy WARP Blue-Green via SSM
-run-name: WARP ${{ inputs.action }} ${{ github.sha }}
+run-name: WARP ${{ inputs.action }}
 
 on:
   workflow_dispatch:
