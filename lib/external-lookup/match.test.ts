@@ -23,6 +23,20 @@ test('filterByPhone matches normalized phone numbers exactly', () => {
   assert.deepEqual(filterByPhone(customers, ''), [])
 })
 
+test('filterByPhone matches company phone too (B2B)', () => {
+  const customers = [
+    // B2B — 담당자 휴대폰 없이 회사 대표번호만 등록된 고객
+    { id: 'corp', phone: null, companyPhone: '02-555-1234' },
+    // 휴대폰과 회사번호가 모두 있는 고객 — 어느 쪽으로도 찾아진다
+    { id: 'both', phone: '010-1234-5678', companyPhone: '02-555-1234' },
+    { id: 'other', phone: '010-9999-0000', companyPhone: '02-777-8888' },
+  ]
+  assert.deepEqual(filterByPhone(customers, '025551234').map(c => c.id), ['corp', 'both'])
+  assert.deepEqual(filterByPhone(customers, '01012345678').map(c => c.id), ['both'])
+  // 회사번호가 null 이어도 안전하다
+  assert.deepEqual(filterByPhone([{ id: 'x', phone: null, companyPhone: null }], '025551234'), [])
+})
+
 test('toExternalDto keeps only whitelisted fields', () => {
   const row: ExternalCustomerDto & Record<string, unknown> = {
     name: '홍길동',
