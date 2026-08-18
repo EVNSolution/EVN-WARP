@@ -41,9 +41,10 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'name_and_phone_required' }, { status: 400, headers: NO_STORE })
   }
 
-  // SQLite 는 하이픈 제거 비교를 쿼리로 못 하므로 이름으로 좁힌 뒤 JS 에서 전화번호를 거른다
+  // SQLite 는 하이픈 제거 비교를 쿼리로 못 하므로 이름으로 좁힌 뒤 JS 에서 전화번호를 거른다.
+  // B2B 는 상호(companyName)로 조회되는 경우가 많아 개인명과 상호 둘 다 완전일치로 본다.
   const candidates = await prisma.customer.findMany({
-    where: { name },
+    where: { OR: [{ name }, { companyName: name }] },
     orderBy: { updatedAt: 'desc' },
   })
   const matches = filterByPhone(candidates, phoneDigits)
