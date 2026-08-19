@@ -1066,6 +1066,45 @@ export default function LeadDetailClient({ deal, customer = null, products = [],
                   )
                 }
 
+                /* ── 년/월 선택형 항목 (구매예상시점 확정) ── */
+                if (c.yearMonth) {
+                  const raw = String(checks[c.key] ?? '')
+                  const [selYear, selMonth] = raw.includes('-') ? raw.split('-') : ['', '']
+                  const thisYear = new Date().getFullYear()
+                  const years  = Array.from({ length: 4 }, (_, i) => thisYear + i)
+                  const months = Array.from({ length: 12 }, (_, i) => i + 1)
+                  const update = (y: string, m: string) => {
+                    const next = y && m ? `${y}-${m.padStart(2, '0')}` : ''
+                    setChecks(prev => ({ ...prev, [c.key]: next, [`${c.key}-at`]: next ? new Date().toISOString() : '' }))
+                    setSaved(false)
+                  }
+                  return (
+                    <div key={c.key} className={containerCls}>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className={`text-sm shrink-0 ${checked ? 'text-green-500' : 'text-slate-300'}`}>
+                          {checked ? '✓' : '○'}
+                        </span>
+                        <span className={`text-xs font-medium ${checked ? 'text-green-700' : 'text-slate-600'}`}>
+                          {c.label}
+                        </span>
+                        <div className="flex-1" />
+                        <div className="flex gap-1 items-center">
+                          <select value={selYear} onChange={e => update(e.target.value, selMonth)}
+                            className="text-[11px] font-semibold border border-slate-200 rounded px-1.5 py-1 bg-white focus:outline-none focus:ring-1 focus:ring-slate-300">
+                            <option value="">년도</option>
+                            {years.map(y => <option key={y} value={y}>{y}년</option>)}
+                          </select>
+                          <select value={selMonth} onChange={e => update(selYear, e.target.value)}
+                            className="text-[11px] font-semibold border border-slate-200 rounded px-1.5 py-1 bg-white focus:outline-none focus:ring-1 focus:ring-slate-300">
+                            <option value="">월</option>
+                            {months.map(m => <option key={m} value={m}>{m}월</option>)}
+                          </select>
+                        </div>
+                      </div>
+                    </div>
+                  )
+                }
+
                 /* ── 칩 선택형 항목 (구매예상시점, 자금조달 등) ── */
                 if (c.opts) {
                   const isMulti      = !!c.multiSelect

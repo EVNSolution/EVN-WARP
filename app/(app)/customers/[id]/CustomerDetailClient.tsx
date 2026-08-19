@@ -283,12 +283,13 @@ export default function CustomerDetailClient({ customer, returnTo }: { customer:
 
   /* 제조사 직접입력 */
   const MAKER_PRESETS = ['현대', '기아', 'EVKMC', '이브이앤솔루션']
+  const MAKER_CHIP_OPTS = [...MAKER_PRESETS, '미보유']
   const initMakerChip = customer.vehicleMaker
-    ? MAKER_PRESETS.includes(customer.vehicleMaker) ? customer.vehicleMaker : '직접입력'
+    ? MAKER_CHIP_OPTS.includes(customer.vehicleMaker) ? customer.vehicleMaker : '직접입력'
     : ''
   const [makerChip,   setMakerChip]   = useState(initMakerChip)
   const [makerCustom, setMakerCustom] = useState(
-    customer.vehicleMaker && !MAKER_PRESETS.includes(customer.vehicleMaker) ? customer.vehicleMaker : ''
+    customer.vehicleMaker && !MAKER_CHIP_OPTS.includes(customer.vehicleMaker) ? customer.vehicleMaker : ''
   )
 
   /* 근무패턴 직접입력 */
@@ -322,7 +323,7 @@ export default function CustomerDetailClient({ customer, returnTo }: { customer:
   const handleSave = async () => {
     setSaving(true)
     try {
-      await fetch(`/api/customers/${customer.id}`, {
+      const res = await fetch(`/api/customers/${customer.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(Object.assign({}, f, {
@@ -381,6 +382,11 @@ export default function CustomerDetailClient({ customer, returnTo }: { customer:
           cargoNote:    f.cargoNote     || null,
         })),
       })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        alert(err.error || '저장에 실패했습니다')
+        return
+      }
       setSaved(true)
       setMsg('저장되었습니다')
       setTimeout(() => setMsg(''), 2500)
@@ -686,7 +692,7 @@ export default function CustomerDetailClient({ customer, returnTo }: { customer:
                   <div>
                     {label('제조사')}
                     <div className="flex flex-wrap gap-1.5 mb-1.5">
-                      {[...MAKER_PRESETS, '직접입력'].map(opt => (
+                      {[...MAKER_CHIP_OPTS, '직접입력'].map(opt => (
                         <button key={opt} type="button" onClick={() => { setMakerChip(makerChip === opt ? '' : opt); setSaved(false) }}
                           className={`px-3 py-1 rounded-lg text-xs font-semibold border transition ${makerChip === opt ? 'bg-slate-800 text-white border-slate-800' : 'bg-white border-slate-200 text-slate-500 hover:border-slate-400'}`}>
                           {opt}

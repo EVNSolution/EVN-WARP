@@ -368,6 +368,9 @@ const PHASE_HEX: Record<number, string> = {
 const ALL_PROCESS_OPTIONS = PIPELINE.flatMap(ph =>
   ph.processes.map(p => ({ code: p.code, name: p.name, phase: ph.phase, phaseName: ph.name }))
 )
+const STAGE_ORDER_INDEX: Record<string, number> = Object.fromEntries(
+  ALL_PROCESS_OPTIONS.map((p, i) => [p.code, i])
+)
 
 function fmtDate(iso: string | null) {
   if (!iso) return '—'
@@ -475,14 +478,15 @@ export default function PipelineView({ deals, salesTarget, initialStage, initial
       ? pool.filter(d => d.stageCode === selectedCode)
       : pool
     const byAssignee = assigneeFilter ? byStage.filter(d => d.assignee === assigneeFilter) : byStage
-    if (!searchQuery.trim()) return byAssignee
-    const q = searchQuery.trim().toLowerCase().replace(/\D/g, '') || searchQuery.trim().toLowerCase()
-    return byAssignee.filter(d => {
+    const searched = !searchQuery.trim() ? byAssignee : byAssignee.filter(d => {
+      const q = searchQuery.trim().toLowerCase().replace(/\D/g, '') || searchQuery.trim().toLowerCase()
       const nameMatch  = d.name.toLowerCase().includes(searchQuery.trim().toLowerCase())
       const phoneDigits = (d.phone ?? '').replace(/\D/g, '')
       const phoneMatch  = phoneDigits.includes(q) || (d.phone ?? '').toLowerCase().includes(searchQuery.trim().toLowerCase())
       return nameMatch || phoneMatch
     })
+    // 여러 단계가 섞여 보이는 뷰(전체 리드 등)에서는 미성숙→잠재→성숙… 파이프라인 순서로 정렬
+    return [...searched].sort((a, b) => (STAGE_ORDER_INDEX[a.stageCode] ?? 999) - (STAGE_ORDER_INDEX[b.stageCode] ?? 999))
   })()
 
   const selectedProcess = selectedCode

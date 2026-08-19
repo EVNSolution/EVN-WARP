@@ -1,4 +1,4 @@
-name: Diagnose lead-customer linking - temporary
+name: Fix duplicate customer (temporary)
 
 on:
   workflow_dispatch:
@@ -13,7 +13,7 @@ env:
   EC2_INSTANCE_ID: ${{ secrets.EC2_INSTANCE_ID }}
 
 jobs:
-  diagnose:
+  fix:
     runs-on: ubuntu-latest
     steps:
       - uses: aws-actions/configure-aws-credentials@v6
@@ -21,20 +21,23 @@ jobs:
           role-to-assume: ${{ env.AWS_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
 
-      - name: Query customer/deal linkage
+      - name: Backup then delete empty duplicate customer row
         id: ssm
         run: |
           cat > /tmp/query.json << 'EOF'
           {"commands": [
+            "set -e",
+            "cp --reflink=auto /opt/evn-warp-runtime/database/dev.db /opt/evn-warp-runtime/backups/dev-$(date +%Y%m%d-%H%M%S)-pre-dupcustomer-fix.db",
+            "ls -la /opt/evn-warp-runtime/backups | tail -5",
             "cd /opt/evn-warp",
-            "node -e \"const {createClient}=require('@libsql/client');const c=createClient({url:'file:/opt/evn-warp-runtime/database/dev.db'});const nm='임병선';(async()=>{const cu=await c.execute('SELECT id, name, phone, createdAt FROM \\\"Customer\\\" WHERE name = ?', [nm]);console.log('customers:', JSON.stringify(cu.rows));const de=await c.execute('SELECT id, name, phone, customerId, stageCode FROM \\\"SalesDeal\\\" WHERE name = ?', [nm]);console.log('deals:', JSON.stringify(de.rows));})().catch(e=>console.error(e));\""
+            "node -e \"const {createClient}=require('@libsql/client');const c=createClient({url:'file:/opt/evn-warp-runtime/database/dev.db'});const id='cmsybpitl001101sa5ucqmyu9';(async()=>{const before=await c.execute('SELECT COUNT(*) as n FROM \\\"Customer\\\" WHERE id = ?', [id]);console.log('before:', JSON.stringify(before.rows));await c.execute('DELETE FROM \\\"Customer\\\" WHERE id = ?', [id]);const after=await c.execute('SELECT COUNT(*) as n FROM \\\"Customer\\\" WHERE id = ?', [id]);console.log('after:', JSON.stringify(after.rows));})().catch(e=>{console.error(e);process.exit(1)});\""
           ]}
           EOF
 
           command_id="$(aws ssm send-command \
             --instance-ids "$EC2_INSTANCE_ID" \
             --document-name AWS-RunShellScript \
-            --comment "EVN-WARP diagnose lead-customer link" \
+            --comment "EVN-WARP fix duplicate customer 김현수" \
             --timeout-seconds 60 \
             --parameters file:///tmp/query.json \
             --query 'Command.CommandId' \

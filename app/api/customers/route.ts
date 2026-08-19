@@ -59,6 +59,20 @@ export async function POST(req: NextRequest) {
     const me = session?.user as any
     if (me?.employmentType === '사외') body.assignee = me?.name ?? null
 
+    // 동일 전화번호의 고객이 이미 있으면 중복 생성 방지를 위해 저장 자체를 차단한다.
+    if (body.phone) {
+      const dup = await prisma.customer.findFirst({
+        where: { phone: body.phone },
+        select: { id: true, name: true },
+      })
+      if (dup) {
+        return NextResponse.json(
+          { error: `이미 등록된 전화번호입니다 (기존 고객: ${dup.name || '이름없음'})` },
+          { status: 409 },
+        )
+      }
+    }
+
     const customer = await prisma.customer.create({
       data: {
         name:             body.name?.trim() ?? '',

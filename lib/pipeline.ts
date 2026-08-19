@@ -4,6 +4,7 @@ export interface PipelineCheck {
   field?: string      // 고객 데이터 연동 필드 ('vehicle' | 'shipper')
   opts?: string[]     // 칩 선택형 항목 옵션
   multiSelect?: boolean // true면 opts 중 복수 선택 허용 (기본: 단일 선택)
+  yearMonth?: boolean // true면 "YYYY-MM" 년/월 선택형 항목 (opts 대신 사용)
   extLink?: string    // 외부 시스템 연계 버튼 식별자
   upload?: string     // 인라인 파일 업로드 docKey
   uploadLabel?: string
@@ -86,7 +87,7 @@ export const PIPELINE: PipelinePhase[] = [
       {
         code: '1-3', name: '성숙 리드', target: 3, conversionRate: 0.50,
         checks: [
-          { key: '1-3-0', label: '구매예상시점 확정', opts: ['3개월 이내', '6개월 이내', '1년 이내'] },
+          { key: '1-3-0', label: '구매예상시점 확정', yearMonth: true },
           { key: '1-3-4', label: '자금조달방법 확인',   opts: ['여유자금', '캐피탈', '중고차매각', '직접입력'], multiSelect: true },
           { key: '1-3-5', label: '신용평가 필요서류 확보' },
           { key: '1-3-6', label: '사전 신용조회 (캐피탈업체)' },
@@ -96,7 +97,7 @@ export const PIPELINE: PipelinePhase[] = [
           { key: '2-1-0', label: '특장계약서 작성' },
         ],
         checksB2B: [
-          { key: '1-3-0', label: '구매예상시점 확정', opts: ['3개월 이내', '6개월 이내', '1년 이내'] },
+          { key: '1-3-0', label: '구매예상시점 확정', yearMonth: true },
           { key: '1-3-4', label: '자금조달방법 확인',   opts: ['여유자금', '캐피탈', '중고차매각', '직접입력'] },
           { key: '1-3-b2b-vc', label: '대수 확정', field: 'vehicleCount' },
           { key: '1-3-1', label: '차량 / 특장 옵션 확정', extLink: 'buildup-ev' },

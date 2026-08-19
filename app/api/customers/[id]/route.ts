@@ -25,6 +25,21 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
       if (owner?.assignee !== me?.name) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
     const n = (v: unknown) => (v === undefined ? undefined : v ?? null)
+
+    // 동일 전화번호의 다른 고객이 이미 있으면 중복 생성 방지를 위해 저장 자체를 차단한다.
+    if (b.phone !== undefined && b.phone) {
+      const dup = await prisma.customer.findFirst({
+        where: { phone: b.phone, NOT: { id } },
+        select: { id: true, name: true },
+      })
+      if (dup) {
+        return NextResponse.json(
+          { error: `이미 등록된 전화번호입니다 (기존 고객: ${dup.name || '이름없음'})` },
+          { status: 409 },
+        )
+      }
+    }
+
     const customer = await prisma.customer.update({
       where: { id },
       data: {
