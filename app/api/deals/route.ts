@@ -65,9 +65,11 @@ export async function POST(req: NextRequest) {
     }
 
     const phone = body.phone?.trim() || null
+    const nameVal = body.name.trim()
     let customer
     if (phone) {
-      const existing = await prisma.customer.findFirst({ where: { phone } })
+      // 전화번호가 같아도 이름이 다르면 다른 사람(번호 공유·오기입)일 수 있으므로 병합하지 않는다.
+      const existing = await prisma.customer.findFirst({ where: { phone, name: nameVal } })
       if (existing) {
         // 기존 고객에 새 정보 병합 (기존값 우선, 새 값으로 덮어쓰지 않음)
         customer = await prisma.customer.update({

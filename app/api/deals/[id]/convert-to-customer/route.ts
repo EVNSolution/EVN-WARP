@@ -13,7 +13,13 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
   let created = false
 
   if (!customerId) {
-    const customer = await prisma.customer.create({
+    // 전화번호+이름이 모두 같은 기존 고객이 있으면 재사용 (중복 생성 방지)
+    const dupPhone = d.phone?.trim() || null
+    const existing = dupPhone
+      ? await prisma.customer.findFirst({ where: { phone: dupPhone, name: d.name } })
+      : null
+
+    const customer = existing ?? await prisma.customer.create({
       data: {
         name:             d.name,
         phone:            d.phone            ?? null,
@@ -65,7 +71,7 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
       },
     })
     customerId = customer.id
-    created = true
+    created = !existing
   }
 
   await prisma.salesDeal.update({

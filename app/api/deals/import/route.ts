@@ -101,8 +101,9 @@ export async function POST(req: NextRequest) {
       } else {
         // 신규 딜 생성 — 전화번호로 기존 고객 연결
         const phone = rec.phone?.trim() || null
+        // 전화번호가 같아도 이름이 다르면 다른 사람(번호 공유·오기입)일 수 있으므로 병합하지 않는다.
         let customer = phone
-          ? await prisma.customer.findFirst({ where: { phone } })
+          ? await prisma.customer.findFirst({ where: { phone, name: nameVal } })
           : null
 
         if (!customer) {
