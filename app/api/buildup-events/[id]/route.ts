@@ -5,6 +5,7 @@ import { randomUUID } from 'crypto'
 import { prisma } from '@/lib/db'
 import { auth } from '@/auth'
 import { fetchQuoteDocument, isBuildupConfigured } from '@/lib/buildup-import/client'
+import { buildAttachmentFileName } from '@/lib/buildup-import/events'
 
 const UPLOADS_DIR = process.env.UPLOADS_DIR ?? path.join(process.cwd(), 'uploads')
 
@@ -63,6 +64,17 @@ export async function PATCH(req: NextRequest, ctx: RouteContext<'/api/buildup-ev
         if (!doc) continue // 아직 없는 문서(예: 계약 전 서명본)는 건너뛴다
         const ext = path.extname(doc.filename) || '.pdf'
         const storedName = `${randomUUID()}${ext}`
+        // 표시용 파일명은 「연월일_고객이름_서류명」 — 같은 슬롯에 수정본이 쌓이면 _v2, _v3…
+        const version = await prisma.dealDocument.count({
+          where: { dealId: deal.id, docKey: d.slot.key },
+        }) + 1
+        const displayName = buildAttachmentFileName({
+          date: new Date(),
+          customerName: event.customerName,
+          label: d.slot.label,
+          version,
+          ext,
+        })
         await writeFile(path.join(dir, storedName), doc.buffer)
         await prisma.dealDocument.create({
           data: {
@@ -70,14 +82,14 @@ export async function PATCH(req: NextRequest, ctx: RouteContext<'/api/buildup-ev
             stageCode: DOC_STAGE,
             docKey: d.slot.key,
             docLabel: d.slot.label,
-            fileName: doc.filename,
+            fileName: displayName,
             storedName,
             filePath: `/api/uploads/deals/${deal.id}/${storedName}`,
             fileSize: doc.buffer.length,
             mimeType: doc.contentType,
           },
         })
-        attached.push(d.slot.label)
+        attached.push(`${d.slot.label}(${displayName})`)
       }
     } catch (e) {
       // 문서를 못 받으면 확인 완료로 넘기지 않는다 — 첨부가 목적인 승인이었다

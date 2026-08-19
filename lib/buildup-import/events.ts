@@ -69,6 +69,31 @@ export function eventTypeLabel(type: DealEventType): string {
   return '계약 체결'
 }
 
+/**
+ * 딜 서류함에 저장할 표시용 파일명 — 「연월일(6자리)_고객이름_서류명[_v버전].확장자」.
+ * 예: 250818_박신규_견적서.pdf → 수정본 250819_박신규_견적서_v2.pdf
+ * buildup 원본 파일명은 건드리지 않는다 — WARP 에 받아올 때만 바꾼다.
+ */
+export function buildAttachmentFileName(input: {
+  /** 첨부 시각 (KST 기준 날짜로 변환된다) */
+  date: Date
+  customerName: string | null | undefined
+  /** 서류 슬롯 이름 — '견적서' | '특장계약서' */
+  label: string
+  /** 같은 딜·같은 슬롯의 몇 번째 파일인가 (1부터) — 2 이상이면 _v 를 붙인다 */
+  version: number
+  /** '.pdf' 처럼 점 포함 확장자 */
+  ext: string
+}): string {
+  // sv-SE 로케일은 YYYY-MM-DD — KST 로 변환 후 YYMMDD 6자리만 취한다
+  const ymd = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Seoul' })
+    .format(input.date).slice(2).replace(/-/g, '')
+  // 파일명에 못 쓰는 문자·공백 제거 (경로 조작 방지 겸)
+  const name = (input.customerName ?? '').replace(/[\\/:*?"<>|\s]/g, '').trim() || '고객미상'
+  const version = input.version > 1 ? `_v${input.version}` : ''
+  return `${ymd}_${name}_${input.label}${version}${input.ext}`
+}
+
 /** 수신함 목록에 보여줄 한 줄 요약. */
 export function eventSummary(p: DealEventPayload): string {
   const won = p.quote.final_price > 0 ? `${p.quote.final_price.toLocaleString('ko-KR')}원` : null

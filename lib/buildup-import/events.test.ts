@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-import { eventSummary, parseDealEvent } from './events'
+import { buildAttachmentFileName, eventSummary, parseDealEvent } from './events'
 
 const VALID = {
   event_key: 'quote_created:12',
@@ -40,6 +40,33 @@ test('형식 위반은 전부 null — 타입·키·quote.id', () => {
   assert.equal(parseDealEvent({ ...VALID, event_key: '' }), null)
   assert.equal(parseDealEvent({ ...VALID, event_key: 'k'.repeat(81) }), null)
   assert.equal(parseDealEvent({ ...VALID, quote: { quote_no: 'x' } }), null)
+})
+
+test('첨부 파일명 — 연월일6자리_고객이름_서류명, 수정본은 _v2부터', () => {
+  // 2026-08-18 15:00 KST (UTC 06:00)
+  const date = new Date('2026-08-18T06:00:00Z')
+  assert.equal(
+    buildAttachmentFileName({ date, customerName: '박신규', label: '견적서', version: 1, ext: '.pdf' }),
+    '260818_박신규_견적서.pdf',
+  )
+  assert.equal(
+    buildAttachmentFileName({ date, customerName: '박신규', label: '견적서', version: 3, ext: '.pdf' }),
+    '260818_박신규_견적서_v3.pdf',
+  )
+  // KST 자정 경계 — UTC 17시는 한국 기준 다음날
+  assert.equal(
+    buildAttachmentFileName({ date: new Date('2026-08-18T17:00:00Z'), customerName: '박신규', label: '특장계약서', version: 1, ext: '.jpg' }),
+    '260819_박신규_특장계약서.jpg',
+  )
+  // 위험 문자·공백 제거, 이름 없으면 고객미상
+  assert.equal(
+    buildAttachmentFileName({ date, customerName: '주식회사/한빛 물류', label: '견적서', version: 1, ext: '.pdf' }),
+    '260818_주식회사한빛물류_견적서.pdf',
+  )
+  assert.equal(
+    buildAttachmentFileName({ date, customerName: null, label: '견적서', version: 2, ext: '.pdf' }),
+    '260818_고객미상_견적서_v2.pdf',
+  )
 })
 
 test('요약 한 줄 — 고객·차종·금액·견적번호', () => {
