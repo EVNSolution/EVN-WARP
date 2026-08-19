@@ -27,7 +27,7 @@ jobs:
           cat > /tmp/query.json << 'EOF'
           {"commands": [
             "cd /opt/evn-warp",
-            "node -e \"const {createClient}=require('@libsql/client');const c=createClient({url:'file:/opt/evn-warp-runtime/database/dev.db'});const nm='임병선';(async()=>{const cu=await c.execute('SELECT id, name, phone, createdAt FROM \\\"Customer\\\" WHERE name = ?', [nm]);console.log('customers:', JSON.stringify(cu.rows));const de=await c.execute('SELECT id, name, phone, customerId, stageCode FROM \\\"SalesDeal\\\" WHERE name = ?', [nm]);console.log('deals:', JSON.stringify(de.rows));})().catch(e=>console.error(e));\""
+            "node -e \"const {createClient}=require('@libsql/client');const c=createClient({url:'file:/opt/evn-warp-runtime/database/dev.db'});const id='cmsodswnr00060pnr0c4hj624';(async()=>{const cu=await c.execute('SELECT id, name, phone, createdAt, updatedAt FROM \\\"Customer\\\" WHERE id = ?', [id]);console.log('linkedCustomer:', JSON.stringify(cu.rows));})().catch(e=>console.error(e));\""
           ]}
           EOF
 
