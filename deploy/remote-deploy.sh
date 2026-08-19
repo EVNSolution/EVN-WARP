@@ -14,6 +14,8 @@ SOURCE_REVISION="${SOURCE_REVISION:-}"
 RELEASE_ID="${RELEASE_ID:-}"
 ACTOR="${ACTOR:-OziinG}"
 VALIDATOR="${VALIDATOR:-/tmp/evn-validate-env.py}"
+SCHEMA_MIGRATOR="${SCHEMA_MIGRATOR:-/tmp/evn-apply-schema-migrations.py}"
+SCHEMA_MIGRATIONS_DIR="${SCHEMA_MIGRATIONS_DIR:-/tmp/evn-schema-migrations}"
 EVIDENCE_FILE="$RUNTIME_DIR/deploy-evidence.jsonl"
 APP_ENV_FILE="$RUNTIME_DIR/app.env"
 
@@ -212,6 +214,28 @@ prepare() {
   [ -n "$RELEASE_ID" ]
   /tmp/evn-setup.sh
   fetch_and_validate_env 1
+  local migration_output migration_count migration_backup
+  migration_output="$("$SCHEMA_MIGRATOR" \
+    "$RUNTIME_DIR/database/dev.db" \
+    "$SCHEMA_MIGRATIONS_DIR" \
+    "$RUNTIME_DIR/backups" \
+    "$SOURCE_REVISION")"
+  printf '%s\n' "$migration_output"
+  migration_count="$(printf '%s\n' "$migration_output" | awk -F= '$1 == "migration_applied_count" {print $2}')"
+  migration_backup="$(printf '%s\n' "$migration_output" | awk -F= '$1 == "migration_backup" {print $2}')"
+  [ -n "$migration_count" ]
+  [ -n "$migration_backup" ]
+  append_evidence \
+    "event=schema-migration-verified" \
+    "strategy=sqlite-custom" \
+    "ledger=_WarpSchemaMigration" \
+    "appliedCount=$migration_count" \
+    "backup=$migration_backup" \
+    "checksumValidation=passed" \
+    "schemaValidation=passed" \
+    "requiredObjectsValidation=passed" \
+    "beforeCandidate=true" \
+    "revision=$SOURCE_REVISION"
 
   local active slot port name digest registry
   active="$(cat "$RUNTIME_DIR/active-slot" 2>/dev/null || echo legacy)"
@@ -226,8 +250,6 @@ prepare() {
   chgrp -R 1001 "$UPLOADS_DIR" "$DATA_DIR"
   chmod -R g+rwX "$UPLOADS_DIR" "$DATA_DIR"
   find "$UPLOADS_DIR" "$DATA_DIR" -type d -exec chmod g+s {} +
-  cp --reflink=auto "$RUNTIME_DIR/database/dev.db" "$RUNTIME_DIR/backups/dev-$(date +%Y%m%d-%H%M%S)-pre-${RELEASE_ID}.db"
-
   if ! (
     docker_config="$(mktemp -d)"
     chmod 0700 "$docker_config"

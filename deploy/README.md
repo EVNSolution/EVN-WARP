@@ -27,10 +27,28 @@ GitHub Secrets는 `AWS_REGION`, `AWS_ROLE_ARN`, `EC2_INSTANCE_ID`만 사용한�
 - `switch`는 준비한 Revision이 현재 `main`과 일치할 때만 Nginx upstream을 전환한다.
 - 외부 readiness가 실패하면 같은 명령 안에서 직전 upstream을 복원하고 복구 상태까지 확인한다.
 - `rollback`은 직전 slot 또는 최초 legacy PM2 port 3000으로 돌아간다. DB restore나 digest 수기 입력은 하지 않는다.
-- routine deploy는 `prisma db push`, seed, backfill, OS setup 반복 실행을 하지 않는다.
+- routine deploy는 candidate 기동 전에 `deploy/schema-migrations`의 검토·checksum 완료된 forward-only SQL만 적용한다.
+- schema migration이 있으면 Python SQLite backup API로 일관된 사전 백업을 만들고, 적용 이력·checksum·필수 table/index를 검증한다.
+- `prisma db push`, seed, backfill, OS setup은 routine deploy에서 실행하지 않는다.
 - `.env`, API key 일부, PM2 environment를 Actions와 SSM 출력에 기록하지 않는다.
 - ECR `evn-warp`는 immutable release 전용이다. 가변 BuildKit cache를 release 저장소에 기록하지 않는다.
 - ECR `evn-warp-buildcache`는 실행·배포하지 않으며 EC2 instance role에 pull 권한을 부여하지 않는다.
 - 활성 운영 workflow는 `.github/workflows/deploy-ec2-ssm.yml` 하나다. 과거 EC2 시작, DB count, A3/KPI import workflow는 실행 경로로 복원하지 않는다.
+
+## Migration evidence contract
+
+WARP는 SQLite custom runner와 `_WarpSchemaMigration` ledger를 사용한다. BUILDUP-EV의 PostgreSQL Prisma Migrate 구현과 엔진은 다르지만 운영 증거는 다음 의미로 맞춘다.
+
+| Evidence | WARP 표현 |
+| --- | --- |
+| Engine | `migration_engine=sqlite-custom` |
+| 미적용분 실행 결과 | `migration_applied_count` |
+| 복구 가능 backup | `migration_backup` (`none`은 미적용 migration 없음) |
+| 적용 ledger | `migration_ledger=_WarpSchemaMigration` |
+| checksum | `migration_checksum_validation=passed` |
+| schema·필수 객체 | `migration_schema_validation=passed`, `migration_required_objects_validation=passed` |
+| candidate 이전 완료 | `migration_before_candidate=true` |
+
+이 필드는 SSM 출력, Actions Job Summary와 append-only `deploy-evidence.jsonl`에 기록한다.
 
 일상 배포는 `release` 한 번만 실행하며 운영 순서는 [`RUNBOOK.md`](./RUNBOOK.md)를 따른다. 격리 검증 도구와 결과는 [`blue-green-lab/RUNBOOK.md`](./blue-green-lab/RUNBOOK.md), [`blue-green-lab/VALIDATION_RESULT.md`](./blue-green-lab/VALIDATION_RESULT.md)에 보존한다.

@@ -45,6 +45,8 @@ class DeploymentOptimizationContractTest(unittest.TestCase):
             "setup_b64": "c2V0dXA=",
             "validator_b64": "dmFsaWRhdGU=",
             "database_migrator_b64": "bWlncmF0ZQ==",
+            "schema_migrator_b64": "c2NoZW1hLW1pZ3JhdGU=",
+            "schema_migrations_b64": "c2NoZW1hLW1pZ3JhdGlvbnM=",
             "remote_b64": "cmVtb3Rl",
         }
         output = io.StringIO()
@@ -69,6 +71,10 @@ class DeploymentOptimizationContractTest(unittest.TestCase):
                 "DEPLOY_ACTION=switch",
                 "DEPLOY_ACTION=status",
             ],
+        )
+        self.assertIn("/tmp/evn-apply-schema-migrations.py", workflow)
+        self.assertTrue(
+            any("/tmp/evn-schema-migrations" in command for command in payload["commands"])
         )
 
     def test_only_the_governed_deployment_workflow_remains(self):
@@ -118,6 +124,24 @@ class DeploymentOptimizationContractTest(unittest.TestCase):
         self.assertIn('buildx_config="${DOCKER_CONFIG:-$HOME/.docker}/buildx"', build_step)
         self.assertIn('export BUILDX_CONFIG="$buildx_config"', build_step)
         self.assertIn('export BUILDX_BUILDER="${{ steps.buildx.outputs.name }}"', build_step)
+
+    def test_prepare_applies_only_reviewed_schema_migrations_before_candidate_start(self):
+        remote = (ROOT / "deploy/remote-deploy.sh").read_text(encoding="utf-8")
+        workflow = (ROOT / ".github/workflows/deploy-ec2-ssm.yml").read_text(encoding="utf-8")
+        migrate = remote.index('"$SCHEMA_MIGRATOR"')
+        candidate = remote.index("docker run -d")
+        self.assertLess(migrate, candidate)
+        self.assertNotIn("prisma db push", remote)
+        self.assertNotIn("accept-data-loss", remote)
+        self.assertIn('"event=schema-migration-verified"', remote)
+        for field in (
+            "migration_engine",
+            "migration_ledger",
+            "migration_applied_count",
+            "migration_backup",
+            "Migration validation",
+        ):
+            self.assertIn(field, workflow)
 
     def test_release_and_cache_repositories_have_separate_iam_scopes(self):
         policy = (ROOT / "deploy/aws/github-deploy-policy.json").read_text(encoding="utf-8")
