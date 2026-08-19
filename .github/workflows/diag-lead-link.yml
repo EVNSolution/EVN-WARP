@@ -27,7 +27,7 @@ jobs:
           cat > /tmp/query.json << 'EOF'
           {"commands": [
             "cd /opt/evn-warp",
-            "node -e \"const {createClient}=require('@libsql/client');const c=createClient({url:'file:/opt/evn-warp-runtime/database/dev.db'});const id='cmsodswnr00060pnr0c4hj624';(async()=>{const cu=await c.execute('SELECT id, name, phone, createdAt, updatedAt FROM \\\"Customer\\\" WHERE id = ?', [id]);console.log('linkedCustomer:', JSON.stringify(cu.rows));})().catch(e=>console.error(e));\""
+            "node -e \"const {createClient}=require('@libsql/client');const c=createClient({url:'file:/opt/evn-warp-runtime/database/dev.db'});const phone='010-3233-2342';const custId='cmsodswnr00060pnr0c4hj624';(async()=>{const allCu=await c.execute('SELECT id, name, phone, createdAt FROM \\\"Customer\\\" WHERE phone = ?', [phone]);console.log('allCustomersThisPhone:', JSON.stringify(allCu.rows));const allDe=await c.execute('SELECT id, name, phone, customerId, stageCode, createdAt FROM \\\"SalesDeal\\\" WHERE customerId = ?', [custId]);console.log('allDealsOnLinkedCustomer:', JSON.stringify(allDe.rows));const allDe2=await c.execute('SELECT id, name, phone, customerId, stageCode, createdAt FROM \\\"SalesDeal\\\" WHERE phone = ?', [phone]);console.log('allDealsThisPhone:', JSON.stringify(allDe2.rows));})().catch(e=>console.error(e));\""
           ]}
           EOF
 
