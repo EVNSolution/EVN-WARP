@@ -21,7 +21,7 @@ jobs:
           role-to-assume: ${{ env.AWS_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
 
-      - name: Backup then delete empty duplicate customer row
+      - name: Backup then fix 김현수 duplicate + 임병선 mislink
         id: ssm
         run: |
           cat > /tmp/query.json << 'EOF'
@@ -30,7 +30,7 @@ jobs:
             "cp --reflink=auto /opt/evn-warp-runtime/database/dev.db /opt/evn-warp-runtime/backups/dev-$(date +%Y%m%d-%H%M%S)-pre-dupcustomer-fix.db",
             "ls -la /opt/evn-warp-runtime/backups | tail -5",
             "cd /opt/evn-warp",
-            "node -e \"const {createClient}=require('@libsql/client');const c=createClient({url:'file:/opt/evn-warp-runtime/database/dev.db'});const id='cmsybpitl001101sa5ucqmyu9';(async()=>{const before=await c.execute('SELECT COUNT(*) as n FROM \\\"Customer\\\" WHERE id = ?', [id]);console.log('before:', JSON.stringify(before.rows));await c.execute('DELETE FROM \\\"Customer\\\" WHERE id = ?', [id]);const after=await c.execute('SELECT COUNT(*) as n FROM \\\"Customer\\\" WHERE id = ?', [id]);console.log('after:', JSON.stringify(after.rows));})().catch(e=>{console.error(e);process.exit(1)});\""
+            "node -e \"const {createClient}=require('@libsql/client');const c=createClient({url:'file:/opt/evn-warp-runtime/database/dev.db'});(async()=>{const dupId='cmsybpitl001101sa5ucqmyu9';const before=await c.execute('SELECT COUNT(*) as n FROM \\\"Customer\\\" WHERE id = ?', [dupId]);console.log('kimHyunsu.before:', JSON.stringify(before.rows));await c.execute('DELETE FROM \\\"Customer\\\" WHERE id = ?', [dupId]);const after=await c.execute('SELECT COUNT(*) as n FROM \\\"Customer\\\" WHERE id = ?', [dupId]);console.log('kimHyunsu.after:', JSON.stringify(after.rows));const dealId='cmszfmzuh000i01msd11dzpxz';const correctCustomerId='cmsyedy2g000001ntjp8jfrxm';const dBefore=await c.execute('SELECT id, name, customerId FROM \\\"SalesDeal\\\" WHERE id = ?', [dealId]);console.log('limByungsun.before:', JSON.stringify(dBefore.rows));await c.execute('UPDATE \\\"SalesDeal\\\" SET customerId = ? WHERE id = ?', [correctCustomerId, dealId]);const dAfter=await c.execute('SELECT id, name, customerId FROM \\\"SalesDeal\\\" WHERE id = ?', [dealId]);console.log('limByungsun.after:', JSON.stringify(dAfter.rows));})().catch(e=>{console.error(e);process.exit(1)});\""
           ]}
           EOF
 
