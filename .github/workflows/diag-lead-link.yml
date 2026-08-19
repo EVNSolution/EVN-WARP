@@ -27,7 +27,7 @@ jobs:
           cat > /tmp/query.json << 'EOF'
           {"commands": [
             "cd /opt/evn-warp",
-            "node -e \"const {createClient}=require('@libsql/client');const c=createClient({url:'file:/opt/evn-warp-runtime/database/dev.db'});const nm='김현수';(async()=>{const cu=await c.execute('SELECT id, name, phone FROM \\\"Customer\\\" WHERE name = ?', [nm]);console.log('customers:', JSON.stringify(cu.rows));const de=await c.execute('SELECT id, name, phone, customerId, stageCode FROM \\\"SalesDeal\\\" WHERE name = ?', [nm]);console.log('deals:', JSON.stringify(de.rows));})().catch(e=>console.error(e));\""
+            "node -e \"const {createClient}=require('@libsql/client');const c=createClient({url:'file:/opt/evn-warp-runtime/database/dev.db'});const ids=['cmsybibqt000i01safqav2tpw','cmsybpitl001101sa5ucqmyu9'];(async()=>{const cu=await c.execute('SELECT * FROM \\\"Customer\\\" WHERE id IN (?, ?)', ids);console.log('customers:', JSON.stringify(cu.rows));for (const id of ids){const ac=await c.execute('SELECT COUNT(*) as n FROM \\\"CustomerActivity\\\" WHERE customerId = ?', [id]);console.log('activities['+id+']:', JSON.stringify(ac.rows));const ag=await c.execute('SELECT COUNT(*) as n FROM \\\"Agent\\\" WHERE customerId = ?', [id]);console.log('agentProfiles['+id+']:', JSON.stringify(ag.rows));}})().catch(e=>console.error(e));\""
           ]}
           EOF
 
