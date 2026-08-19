@@ -1,0 +1,37 @@
+{
+  "prismaSchemaSha256": "e0391567ed2260b1cb605e131b5258c7586bd83b211060405334d465c3fd4d4a",
+  "requiredTables": [
+    "Announcement",
+    "BuildupEvent"
+  ],
+  "requiredIndexes": [
+    "BuildupEvent_eventKey_key",
+    "BuildupEvent_status_idx"
+  ],
+  "requiredColumns": {
+    "Announcement": [
+      "id",
+      "title",
+      "content",
+      "authorName",
+      "targetScope",
+      "targetTeamsJson",
+      "createdAt"
+    ],
+    "BuildupEvent": [
+      "id",
+      "eventKey",
+      "type",
+      "buildupQuoteId",
+      "quoteNo",
+      "customerName",
+      "warpCustomerId",
+      "payloadJson",
+      "status",
+      "confirmedBy",
+      "confirmedAt",
+      "createdAt",
+      "updatedAt"
+    ]
+  }
+}

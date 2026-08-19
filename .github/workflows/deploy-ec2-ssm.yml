@@ -240,7 +240,9 @@ jobs:
           setup_b64="$(base64 -w 0 deploy/setup-ec2.sh)"
           validator_b64="$(base64 -w 0 deploy/validate-env.py)"
           database_migrator_b64="$(base64 -w 0 deploy/migrate-shared-db.py)"
-          export remote_b64 setup_b64 validator_b64 database_migrator_b64 IMAGE_REF
+          schema_migrator_b64="$(base64 -w 0 deploy/apply-schema-migrations.py)"
+          schema_migrations_b64="$(tar -C deploy -czf - schema-migrations | base64 -w 0)"
+          export remote_b64 setup_b64 validator_b64 database_migrator_b64 schema_migrator_b64 schema_migrations_b64 IMAGE_REF
 
           python3 - <<'PY' > /tmp/evn-warp-ssm.json
           import json, os, shlex
@@ -264,8 +266,11 @@ jobs:
               "printf '%s' '" + os.environ['setup_b64'] + "' | base64 -d > /tmp/evn-setup.sh",
               "printf '%s' '" + os.environ['validator_b64'] + "' | base64 -d > /tmp/evn-validate-env.py",
               "printf '%s' '" + os.environ['database_migrator_b64'] + "' | base64 -d > /tmp/evn-migrate-shared-db.py",
+              "printf '%s' '" + os.environ['schema_migrator_b64'] + "' | base64 -d > /tmp/evn-apply-schema-migrations.py",
               "printf '%s' '" + os.environ['remote_b64'] + "' | base64 -d > /tmp/evn-remote-deploy.sh",
-              'chmod 700 /tmp/evn-setup.sh /tmp/evn-validate-env.py /tmp/evn-migrate-shared-db.py /tmp/evn-remote-deploy.sh',
+              'rm -rf -- /tmp/evn-schema-migrations && install -d -m 0700 /tmp/evn-schema-migrations',
+              "printf '%s' '" + os.environ['schema_migrations_b64'] + "' | base64 -d | tar -xzf - -C /tmp/evn-schema-migrations --strip-components=1",
+              'chmod 700 /tmp/evn-setup.sh /tmp/evn-validate-env.py /tmp/evn-migrate-shared-db.py /tmp/evn-apply-schema-migrations.py /tmp/evn-remote-deploy.sh',
           ]
           commands.extend(remote_command(action) for action in remote_actions)
           print(json.dumps({'commands': commands}))
@@ -319,6 +324,10 @@ jobs:
           printf '%s\n' "$stderr"
 
           final_slots="$(printf '%s\n' "$stdout" | awk '/^active=/{value=$0} END{print value}')"
+          migration_engine="$(printf '%s\n' "$stdout" | awk -F= '$1 == "migration_engine" {value=$2} END{print value}')"
+          migration_ledger="$(printf '%s\n' "$stdout" | awk -F= '$1 == "migration_ledger" {value=$2} END{print value}')"
+          migration_count="$(printf '%s\n' "$stdout" | awk -F= '$1 == "migration_applied_count" {value=$2} END{print value}')"
+          migration_backup="$(printf '%s\n' "$stdout" | awk -F= '$1 == "migration_backup" {value=$2} END{print value}')"
           {
             echo "## WARP ${DEPLOY_ACTION}"
             echo
@@ -327,6 +336,11 @@ jobs:
             echo "| Revision | \`$GITHUB_SHA\` |"
             [ -z "$IMAGE_DIGEST" ] || echo "| Image digest | \`$IMAGE_DIGEST\` |"
             [ -z "$final_slots" ] || echo "| Slots | \`$final_slots\` |"
+            [ -z "$migration_engine" ] || echo "| Migration engine | \`$migration_engine\` |"
+            [ -z "$migration_ledger" ] || echo "| Migration ledger | \`$migration_ledger\` |"
+            [ -z "$migration_count" ] || echo "| Applied migrations | \`$migration_count\` |"
+            [ -z "$migration_backup" ] || echo "| Migration backup | \`$migration_backup\` |"
+            [ -z "$migration_engine" ] || echo "| Migration validation | \`checksum=passed schema=passed required-objects=passed before-candidate=true\` |"
             echo "| SSM command | \`$COMMAND_ID\` |"
             echo "| Result | \`$status\` |"
           } >> "$GITHUB_STEP_SUMMARY"

@@ -48,6 +48,9 @@ GitHub Actions의 **Deploy WARP Blue-Green via SSM**에서 `release`를 한 번 
    - ECR OS scan의 critical/high가 모두 0이어야 한다.
    - Docker와 Nginx upstream bootstrap은 최초 한 번만 수행한다.
    - 최초 bootstrap은 SQLite 경로를 안전하게 공유하기 위해 legacy PM2를 정지 후 재기동한다. 이 한 번의 짧은 재기동은 무정지로 간주하지 않으며, 이용이 적은 시간에 수행한다.
+   - ENV 검증 후 `deploy/schema-migrations`의 미적용 SQL을 checksum 순서대로 적용한다.
+   - schema 변경 전 SQLite online backup을 만들며, migration 실패·checksum 변조·필수 object 누락 시 candidate 기동 전에 중단한다.
+   - Actions Summary에서 migration engine, applied count, backup, ledger와 검증 결과를 확인한다.
    - 기존 PM2 port 3000 traffic을 유지한 채 inactive port 3101 또는 3102를 준비한다.
 2. 후보 상태 확인
    - active, previous, candidate slot과 exact image reference를 출력한다.
@@ -71,7 +74,7 @@ GitHub Actions의 **Deploy WARP Blue-Green via SSM**에서 `release`를 한 번 
 - `switch` 실패: script가 직전 upstream을 자동 복구한다. `status`와 공개 `/login`을 확인한다.
 - 자동 복구까지 실패: `/opt/evn-warp-runtime/legacy-nginx.conf`와 legacy PM2 port 3000을 장애 대응 기준으로 사용한다.
 
-DB schema/data migration은 이 workflow에서 수행하지 않는다. 필요한 migration은 별도 Issue, backup, 양 Revision 호환성 검증을 거친다.
+DB schema migration은 별도 Issue와 양 Revision 호환성 검증을 거쳐 `deploy/schema-migrations`에 forward-only SQL로 추가한다. routine release는 승인된 SQL만 적용한다. 데이터 backfill, seed, destructive migration과 `prisma db push`는 이 workflow에서 수행하지 않는다.
 
 ## 4. ENV 변경
 
