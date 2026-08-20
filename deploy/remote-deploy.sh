@@ -214,7 +214,7 @@ prepare() {
   [ -n "$RELEASE_ID" ]
   /tmp/evn-setup.sh
   fetch_and_validate_env 1
-  local migration_output migration_count migration_backup
+  local migration_output migration_count migration_backup privacy_preflight_count
   migration_output="$("$SCHEMA_MIGRATOR" \
     "$RUNTIME_DIR/database/dev.db" \
     "$SCHEMA_MIGRATIONS_DIR" \
@@ -223,14 +223,18 @@ prepare() {
   printf '%s\n' "$migration_output"
   migration_count="$(printf '%s\n' "$migration_output" | awk -F= '$1 == "migration_applied_count" {print $2}')"
   migration_backup="$(printf '%s\n' "$migration_output" | awk -F= '$1 == "migration_backup" {print $2}')"
+  privacy_preflight_count="$(printf '%s\n' "$migration_output" | awk -F= '$1 == "privacy_preflight_count" {print $2}')"
   [ -n "$migration_count" ]
   [ -n "$migration_backup" ]
+  [ -n "$privacy_preflight_count" ]
   append_evidence \
     "event=schema-migration-verified" \
     "strategy=sqlite-custom" \
     "ledger=_WarpSchemaMigration" \
     "appliedCount=$migration_count" \
     "backup=$migration_backup" \
+    "privacyPreflightCount=$privacy_preflight_count" \
+    "privacyPreflightValidation=passed" \
     "checksumValidation=passed" \
     "schemaValidation=passed" \
     "requiredObjectsValidation=passed" \

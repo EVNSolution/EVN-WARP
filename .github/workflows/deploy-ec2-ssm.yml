@@ -329,6 +329,7 @@ jobs:
           migration_ledger="$(printf '%s\n' "$stdout" | awk -F= '$1 == "migration_ledger" {value=$2} END{print value}')"
           migration_count="$(printf '%s\n' "$stdout" | awk -F= '$1 == "migration_applied_count" {value=$2} END{print value}')"
           migration_backup="$(printf '%s\n' "$stdout" | awk -F= '$1 == "migration_backup" {value=$2} END{print value}')"
+          privacy_preflight_count="$(printf '%s\n' "$stdout" | awk -F= '$1 == "privacy_preflight_count" {value=$2} END{print value}')"
           {
             echo "## WARP ${DEPLOY_ACTION}"
             echo
@@ -341,7 +342,8 @@ jobs:
             [ -z "$migration_ledger" ] || echo "| Migration ledger | \`$migration_ledger\` |"
             [ -z "$migration_count" ] || echo "| Applied migrations | \`$migration_count\` |"
             [ -z "$migration_backup" ] || echo "| Migration backup | \`$migration_backup\` |"
-            [ -z "$migration_engine" ] || echo "| Migration validation | \`checksum=passed schema=passed required-objects=passed before-candidate=true\` |"
+            [ -z "$privacy_preflight_count" ] || echo "| Privacy preflights | \`$privacy_preflight_count passed\` |"
+            [ -z "$migration_engine" ] || echo "| Migration validation | \`checksum=passed schema=passed required-objects=passed privacy-preflight=passed before-candidate=true\` |"
             echo "| SSM command | \`$COMMAND_ID\` |"
             echo "| Result | \`$status\` |"
           } >> "$GITHUB_STEP_SUMMARY"

@@ -50,6 +50,7 @@ GitHub Actions의 **Deploy WARP Blue-Green via SSM**에서 `release`를 한 번 
    - 최초 bootstrap은 SQLite 경로를 안전하게 공유하기 위해 legacy PM2를 정지 후 재기동한다. 이 한 번의 짧은 재기동은 무정지로 간주하지 않으며, 이용이 적은 시간에 수행한다.
    - ENV 검증 후 `deploy/schema-migrations`의 미적용 SQL을 checksum 순서대로 적용한다.
    - schema 변경 전 SQLite online backup을 만들며, migration 실패·checksum 변조·필수 object 누락 시 candidate 기동 전에 중단한다.
+   - 개인정보 제거를 선언한 pending migration은 pre-schema backup 뒤 SQLite exclusive transaction에서 read-only privacy preflight가 0인 경우에만 즉시 migration으로 진행한다. 로그에는 audit id, migration id와 0건 결과만 남기고 행 값은 남기지 않는다.
    - Actions Summary에서 migration engine, applied count, backup, ledger와 검증 결과를 확인한다.
    - 기존 PM2 port 3000 traffic을 유지한 채 inactive port 3101 또는 3102를 준비한다.
 2. 후보 상태 확인
@@ -75,6 +76,8 @@ GitHub Actions의 **Deploy WARP Blue-Green via SSM**에서 `release`를 한 번 
 - 자동 복구까지 실패: `/opt/evn-warp-runtime/legacy-nginx.conf`와 legacy PM2 port 3000을 장애 대응 기준으로 사용한다.
 
 DB schema migration은 별도 Issue와 양 Revision 호환성 검증을 거쳐 `deploy/schema-migrations`에 forward-only SQL로 추가한다. routine release는 승인된 SQL만 적용한다. 데이터 backfill, seed, destructive migration과 `prisma db push`는 이 workflow에서 수행하지 않는다.
+
+privacy preflight 차단은 제거 대상 데이터가 남았거나 query 계약이 잘못된 상태다. 운영 DB 행을 출력해 조사하지 말고 해당 migration Issue에서 승인된 read-only 집계 query와 데이터 정리 절차를 수정한 뒤 같은 revision을 다시 검증한다. 이미 적용된 migration의 audit는 재실행하지 않는다.
 
 ## 4. ENV 변경
 
