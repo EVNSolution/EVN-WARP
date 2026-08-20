@@ -83,7 +83,17 @@ class DeploymentOptimizationContractTest(unittest.TestCase):
             for path in (ROOT / ".github/workflows").iterdir()
             if path.suffix in {".yml", ".yaml"}
         }
-        self.assertEqual(workflows, {"deploy-ec2-ssm.yml"})
+        self.assertEqual(
+            workflows,
+            {"deploy-ec2-ssm.yml", "verify-direct-integration.yml"},
+        )
+        review = (ROOT / ".github/workflows/verify-direct-integration.yml").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("pull_request:", review)
+        self.assertNotIn("workflow_dispatch:", review)
+        self.assertNotIn("aws-actions/", review)
+        self.assertNotIn("aws ssm", review)
         self.assertFalse((ROOT / "scripts/a3-kpi-export.sql").exists())
         self.assertFalse((ROOT / "scripts/export-a3-kpi.mjs").exists())
 

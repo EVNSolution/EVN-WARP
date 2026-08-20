@@ -1,0 +1,35 @@
+name: Verify WARP direct integration
+run-name: WARP direct integration review
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - app/api/external/**
+      - lib/buildup-import/**
+      - docs/integrations/**
+      - scripts/verify-direct-integration-contract.mjs
+      - package.json
+      - .github/workflows/verify-direct-integration.yml
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: Verify routes callers and behavior
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout review source
+        uses: actions/checkout@v5
+      - name: Configure Node.js dependency cache
+        uses: actions/setup-node@v7
+        with:
+          node-version: '22.23.1'
+          cache: npm
+      - name: Verify direct integration behavior and contract
+        run: |
+          npm ci
+          npm run test:external-lookup
+          npm run test:buildup-import
+          npm run test:integration-contract
