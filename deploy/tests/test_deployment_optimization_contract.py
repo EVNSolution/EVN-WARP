@@ -135,6 +135,14 @@ class DeploymentOptimizationContractTest(unittest.TestCase):
         self.assertIn('export BUILDX_CONFIG="$buildx_config"', build_step)
         self.assertIn('export BUILDX_BUILDER="${{ steps.buildx.outputs.name }}"', build_step)
 
+    def test_candidate_readiness_retries_without_expected_json_tracebacks(self):
+        remote = (ROOT / "deploy/remote-deploy.sh").read_text(encoding="utf-8")
+        wait_ready = remote.split("wait_ready() {", 1)[1].split("\n}", 1)[0]
+        self.assertIn("for _ in $(seq 1 45)", wait_ready)
+        self.assertIn('body.get("imageDigest")==expected', wait_ready)
+        self.assertIn('"$expected" 2>/dev/null; then', wait_ready)
+        self.assertIn("return 1", wait_ready)
+
     def test_prepare_applies_only_reviewed_schema_migrations_before_candidate_start(self):
         remote = (ROOT / "deploy/remote-deploy.sh").read_text(encoding="utf-8")
         workflow = (ROOT / ".github/workflows/deploy-ec2-ssm.yml").read_text(encoding="utf-8")

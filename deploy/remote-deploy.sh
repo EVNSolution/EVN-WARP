@@ -136,7 +136,7 @@ wait_ready() {
   port="$(slot_port "$slot")"
   for _ in $(seq 1 45); do
     if curl -fsS --max-time 3 "http://127.0.0.1:${port}/api/readyz" 2>/dev/null |
-      python3 -c 'import json,sys; body=json.load(sys.stdin); expected=sys.argv[1]; raise SystemExit(0 if body.get("ok") is True and body.get("imageDigest")==expected else 1)' "$expected"; then
+      python3 -c 'import json,sys; body=json.load(sys.stdin); expected=sys.argv[1]; raise SystemExit(0 if body.get("ok") is True and body.get("imageDigest")==expected else 1)' "$expected" 2>/dev/null; then
       return 0
     fi
     sleep 1
