@@ -48,7 +48,10 @@ WARP는 SQLite custom runner와 `_WarpSchemaMigration` ledger를 사용한다. B
 | checksum | `migration_checksum_validation=passed` |
 | schema·필수 객체 | `migration_schema_validation=passed`, `migration_required_objects_validation=passed` |
 | candidate 이전 완료 | `migration_before_candidate=true` |
+| 개인정보 제거 사전감사 | `privacy_preflight_count`, `privacy_preflight_validation=passed` |
 
 이 필드는 SSM 출력, Actions Job Summary와 append-only `deploy-evidence.jsonl`에 기록한다.
+
+개인정보 컬럼이나 테이블을 제거하는 migration만 `manifest.json`의 `privacyPreflights`에 audit id, migration 파일, `privacy-preflights/` 아래의 read-only scalar query와 SHA-256을 선언한다. query는 위반 행 값을 반환하지 않고 하나의 비음수 정수만 반환해야 한다. pre-schema backup 뒤 SQLite `BEGIN EXCLUSIVE` transaction 안에서 감사와 migration을 연속 실행하므로 검사 직후의 재기록을 허용하지 않는다. 0이 아니거나 출력 형식·파일·digest·SQL 실행이 잘못되면 migration 전에 중단한다. 정상 업무 개인정보 전체를 0건으로 만드는 전역 검사는 금지한다.
 
 일상 배포는 `release` 한 번만 실행하며 운영 순서는 [`RUNBOOK.md`](./RUNBOOK.md)를 따른다. 격리 검증 도구와 결과는 [`blue-green-lab/RUNBOOK.md`](./blue-green-lab/RUNBOOK.md), [`blue-green-lab/VALIDATION_RESULT.md`](./blue-green-lab/VALIDATION_RESULT.md)에 보존한다.

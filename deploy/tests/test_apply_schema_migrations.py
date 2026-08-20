@@ -1,9 +1,12 @@
 import hashlib
 import importlib.util
+import inspect
 import json
 import sqlite3
 import tempfile
 import unittest
+from contextlib import redirect_stdout
+from io import StringIO
 from pathlib import Path
 
 
@@ -29,8 +32,26 @@ class ApplySchemaMigrationsTest(unittest.TestCase):
     def tearDown(self):
         self.temporary.cleanup()
 
-    def write_contract(self, sql: str = "CREATE TABLE Added(id TEXT PRIMARY KEY);"):
+    def write_contract(
+        self,
+        sql: str = "CREATE TABLE Added(id TEXT PRIMARY KEY);",
+        preflight_query=None,
+    ):
         (self.migrations / "001_add_table.sql").write_text(sql, encoding="utf-8")
+        preflights = []
+        if preflight_query is not None:
+            query_dir = self.migrations / "privacy-preflights"
+            query_dir.mkdir()
+            query_path = query_dir / "001_no_legacy_values.sql"
+            query_path.write_text(preflight_query, encoding="utf-8")
+            preflights.append(
+                {
+                    "migration": "001_add_table.sql",
+                    "auditId": "legacy-values-removed",
+                    "query": "privacy-preflights/001_no_legacy_values.sql",
+                    "sha256": hashlib.sha256(query_path.read_bytes()).hexdigest(),
+                }
+            )
         (self.migrations / "manifest.json").write_text(
             json.dumps(
                 {
@@ -38,10 +59,19 @@ class ApplySchemaMigrationsTest(unittest.TestCase):
                     "requiredTables": ["Added"],
                     "requiredIndexes": [],
                     "requiredColumns": {"Added": ["id"]},
+                    "privacyPreflights": preflights,
                 }
             ),
             encoding="utf-8",
         )
+
+    def apply(self):
+        output = StringIO()
+        with redirect_stdout(output):
+            result = apply_schema_migrations.apply_migrations(
+                self.database, self.migrations, self.backups, "b" * 40
+            )
+        return result, output.getvalue()
 
     def test_applies_once_with_consistent_backup_and_history(self):
         self.write_contract()
@@ -82,6 +112,98 @@ class ApplySchemaMigrationsTest(unittest.TestCase):
             apply_schema_migrations.apply_migrations(
                 self.database, self.migrations, self.backups, "c" * 40
             )
+
+    def test_privacy_preflight_allows_zero_without_printing_fixture_values(self):
+        self.write_contract(preflight_query="SELECT COUNT(*) FROM Existing WHERE value = 'not-present';")
+
+        (applied, backup), output = self.apply()
+
+        self.assertEqual(applied, ["001_add_table.sql"])
+        self.assertIsNotNone(backup)
+        self.assertIn("privacy_preflight_count=1", output)
+        self.assertIn("privacy_preflight=legacy-values-removed:001_add_table.sql:0", output)
+        self.assertNotIn("not-present", output)
+
+    def test_privacy_preflight_blocks_before_backup_and_migration(self):
+        self.write_contract(preflight_query="SELECT COUNT(*) FROM Existing WHERE value = 'yes';")
+
+        with self.assertRaisesRegex(RuntimeError, "privacy preflight blocked") as raised:
+            self.apply()
+
+        self.assertNotIn("yes", str(raised.exception))
+        self.assertEqual(len(list(self.backups.glob("*.db"))), 1)
+        with sqlite3.connect(self.database) as connection:
+            self.assertIsNone(connection.execute("SELECT 1 FROM sqlite_master WHERE name = 'Added'").fetchone())
+            self.assertIsNone(
+                connection.execute("SELECT 1 FROM sqlite_master WHERE name = '_WarpSchemaMigration'").fetchone()
+            )
+
+    def test_privacy_preflight_rejects_malformed_missing_and_invalid_queries(self):
+        cases = (
+            ("malformed", "SELECT 'private-fixture';", None, "one non-negative integer"),
+            ("query-error", "SELECT COUNT(*) FROM MissingTable;", None, "no such table"),
+            ("missing", "SELECT 0;", "delete", "query is missing"),
+        )
+        for name, query, mutation, message in cases:
+            with self.subTest(name=name):
+                self.tearDown()
+                self.setUp()
+                self.write_contract(preflight_query=query)
+                if mutation == "delete":
+                    (self.migrations / "privacy-preflights/001_no_legacy_values.sql").unlink()
+                with self.assertRaisesRegex((RuntimeError, sqlite3.Error), message) as raised:
+                    self.apply()
+                self.assertNotIn("private-fixture", str(raised.exception))
+                if name == "missing":
+                    self.assertFalse(self.backups.exists())
+                else:
+                    self.assertEqual(len(list(self.backups.glob("*.db"))), 1)
+
+    def test_privacy_preflight_rejects_non_query_sql(self):
+        self.write_contract(preflight_query="DELETE FROM Existing;")
+
+        with self.assertRaisesRegex(RuntimeError, "read-only query"):
+            self.apply()
+
+        with sqlite3.connect(self.database) as connection:
+            self.assertEqual(connection.execute("SELECT COUNT(*) FROM Existing").fetchone(), (1,))
+
+    def test_privacy_preflight_query_must_stay_in_the_reviewed_directory(self):
+        self.write_contract(preflight_query="SELECT 0;")
+        manifest_path = self.migrations / "manifest.json"
+        manifest = json.loads(manifest_path.read_text())
+        manifest["privacyPreflights"][0]["query"] = "001_add_table.sql"
+        manifest["privacyPreflights"][0]["sha256"] = hashlib.sha256(
+            (self.migrations / "001_add_table.sql").read_bytes()
+        ).hexdigest()
+        manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+
+        with self.assertRaisesRegex(RuntimeError, "query path is invalid"):
+            self.apply()
+
+    def test_backup_precedes_the_atomic_preflight_and_migration_transaction(self):
+        source = inspect.getsource(apply_schema_migrations.apply_migrations)
+        backup = source.index("connection.backup(target)")
+        exclusive = source.index('connection.execute("BEGIN EXCLUSIVE")')
+        preflight = source.index("run_privacy_preflights(connection", exclusive)
+        migrate = source.index("for path in pending:", preflight)
+
+        self.assertLess(backup, exclusive)
+        self.assertLess(exclusive, preflight)
+        self.assertLess(preflight, migrate)
+
+    def test_applied_migration_does_not_repeat_privacy_preflight(self):
+        self.write_contract(preflight_query="SELECT COUNT(*) FROM Existing WHERE value = 'blocked-later';")
+        self.apply()
+        with sqlite3.connect(self.database) as connection:
+            connection.execute("UPDATE Existing SET value = 'blocked-later'")
+
+        applied, backup = apply_schema_migrations.apply_migrations(
+            self.database, self.migrations, self.backups, "c" * 40
+        )
+
+        self.assertEqual(applied, [])
+        self.assertIsNone(backup)
 
     def test_failed_migration_rolls_back_schema_and_history(self):
         self.write_contract("CREATE TABLE Added(id TEXT PRIMARY KEY);\nINVALID SQL;")

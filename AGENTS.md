@@ -12,6 +12,7 @@ This version has breaking changes — APIs, conventions, and file structure may 
 - Run routine production deployment with the single `release` pipeline. It performs `prepare → status → switch → status` under one immutable Revision. Use `validate`, `prepare`, `status` and `switch` separately only for preflight or recovery diagnosis. `rollback` restores the recorded previous slot. Never type an image digest by hand.
 - Only exact `main` may assume the deployment role. Images are promoted by immutable ECR digest.
 - Routine deployment applies only reviewed, checksummed, forward-compatible SQL from `deploy/schema-migrations` before candidate startup. It must not run ad-hoc data migration, seed, backfill or `prisma db push`.
+- A migration that removes personal-data storage must declare a checksummed read-only privacy preflight in `deploy/schema-migrations/manifest.json`. Only a scalar zero violation count may proceed to backup and migration; never log row values and never require the whole operational database to be PII-free.
 - A failed candidate must leave the current Nginx upstream and active runtime healthy.
 - `.github/workflows/deploy-ec2-ssm.yml` is the only active production workflow. Do not restore direct EC2 start, database count or one-off import workflows; their Git and Actions history is audit evidence, not a reusable operating path.
 

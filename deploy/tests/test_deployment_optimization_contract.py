@@ -157,9 +157,12 @@ class DeploymentOptimizationContractTest(unittest.TestCase):
             "migration_ledger",
             "migration_applied_count",
             "migration_backup",
+            "privacy_preflight_count",
             "Migration validation",
         ):
             self.assertIn(field, workflow)
+        preflight = remote.index("privacy_preflight_count")
+        self.assertLess(preflight, candidate)
 
     def test_release_and_cache_repositories_have_separate_iam_scopes(self):
         policy = (ROOT / "deploy/aws/github-deploy-policy.json").read_text(encoding="utf-8")
