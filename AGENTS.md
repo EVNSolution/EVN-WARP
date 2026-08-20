@@ -34,3 +34,10 @@ This version has breaking changes — APIs, conventions, and file structure may 
 - Keep ECR `evn-warp` immutable and scan-gated for release images. Store mutable BuildKit data only in `evn-warp-buildcache`; never deploy from that repository or grant the EC2 instance role access to it.
 - Treat build cache as disposable performance data, not release evidence. `prepare` must fail when release/cache repository mutability differs from the Runbook, while cache export failure may not replace final image build, digest verification or scanning.
 - The cache repository lifecycle and least-privilege role policy are governed by `deploy/aws/buildcache-lifecycle-policy.json` and `deploy/aws/github-deploy-policy.json`; keep the applied AWS state aligned with those files.
+
+## WARP–BUILDUP-EV direct integration contract
+
+- The reviewed compatibility contract is `docs/integrations/WARP_BUILDUP_DIRECT_API.json`; the readable risk and handoff record is `docs/integrations/WARP_BUILDUP_DIRECT_API.md`.
+- Run `npm run test:integration-contract` whenever an external route, caller, method, path or capability changes. The manifest must be updated in both repositories and linked to an Owner-reviewed Issue and PR.
+- Do not add an `/api/external` route or caller outside the manifest. Do not broaden the shared key, response DTO or write scope as a shortcut.
+- Direct APIs remain Data Plane paths. Future HQ integration adds bounded MachineClient, Account, correlation and Operation evidence without making HQ a mandatory business proxy.
