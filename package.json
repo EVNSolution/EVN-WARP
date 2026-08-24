@@ -13,6 +13,7 @@
     "test:integration-contract": "node scripts/verify-direct-integration-contract.mjs EVN-WARP",
     "test:deployment": "python3 -m unittest discover -s deploy/tests -p 'test_*.py' && prisma generate && tsx --test lib/db.test.ts app/api/healthz/route.test.ts",
     "test:buildup-import": "tsx --test lib/buildup-import/*.test.ts",
+    "security:audit": "python3 deploy/audit_production_dependencies.py",
     "account-evidence:dispatch": "tsx scripts/dispatch-account-evidence.ts",
     "account-control:hq-probe": "tsx scripts/hq-local-integration-probe.ts"
   },
@@ -20,8 +21,8 @@
     "@anthropic-ai/sdk": "^0.105.0",
     "@google/generative-ai": "^0.24.1",
     "@libsql/client": "^0.17.4",
-    "@prisma/adapter-libsql": "^7.8.0",
-    "@prisma/client": "^7.8.0",
+    "@prisma/adapter-libsql": "^7.9.1",
+    "@prisma/client": "^7.9.1",
     "@types/bcryptjs": "^2.4.6",
     "bcryptjs": "^3.0.3",
     "dotenv": "^17.4.2",
@@ -42,7 +43,7 @@
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "^16.3.1",
-    "prisma": "^7.8.0",
+    "prisma": "^7.9.1",
     "tailwindcss": "^4",
     "tsx": "^4.23.6",
     "typescript": "^5"
