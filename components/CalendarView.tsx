@@ -58,6 +58,7 @@ const TYPE_COLORS: Record<string, { bg: string; text: string }> = {
   '개발·구현':       { bg: 'bg-slate-100',   text: 'text-slate-600' },
   '도면·설계':       { bg: 'bg-slate-100',   text: 'text-slate-600' },
   '제품제작·조립':   { bg: 'bg-slate-100',   text: 'text-slate-600' },
+  '콘텐츠·디자인':   { bg: 'bg-slate-100',   text: 'text-slate-600' },
   'AS출동':          { bg: 'bg-yellow-100',  text: 'text-yellow-700' },
   '설치·시운전':     { bg: 'bg-yellow-100',  text: 'text-yellow-700' },
   '정기점검':        { bg: 'bg-yellow-100',  text: 'text-yellow-700' },

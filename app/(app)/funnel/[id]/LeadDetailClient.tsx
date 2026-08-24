@@ -1070,14 +1070,25 @@ export default function LeadDetailClient({ deal, customer = null, products = [],
 
                 /* ── 년/월 선택형 항목 (구매예상시점 확정) ── */
                 if (c.yearMonth) {
-                  const raw = String(checks[c.key] ?? '')
-                  const [selYear, selMonth] = raw.includes('-') ? raw.split('-') : ['', '']
+                  // 저장된 "YYYY-MM" 값에서 초기값을 읽되, 년도/월을 하나씩 고르는 동안에는
+                  // 별도의 임시(draft) 키에 보관한다 — 그렇지 않으면 월을 아직 안 골랐을 때
+                  // 매 렌더마다 checks[c.key]가 빈 값으로 남아 방금 고른 년도가 화면에서 다시 사라져 보였다
+                  const saved = String(checks[c.key] ?? '')
+                  const [savedY, savedM] = saved.includes('-') ? saved.split('-') : ['', '']
+                  const selYear  = checks[`${c.key}-y`] !== undefined ? String(checks[`${c.key}-y`]) : savedY
+                  const selMonth = checks[`${c.key}-m`] !== undefined ? String(checks[`${c.key}-m`]) : savedM
                   const thisYear = new Date().getFullYear()
                   const years  = Array.from({ length: 4 }, (_, i) => thisYear + i)
                   const months = Array.from({ length: 12 }, (_, i) => i + 1)
                   const update = (y: string, m: string) => {
                     const next = y && m ? `${y}-${m.padStart(2, '0')}` : ''
-                    setChecks(prev => ({ ...prev, [c.key]: next, [`${c.key}-at`]: next ? new Date().toISOString() : '' }))
+                    setChecks(prev => ({
+                      ...prev,
+                      [`${c.key}-y`]: y,
+                      [`${c.key}-m`]: m,
+                      [c.key]: next,
+                      [`${c.key}-at`]: next ? new Date().toISOString() : '',
+                    }))
                     setSaved(false)
                   }
                   return (

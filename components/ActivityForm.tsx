@@ -9,7 +9,7 @@ import {
   Briefcase, Target, FileCheck, CalendarDays, HelpCircle, X,
   Code2, PenTool, Package, Wrench, Settings, ClipboardCheck,
   PieChart, Landmark, Award, ChevronDown, ChevronRight, Mic,
-  Building, Receipt, RefreshCw, Scale, Upload, FileUp, Car,
+  Building, Receipt, RefreshCw, Scale, Upload, FileUp, Car, Palette,
 } from 'lucide-react'
 import Link from 'next/link'
 import CallAnalysisModal from '@/components/CallAnalysisModal'
@@ -70,6 +70,7 @@ const TYPE_GUIDE = [
       { name: '개발·구현',      desc: '시스템, SW, 펌웨어, 제어로직 등 개발 및 구현 작업' },
       { name: '도면·설계',      desc: 'CAD 도면, 회로도, 기술 설계도 등 설계 산출물 작성' },
       { name: '제품제작·조립',  desc: '제품 부품 조립, 제작, 시작품 제조 등 물리적 생산 작업' },
+      { name: '콘텐츠·디자인',  desc: '홍보물, 카드뉴스, 영상, UI/UX 시안 등 콘텐츠·디자인 제작' },
     ],
   },
   {
@@ -162,7 +163,7 @@ const ACTIVITY_CATEGORIES = [
   { label: '현장·이동',      types: ['국내출장', '해외출장'] },
   { label: '발표·행사',      types: ['발표/전시·행사'] },
   { label: '학습',           types: ['교육/연수', '세미나·컨퍼런스'] },
-  { label: '업무산출물',     types: ['문서·자료작성', '개발·구현', '도면·설계', '제품제작·조립'] },
+  { label: '업무산출물',     types: ['문서·자료작성', '개발·구현', '도면·설계', '제품제작·조립', '콘텐츠·디자인'] },
   { label: '현장서비스',     types: ['AS출동', '설치·시운전', '정기점검'] },
   { label: '영업',           types: ['고객미팅', '신규영업', '제안/견적', '고객행사'] },
   { label: '관계·네트워킹',  types: ['인재영입', '외부 네트워킹', '파트너십 타진'] },
@@ -192,6 +193,7 @@ const TYPE_META: Record<string, { icon: React.ReactNode; color: string; activeCo
   '개발·구현':      { icon: <Code2 size={13} />,          color: 'border-slate-300  text-slate-600  bg-slate-50',     activeColor: 'bg-slate-600  text-white border-slate-600',   placeholder: '개발 항목, 구현 내용, 진행 상태, 이슈 등을 기록하세요' },
   '도면·설계':      { icon: <PenTool size={13} />,        color: 'border-slate-300  text-slate-600  bg-slate-50',     activeColor: 'bg-slate-600  text-white border-slate-600',   placeholder: '도면명, 설계 범위, 주요 변경사항 등을 기록하세요' },
   '제품제작·조립':  { icon: <Package size={13} />,        color: 'border-slate-300  text-slate-600  bg-slate-50',     activeColor: 'bg-slate-600  text-white border-slate-600',   placeholder: '제품명, 수량, 조립 내용, 품질 확인 결과 등을 기록하세요' },
+  '콘텐츠·디자인':  { icon: <Palette size={13} />,        color: 'border-slate-300  text-slate-600  bg-slate-50',     activeColor: 'bg-slate-600  text-white border-slate-600',   placeholder: '콘텐츠·디자인 종류, 제작 목적, 사용처 등을 기록하세요' },
   'AS출동':         { icon: <Wrench size={13} />,         color: 'border-yellow-200 text-yellow-700 bg-yellow-50',    activeColor: 'bg-yellow-600 text-white border-yellow-600',   placeholder: '고객사명, 장애 내용, 조치 사항, 결과 등을 기록하세요' },
   '설치·시운전':    { icon: <Settings size={13} />,       color: 'border-yellow-200 text-yellow-700 bg-yellow-50',    activeColor: 'bg-yellow-600 text-white border-yellow-600',   placeholder: '고객사명, 설치 장비, 시운전 결과, 인수 확인 등을 기록하세요' },
   '정기점검':       { icon: <ClipboardCheck size={13} />, color: 'border-yellow-200 text-yellow-700 bg-yellow-50',    activeColor: 'bg-yellow-600 text-white border-yellow-600',   placeholder: '고객사명, 점검 항목, 이상 유무, 조치 내용 등을 기록하세요' },

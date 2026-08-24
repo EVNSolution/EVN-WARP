@@ -8,10 +8,11 @@ import {
   Target, FileCheck, CalendarDays, Code2, PenTool,
   Package, Wrench, Settings, ClipboardCheck,
   PieChart, Landmark, Award,
-  Building, Receipt, RefreshCw, Scale, Car,
+  Building, Receipt, RefreshCw, Scale, Car, Palette,
 } from 'lucide-react'
 import CalendarView, { type CalActivity, type CalVehicleReservation } from '@/components/CalendarView'
 import FilterSelects from './FilterSelects'
+import PersonalScopeToggle from './PersonalScopeToggle'
 import { auth } from '@/auth'
 
 /* ── 상수 ── */
@@ -30,6 +31,7 @@ const TYPE_META: Record<string, { icon: React.ReactNode; bg: string; text: strin
   '개발·구현':       { icon: <Code2 size={9} />,          bg: 'bg-slate-100',    text: 'text-slate-600' },
   '도면·설계':       { icon: <PenTool size={9} />,        bg: 'bg-slate-100',    text: 'text-slate-600' },
   '제품제작·조립':   { icon: <Package size={9} />,        bg: 'bg-slate-100',    text: 'text-slate-600' },
+  '콘텐츠·디자인':   { icon: <Palette size={9} />,        bg: 'bg-slate-100',    text: 'text-slate-600' },
   'AS출동':          { icon: <Wrench size={9} />,         bg: 'bg-yellow-100',   text: 'text-yellow-700' },
   '설치·시운전':     { icon: <Settings size={9} />,       bg: 'bg-yellow-100',   text: 'text-yellow-700' },
   '정기점검':        { icon: <ClipboardCheck size={9} />, bg: 'bg-yellow-100',   text: 'text-yellow-700' },
@@ -336,31 +338,14 @@ export default async function NotesPage({ searchParams }: { searchParams: Promis
               <ChevronRight size={16} />
             </Link>
           </div>
-          {/* 개인 / 전체 토글 — 작성자 필터만 전환, 팀 필터는 별도 유지 */}
+          {/* 개인 / 전체 토글 — 작성자 필터만 전환, 팀 필터는 별도 유지. 마지막 선택을 기억해 다음 방문에도 적용 */}
           {myName && (
-            <div className="flex border border-white/20 rounded-lg overflow-hidden text-xs font-bold">
-              {/* 개인 — 이름 문자열이 아닌 로그인 계정 id로 매칭해, 이름 변경/오탈자와 무관하게 본인 활동을 찾는다 */}
-              <Link
-                href={`${buildHref({ user: myName })}${myUserId ? `&uid=${encodeURIComponent(myUserId)}` : ''}`}
-                className={`px-3.5 py-2 transition-colors ${
-                  (uidParam ? uidParam === myUserId : userParam === myName)
-                    ? 'text-[#111] font-black'
-                    : 'text-white/60 hover:text-white hover:bg-white/10'
-                }`}
-                style={(uidParam ? uidParam === myUserId : userParam === myName) ? { backgroundColor: '#C5D42A' } : {}}>
-                개인
-              </Link>
-              <Link
-                href={buildHref({ user: null })}
-                className={`px-3.5 py-2 border-l border-white/20 transition-colors ${
-                  !userParam && !uidParam
-                    ? 'text-[#111] font-black'
-                    : 'text-white/60 hover:text-white hover:bg-white/10'
-                }`}
-                style={!userParam && !uidParam ? { backgroundColor: '#C5D42A' } : {}}>
-                전체
-              </Link>
-            </div>
+            <PersonalScopeToggle
+              hrefPersonal={`${buildHref({ user: myName })}${myUserId ? `&uid=${encodeURIComponent(myUserId)}` : ''}`}
+              hrefAll={buildHref({ user: null })}
+              isPersonalActive={uidParam ? uidParam === myUserId : userParam === myName}
+              hasExplicitScope={!!(userParam || uidParam)}
+            />
           )}
           {/* ── 팀 · 작성자 선택 ── */}
           <FilterSelects
