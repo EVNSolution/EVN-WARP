@@ -9,7 +9,7 @@ export default async function AdminPage() {
 
   const [
     totalCustomers, linkedDeals, unlinkedDeals, customersWithDetail,
-    users, teams, products, vehicles,
+    users, teams, products, vehicles, garages,
   ] = await Promise.all([
     prisma.customer.count(),
     prisma.salesDeal.count({ where: { customerId: { not: null } } }),
@@ -38,6 +38,7 @@ export default async function AdminPage() {
     prisma.team.findMany({ select: { id: true, name: true }, orderBy: { name: 'asc' } }),
     prisma.product.findMany({ orderBy: [{ category: 'asc' }, { name: 'asc' }] }),
     prisma.vehicle.findMany({ where: { active: true }, orderBy: { name: 'asc' } }),
+    prisma.garage.findMany({ where: { active: true }, orderBy: { name: 'asc' } }),
   ])
 
   const corporateCards = await prisma.corporateCard.findMany({ orderBy: { createdAt: 'desc' } })
@@ -53,6 +54,7 @@ export default async function AdminPage() {
       teams={teams}
       products={products}
       vehicles={vehicles}
+      garages={garages}
       corporateCards={corporateCards.map(c => ({ ...c, createdAt: c.createdAt.toISOString() }))}
       canManageUsers={canManageUsersFlag}
     />

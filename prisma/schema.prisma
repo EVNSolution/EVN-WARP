@@ -836,6 +836,16 @@ model WeeklyUpdate {
   updatedAt DateTime     @updatedAt
 }
 
+// ── 차고지 관리 ───────────────────────────────────────────────────────────
+model Garage {
+  id        String   @id @default(cuid())
+  name      String   // 차고지명
+  address   String   // 주소
+  detail    String?  // 세부위치
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+}
+
 // ── 법인차량 관리 ─────────────────────────────────────────────────────────
 model Vehicle {
   id          String       @id @default(cuid())

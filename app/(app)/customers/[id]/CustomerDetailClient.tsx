@@ -5,6 +5,7 @@ import Link from 'next/link'
 import AssigneePicker from '@/components/AssigneePicker'
 import { useRouter } from 'next/navigation'
 import { formatPhone, hasPlateSpacing, unknownCustomerName } from '@/lib/format'
+import { FIELD_CLS } from '@/lib/ui'
 
 const SOURCES  = ['소개', '온라인', '전시장/이벤트', '직접방문', '전단지/명함', '기타']
 const CONTACT_TITLES = ['대표이사', '사장', '부사장', '전무이사', '상무이사', '이사', '본부장', '실장', '부장', '차장', '과장', '팀장', '파트장', '대리', '책임', '주임', '사원']
@@ -445,26 +446,36 @@ export default function CustomerDetailClient({ customer, returnTo }: { customer:
     <input value={f[k as keyof typeof f] as string}
       onChange={e => setFv(k, e.target.value)}
       placeholder={ph}
-      className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-slate-300" />
+      className={FIELD_CLS} />
   )
 
-  const chips = (k: string, opts: string[], allowDeselect = false) => (
-    <div className="flex flex-wrap gap-1.5">
-      {opts.map(o => (
-        <button key={o} type="button"
-          onClick={() => setFv(k, allowDeselect && f[k as keyof typeof f] === o ? '' : o)}
-          className={`px-3 py-1 rounded-lg text-xs font-semibold border transition
-            ${f[k as keyof typeof f] === o
-              ? 'bg-slate-800 text-white border-slate-800'
-              : 'bg-white border-slate-200 text-slate-500 hover:border-slate-400'}`}>
-          {o}
-        </button>
-      ))}
+  const selectField = (k: string, opts: string[], placeholder = '선택 안 함') => (
+    <select value={(f[k as keyof typeof f] as string) || ''} onChange={e => setFv(k, e.target.value)}
+      className={FIELD_CLS}>
+      <option value="">{placeholder}</option>
+      {opts.map(o => <option key={o} value={o}>{o}</option>)}
+    </select>
+  )
+
+  /* action이 있으면(예: "이름을 모를 때") 라벨 행에 함께 배치 — 있든 없든 행 높이가 항상 동일하게 유지된다 */
+  const label = (text: string, action?: React.ReactNode) => (
+    <div className="h-5 flex items-center justify-between mb-1.5">
+      <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest">{text}</label>
+      {action}
     </div>
   )
 
-  const label = (text: string) => (
-    <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">{text}</label>
+  /* 관리자 페이지와 동일한 색상 배너 헤더 — 섹션이 각각 별도 박스임을 명확히 구분한다 */
+  const SECTION_BG: Record<string, string> = {
+    blue: 'bg-blue-600', indigo: 'bg-indigo-600', amber: 'bg-amber-600',
+    emerald: 'bg-emerald-600', violet: 'bg-violet-600', sky: 'bg-sky-600',
+    slate: 'bg-slate-600', teal: 'bg-teal-600',
+  }
+  const sectionHead = (color: string, title: string, badge?: React.ReactNode) => (
+    <div className={`px-5 py-3 flex items-center gap-2 ${SECTION_BG[color]}`}>
+      <h3 className="text-white font-bold text-sm">{title}</h3>
+      {badge}
+    </div>
   )
 
   return (
@@ -543,19 +554,14 @@ export default function CustomerDetailClient({ customer, returnTo }: { customer:
 
           {/* ── B2C 통합 박스 ── */}
           {f.customerSegment !== 'B2B' && (
-            <div className="bg-white rounded-xl border border-slate-200 p-5 space-y-6">
-
+            <>
               {/* 기본 정보 */}
-              <div>
-                <div className="flex items-center gap-2 mb-4">
-                  <div className="w-0.5 h-4 rounded-full bg-blue-400 shrink-0" />
-                  <span className="text-[13px] font-bold text-blue-600 uppercase tracking-widest whitespace-nowrap">기본 정보</span>
-                  <div className="flex-1 h-px bg-blue-100" />
-                </div>
+              <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+                {sectionHead('blue', '기본 정보')}
+                <div className="p-5">
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <div className="flex items-center justify-between mb-1.5">
-                      <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest">고객명 *</label>
+                    {label('고객명 *', (
                       <button type="button"
                         onClick={() => setFv('name', unknownCustomerName({
                           region:  f.regionDist || f.regionCity,
@@ -569,7 +575,7 @@ export default function CustomerDetailClient({ customer, returnTo }: { customer:
                         }`}>
                         이름을 모를 때 · 신원미상
                       </button>
-                    </div>
+                    ))}
                     {input('name', '고객 이름')}
                   </div>
                   <div>{label('연락처')}{input('phone', '010-0000-0000')}</div>
@@ -577,15 +583,15 @@ export default function CustomerDetailClient({ customer, returnTo }: { customer:
                   <div>
                     {label('영업 담당자')}
                     <AssigneePicker value={f.assignee} onChange={v => setFv('assignee', v)}
-                      className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-slate-300" />
+                      className={FIELD_CLS} />
                   </div>
-                  <div className="col-span-2">
+                  <div>
                     {label('고객 분류')}
-                    {chips('customerCategory', ['자차지입', '임대지입', '용차', '월급기사'], true)}
+                    {selectField('customerCategory', ['자차지입', '임대지입', '용차', '월급기사'])}
                   </div>
-                  <div className="col-span-2">
+                  <div>
                     {label('유입 경로')}
-                    {chips('source', SOURCES, true)}
+                    {selectField('source', SOURCES)}
                   </div>
                   <div className="col-span-2 flex items-end gap-3">
                     <div>
@@ -611,41 +617,32 @@ export default function CustomerDetailClient({ customer, returnTo }: { customer:
                     </div>
                   </div>
                 </div>
+                </div>
               </div>
 
               {/* 개인 정보 */}
-              <div className="border-t border-slate-100 pt-5">
-                <div className="flex items-center gap-2 mb-4">
-                  <div className="w-0.5 h-4 rounded-full bg-indigo-400 shrink-0" />
-                  <span className="text-[13px] font-bold text-indigo-600 uppercase tracking-widest whitespace-nowrap">개인 정보</span>
-                  <div className="flex-1 h-px bg-indigo-100" />
-                </div>
+              <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+                {sectionHead('indigo', '개인 정보')}
+                <div className="p-5">
                 <div className="grid grid-cols-2 gap-4">
-                  <div>{label('성별')}{chips('gender', ['남', '여'], true)}</div>
-                  <div>{label('결혼여부')}{chips('maritalStatus', ['미혼', '기혼', '이혼'], true)}</div>
+                  <div>{label('성별')}{selectField('gender', ['남', '여'])}</div>
+                  <div>{label('결혼여부')}{selectField('maritalStatus', ['미혼', '기혼', '이혼'])}</div>
                   <div>
                     {label('생일 / 연령대')}
                     <input value={f.birthInfo} onChange={e => setFv('birthInfo', e.target.value)}
-                      placeholder="예: 1985-03-15 또는 30대"
-                      className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-slate-300 mb-1.5" />
-                    <div className="flex flex-wrap gap-1">
-                      {['10대', '20대', '30대', '40대', '50대', '60대+'].map(age => (
-                        <button key={age} type="button" onClick={() => setFv('birthInfo', f.birthInfo === age ? '' : age)}
-                          className={`px-2 py-0.5 rounded text-xs font-semibold border transition ${f.birthInfo === age ? 'bg-slate-800 text-white border-slate-800' : 'bg-white border-slate-200 text-slate-500 hover:border-slate-400'}`}>
-                          {age}
-                        </button>
-                      ))}
-                    </div>
+                      placeholder="예: 1985-03-15"
+                      className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 bg-slate-50 focus:outline-none focus:ring-1 focus:ring-slate-300 focus:bg-white transition-colors mb-1.5" />
+                    {selectField('birthInfo', ['10대', '20대', '30대', '40대', '50대', '60대+'], '또는 연령대 선택')}
                   </div>
                   <div>
                     {label('자녀 수')}
                     <input value={f.childrenCount} onChange={e => setFv('childrenCount', e.target.value.replace(/[^0-9]/g, ''))}
-                      placeholder="0" className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-slate-300" />
+                      placeholder="0" className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 bg-slate-50 focus:outline-none focus:ring-1 focus:ring-slate-300 focus:bg-white transition-colors" />
                   </div>
                   <div>
                     {label('거주 지역 (시/도)')}
                     <select value={f.regionCity} onChange={e => { setFv('regionCity', e.target.value); setFv('regionDist', '') }}
-                      className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-1 focus:ring-slate-300">
+                      className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 bg-slate-50 focus:outline-none focus:ring-1 focus:ring-slate-300 focus:bg-white transition-colors">
                       <option value="">시 / 도 선택</option>
                       {CITIES.map(c => <option key={c} value={c}>{c}</option>)}
                     </select>
@@ -653,7 +650,7 @@ export default function CustomerDetailClient({ customer, returnTo }: { customer:
                   <div>
                     {label('거주 지역 (시/군/구)')}
                     <select value={f.regionDist} onChange={e => setFv('regionDist', e.target.value)} disabled={!f.regionCity}
-                      className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-1 focus:ring-slate-300 disabled:bg-slate-50 disabled:text-slate-400">
+                      className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 bg-slate-50 focus:outline-none focus:ring-1 focus:ring-slate-300 focus:bg-white transition-colors disabled:bg-slate-100 disabled:text-slate-400">
                       <option value="">{f.regionCity ? '구 / 군 선택' : '시/도 먼저'}</option>
                       {(REGIONS[f.regionCity] ?? []).map(d => <option key={d} value={d}>{d}</option>)}
                     </select>
@@ -679,29 +676,24 @@ export default function CustomerDetailClient({ customer, returnTo }: { customer:
                     )}
                   </div>
                 </div>
+                </div>
               </div>
 
               {/* 차량 정보 */}
-              <div className="border-t border-slate-100 pt-5">
-                <div className="flex items-center gap-2 mb-4">
-                  <div className="w-0.5 h-4 rounded-full bg-amber-400 shrink-0" />
-                  <span className="text-[13px] font-bold text-amber-600 uppercase tracking-widest whitespace-nowrap">차량 정보</span>
-                  <div className="flex-1 h-px bg-amber-100" />
-                </div>
+              <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+                {sectionHead('amber', '차량 정보')}
+                <div className="p-5">
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     {label('제조사')}
-                    <div className="flex flex-wrap gap-1.5 mb-1.5">
-                      {[...MAKER_CHIP_OPTS, '직접입력'].map(opt => (
-                        <button key={opt} type="button" onClick={() => { setMakerChip(makerChip === opt ? '' : opt); setSaved(false) }}
-                          className={`px-3 py-1 rounded-lg text-xs font-semibold border transition ${makerChip === opt ? 'bg-slate-800 text-white border-slate-800' : 'bg-white border-slate-200 text-slate-500 hover:border-slate-400'}`}>
-                          {opt}
-                        </button>
-                      ))}
-                    </div>
+                    <select value={makerChip} onChange={e => { setMakerChip(e.target.value); setSaved(false) }}
+                      className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 bg-slate-50 focus:outline-none focus:ring-1 focus:ring-slate-300 focus:bg-white transition-colors mb-1.5">
+                      <option value="">선택 안 함</option>
+                      {[...MAKER_CHIP_OPTS, '직접입력'].map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                    </select>
                     {makerChip === '직접입력' && (
                       <input value={makerCustom} onChange={e => { setMakerCustom(e.target.value); setSaved(false) }}
-                        placeholder="제조사 직접 입력" className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-slate-300" />
+                        placeholder="제조사 직접 입력" className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 bg-slate-50 focus:outline-none focus:ring-1 focus:ring-slate-300 focus:bg-white transition-colors" />
                     )}
                   </div>
                   <div>{label('차량명')}{input('vehicleName', '예: 메가트럭, 파비스')}</div>
@@ -710,21 +702,21 @@ export default function CustomerDetailClient({ customer, returnTo }: { customer:
                     <input value={f.vehiclePlateNo} onChange={e => setFv('vehiclePlateNo', e.target.value)}
                       onBlur={e => { if (!hasPlateSpacing(e.target.value)) alert('차량번호 끝 4자리 앞에 띄어쓰기를 추가해주세요. (예: 97보 8003)') }}
                       placeholder="예: 97보 8003"
-                      className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-slate-300" />
+                      className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 bg-slate-50 focus:outline-none focus:ring-1 focus:ring-slate-300 focus:bg-white transition-colors" />
                   </div>
                   <div>{label('연식')}{input('vehicleYear', '예: 2020')}</div>
                   <div>
                     {label('주행거리 (km)')}
                     <input value={f.totalMileage} onChange={e => { const n = e.target.value.replace(/[^0-9]/g, ''); setF(p => ({ ...p, totalMileage: n ? Number(n).toLocaleString() : '' })); setSaved(false) }}
-                      placeholder="예: 150,000" className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-slate-300" />
+                      placeholder="예: 150,000" className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 bg-slate-50 focus:outline-none focus:ring-1 focus:ring-slate-300 focus:bg-white transition-colors" />
                   </div>
                   <div className="col-span-2">
                     {label('차종 분류')}
                     <div className="grid grid-cols-2 gap-3">
-                      <div><p className="text-[10px] text-slate-400 mb-1">구분1 · 형태</p>{chips('truckType1', ['탑', '벤', '오픈배드'], true)}</div>
-                      <div><p className="text-[10px] text-slate-400 mb-1">구분2 · 연료</p>{chips('truckType2', ['경유', '가스', '전기'], true)}</div>
-                      <div><p className="text-[10px] text-slate-400 mb-1">구분3 · 적재함</p>{chips('truckType3', ['건탑', '냉동', '냉장'], true)}</div>
-                      <div><p className="text-[10px] text-slate-400 mb-1">구분4 · 높이</p>{chips('truckType4', ['저상', '표준', '하이탑'], true)}</div>
+                      <div><p className="text-[10px] text-slate-400 mb-1">구분1 · 형태</p>{selectField('truckType1', ['탑', '벤', '오픈배드'])}</div>
+                      <div><p className="text-[10px] text-slate-400 mb-1">구분2 · 연료</p>{selectField('truckType2', ['경유', '가스', '전기'])}</div>
+                      <div><p className="text-[10px] text-slate-400 mb-1">구분3 · 적재함</p>{selectField('truckType3', ['건탑', '냉동', '냉장'])}</div>
+                      <div><p className="text-[10px] text-slate-400 mb-1">구분4 · 높이</p>{selectField('truckType4', ['저상', '표준', '하이탑'])}</div>
                     </div>
                   </div>
                   <div className="col-span-2">
@@ -758,29 +750,24 @@ export default function CustomerDetailClient({ customer, returnTo }: { customer:
                     })()}
                   </div>
                 </div>
+                </div>
               </div>
 
               {/* 화주 정보 */}
-              <div className="border-t border-slate-100 pt-5">
-                <div className="flex items-center gap-2 mb-4">
-                  <div className="w-0.5 h-4 rounded-full bg-emerald-400 shrink-0" />
-                  <span className="text-[13px] font-bold text-emerald-600 uppercase tracking-widest whitespace-nowrap">화주 정보</span>
-                  <div className="flex-1 h-px bg-emerald-100" />
-                </div>
+              <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+                {sectionHead('emerald', '화주 정보')}
+                <div className="p-5">
                 <div className="grid grid-cols-2 gap-4">
                   <div className="col-span-2">
                     {label('화주명')}
-                    <div className="flex flex-wrap gap-1.5 mb-1.5">
-                      {[...SHIPPER_PRESETS, '직접입력'].map(opt => (
-                        <button key={opt} type="button" onClick={() => { setShipperChip(opt); setSaved(false) }}
-                          className={`px-3 py-1 rounded-lg text-xs font-semibold border transition ${shipperChip === opt ? 'bg-slate-800 text-white border-slate-800' : 'bg-white border-slate-200 text-slate-500 hover:border-slate-400'}`}>
-                          {opt}
-                        </button>
-                      ))}
-                    </div>
+                    <select value={shipperChip} onChange={e => { setShipperChip(e.target.value); setSaved(false) }}
+                      className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 bg-slate-50 focus:outline-none focus:ring-1 focus:ring-slate-300 focus:bg-white transition-colors mb-1.5">
+                      <option value="">선택 안 함</option>
+                      {[...SHIPPER_PRESETS, '직접입력'].map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                    </select>
                     {shipperChip === '직접입력' && (
                       <input value={shipperCustom} onChange={e => { setShipperCustom(e.target.value); setSaved(false) }}
-                        placeholder="화주명 직접 입력" className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-slate-300" />
+                        placeholder="화주명 직접 입력" className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 bg-slate-50 focus:outline-none focus:ring-1 focus:ring-slate-300 focus:bg-white transition-colors" />
                     )}
                   </div>
                   <div>{label('화물 유형')}{input('cargoType', '예: 냉동식품, 공산품')}</div>
@@ -788,7 +775,7 @@ export default function CustomerDetailClient({ customer, returnTo }: { customer:
                   <div>
                     {label('배송 지역 (시/도)')}
                     <select value={f.deliveryCity} onChange={e => { setFv('deliveryCity', e.target.value); setFv('deliveryDist', '') }}
-                      className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-1 focus:ring-slate-300">
+                      className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 bg-slate-50 focus:outline-none focus:ring-1 focus:ring-slate-300 focus:bg-white transition-colors">
                       <option value="">시 / 도 선택</option>
                       {CITIES.map(c => <option key={c} value={c}>{c}</option>)}
                     </select>
@@ -796,24 +783,21 @@ export default function CustomerDetailClient({ customer, returnTo }: { customer:
                   <div>
                     {label('배송 지역 (시/군/구)')}
                     <select value={f.deliveryDist} onChange={e => setFv('deliveryDist', e.target.value)} disabled={!f.deliveryCity}
-                      className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-1 focus:ring-slate-300 disabled:bg-slate-50 disabled:text-slate-400">
+                      className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 bg-slate-50 focus:outline-none focus:ring-1 focus:ring-slate-300 focus:bg-white transition-colors disabled:bg-slate-100 disabled:text-slate-400">
                       <option value="">{f.deliveryCity ? '구 / 군 선택' : '시/도 먼저'}</option>
                       {(REGIONS[f.deliveryCity] ?? []).map(d => <option key={d} value={d}>{d}</option>)}
                     </select>
                   </div>
                   <div>
                     {label('근무 패턴')}
-                    <div className="flex flex-wrap gap-1.5 mb-1.5">
-                      {[...SHIFT_PRESETS, '직접입력'].map(opt => (
-                        <button key={opt} type="button" onClick={() => { setShiftChip(shiftChip === opt ? '' : opt); setSaved(false) }}
-                          className={`px-3 py-1 rounded-lg text-xs font-semibold border transition ${shiftChip === opt ? 'bg-slate-800 text-white border-slate-800' : 'bg-white border-slate-200 text-slate-500 hover:border-slate-400'}`}>
-                          {opt}
-                        </button>
-                      ))}
-                    </div>
+                    <select value={shiftChip} onChange={e => { setShiftChip(e.target.value); setSaved(false) }}
+                      className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 bg-slate-50 focus:outline-none focus:ring-1 focus:ring-slate-300 focus:bg-white transition-colors mb-1.5">
+                      <option value="">선택 안 함</option>
+                      {[...SHIFT_PRESETS, '직접입력'].map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                    </select>
                     {shiftChip === '직접입력' && (
                       <input value={shiftCustom} onChange={e => { setShiftCustom(e.target.value); setSaved(false) }}
-                        placeholder="예: 새벽배송" className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-slate-300" />
+                        placeholder="예: 새벽배송" className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 bg-slate-50 focus:outline-none focus:ring-1 focus:ring-slate-300 focus:bg-white transition-colors" />
                     )}
                   </div>
                   <div>{label('월 수입 (만원)')}{input('monthlyIncome', '예: 350')}</div>
@@ -821,24 +805,21 @@ export default function CustomerDetailClient({ customer, returnTo }: { customer:
                     {label('화물 특이사항')}
                     <textarea value={f.cargoNote} rows={2} onChange={e => setFv('cargoNote', e.target.value)}
                       placeholder="온도 조건, 하역 방식, 특수 요구사항 등..."
-                      className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 resize-none focus:outline-none focus:ring-1 focus:ring-slate-300" />
+                      className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 resize-none bg-slate-50 focus:outline-none focus:ring-1 focus:ring-slate-300 focus:bg-white transition-colors" />
                   </div>
                 </div>
+                </div>
               </div>
-            </div>
+            </>
           )}
 
           {/* ── B2B 통합 박스 ── */}
           {f.customerSegment === 'B2B' && (
-            <div className="bg-white rounded-xl border border-slate-200 p-5 space-y-6">
-
+            <>
               {/* 기본 정보 */}
-              <div>
-                <div className="flex items-center gap-2 mb-4">
-                  <div className="w-0.5 h-4 rounded-full bg-violet-400 shrink-0" />
-                  <span className="text-[13px] font-bold text-violet-600 uppercase tracking-widest whitespace-nowrap">기본 정보</span>
-                  <div className="flex-1 h-px bg-violet-100" />
-                </div>
+              <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+                {sectionHead('violet', '기본 정보')}
+                <div className="p-5">
                 <div className="grid grid-cols-2 gap-4">
                   <div>{label('거래처 담당자명 *')}{input('name', '거래처 담당자 이름')}</div>
                   <div>{label('거래처 담당자 연락처')}{input('phone', '010-0000-0000')}</div>
@@ -846,7 +827,7 @@ export default function CustomerDetailClient({ customer, returnTo }: { customer:
                   <div>
                     {label('거래처 담당자 직위')}
                     <select value={f.contactTitle ?? ''} onChange={e => setFv('contactTitle', e.target.value)}
-                      className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-1 focus:ring-slate-300 text-slate-700">
+                      className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 bg-slate-50 focus:outline-none focus:ring-1 focus:ring-slate-300 focus:bg-white transition-colors text-slate-700">
                       <option value="">직위 선택</option>
                       {CONTACT_TITLES.map(t => <option key={t} value={t}>{t}</option>)}
                     </select>
@@ -877,17 +858,14 @@ export default function CustomerDetailClient({ customer, returnTo }: { customer:
                   <div>{label('사업자등록번호')}{input('businessRegNo', '000-00-00000')}</div>
                   <div>
                     {label('고객분류')}
-                    <div className="flex flex-wrap gap-1.5 mb-1.5">
-                      {INDUSTRY_CHIPS.map(opt => (
-                        <button key={opt} type="button" onClick={() => { setIndustryChip(opt); setSaved(false) }}
-                          className={`px-3 py-1 rounded-lg text-xs font-semibold border transition ${industryChip === opt ? 'bg-slate-800 text-white border-slate-800' : 'bg-white border-slate-200 text-slate-500 hover:border-slate-400'}`}>
-                          {opt}
-                        </button>
-                      ))}
-                    </div>
+                    <select value={industryChip} onChange={e => { setIndustryChip(e.target.value); setSaved(false) }}
+                      className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 bg-slate-50 focus:outline-none focus:ring-1 focus:ring-slate-300 focus:bg-white transition-colors mb-1.5">
+                      <option value="">선택 안 함</option>
+                      {INDUSTRY_CHIPS.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                    </select>
                     {industryChip === '기타' && (
                       <input value={industryCustom} onChange={e => { setIndustryCustom(e.target.value); setSaved(false) }}
-                        placeholder="직접 입력" className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-slate-300" />
+                        placeholder="직접 입력" className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 bg-slate-50 focus:outline-none focus:ring-1 focus:ring-slate-300 focus:bg-white transition-colors" />
                     )}
                   </div>
                   <div>{label('회사 전화')}{input('companyPhone', '02-0000-0000')}</div>
@@ -901,7 +879,7 @@ export default function CustomerDetailClient({ customer, returnTo }: { customer:
                   </div>
                   <div className="col-span-2">
                     {label('유입 경로')}
-                    {chips('source', SOURCES, true)}
+                    {selectField('source', SOURCES)}
                   </div>
                   <div className="col-span-2 flex items-end gap-3">
                     <div>
@@ -929,18 +907,16 @@ export default function CustomerDetailClient({ customer, returnTo }: { customer:
                   <div>
                     {label('영업 담당자')}
                     <AssigneePicker value={f.assignee} onChange={v => setFv('assignee', v)}
-                      className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-slate-300" />
+                      className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 bg-slate-50 focus:outline-none focus:ring-1 focus:ring-slate-300 focus:bg-white transition-colors" />
                   </div>
+                </div>
                 </div>
               </div>
 
               {/* 관계자 목록 */}
-              <div className="border-t border-slate-100 pt-5">
-                <div className="flex items-center gap-2 mb-3">
-                  <div className="w-0.5 h-3.5 rounded-full bg-sky-400 shrink-0" />
-                  <span className="text-[13px] font-bold text-sky-600 uppercase tracking-widest whitespace-nowrap">관계자 목록</span>
-                  <div className="flex-1 h-px bg-sky-100" />
-                </div>
+              <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+                {sectionHead('sky', '관계자 목록')}
+                <div className="p-5">
                 <div className="overflow-x-auto">
                   <div style={{ minWidth: 760 }}>
                     <div className="grid gap-2 mb-1" style={{ gridTemplateColumns: '1fr 110px 90px 1fr 140px 1fr 76px 24px' }}>
@@ -1002,18 +978,16 @@ export default function CustomerDetailClient({ customer, returnTo }: { customer:
                   className="mt-2 w-full py-1.5 text-xs font-semibold text-slate-400 border border-dashed border-slate-200 rounded-lg hover:border-slate-400 hover:text-slate-600 transition">
                   + 관계자 추가
                 </button>
+                </div>
               </div>
 
               {/* 보유차량 + 법인매출 좌우 배치 */}
-              <div className="border-t border-slate-100 pt-5 grid grid-cols-2 gap-6">
+              <div className="grid grid-cols-2 gap-4">
 
                 {/* 보유 차량 정보 */}
-                <div>
-                  <div className="flex items-center gap-2 mb-3">
-                    <div className="w-0.5 h-3.5 rounded-full bg-amber-400 shrink-0" />
-                    <span className="text-[13px] font-bold text-amber-600 uppercase tracking-widest whitespace-nowrap">보유 차량 정보</span>
-                    <div className="flex-1 h-px bg-amber-100" />
-                  </div>
+                <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+                  {sectionHead('amber', '보유 차량 정보')}
+                  <div className="p-5">
                   <div className="grid gap-2 mb-1" style={{ gridTemplateColumns: '1fr 56px 24px' }}>
                     <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">차량명</span>
                     <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest text-center">대수</span>
@@ -1056,15 +1030,13 @@ export default function CustomerDetailClient({ customer, returnTo }: { customer:
                         : '—'}
                     </span>
                   </div>
+                  </div>
                 </div>
 
                 {/* 법인 매출 */}
-                <div>
-                  <div className="flex items-center gap-2 mb-3">
-                    <div className="w-0.5 h-3.5 rounded-full bg-emerald-400 shrink-0" />
-                    <span className="text-[13px] font-bold text-emerald-600 uppercase tracking-widest whitespace-nowrap">법인 매출</span>
-                    <div className="flex-1 h-px bg-emerald-100" />
-                  </div>
+                <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+                  {sectionHead('emerald', '법인 매출')}
+                  <div className="p-5">
                   <div className="space-y-2">
                     {([
                       { key: 'b2bRevenue1', year: new Date().getFullYear() - 1 },
@@ -1083,20 +1055,18 @@ export default function CustomerDetailClient({ customer, returnTo }: { customer:
                       </div>
                     ))}
                   </div>
+                  </div>
                 </div>
 
               </div>
-            </div>
+            </>
           )}
 
           {/* B2B 첨부 서류 */}
           {f.customerSegment === 'B2B' && (
-            <div className="bg-white rounded-xl border border-slate-200 p-5">
-              <div className="flex items-center gap-2 mb-4">
-                <div className="w-0.5 h-4 rounded-full bg-slate-400 shrink-0" />
-                <span className="text-[13px] font-bold text-slate-500 uppercase tracking-widest whitespace-nowrap">첨부 서류</span>
-                <div className="flex-1 h-px bg-slate-100" />
-              </div>
+            <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+              {sectionHead('slate', '첨부 서류')}
+              <div className="p-5">
               <div className="space-y-3">
                 {(['사업자등록증', '계좌정보'] as const).map(docType => {
                   const doc = docs.find(d => d.type === docType)
@@ -1134,30 +1104,25 @@ export default function CustomerDetailClient({ customer, returnTo }: { customer:
                 })}
               </div>
               <p className="mt-3 text-[10px] text-slate-400">PDF, JPG, PNG, HEIC 지원 · 파일당 최대 10MB</p>
+              </div>
             </div>
           )}
 
           {/* 메모 (공통) */}
-          <div className="bg-white rounded-xl border border-slate-200 p-5">
-            <div className="flex items-center gap-2 mb-4">
-              <div className="w-0.5 h-4 rounded-full bg-slate-400 shrink-0" />
-              <span className="text-[13px] font-bold text-slate-500 uppercase tracking-widest whitespace-nowrap">메모</span>
-              <div className="flex-1 h-px bg-slate-100" />
-            </div>
+          <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+            {sectionHead('slate', '메모')}
+            <div className="p-5">
             <textarea value={f.memo} rows={4} onChange={e => setFv('memo', e.target.value)}
               placeholder="고객 특이사항, 니즈 등..."
-              className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 resize-none focus:outline-none focus:ring-1 focus:ring-slate-300" />
+              className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 resize-none bg-slate-50 focus:outline-none focus:ring-1 focus:ring-slate-300 focus:bg-white transition-colors" />
+            </div>
           </div>
 
         {/* 연결된 리드 목록 */}
         {customer.leads.length > 0 && (
-          <div className="bg-white rounded-xl border border-slate-200 p-5">
-            <div className="flex items-center gap-2 mb-3">
-              <div className="w-0.5 h-4 rounded-full bg-blue-400 shrink-0" />
-              <span className="text-[13px] font-bold text-blue-600 uppercase tracking-widest whitespace-nowrap">연결된 리드</span>
-              <span className="text-[13px] font-bold text-blue-300">({customer.leads.length})</span>
-              <div className="flex-1 h-px bg-blue-100" />
-            </div>
+          <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+            {sectionHead('blue', '연결된 리드', <span className="text-xs font-bold text-blue-200">({customer.leads.length})</span>)}
+            <div className="p-5">
             <div className="space-y-2">
               {customer.leads.map(lead => (
                 <Link key={lead.id} href={`/funnel/${lead.id}`}
@@ -1176,23 +1141,22 @@ export default function CustomerDetailClient({ customer, returnTo }: { customer:
                 </Link>
               ))}
             </div>
+            </div>
           </div>
         )}
       </div>
 
       {/* 활동 이력 */}
-      <div className="mt-6">
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-2">
-            <div className="w-0.5 h-4 rounded-full bg-teal-400 shrink-0" />
-            <h2 className="text-[13px] font-bold text-teal-600 uppercase tracking-widest">영업 활동 이력</h2>
-          </div>
+      <div className="mt-4 bg-white rounded-xl border border-slate-200 overflow-hidden">
+        <div className="px-5 py-3 bg-teal-600 flex items-center justify-between">
+          <h3 className="text-white font-bold text-sm">영업 활동 이력</h3>
           <button onClick={() => setShowActForm(v => !v)}
             className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition
-              ${showActForm ? 'bg-slate-200 text-slate-600' : 'bg-slate-800 text-white hover:bg-slate-700'}`}>
+              ${showActForm ? 'bg-white/90 text-slate-700 hover:bg-white' : 'bg-white/10 hover:bg-white/20 text-white'}`}>
             {showActForm ? '취소' : '+ 활동 추가'}
           </button>
         </div>
+        <div className="p-5">
 
         {/* 활동 추가 폼 */}
         {showActForm && (
@@ -1214,7 +1178,7 @@ export default function CustomerDetailClient({ customer, returnTo }: { customer:
                 <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">일시</label>
                 <input type="datetime-local" value={act.date}
                   onChange={e => setAct(a => ({ ...a, date: e.target.value }))}
-                  className="w-full text-xs border border-slate-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-1 focus:ring-slate-300" />
+                  className="w-full text-xs border border-slate-200 rounded-lg px-3 py-2 bg-slate-50 focus:outline-none focus:ring-1 focus:ring-slate-300 focus:bg-white transition-colors" />
               </div>
               <div className="col-span-2">
                 <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">내용</label>
@@ -1228,14 +1192,14 @@ export default function CustomerDetailClient({ customer, returnTo }: { customer:
                 <input value={act.result}
                   onChange={e => setAct(a => ({ ...a, result: e.target.value }))}
                   placeholder="예: 관심 표명, 재연락 약속"
-                  className="w-full text-xs border border-slate-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-1 focus:ring-slate-300" />
+                  className="w-full text-xs border border-slate-200 rounded-lg px-3 py-2 bg-slate-50 focus:outline-none focus:ring-1 focus:ring-slate-300 focus:bg-white transition-colors" />
               </div>
               <div>
                 <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">다음 액션</label>
                 <input value={act.nextAction}
                   onChange={e => setAct(a => ({ ...a, nextAction: e.target.value }))}
                   placeholder="예: 자료 발송, 방문 일정"
-                  className="w-full text-xs border border-slate-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-1 focus:ring-slate-300" />
+                  className="w-full text-xs border border-slate-200 rounded-lg px-3 py-2 bg-slate-50 focus:outline-none focus:ring-1 focus:ring-slate-300 focus:bg-white transition-colors" />
               </div>
             </div>
             <div className="mt-4 flex justify-end">
@@ -1279,6 +1243,7 @@ export default function CustomerDetailClient({ customer, returnTo }: { customer:
             ))}
           </div>
         )}
+        </div>
       </div>
     </div>
   )

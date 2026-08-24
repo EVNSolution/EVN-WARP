@@ -4,6 +4,7 @@ import { useState, useTransition, useEffect, useRef, type ChangeEvent } from 're
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { PIPELINE, SALE_HOLD_CHECK_KEY, SALE_HOLD_TRIGGER_OPTS } from '@/lib/pipeline'
+import { FIELD_CLS } from '@/lib/ui'
 import AgentPicker from '@/components/AgentPicker'
 import AssigneePicker from '@/components/AssigneePicker'
 import CallAnalysisModal from '@/components/CallAnalysisModal'
@@ -914,7 +915,7 @@ export default function LeadDetailClient({ deal, customer = null, products = [],
               )}
               <button onClick={toggleExpand}
                 className="text-xs text-slate-400 hover:text-slate-700 transition px-2 py-0.5">
-                수정
+                펼치기
               </button>
             </div>
           </div>
@@ -1366,16 +1367,6 @@ export default function LeadDetailClient({ deal, customer = null, products = [],
                 : ''}
             </span>
             <div className="flex items-center gap-2 shrink-0">
-              {salesStatus !== '이탈' && salesStatus !== '완료' && (
-                <button onClick={() => setShowLostModal(true)}
-                  className="px-3 py-1.5 text-xs font-semibold rounded-lg border border-red-200 text-red-400 hover:bg-red-50 transition">
-                  구매의사 포기
-                </button>
-              )}
-              <button onClick={scrollToMeetings}
-                className="px-3 py-1.5 text-xs font-semibold rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-100 transition">
-                미팅 / 상담 기록
-              </button>
               {isCurrent && procIdx < allCodes.length - 1 && (
                 <button disabled={!canAdvance(proc.code)} onClick={advanceStage}
                   className={`px-4 py-1.5 rounded-lg text-xs font-bold transition
@@ -1520,81 +1511,147 @@ export default function LeadDetailClient({ deal, customer = null, products = [],
       </div>
 
       {/* ── 리드 기본 정보 ── */}
-      <div className="mb-6 p-4 bg-white rounded-xl border border-slate-200 space-y-4">
-        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">리드 기본 정보</p>
-        <div className="grid grid-cols-2 gap-4">
-          {/* 유입경로 */}
-          <div className="col-span-2">
-            <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">유입경로</label>
-            <div className="flex gap-1.5 flex-wrap">
-              {['자체발굴', '온라인', '오프라인', '소개인', '기타'].map(s => (
-                <button key={s} type="button"
-                  onClick={() => { setFv('source', f.source === s ? '' : s); if (s !== '소개인') setAgentValue(null) }}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all
-                    ${f.source === s
-                      ? s === '소개인' ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-slate-800 text-white border-slate-800'
-                      : 'bg-white border-slate-200 text-slate-500 hover:border-slate-400'}`}>
-                  {s}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* 소개인 AgentPicker (소개인 선택 시) */}
-          {(f.source === '소개인' || f.source === 'Agent') && (
+      <div className="mb-6 bg-white rounded-xl border border-slate-200 overflow-hidden">
+        <p className="px-4 pt-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">리드 기본 정보</p>
+        <div className="p-4 grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-4">
+          {/* 왼쪽: 입력 필드 */}
+          <div className="grid grid-cols-2 gap-4 content-start">
+            {/* 유입경로 */}
             <div className="col-span-2">
-              <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">소개인</label>
-              <AgentPicker value={agentValue} onChange={setAgentValue} />
-              {deal.agent && !agentValue && (
-                <p className="text-xs text-slate-400 mt-1">기존: {deal.agent.name}</p>
-              )}
-            </div>
-          )}
-
-          {/* 담당자 */}
-          <div>
-            <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">담당 영업사원</label>
-            <AssigneePicker value={f.assignee} onChange={v => setFv('assignee', v)}
-              className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-slate-300" />
-          </div>
-
-          {/* 모델명 */}
-          {products.length > 0 && (
-            <div>
-              <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">모델명</label>
+              <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">유입경로</label>
               <select
-                value={selectedProductId ?? ''}
-                onChange={e => { setSelectedProductId(e.target.value || null); setSaved(false) }}
-                className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-slate-300">
-                <option value="">제품 선택 안 함</option>
-                {products.map(p => (
-                  <option key={p.id} value={p.id}>
-                    {p.code ? `${p.code} — ` : ''}{p.name}
-                  </option>
+                value={f.source}
+                onChange={e => { const s = e.target.value; setFv('source', s); if (s !== '소개인') setAgentValue(null) }}
+                className={FIELD_CLS}>
+                <option value="">선택 안 함</option>
+                {['자체발굴', '온라인', '오프라인', '소개인', '기타'].map(s => (
+                  <option key={s} value={s}>{s}</option>
                 ))}
               </select>
             </div>
-          )}
 
-          {/* 예상 대수 */}
-          <div>
-            <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">예상 대수</label>
-            <div className="flex items-center gap-2">
+            {/* 소개인 AgentPicker (소개인 선택 시) */}
+            {(f.source === '소개인' || f.source === 'Agent') && (
+              <div className="col-span-2">
+                <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">소개인</label>
+                <AgentPicker value={agentValue} onChange={setAgentValue} />
+                {deal.agent && !agentValue && (
+                  <p className="text-xs text-slate-400 mt-1">기존: {deal.agent.name}</p>
+                )}
+              </div>
+            )}
+
+            {/* 담당자 */}
+            <div>
+              <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">담당 영업사원</label>
+              <AssigneePicker value={f.assignee} onChange={v => setFv('assignee', v)}
+                className={FIELD_CLS} />
+            </div>
+
+            {/* 모델명 */}
+            <div>
+              <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">모델명</label>
+              {products.length > 0 ? (
+                <select
+                  value={selectedProductId ?? ''}
+                  onChange={e => { setSelectedProductId(e.target.value || null); setSaved(false) }}
+                  className={FIELD_CLS}>
+                  <option value="">제품 선택 안 함</option>
+                  {products.map(p => (
+                    <option key={p.id} value={p.id}>
+                      {p.code ? `${p.code} — ` : ''}{p.name}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <p className="text-xs text-slate-400 border border-dashed border-slate-200 rounded-lg px-3 py-2">
+                  등록된 모델이 없습니다 · 관리자 페이지에서 추가
+                </p>
+              )}
+            </div>
+
+            {/* 예상 대수 */}
+            <div>
+              <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">예상 대수(대)</label>
               <input type="number" min="1" value={f.vehicleCount}
                 onChange={e => setFv('vehicleCount', e.target.value)}
                 placeholder="미입력 시 1대"
-                className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-slate-300" />
-              <span className="text-xs text-slate-400 shrink-0">대</span>
+                className={FIELD_CLS} />
+            </div>
+
+            {/* 메모 */}
+            <div className="col-span-2">
+              <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">메모</label>
+              <textarea value={f.memo ?? ''} rows={3}
+                onChange={e => setFv('memo', e.target.value)}
+                placeholder="상담 내용, 고객 니즈 등..."
+                className={`${FIELD_CLS} resize-none`} />
             </div>
           </div>
 
-          {/* 메모 */}
-          <div className="col-span-2">
-            <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">메모</label>
-            <textarea value={f.memo ?? ''} rows={3}
-              onChange={e => setFv('memo', e.target.value)}
-              placeholder="상담 내용, 고객 니즈 등..."
-              className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 resize-none focus:outline-none focus:ring-2 focus:ring-slate-300" />
+          {/* 오른쪽: 리드 상태 관리 */}
+          <div className="lg:border-l lg:border-slate-100 lg:pl-4 space-y-3">
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">리드 상태 관리</p>
+
+            {/* 판매보류 */}
+            {salesStatus === '판매보류' && (
+              <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 space-y-1.5">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-xs font-bold text-amber-700">판매방법 보류</span>
+                  <button
+                    onClick={() => {
+                      const found = HOLD_REASON_GROUPS.find(g => g.reasons.includes(holdReason ?? ''))
+                      setPendingHoldCategory(found?.category ?? HOLD_REASON_GROUPS[0].category)
+                      setPendingHoldReason(holdReason ?? '')
+                      setShowHoldModal(true)
+                    }}
+                    className="text-[11px] text-amber-600 hover:text-amber-800 border border-amber-200 hover:border-amber-400 rounded-lg px-2 py-0.5 transition shrink-0">
+                    {holdReason ? '사유 수정' : '사유 선택'}
+                  </button>
+                </div>
+                <p className="text-xs text-amber-600">{holdReason ?? '자체할부/리스로 진행 예정 — 사유를 선택해 주세요'}</p>
+              </div>
+            )}
+
+            {/* 이탈 / 구매의사 포기 */}
+            {salesStatus === '이탈' ? (
+              <div className="rounded-xl border border-red-200 bg-red-50 px-3 py-2.5 space-y-1.5">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-xs font-bold text-red-600">구매 포기</span>
+                  <button
+                    onClick={() => {
+                      const cur = lostReason ?? ''
+                      if (cur.startsWith('기타: ')) {
+                        setPendingLostReason('기타')
+                        setPendingLostNote(cur.slice(4))
+                      } else {
+                        setPendingLostReason(cur)
+                        setPendingLostNote('')
+                      }
+                      setShowLostModal(true)
+                    }}
+                    className="text-[11px] text-red-400 hover:text-red-600 border border-red-200 hover:border-red-400 rounded-lg px-2 py-0.5 transition shrink-0">
+                    수정
+                  </button>
+                </div>
+                <p className="text-xs text-red-400">{lostReason || '원인 미기재'}</p>
+              </div>
+            ) : salesStatus !== '완료' && (
+              <button
+                onClick={() => setShowLostModal(true)}
+                className="w-full px-3 py-1.5 rounded-lg text-xs font-bold border border-red-200 text-red-500 hover:bg-red-50 transition text-left">
+                구매의사 포기
+              </button>
+            )}
+
+            {(salesStatus === '판매보류' || salesStatus === '이탈') && (
+              <div className="flex flex-wrap gap-1.5">{renderReactivateActions()}</div>
+            )}
+
+            <button onClick={scrollToMeetings}
+              className="w-full px-3 py-1.5 text-xs font-semibold rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-100 transition text-left">
+              미팅 / 상담 기록 →
+            </button>
           </div>
         </div>
       </div>
@@ -1611,66 +1668,6 @@ export default function LeadDetailClient({ deal, customer = null, products = [],
             </div>
           </div>
         ))}
-      </div>
-
-      {/* 판매보류 */}
-      {salesStatus === '판매보류' && (
-        <div className="mt-2.5">
-          <p className="text-[10px] font-bold uppercase tracking-widest mb-2 text-amber-600">판매보류</p>
-          <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 flex items-center gap-3">
-            <span className="text-sm font-bold text-amber-700">판매방법 보류</span>
-            <span className="text-xs text-amber-600 flex-1">
-              {holdReason ?? '자체할부/리스로 진행 예정 — 사유를 선택해 주세요'}
-            </span>
-            <button
-              onClick={() => {
-                const found = HOLD_REASON_GROUPS.find(g => g.reasons.includes(holdReason ?? ''))
-                setPendingHoldCategory(found?.category ?? HOLD_REASON_GROUPS[0].category)
-                setPendingHoldReason(holdReason ?? '')
-                setShowHoldModal(true)
-              }}
-              className="text-[11px] text-amber-600 hover:text-amber-800 border border-amber-200 hover:border-amber-400 rounded-lg px-2 py-1 transition shrink-0">
-              {holdReason ? '사유 수정' : '사유 선택'}
-            </button>
-            {renderReactivateActions()}
-          </div>
-        </div>
-      )}
-
-      {/* 이탈 */}
-      <div className="mt-2.5">
-        <p className="text-[10px] font-bold uppercase tracking-widest mb-2 text-red-500">이탈</p>
-        {salesStatus === '이탈' ? (
-          <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 flex items-center gap-3">
-            <span className="text-sm font-bold text-red-600">구매 포기</span>
-            <span className="text-xs text-red-400 flex-1">{lostReason || '원인 미기재'}</span>
-            <button
-              onClick={() => {
-                const cur = lostReason ?? ''
-                if (cur.startsWith('기타: ')) {
-                  setPendingLostReason('기타')
-                  setPendingLostNote(cur.slice(4))
-                } else {
-                  setPendingLostReason(cur)
-                  setPendingLostNote('')
-                }
-                setShowLostModal(true)
-              }}
-              className="text-[11px] text-red-400 hover:text-red-600 border border-red-200 hover:border-red-400 rounded-lg px-2 py-1 transition shrink-0">
-              수정
-            </button>
-            {renderReactivateActions()}
-          </div>
-        ) : (
-          <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 flex items-center justify-between gap-3">
-            <span className="text-xs text-slate-400">모든 영업 단계에서 구매 의사를 포기한 경우 기록합니다</span>
-            <button
-              onClick={() => setShowLostModal(true)}
-              className="shrink-0 px-3 py-1.5 rounded-lg text-xs font-bold border border-red-200 text-red-500 hover:bg-red-50 transition">
-              구매의사 포기
-            </button>
-          </div>
-        )}
       </div>
 
       {/* ── 미팅 기록 / 계획 ── */}

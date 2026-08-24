@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { X, Car, Save } from 'lucide-react'
 
 type Vehicle = { id: string; name: string; plateNo: string }
+type Garage  = { id: string; name: string }
 
 export type ResvFormData = {
   vehicleId: string
@@ -54,6 +55,7 @@ function splitIso(iso: string): { date: string; time: string } {
 export default function VehicleReservationModal({ initialDate, reservation, onClose, onSaved }: Props) {
   const isEdit = !!reservation
   const [vehicles, setVehicles] = useState<Vehicle[]>([])
+  const [garages,  setGarages]  = useState<Garage[]>([])
   const [form, setForm] = useState<ResvFormData>(() => {
     if (reservation) {
       const s = splitIso(reservation.startAt)
@@ -78,7 +80,16 @@ export default function VehicleReservationModal({ initialDate, reservation, onCl
 
   useEffect(() => {
     fetch('/api/vehicles').then(r => r.json()).then(setVehicles).catch(() => {})
+    fetch('/api/garages').then(r => r.json()).then(setGarages).catch(() => {})
   }, [])
+
+  /* 기존 자유 텍스트 값이 현재 차고지 목록에 없으면(레거시 데이터) 옵션에 임시로 추가해 값이 사라지지 않게 한다 */
+  const pickupOpts = form.pickupLocation && !garages.some(g => g.name === form.pickupLocation)
+    ? [{ id: '__legacy_pickup', name: form.pickupLocation }, ...garages]
+    : garages
+  const returnOpts = form.returnLocation && !garages.some(g => g.name === form.returnLocation)
+    ? [{ id: '__legacy_return', name: form.returnLocation }, ...garages]
+    : garages
 
   function set(k: keyof ResvFormData, v: string) {
     setForm(f => ({ ...f, [k]: v }))
@@ -229,19 +240,19 @@ export default function VehicleReservationModal({ initialDate, reservation, onCl
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-semibold text-slate-600 mb-1">픽업 장소</label>
-              <input type="text" placeholder="예: 본사 주차장"
-                value={form.pickupLocation}
-                onChange={e => set('pickupLocation', e.target.value)}
-                className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-lime-300"
-              />
+              <select value={form.pickupLocation} onChange={e => set('pickupLocation', e.target.value)}
+                className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-lime-300">
+                <option value="">차고지 선택</option>
+                {pickupOpts.map(g => <option key={g.id} value={g.name}>{g.name}</option>)}
+              </select>
             </div>
             <div>
               <label className="block text-xs font-semibold text-slate-600 mb-1">반납 장소</label>
-              <input type="text" placeholder="예: 본사 주차장"
-                value={form.returnLocation}
-                onChange={e => set('returnLocation', e.target.value)}
-                className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-lime-300"
-              />
+              <select value={form.returnLocation} onChange={e => set('returnLocation', e.target.value)}
+                className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-lime-300">
+                <option value="">차고지 선택</option>
+                {returnOpts.map(g => <option key={g.id} value={g.name}>{g.name}</option>)}
+              </select>
             </div>
           </div>
 

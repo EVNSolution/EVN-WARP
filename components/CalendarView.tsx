@@ -3,8 +3,9 @@
 import { useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { Plus, X, ExternalLink, Mail, Car, Pencil, Trash2 } from 'lucide-react'
+import { Plus, X, ExternalLink, Mail, Car, Pencil, Trash2, MapPin } from 'lucide-react'
 import VehicleReservationModal from './VehicleReservationModal'
+import VehicleStatusModal from './VehicleStatusModal'
 
 export type CalActivity = {
   id:           string
@@ -117,6 +118,7 @@ export default function CalendarView({ weeks, activities, reservations, todayStr
   const [selected, setSelected]         = useState<CalActivity | null>(null)
   const [selectedResv, setSelectedResv] = useState<CalVehicleReservation | null>(null)
   const [showNewResv, setShowNewResv]   = useState(false)
+  const [showVehStatus, setShowVehStatus] = useState(false)
   const [newResvDate, setNewResvDate]   = useState('')
   const [fieldFilter, setFieldFilter]   = useState<FieldFilter>('all')
   const [editingResv, setEditingResv]   = useState<CalVehicleReservation | null>(null)
@@ -172,8 +174,14 @@ export default function CalendarView({ weeks, activities, reservations, todayStr
           </button>
         ))}
         <button
-          onClick={() => openNewResv(todayStr)}
+          onClick={() => setShowVehStatus(true)}
           className="ml-auto flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-semibold text-lime-700 bg-white border border-lime-200 rounded-lg hover:bg-lime-50 transition-colors">
+          <MapPin size={11} />
+          차량현황
+        </button>
+        <button
+          onClick={() => openNewResv(todayStr)}
+          className="flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-semibold text-lime-700 bg-white border border-lime-200 rounded-lg hover:bg-lime-50 transition-colors">
           <Car size={11} />
           차량 신청
         </button>
@@ -475,6 +483,11 @@ export default function CalendarView({ weeks, activities, reservations, todayStr
             </div>
           </div>
         </div>
+      )}
+
+      {/* ─── 차량현황 모달 ─── */}
+      {showVehStatus && (
+        <VehicleStatusModal onClose={() => setShowVehStatus(false)} />
       )}
 
       {/* ─── 차량 신청 모달 ─── */}

@@ -1,8 +1,9 @@
 {
-  "prismaSchemaSha256": "e0391567ed2260b1cb605e131b5258c7586bd83b211060405334d465c3fd4d4a",
+  "prismaSchemaSha256": "34c9c915c1f2ccfb0373714328e39e0e4083a70fd2b846d7f4c1a8e84ef11ec0",
   "requiredTables": [
     "Announcement",
-    "BuildupEvent"
+    "BuildupEvent",
+    "Garage"
   ],
   "requiredIndexes": [
     "BuildupEvent_eventKey_key",
@@ -32,6 +33,14 @@
       "confirmedAt",
       "createdAt",
       "updatedAt"
+    ],
+    "Garage": [
+      "id",
+      "name",
+      "address",
+      "detail",
+      "active",
+      "createdAt"
     ]
   },
   "privacyPreflights": []

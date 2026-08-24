@@ -89,6 +89,7 @@ export const PIPELINE: PipelinePhase[] = [
         checks: [
           { key: '1-3-0', label: '구매예상시점 확정', yearMonth: true },
           { key: '1-3-4', label: '자금조달방법 확인',   opts: ['여유자금', '캐피탈', '중고차매각', '직접입력'], multiSelect: true },
+          { key: '1-3-4b', label: '차량 시승' },
           { key: '1-3-5', label: '신용평가 필요서류 확보' },
           { key: '1-3-6', label: '사전 신용조회 (캐피탈업체)' },
           { key: '1-3-7', label: '판매방법 확정', opts: ['캐피탈', '현금', '판매보류'] },
@@ -99,6 +100,7 @@ export const PIPELINE: PipelinePhase[] = [
         checksB2B: [
           { key: '1-3-0', label: '구매예상시점 확정', yearMonth: true },
           { key: '1-3-4', label: '자금조달방법 확인',   opts: ['여유자금', '캐피탈', '중고차매각', '직접입력'] },
+          { key: '1-3-4b', label: '차량 시승' },
           { key: '1-3-b2b-vc', label: '대수 확정', field: 'vehicleCount' },
           { key: '1-3-1', label: '차량 / 특장 옵션 확정', extLink: 'buildup-ev' },
           { key: '1-3-2', label: '견적서 발행' },

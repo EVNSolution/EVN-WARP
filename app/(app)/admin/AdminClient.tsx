@@ -6,7 +6,7 @@ import {
   RefreshCw,
   Users, Database, Link2, Unlink,
   GitMerge, Search, Phone, ChevronDown, ChevronUp,
-  Trash2, UserPlus, X, Pencil, FolderPlus, PackagePlus, Car, CreditCard,
+  Trash2, UserPlus, X, Pencil, FolderPlus, PackagePlus, Car, CreditCard, MapPin,
 } from 'lucide-react'
 
 /* ── 타입 ── */
@@ -73,6 +73,13 @@ interface VehicleRow {
   hasHipass:  boolean
 }
 
+interface GarageRow {
+  id:      string
+  name:    string
+  address: string
+  detail:  string | null
+}
+
 type CustInfo = { id: string; name: string; phone: string | null; status: string; leadCount: number; createdAt: string }
 type DupGroup = { phone: string | null; name: string; customers: CustInfo[] }
 
@@ -99,10 +106,10 @@ const PRODUCT_CATEGORIES = ['냉동', '상온', '특장', '기타']
 
 export default function AdminClient({
   stats, users: initialUsers, teams: initialTeams, products: initialProducts, vehicles: initialVehicles,
-  corporateCards: initialCards, canManageUsers,
+  garages: initialGarages, corporateCards: initialCards, canManageUsers,
 }: {
   stats: Stats; users: UserRow[]; teams: TeamRow[]; products: ProductRow[]; vehicles: VehicleRow[]
-  corporateCards: CardRow[]; canManageUsers: boolean
+  garages: GarageRow[]; corporateCards: CardRow[]; canManageUsers: boolean
 }) {
   const router = useRouter()
 
@@ -264,6 +271,58 @@ export default function AdminClient({
       const res = await fetch(`/api/vehicles/${id}`, { method: 'DELETE' })
       if (res.ok) { setVehicles(prev => prev.filter(v => v.id !== id)); setVehDelId(null) }
     } finally { setVehDelLoading(false) }
+  }
+
+  /* ── 차고지 관리 ── */
+  const [garages,       setGarages]       = useState<GarageRow[]>(initialGarages)
+  const [showGarAdd,    setShowGarAdd]    = useState(false)
+  const [newGar, setNewGar] = useState({ name: '', address: '', detail: '' })
+  const [garAddLoading, setGarAddLoading] = useState(false)
+  const [garAddErr,     setGarAddErr]     = useState('')
+  const [garEditId,     setGarEditId]     = useState<string | null>(null)
+  const [garEditVal,    setGarEditVal]    = useState({ name: '', address: '', detail: '' })
+  const [garEditLoading, setGarEditLoading] = useState(false)
+  const [garDelId,      setGarDelId]      = useState<string | null>(null)
+  const [garDelLoading, setGarDelLoading] = useState(false)
+
+  const handleAddGarage = async () => {
+    setGarAddErr('')
+    if (!newGar.name.trim() || !newGar.address.trim()) { setGarAddErr('차고지명과 주소는 필수입니다.'); return }
+    setGarAddLoading(true)
+    try {
+      const res  = await fetch('/api/garages', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newGar),
+      })
+      const data = await res.json()
+      if (!res.ok) { setGarAddErr(data.error ?? '등록 실패'); return }
+      setGarages(prev => [...prev, data].sort((a, b) => a.name.localeCompare(b.name)))
+      setNewGar({ name: '', address: '', detail: '' })
+      setShowGarAdd(false)
+    } finally { setGarAddLoading(false) }
+  }
+
+  const handleEditGarage = async (id: string) => {
+    setGarEditLoading(true)
+    try {
+      const res = await fetch(`/api/garages/${id}`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(garEditVal),
+      })
+      if (res.ok) {
+        const updated = await res.json()
+        setGarages(prev => prev.map(g => g.id === id ? updated : g))
+        setGarEditId(null)
+      }
+    } finally { setGarEditLoading(false) }
+  }
+
+  const handleDeleteGarage = async (id: string) => {
+    setGarDelLoading(true)
+    try {
+      const res = await fetch(`/api/garages/${id}`, { method: 'DELETE' })
+      if (res.ok) { setGarages(prev => prev.filter(g => g.id !== id)); setGarDelId(null) }
+    } finally { setGarDelLoading(false) }
   }
 
   /* ── 법인카드 관리 ── */
@@ -1145,6 +1204,147 @@ export default function AdminClient({
         </div>
       </div>
 
+      {/* ══ 법인카드 관리 ══ */}
+      <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden h-[560px] flex flex-col">
+        <div className="px-6 py-4 flex items-center justify-between shrink-0" style={{ backgroundColor: '#5b3a8e' }}>
+          <div>
+            <h2 className="text-white font-bold text-sm flex items-center gap-2">
+              <CreditCard size={15} /> 법인카드 관리
+            </h2>
+            <p className="text-slate-300 text-xs mt-0.5">카드상 이름 · 카드번호 · 배정 대상자 등록</p>
+          </div>
+          <button
+            onClick={() => { setShowCardAdd(v => !v); setCardAddErr('') }}
+            className="flex items-center gap-1.5 px-4 py-2 bg-white/10 hover:bg-white/20 text-white text-xs font-semibold rounded-lg transition">
+            <CreditCard size={13} />
+            카드 등록
+          </button>
+        </div>
+
+        <div className="divide-y divide-slate-100 flex-1 overflow-y-auto">
+          {showCardAdd && (
+            <div className="p-5 bg-slate-50 border-b border-slate-200">
+              <p className="text-xs font-bold text-slate-600 mb-3">새 법인카드 등록</p>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs text-slate-500 mb-1 block">카드상 이름 *</label>
+                  <input value={newCard.holderName} onChange={e => setNewCard(c => ({ ...c, holderName: e.target.value }))}
+                    placeholder="카드에 표기된 이름"
+                    className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-slate-400" />
+                </div>
+                <div>
+                  <label className="text-xs text-slate-500 mb-1 block">카드번호 *</label>
+                  <input value={newCard.cardNumber} onChange={e => setNewCard(c => ({ ...c, cardNumber: e.target.value }))}
+                    placeholder="0000-0000-0000-0000"
+                    className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-slate-400" />
+                </div>
+                <div className="col-span-2">
+                  <label className="text-xs text-slate-500 mb-1 block">배정 대상자</label>
+                  <select value={newCard.userId} onChange={e => setNewCard(c => ({ ...c, userId: e.target.value }))}
+                    className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-1 focus:ring-slate-400">
+                    <option value="">미배정</option>
+                    {users.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
+                  </select>
+                </div>
+              </div>
+              {cardAddErr && <p className="text-xs text-red-500 mt-2">{cardAddErr}</p>}
+              <div className="flex gap-2 mt-4">
+                <button onClick={handleAddCard} disabled={cardAddLoading}
+                  className="px-5 py-2 text-sm font-bold rounded-xl bg-slate-800 text-white hover:bg-slate-700 transition disabled:opacity-50 flex items-center gap-2">
+                  {cardAddLoading ? <RefreshCw size={13} className="animate-spin" /> : <CreditCard size={13} />}
+                  {cardAddLoading ? '등록 중...' : '카드 등록'}
+                </button>
+                <button onClick={() => { setShowCardAdd(false); setCardAddErr('') }}
+                  className="px-4 py-2 text-sm font-semibold rounded-xl border border-slate-200 text-slate-500 hover:bg-slate-50">
+                  취소
+                </button>
+              </div>
+            </div>
+          )}
+
+          {cards.length === 0 ? (
+            <p className="text-xs text-slate-400 text-center py-8">등록된 법인카드가 없습니다.</p>
+          ) : (
+            cards.map(c => (
+              <div key={c.id}>
+                <div className="px-5 py-3.5 flex items-center justify-between gap-4">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <p className="font-semibold text-sm text-slate-800">{c.holderName}</p>
+                      <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${c.userName ? 'bg-violet-100 text-violet-700' : 'bg-slate-100 text-slate-400'}`}>
+                        {c.userName ? `배정: ${c.userName}` : '미배정'}
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-400 mt-0.5">{c.cardNumber}</p>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    {cardDelId === c.id ? (
+                      <>
+                        <span className="text-xs text-red-600 font-medium">정말 삭제하시겠어요?</span>
+                        <button onClick={() => handleDeleteCard(c.id)} disabled={cardDelLoading}
+                          className="px-2.5 py-1.5 text-xs font-bold rounded-lg bg-red-600 text-white hover:bg-red-700 disabled:opacity-40 transition">
+                          {cardDelLoading ? '...' : '삭제'}
+                        </button>
+                        <button onClick={() => setCardDelId(null)} className="p-1.5 text-slate-400 hover:text-slate-600">
+                          <X size={13} />
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        <button
+                          onClick={() => { setCardEditId(cardEditId === c.id ? null : c.id); setCardEditVal({ holderName: c.holderName, cardNumber: c.cardNumber, userId: c.userId ?? '' }); setCardDelId(null) }}
+                          className={`flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold rounded-lg border transition ${cardEditId === c.id ? 'bg-slate-100 border-slate-300 text-slate-700' : 'border-slate-200 text-slate-500 hover:bg-slate-50'}`}>
+                          <Pencil size={11} /> 수정
+                        </button>
+                        <button onClick={() => setCardDelId(c.id)}
+                          className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold rounded-lg border border-red-200 text-red-500 hover:bg-red-50 transition">
+                          <Trash2 size={11} /> 삭제
+                        </button>
+                      </>
+                    )}
+                  </div>
+                </div>
+                {cardEditId === c.id && (
+                  <div className="mx-5 mb-4 p-4 bg-slate-50 border border-slate-200 rounded-xl">
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="text-xs text-slate-500 mb-1 block">카드상 이름 *</label>
+                        <input value={cardEditVal.holderName} onChange={e => setCardEditVal(p => ({ ...p, holderName: e.target.value }))}
+                          className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-slate-400" />
+                      </div>
+                      <div>
+                        <label className="text-xs text-slate-500 mb-1 block">카드번호 *</label>
+                        <input value={cardEditVal.cardNumber} onChange={e => setCardEditVal(p => ({ ...p, cardNumber: e.target.value }))}
+                          className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-slate-400" />
+                      </div>
+                      <div className="col-span-2">
+                        <label className="text-xs text-slate-500 mb-1 block">배정 대상자</label>
+                        <select value={cardEditVal.userId} onChange={e => setCardEditVal(p => ({ ...p, userId: e.target.value }))}
+                          className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-1 focus:ring-slate-400">
+                          <option value="">미배정</option>
+                          {users.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
+                        </select>
+                      </div>
+                    </div>
+                    <div className="flex gap-2 mt-3">
+                      <button onClick={() => handleEditCard(c.id)} disabled={cardEditLoading || !cardEditVal.holderName.trim() || !cardEditVal.cardNumber.trim()}
+                        className="px-4 py-2 text-sm font-bold rounded-lg bg-slate-800 text-white hover:bg-slate-700 disabled:opacity-40 transition flex items-center gap-1.5">
+                        {cardEditLoading ? <RefreshCw size={12} className="animate-spin" /> : null}
+                        {cardEditLoading ? '저장 중...' : '저장'}
+                      </button>
+                      <button onClick={() => setCardEditId(null)}
+                        className="px-4 py-2 text-sm font-semibold rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-100 transition">
+                        취소
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            ))
+          )}
+        </div>
+      </div>
+
       {/* ══ 업무용 차량 관리 ══ */}
       <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden h-[560px] flex flex-col">
         <div className="px-6 py-4 flex items-center justify-between shrink-0" style={{ backgroundColor: '#0f4c42' }}>
@@ -1347,57 +1547,55 @@ export default function AdminClient({
         </div>
       </div>
 
-      {/* ══ 법인카드 관리 ══ */}
+      {/* ══ 차고지 관리 ══ */}
       <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden h-[560px] flex flex-col">
-        <div className="px-6 py-4 flex items-center justify-between shrink-0" style={{ backgroundColor: '#5b3a8e' }}>
+        <div className="px-6 py-4 flex items-center justify-between shrink-0" style={{ backgroundColor: '#0f4c42' }}>
           <div>
             <h2 className="text-white font-bold text-sm flex items-center gap-2">
-              <CreditCard size={15} /> 법인카드 관리
+              <MapPin size={15} /> 차고지 관리
             </h2>
-            <p className="text-slate-300 text-xs mt-0.5">카드상 이름 · 카드번호 · 배정 대상자 등록</p>
+            <p className="text-slate-300 text-xs mt-0.5">차고지명 · 주소 · 세부위치 등록 — 차량 신청의 출발지/반납지에서 사용됩니다</p>
           </div>
           <button
-            onClick={() => { setShowCardAdd(v => !v); setCardAddErr('') }}
+            onClick={() => { setShowGarAdd(v => !v); setGarAddErr('') }}
             className="flex items-center gap-1.5 px-4 py-2 bg-white/10 hover:bg-white/20 text-white text-xs font-semibold rounded-lg transition">
-            <CreditCard size={13} />
-            카드 등록
+            <MapPin size={13} />
+            차고지 등록
           </button>
         </div>
 
         <div className="divide-y divide-slate-100 flex-1 overflow-y-auto">
-          {showCardAdd && (
+          {/* 차고지 추가 폼 */}
+          {showGarAdd && (
             <div className="p-5 bg-slate-50 border-b border-slate-200">
-              <p className="text-xs font-bold text-slate-600 mb-3">새 법인카드 등록</p>
+              <p className="text-xs font-bold text-slate-600 mb-3">새 차고지 등록</p>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-xs text-slate-500 mb-1 block">카드상 이름 *</label>
-                  <input value={newCard.holderName} onChange={e => setNewCard(c => ({ ...c, holderName: e.target.value }))}
-                    placeholder="카드에 표기된 이름"
+                  <label className="text-xs text-slate-500 mb-1 block">차고지명 *</label>
+                  <input value={newGar.name} onChange={e => setNewGar(v => ({ ...v, name: e.target.value }))}
+                    placeholder="본사 차고지 등"
                     className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-slate-400" />
                 </div>
                 <div>
-                  <label className="text-xs text-slate-500 mb-1 block">카드번호 *</label>
-                  <input value={newCard.cardNumber} onChange={e => setNewCard(c => ({ ...c, cardNumber: e.target.value }))}
-                    placeholder="0000-0000-0000-0000"
+                  <label className="text-xs text-slate-500 mb-1 block">주소 *</label>
+                  <input value={newGar.address} onChange={e => setNewGar(v => ({ ...v, address: e.target.value }))}
                     className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-slate-400" />
                 </div>
                 <div className="col-span-2">
-                  <label className="text-xs text-slate-500 mb-1 block">배정 대상자</label>
-                  <select value={newCard.userId} onChange={e => setNewCard(c => ({ ...c, userId: e.target.value }))}
-                    className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-1 focus:ring-slate-400">
-                    <option value="">미배정</option>
-                    {users.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
-                  </select>
+                  <label className="text-xs text-slate-500 mb-1 block">세부위치</label>
+                  <input value={newGar.detail} onChange={e => setNewGar(v => ({ ...v, detail: e.target.value }))}
+                    placeholder="예: 지하 1층 B구역"
+                    className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-slate-400" />
                 </div>
               </div>
-              {cardAddErr && <p className="text-xs text-red-500 mt-2">{cardAddErr}</p>}
+              {garAddErr && <p className="text-xs text-red-500 mt-2">{garAddErr}</p>}
               <div className="flex gap-2 mt-4">
-                <button onClick={handleAddCard} disabled={cardAddLoading}
+                <button onClick={handleAddGarage} disabled={garAddLoading}
                   className="px-5 py-2 text-sm font-bold rounded-xl bg-slate-800 text-white hover:bg-slate-700 transition disabled:opacity-50 flex items-center gap-2">
-                  {cardAddLoading ? <RefreshCw size={13} className="animate-spin" /> : <CreditCard size={13} />}
-                  {cardAddLoading ? '등록 중...' : '카드 등록'}
+                  {garAddLoading ? <RefreshCw size={13} className="animate-spin" /> : <MapPin size={13} />}
+                  {garAddLoading ? '등록 중...' : '차고지 등록'}
                 </button>
-                <button onClick={() => { setShowCardAdd(false); setCardAddErr('') }}
+                <button onClick={() => { setShowGarAdd(false); setGarAddErr('') }}
                   className="px-4 py-2 text-sm font-semibold rounded-xl border border-slate-200 text-slate-500 hover:bg-slate-50">
                   취소
                 </button>
@@ -1405,41 +1603,37 @@ export default function AdminClient({
             </div>
           )}
 
-          {cards.length === 0 ? (
-            <p className="text-xs text-slate-400 text-center py-8">등록된 법인카드가 없습니다.</p>
+          {/* 차고지 목록 */}
+          {garages.length === 0 ? (
+            <p className="text-xs text-slate-400 text-center py-8">등록된 차고지가 없습니다. 차고지 등록 버튼으로 등록하세요.</p>
           ) : (
-            cards.map(c => (
-              <div key={c.id}>
+            garages.map(g => (
+              <div key={g.id}>
                 <div className="px-5 py-3.5 flex items-center justify-between gap-4">
                   <div className="min-w-0">
-                    <div className="flex items-center gap-2">
-                      <p className="font-semibold text-sm text-slate-800">{c.holderName}</p>
-                      <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${c.userName ? 'bg-violet-100 text-violet-700' : 'bg-slate-100 text-slate-400'}`}>
-                        {c.userName ? `배정: ${c.userName}` : '미배정'}
-                      </span>
-                    </div>
-                    <p className="text-xs text-slate-400 mt-0.5">{c.cardNumber}</p>
+                    <p className="font-semibold text-sm text-slate-800">{g.name}</p>
+                    <p className="text-xs text-slate-400 mt-0.5">{g.address}{g.detail ? ` · ${g.detail}` : ''}</p>
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
-                    {cardDelId === c.id ? (
+                    {garDelId === g.id ? (
                       <>
-                        <span className="text-xs text-red-600 font-medium">정말 삭제하시겠어요?</span>
-                        <button onClick={() => handleDeleteCard(c.id)} disabled={cardDelLoading}
+                        <span className="text-xs text-red-600 font-medium whitespace-nowrap">삭제할까요?</span>
+                        <button onClick={() => handleDeleteGarage(g.id)} disabled={garDelLoading}
                           className="px-2.5 py-1.5 text-xs font-bold rounded-lg bg-red-600 text-white hover:bg-red-700 disabled:opacity-40 transition">
-                          {cardDelLoading ? '...' : '삭제'}
+                          {garDelLoading ? '...' : '삭제'}
                         </button>
-                        <button onClick={() => setCardDelId(null)} className="p-1.5 text-slate-400 hover:text-slate-600">
+                        <button onClick={() => setGarDelId(null)} className="p-1.5 text-slate-400 hover:text-slate-600">
                           <X size={13} />
                         </button>
                       </>
                     ) : (
                       <>
                         <button
-                          onClick={() => { setCardEditId(cardEditId === c.id ? null : c.id); setCardEditVal({ holderName: c.holderName, cardNumber: c.cardNumber, userId: c.userId ?? '' }); setCardDelId(null) }}
-                          className={`flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold rounded-lg border transition ${cardEditId === c.id ? 'bg-slate-100 border-slate-300 text-slate-700' : 'border-slate-200 text-slate-500 hover:bg-slate-50'}`}>
+                          onClick={() => { setGarEditId(garEditId === g.id ? null : g.id); setGarEditVal({ name: g.name, address: g.address, detail: g.detail ?? '' }); setGarDelId(null) }}
+                          className={`flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold rounded-lg border transition ${garEditId === g.id ? 'bg-slate-100 border-slate-300 text-slate-700' : 'border-slate-200 text-slate-500 hover:bg-slate-50'}`}>
                           <Pencil size={11} /> 수정
                         </button>
-                        <button onClick={() => setCardDelId(c.id)}
+                        <button onClick={() => { setGarDelId(g.id); setGarEditId(null) }}
                           className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold rounded-lg border border-red-200 text-red-500 hover:bg-red-50 transition">
                           <Trash2 size={11} /> 삭제
                         </button>
@@ -1447,35 +1641,32 @@ export default function AdminClient({
                     )}
                   </div>
                 </div>
-                {cardEditId === c.id && (
+                {garEditId === g.id && (
                   <div className="mx-5 mb-4 p-4 bg-slate-50 border border-slate-200 rounded-xl">
                     <div className="grid grid-cols-2 gap-3">
                       <div>
-                        <label className="text-xs text-slate-500 mb-1 block">카드상 이름 *</label>
-                        <input value={cardEditVal.holderName} onChange={e => setCardEditVal(p => ({ ...p, holderName: e.target.value }))}
+                        <label className="text-xs text-slate-500 mb-1 block">차고지명 *</label>
+                        <input value={garEditVal.name} onChange={e => setGarEditVal(x => ({ ...x, name: e.target.value }))}
                           className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-slate-400" />
                       </div>
                       <div>
-                        <label className="text-xs text-slate-500 mb-1 block">카드번호 *</label>
-                        <input value={cardEditVal.cardNumber} onChange={e => setCardEditVal(p => ({ ...p, cardNumber: e.target.value }))}
+                        <label className="text-xs text-slate-500 mb-1 block">주소 *</label>
+                        <input value={garEditVal.address} onChange={e => setGarEditVal(x => ({ ...x, address: e.target.value }))}
                           className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-slate-400" />
                       </div>
                       <div className="col-span-2">
-                        <label className="text-xs text-slate-500 mb-1 block">배정 대상자</label>
-                        <select value={cardEditVal.userId} onChange={e => setCardEditVal(p => ({ ...p, userId: e.target.value }))}
-                          className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-1 focus:ring-slate-400">
-                          <option value="">미배정</option>
-                          {users.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
-                        </select>
+                        <label className="text-xs text-slate-500 mb-1 block">세부위치</label>
+                        <input value={garEditVal.detail} onChange={e => setGarEditVal(x => ({ ...x, detail: e.target.value }))}
+                          className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-slate-400" />
                       </div>
                     </div>
                     <div className="flex gap-2 mt-3">
-                      <button onClick={() => handleEditCard(c.id)} disabled={cardEditLoading || !cardEditVal.holderName.trim() || !cardEditVal.cardNumber.trim()}
+                      <button onClick={() => handleEditGarage(g.id)} disabled={garEditLoading || !garEditVal.name.trim() || !garEditVal.address.trim()}
                         className="px-4 py-2 text-sm font-bold rounded-lg bg-slate-800 text-white hover:bg-slate-700 disabled:opacity-40 transition flex items-center gap-1.5">
-                        {cardEditLoading ? <RefreshCw size={12} className="animate-spin" /> : null}
-                        {cardEditLoading ? '저장 중...' : '저장'}
+                        {garEditLoading ? <RefreshCw size={12} className="animate-spin" /> : null}
+                        {garEditLoading ? '저장 중...' : '저장'}
                       </button>
-                      <button onClick={() => setCardEditId(null)}
+                      <button onClick={() => setGarEditId(null)}
                         className="px-4 py-2 text-sm font-semibold rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-100 transition">
                         취소
                       </button>
