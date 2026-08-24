@@ -6,6 +6,7 @@ import AssigneePicker from '@/components/AssigneePicker'
 import { useRouter } from 'next/navigation'
 import { formatPhone, hasPlateSpacing, unknownCustomerName } from '@/lib/format'
 import { FIELD_CLS } from '@/lib/ui'
+import { SectionHeader } from '@/components/SectionCard'
 
 const SOURCES  = ['소개', '온라인', '전시장/이벤트', '직접방문', '전단지/명함', '기타']
 const CONTACT_TITLES = ['대표이사', '사장', '부사장', '전무이사', '상무이사', '이사', '본부장', '실장', '부장', '차장', '과장', '팀장', '파트장', '대리', '책임', '주임', '사원']
@@ -465,17 +466,8 @@ export default function CustomerDetailClient({ customer, returnTo }: { customer:
     </div>
   )
 
-  /* 관리자 페이지와 동일한 색상 배너 헤더 — 섹션이 각각 별도 박스임을 명확히 구분한다 */
-  const SECTION_BG: Record<string, string> = {
-    blue: 'bg-blue-600', indigo: 'bg-indigo-600', amber: 'bg-amber-600',
-    emerald: 'bg-emerald-600', violet: 'bg-violet-600', sky: 'bg-sky-600',
-    slate: 'bg-slate-600', teal: 'bg-teal-600',
-  }
   const sectionHead = (color: string, title: string, badge?: React.ReactNode) => (
-    <div className={`px-5 py-3 flex items-center gap-2 ${SECTION_BG[color]}`}>
-      <h3 className="text-white font-bold text-sm">{title}</h3>
-      {badge}
-    </div>
+    <SectionHeader color={color} title={title} action={badge} />
   )
 
   return (

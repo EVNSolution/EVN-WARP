@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { PIPELINE, SALE_HOLD_CHECK_KEY, SALE_HOLD_TRIGGER_OPTS } from '@/lib/pipeline'
 import { FIELD_CLS } from '@/lib/ui'
+import { SectionHeader } from '@/components/SectionCard'
 import AgentPicker from '@/components/AgentPicker'
 import AssigneePicker from '@/components/AssigneePicker'
 import CallAnalysisModal from '@/components/CallAnalysisModal'
@@ -1512,7 +1513,7 @@ export default function LeadDetailClient({ deal, customer = null, products = [],
 
       {/* ── 리드 기본 정보 ── */}
       <div className="mb-6 bg-white rounded-xl border border-slate-200 overflow-hidden">
-        <p className="px-4 pt-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">리드 기본 정보</p>
+        <SectionHeader color="blue" title="리드 기본 정보" />
         <div className="p-4 grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-4">
           {/* 왼쪽: 입력 필드 */}
           <div className="grid grid-cols-2 gap-4 content-start">
@@ -1611,6 +1612,25 @@ export default function LeadDetailClient({ deal, customer = null, products = [],
                 </div>
                 <p className="text-xs text-amber-600">{holdReason ?? '자체할부/리스로 진행 예정 — 사유를 선택해 주세요'}</p>
               </div>
+            )}
+
+            {salesStatus !== '판매보류' && salesStatus !== '이탈' && salesStatus !== '완료' && (
+              <button
+                onClick={() => {
+                  setChecks(prev => ({
+                    ...prev,
+                    [SALE_HOLD_CHECK_KEY]: '판매보류',
+                    [`${SALE_HOLD_CHECK_KEY}-at`]: new Date().toISOString(),
+                  }))
+                  setSalesStatus('판매보류')
+                  setPendingHoldCategory(HOLD_REASON_GROUPS[0].category)
+                  setPendingHoldReason('')
+                  setShowHoldModal(true)
+                  setSaved(false)
+                }}
+                className="w-full px-3 py-1.5 rounded-lg text-xs font-bold border border-amber-200 text-amber-600 hover:bg-amber-50 transition text-left">
+                판매보류로 전환
+              </button>
             )}
 
             {/* 이탈 / 구매의사 포기 */}
