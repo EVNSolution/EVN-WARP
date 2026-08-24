@@ -35,6 +35,7 @@ export default async function EditTripPage({ params }: { params: Promise<{ id: s
         title: trip.title,
         userId: trip.userId ?? '',
         userName: trip.userName,
+        travelersJson: (trip as any).travelersJson ?? '[]',
         teamName: trip.teamName ?? '',
         destination: trip.destination,
         purpose: trip.purpose,

@@ -160,6 +160,9 @@ export default function TripForm({ mode, initial, users, currentUserId }: Props)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
+  // 이전 페이지의 스크롤 위치가 유지된 채 열리면 화면 아래쪽 빈 공간만 보여 마치 오류처럼 보일 수 있어 항상 맨 위에서 시작한다
+  useEffect(() => { window.scrollTo(0, 0) }, [])
+
   // 다중 출장자 상태 (travelersJson → fallback: userId/userName)
   const [travelers, setTravelers] = useState<Traveler[]>(() => {
     try {
@@ -311,7 +314,7 @@ export default function TripForm({ mode, initial, users, currentUserId }: Props)
   const approverUser = users.find(u => u.id === form.approverId)
 
   return (
-    <div className="max-w-5xl mx-auto py-8 px-6 space-y-5">
+    <div className="max-w-5xl mx-auto py-8 px-6 space-y-5 min-h-screen">
 
       {/* ── Sticky 저장 바 ─────────────────────────────────────────── */}
       <div className="sticky top-0 z-30 -mx-6 px-6 py-2.5 bg-white/95 backdrop-blur border-b border-slate-200 shadow-sm flex items-center justify-between">
