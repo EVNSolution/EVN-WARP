@@ -2,6 +2,7 @@ import { auth } from '@/auth'
 import { prisma } from '@/lib/db'
 import { notFound, redirect } from 'next/navigation'
 import TripForm from '@/components/TripForm'
+import { isAdminRole } from '@/lib/permissions'
 
 export default async function EditTripPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -11,8 +12,10 @@ export default async function EditTripPage({ params }: { params: Promise<{ id: s
   const trip = await prisma.tripReport.findUnique({ where: { id } })
   if (!trip) notFound()
 
-  // 작성자만 수정 가능 (초안/반려 상태만)
-  if (trip.userId !== currentUser?.id || (trip.status !== '초안' && trip.status !== '반려')) {
+  // 작성자 또는 관리자만 수정 가능 (초안/반려 상태만) — 상세 페이지의 수정 버튼 노출 조건과 동일해야 한다
+  const isAuthor = trip.userId === currentUser?.id
+  const isAdmin  = isAdminRole(currentUser?.role)
+  if (!(isAuthor || isAdmin) || (trip.status !== '초안' && trip.status !== '반려')) {
     redirect(`/trip/${id}`)
   }
 
