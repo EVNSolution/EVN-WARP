@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { Plus, X, ExternalLink, Mail, Car, Pencil, Trash2, MapPin } from 'lucide-react'
@@ -125,6 +125,19 @@ export default function CalendarView({ weeks, activities, reservations, todayStr
   const [editingResv, setEditingResv]   = useState<CalVehicleReservation | null>(null)
   const [deletingResv, setDeletingResv] = useState(false)
 
+  // 마지막으로 선택한 표시 필터를 기억해 다음 방문에도 자동 적용 (브라우저별)
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('warp-calendar-field-filter')
+      if (saved && FIELD_FILTERS.some(f => f.key === saved)) setFieldFilter(saved as FieldFilter)
+    } catch {}
+  }, [])
+
+  const changeFieldFilter = (key: FieldFilter) => {
+    setFieldFilter(key)
+    try { localStorage.setItem('warp-calendar-field-filter', key) } catch {}
+  }
+
   const handleResvSaved = useCallback(() => router.refresh(), [router])
 
   const handleResvDelete = useCallback(async (id: string) => {
@@ -167,7 +180,7 @@ export default function CalendarView({ weeks, activities, reservations, todayStr
       <div className="flex items-center gap-2 mb-3 flex-wrap">
         <span className="text-xs font-semibold text-slate-500">표시</span>
         {FIELD_FILTERS.map(f => (
-          <button key={f.key} type="button" onClick={() => setFieldFilter(f.key)}
+          <button key={f.key} type="button" onClick={() => changeFieldFilter(f.key)}
             className={`px-3 py-1 rounded-full text-xs font-semibold transition-colors ${
               fieldFilter === f.key ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
             }`}>
