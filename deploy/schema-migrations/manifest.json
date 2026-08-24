@@ -47,11 +47,11 @@
       "visitTarget", "companions", "startDate", "endDate", "transport", "accommodation",
       "budgetTransport", "budgetAccomm", "budgetMeal", "budgetOther",
       "actualTransport", "actualAccomm", "actualMeal", "actualOther",
-      "schedule", "result", "nextAction", "status", "approverId", "approverName",
-      "approvalComment", "approvedAt", "submittedAt", "createdAt", "updatedAt",
-      "preApprovalComment", "preApprovalRequestedAt", "preApprovalStatus",
-      "preApprovedAt", "preApproverId", "preApproverName", "approversJson",
-      "travelersJson", "fxCurrency", "fxRate"
+      "schedule", "result", "nextAction",
+      "preApprovalStatus", "preApprovalComment", "preApprovedAt", "preApprovalRequestedAt",
+      "preApproverId", "preApproverName",
+      "status", "approverId", "approverName", "approvalComment", "approvedAt", "submittedAt",
+      "approversJson", "createdAt", "updatedAt", "travelersJson", "fxCurrency", "fxRate"
     ]
   },
   "privacyPreflights": []
