@@ -167,6 +167,7 @@ export default function TripDayTable({
   const [fxRate, setFxRate] = useState<number | null>(null)
   const [fxLoading, setFxLoading] = useState(false)
   const [fxError, setFxError] = useState('')
+  const [fxManualEdit, setFxManualEdit] = useState(false)
 
   // ── 셀별 통화 오버라이드 ─────────────────────────────────────────
   // {[date]: {transportCost: 'KRW', mealCost: 'CNY', ...}}
@@ -387,22 +388,25 @@ export default function TripDayTable({
         {fxCurrency && (
           fxLoading ? (
             <span className="text-slate-400">조회 중…</span>
-          ) : fxRate ? (
+          ) : fxManualEdit || !fxRate ? (
+            <input
+              type="number"
+              defaultValue={fxRate ?? ''}
+              placeholder="환율 직접 입력 (ex: 194.5)"
+              autoFocus={fxManualEdit}
+              className="border border-blue-300 rounded px-2 py-0.5 text-xs w-44"
+              onBlur={e => { if (e.target.value) setFxRate(Number(e.target.value)); setFxManualEdit(false) }}
+              onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur() }}
+            />
+          ) : (
             <span className="text-blue-600 font-medium">
               1 {fxCurrency} = {fxRate.toLocaleString('ko-KR')} KRW
               <span className="ml-1 text-slate-400">({startDate} 기준)</span>
             </span>
-          ) : (
-            <input
-              type="number"
-              placeholder="환율 직접 입력 (ex: 194.5)"
-              className="border border-blue-300 rounded px-2 py-0.5 text-xs w-44"
-              onBlur={e => { if (e.target.value) setFxRate(Number(e.target.value)) }}
-            />
           )
         )}
         {fxError && <span className="text-red-500">{fxError}</span>}
-        {fxCurrency && fxRate && (
+        {fxCurrency && fxRate && !fxManualEdit && (
           <button
             onClick={() => fetchFxRate(fxCurrency)}
             className="text-blue-400 hover:text-blue-700 underline"
@@ -411,6 +415,12 @@ export default function TripDayTable({
         {fxCurrency && fxRate && (
           <>
             <span className="text-slate-400">셀 버튼 클릭으로 개별 통화 변경 가능</span>
+            <button
+              onClick={() => setFxManualEdit(true)}
+              className="text-[11px] px-2 py-0.5 rounded border border-blue-300 text-blue-600 hover:bg-blue-100 transition"
+            >
+              환율 직접 입력
+            </button>
             <button
               onClick={() => {
                 const allKrw = allDates.every(d =>
