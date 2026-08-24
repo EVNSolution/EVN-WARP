@@ -650,6 +650,10 @@ model TripReport {
   // 다중 승인자 (JSON: [{userId,userName,order,status,comment,approvedAt}])
   approversJson String?
 
+  // 외화 환산 (해외출장) — 편집 화면에서 조회/직접입력한 환율을 고정해 인쇄본과 항상 동일하게 유지
+  fxCurrency  String?
+  fxRate      Float?
+
   expenses    TripExpense[]
   dayRecords  TripDayRecord[]
 

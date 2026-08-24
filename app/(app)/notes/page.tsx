@@ -409,11 +409,11 @@ export default async function NotesPage({ searchParams }: { searchParams: Promis
           업무노트 탭
       ══════════════════════════════ */}
       {activeTab === 'notes' && (
-        <div className="space-y-4">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
 
           {/* ① 회의록 */}
-          <section className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
-            <div className="px-5 py-3 border-b border-blue-100 bg-blue-50/60 flex items-center justify-between">
+          <section className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm h-[520px] flex flex-col">
+            <div className="px-5 py-3 border-b border-blue-100 bg-blue-50/60 flex items-center justify-between shrink-0">
               <div className="flex items-center gap-2">
                 <Users size={14} className="text-blue-500" />
                 <h2 className="text-sm font-bold text-blue-900">회의록</h2>
@@ -430,12 +430,14 @@ export default async function NotesPage({ searchParams }: { searchParams: Promis
                 </Link>
               </div>
             </div>
-            <NoteList items={meetings} emptyText="이 월에 회의 기록이 없습니다." />
+            <div className="flex-1 overflow-y-auto">
+              <NoteList items={meetings} emptyText="이 월에 회의 기록이 없습니다." />
+            </div>
           </section>
 
           {/* ② 출장보고 */}
-          <section className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
-            <div className="px-5 py-3 border-b border-orange-100 bg-orange-50/60 flex items-center justify-between">
+          <section className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm h-[520px] flex flex-col">
+            <div className="px-5 py-3 border-b border-orange-100 bg-orange-50/60 flex items-center justify-between shrink-0">
               <div className="flex items-center gap-2">
                 <MapPin size={14} className="text-orange-500" />
                 <h2 className="text-sm font-bold text-orange-900">출장보고</h2>
@@ -452,12 +454,14 @@ export default async function NotesPage({ searchParams }: { searchParams: Promis
                 </Link>
               </div>
             </div>
-            <TripList items={tripReports} />
+            <div className="flex-1 overflow-y-auto">
+              <TripList items={tripReports} />
+            </div>
           </section>
 
           {/* ③ 차량관리 */}
-          <section className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
-            <div className="px-5 py-3 border-b border-emerald-100 bg-emerald-50/60 flex items-center justify-between">
+          <section className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm h-[520px] flex flex-col">
+            <div className="px-5 py-3 border-b border-emerald-100 bg-emerald-50/60 flex items-center justify-between shrink-0">
               <div className="flex items-center gap-2">
                 <Car size={14} className="text-emerald-600" />
                 <h2 className="text-sm font-bold text-emerald-900">차량관리</h2>
@@ -474,19 +478,23 @@ export default async function NotesPage({ searchParams }: { searchParams: Promis
                 </Link>
               </div>
             </div>
-            <VehicleLogList items={recentVehicleLogs} />
+            <div className="flex-1 overflow-y-auto">
+              <VehicleLogList items={recentVehicleLogs} />
+            </div>
           </section>
 
           {/* ④ 비용 신청 내역 */}
-          <section className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
-            <div className="px-5 py-3 border-b border-amber-100 bg-amber-50/60 flex items-center justify-between">
+          <section className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm h-[520px] flex flex-col">
+            <div className="px-5 py-3 border-b border-amber-100 bg-amber-50/60 flex items-center justify-between shrink-0">
               <div className="flex items-center gap-2">
                 <Receipt size={14} className="text-amber-600" />
                 <h2 className="text-sm font-bold text-amber-900">비용 신청 내역</h2>
                 <span className="text-xs text-amber-600 bg-amber-100 px-1.5 py-0.5 rounded-full font-semibold">{expenseActivities.length}건</span>
               </div>
             </div>
-            <ExpenseList items={expenseActivities} />
+            <div className="flex-1 overflow-y-auto">
+              <ExpenseList items={expenseActivities} />
+            </div>
           </section>
 
         </div>

@@ -58,6 +58,8 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
         approverId:      b.approverId      ?? null,
         approverName:    b.approverName    ?? null,
         approversJson:   'approversJson' in b ? b.approversJson : undefined,
+        fxCurrency:      'fxCurrency' in b ? b.fxCurrency : undefined,
+        fxRate:          'fxRate' in b ? b.fxRate : undefined,
         preApproverId:   b.preApproverId   ?? null,
         preApproverName: b.preApproverName ?? null,
         approvalComment: b.approvalComment ?? null,

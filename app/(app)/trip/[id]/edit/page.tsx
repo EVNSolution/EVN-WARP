@@ -62,6 +62,8 @@ export default async function EditTripPage({ params }: { params: Promise<{ id: s
         preApproverId: (trip as any).preApproverId ?? '',
         preApproverName: (trip as any).preApproverName ?? '',
         approversJson: (trip as any).approversJson ?? '[]',
+        fxCurrency: (trip as any).fxCurrency ?? '',
+        fxRate: (trip as any).fxRate ?? null,
       } as any}
     />
   )

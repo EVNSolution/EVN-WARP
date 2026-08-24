@@ -147,11 +147,15 @@ export default function TripDayTable({
   startDate,
   endDate,
   isOverseas,
+  initialFxCurrency,
+  initialFxRate,
 }: {
   tripId: string
   startDate: string
   endDate: string
   isOverseas?: boolean
+  initialFxCurrency?: string
+  initialFxRate?: number | null
 }) {
   const [rows, setRows] = useState<DayRecord[]>([])
   const [loading, setLoading] = useState(true)
@@ -162,9 +166,9 @@ export default function TripDayTable({
   const saveTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({})
   const rowsRef = useRef<DayRecord[]>([])
 
-  // ── 외화 환율 상태 ───────────────────────────────────────────────
-  const [fxCurrency, setFxCurrency] = useState(isOverseas ? 'CNY' : '')
-  const [fxRate, setFxRate] = useState<number | null>(null)
+  // ── 외화 환율 상태 (조회/직접입력한 값은 즉시 저장해 인쇄본과 항상 동일하게 유지) ──
+  const [fxCurrency, setFxCurrency] = useState(initialFxCurrency || (isOverseas ? 'CNY' : ''))
+  const [fxRate, setFxRate] = useState<number | null>(initialFxRate ?? null)
   const [fxLoading, setFxLoading] = useState(false)
   const [fxError, setFxError] = useState('')
   const [fxManualEdit, setFxManualEdit] = useState(false)
@@ -173,20 +177,28 @@ export default function TripDayTable({
   // {[date]: {transportCost: 'KRW', mealCost: 'CNY', ...}}
   const [cellCurrencies, setCellCurrencies] = useState<Record<string, Partial<Record<CostKey, string>>>>({})
 
+  const persistFx = useCallback((currency: string, rate: number | null) => {
+    fetch(`/api/trips/${tripId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ fxCurrency: currency || null, fxRate: rate }),
+    })
+  }, [tripId])
+
   const fetchFxRate = useCallback(async (currency: string) => {
-    if (!currency || currency === 'KRW') { setFxRate(null); return }
+    if (!currency || currency === 'KRW') { setFxRate(null); persistFx(currency, null); return }
     setFxLoading(true); setFxError('')
     try {
       const res = await fetch(`/api/exchange-rate?currency=${currency}&date=${startDate}`)
       const data = await res.json()
-      if (data.rate) setFxRate(data.rate)
+      if (data.rate) { setFxRate(data.rate); persistFx(currency, data.rate) }
       else setFxError('조회 실패 — 직접 입력해 주세요')
     } catch {
       setFxError('조회 실패')
     } finally {
       setFxLoading(false)
     }
-  }, [startDate])
+  }, [startDate, persistFx])
 
   // rowsRef를 최신 rows와 동기화 (이벤트 리스너 stale closure 방지)
   useEffect(() => { rowsRef.current = rows }, [rows])
@@ -208,10 +220,11 @@ export default function TripDayTable({
     return () => window.removeEventListener('save-trip-days', handleSave)
   }, [tripId])
 
-  // 해외출장이면 마운트 시 CNY 자동 조회
+  // 해외출장인데 저장된 환율이 없으면(신규 작성 등) 마운트 시 자동 조회 — 이미 저장된 값이 있으면 그대로 사용
   useEffect(() => {
-    if (isOverseas) fetchFxRate('CNY')
-  }, [isOverseas, fetchFxRate])
+    if (isOverseas && initialFxRate == null) fetchFxRate(initialFxCurrency || 'CNY')
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOverseas])
 
   const allDates = dateRange(startDate, endDate)
 
@@ -395,7 +408,10 @@ export default function TripDayTable({
               placeholder="환율 직접 입력 (ex: 194.5)"
               autoFocus={fxManualEdit}
               className="border border-blue-300 rounded px-2 py-0.5 text-xs w-44"
-              onBlur={e => { if (e.target.value) setFxRate(Number(e.target.value)); setFxManualEdit(false) }}
+              onBlur={e => {
+                if (e.target.value) { const v = Number(e.target.value); setFxRate(v); persistFx(fxCurrency, v) }
+                setFxManualEdit(false)
+              }}
               onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur() }}
             />
           ) : (

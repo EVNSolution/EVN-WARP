@@ -103,6 +103,8 @@ export interface TripData {
   approvalComment?: string
   preApproverId?: string
   preApproverName?: string
+  fxCurrency?: string
+  fxRate?: number | null
 }
 
 interface Props {
@@ -450,7 +452,8 @@ export default function TripForm({ mode, initial, users, currentUserId }: Props)
         </div>
         <div className="px-5 py-4">
           {mode === 'edit' && form.id ? (
-            <TripDayTable tripId={form.id} startDate={form.startDate} endDate={form.endDate} isOverseas={form.type === '해외출장'} />
+            <TripDayTable tripId={form.id} startDate={form.startDate} endDate={form.endDate} isOverseas={form.type === '해외출장'}
+              initialFxCurrency={form.fxCurrency} initialFxRate={form.fxRate} />
           ) : createDates.length > 0 ? (
             <div className="overflow-x-auto">
               <table className="w-full border-collapse" style={{ minWidth: 580 }}>

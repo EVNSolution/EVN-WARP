@@ -106,7 +106,15 @@ export default async function TripPrintPage({ params }: { params: Promise<{ id: 
       }
     }
     fxCurrency = Object.entries(currencyCount).sort((a, b) => b[1] - a[1])[0]?.[0] ?? 'CNY'
-    fxRate = await fetchRate(fxCurrency, trip.startDate)
+
+    // 편집 화면에서 조회/직접입력해 저장해둔 환율이 있으면 그대로 사용 — 매번 다시 조회하면
+    // 인쇄본이 편집 화면에서 확인한 값(특히 직접 입력한 값)과 달라질 수 있다
+    if ((trip as any).fxRate != null) {
+      fxCurrency = (trip as any).fxCurrency || fxCurrency
+      fxRate = (trip as any).fxRate
+    } else {
+      fxRate = await fetchRate(fxCurrency, trip.startDate)
+    }
   }
 
   // ── 합계 계산 ─────────────────────────────────────────────────────────

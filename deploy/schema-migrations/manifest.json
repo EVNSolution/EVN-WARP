@@ -1,5 +1,5 @@
 {
-  "prismaSchemaSha256": "10efc1ce545ea8dda16686ffa356e4008f43cef7d2ba2c08328854a7683dbad2",
+  "prismaSchemaSha256": "ea0dcb6907d0a2cb045f63547306751053fd49b209ae0c4841fb3bc88a6485ec",
   "requiredTables": [
     "Announcement",
     "BuildupEvent",
@@ -41,6 +41,17 @@
       "detail",
       "active",
       "createdAt"
+    ],
+    "TripReport": [
+      "id", "type", "title", "userId", "userName", "teamName", "destination", "purpose",
+      "visitTarget", "companions", "startDate", "endDate", "transport", "accommodation",
+      "budgetTransport", "budgetAccomm", "budgetMeal", "budgetOther",
+      "actualTransport", "actualAccomm", "actualMeal", "actualOther",
+      "schedule", "result", "nextAction", "status", "approverId", "approverName",
+      "approvalComment", "approvedAt", "submittedAt", "createdAt", "updatedAt",
+      "preApprovalComment", "preApprovalRequestedAt", "preApprovalStatus",
+      "preApprovedAt", "preApproverId", "preApproverName", "approversJson",
+      "travelersJson", "fxCurrency", "fxRate"
     ]
   },
   "privacyPreflights": []
