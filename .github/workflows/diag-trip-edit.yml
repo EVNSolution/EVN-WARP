@@ -27,7 +27,7 @@ jobs:
           cat > /tmp/query.json << 'EOF'
           {"commands": [
             "cd /opt/evn-warp",
-            "node -e \"const {createClient}=require('@libsql/client');const c=createClient({url:'file:/opt/evn-warp-runtime/database/dev.db'});const id='cmrn4r39f0000hpnr9mqf2jr0';(async()=>{const t=await c.execute('SELECT id, userId, userName, status, travelersJson FROM \\\"TripReport\\\" WHERE id = ?', [id]);console.log('trip:', JSON.stringify(t.rows));const u=await c.execute('SELECT id, name, email FROM \\\"User\\\" WHERE email = ?', ['admin@evnsolution.com']);console.log('adminUser:', JSON.stringify(u.rows));})().catch(e=>console.error(e));\""
+            "node -e \"const {createClient}=require('@libsql/client');const c=createClient({url:'file:/opt/evn-warp-runtime/database/dev.db'});const uid='cmr97sv9s000usenryjqpjv3b';(async()=>{const u=await c.execute('SELECT id, name, email, role FROM \\\"User\\\" WHERE id = ?', [uid]);console.log('tripOwnerUser:', JSON.stringify(u.rows));const cnt=await c.execute('SELECT COUNT(*) as n FROM \\\"TripReport\\\" WHERE userId = ?', [uid]);console.log('tripsByThisUserId:', JSON.stringify(cnt.rows));const all=await c.execute('SELECT id, name, email FROM \\\"User\\\" ORDER BY name');console.log('allUsers:', JSON.stringify(all.rows));})().catch(e=>console.error(e));\""
           ]}
           EOF
 
