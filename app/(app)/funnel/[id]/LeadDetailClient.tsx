@@ -1396,12 +1396,12 @@ export default function LeadDetailClient({ deal, customer = null, products = [],
   const renderReactivateActions = () => (
     <div className="flex items-center gap-1.5 shrink-0">
       <button onClick={handleRevive} disabled={reviving}
-        className="text-[11px] text-slate-500 hover:text-slate-700 border border-slate-200 hover:border-slate-400 rounded-lg px-2 py-1 transition disabled:opacity-50">
+        className="text-[11px] text-slate-600 hover:text-slate-800 border border-slate-200 bg-slate-50 hover:bg-slate-100 rounded-lg px-2 py-1 transition disabled:opacity-50">
         {reviving ? '처리 중...' : '다시 진행중으로'}
       </button>
       {!confirmingConvert ? (
         <button onClick={() => setConfirmingConvert(true)}
-          className="text-[11px] text-indigo-500 hover:text-indigo-700 border border-indigo-200 hover:border-indigo-400 rounded-lg px-2 py-1 transition">
+          className="text-[11px] text-indigo-600 hover:text-indigo-800 border border-indigo-200 bg-indigo-50 hover:bg-indigo-100 rounded-lg px-2 py-1 transition">
           고객정보로 전환
         </button>
       ) : (
@@ -1628,7 +1628,7 @@ export default function LeadDetailClient({ deal, customer = null, products = [],
                   setShowHoldModal(true)
                   setSaved(false)
                 }}
-                className="w-full px-3 py-1.5 rounded-lg text-xs font-bold border border-amber-200 text-amber-600 hover:bg-amber-50 transition text-left">
+                className="w-full px-3 py-1.5 rounded-lg text-xs font-bold border border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100 transition text-left">
                 판매보류로 전환
               </button>
             )}
@@ -1659,7 +1659,7 @@ export default function LeadDetailClient({ deal, customer = null, products = [],
             ) : salesStatus !== '완료' && (
               <button
                 onClick={() => setShowLostModal(true)}
-                className="w-full px-3 py-1.5 rounded-lg text-xs font-bold border border-red-200 text-red-500 hover:bg-red-50 transition text-left">
+                className="w-full px-3 py-1.5 rounded-lg text-xs font-bold border border-red-200 bg-red-50 text-red-600 hover:bg-red-100 transition text-left">
                 구매의사 포기
               </button>
             )}
@@ -1669,7 +1669,7 @@ export default function LeadDetailClient({ deal, customer = null, products = [],
             )}
 
             <button onClick={scrollToMeetings}
-              className="w-full px-3 py-1.5 text-xs font-semibold rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-100 transition text-left">
+              className="w-full px-3 py-1.5 text-xs font-semibold rounded-lg border border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100 transition text-left">
               미팅 / 상담 기록 →
             </button>
           </div>

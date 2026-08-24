@@ -1,14 +1,21 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { MapPin, X } from 'lucide-react'
+import { MapPin, X, User } from 'lucide-react'
 
 type VehicleStatus = {
   id: string
   name: string
   plateNo: string
   currentLocation: string
+  inUse: boolean
+  userName?: string
+  purpose?: string
+  returnAt?: string
 }
+
+const fmtTime = (iso: string) =>
+  new Date(iso).toLocaleString('ko-KR', { month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' })
 
 export default function VehicleStatusModal({ onClose }: { onClose: () => void }) {
   const [statuses, setStatuses] = useState<VehicleStatus[]>([])
@@ -47,15 +54,29 @@ export default function VehicleStatusModal({ onClose }: { onClose: () => void })
             <p className="text-xs text-slate-400 text-center py-8">등록된 차량이 없습니다.</p>
           ) : (
             statuses.map(s => (
-              <div key={s.id} className="flex items-center justify-between gap-3 px-3 py-2.5 rounded-lg border border-slate-100 bg-slate-50">
-                <div className="min-w-0">
-                  <p className="text-sm font-semibold text-slate-800">{s.name}</p>
-                  <p className="text-xs text-slate-400">{s.plateNo}</p>
+              <div key={s.id} className={`rounded-lg border px-3 py-2.5 ${s.inUse ? 'border-amber-200 bg-amber-50' : 'border-slate-100 bg-slate-50'}`}>
+                <div className="flex items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-slate-800">{s.name}</p>
+                    <p className="text-xs text-slate-400">{s.plateNo}</p>
+                  </div>
+                  {s.inUse ? (
+                    <span className="flex items-center gap-1 text-xs font-semibold text-amber-700 bg-amber-100 px-2 py-1 rounded-full shrink-0">
+                      <User size={11} />
+                      {s.userName} 사용 중
+                    </span>
+                  ) : (
+                    <span className="flex items-center gap-1 text-xs font-semibold text-lime-700 bg-lime-100 px-2 py-1 rounded-full shrink-0">
+                      <MapPin size={11} />
+                      {s.currentLocation}
+                    </span>
+                  )}
                 </div>
-                <span className="flex items-center gap-1 text-xs font-semibold text-lime-700 bg-lime-100 px-2 py-1 rounded-full shrink-0">
-                  <MapPin size={11} />
-                  {s.currentLocation}
-                </span>
+                {s.inUse && (
+                  <p className="mt-1.5 text-[11px] text-amber-600">
+                    {s.purpose} · {s.returnAt && fmtTime(s.returnAt)} 반납 예정
+                  </p>
+                )}
               </div>
             ))
           )}

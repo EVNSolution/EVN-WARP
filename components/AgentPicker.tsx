@@ -127,17 +127,15 @@ export default function AgentPicker({ value, onChange, onCreateNew }: Props) {
 
   const handleClear = () => { onChange(null); setQuery('') }
 
-  /* 선택된 상태 */
+  /* 선택된 상태 — 다른 입력 박스와 높이를 맞추기 위해 한 줄로 표시 */
   if (value) {
     return (
-      <div className="flex items-center gap-2 px-3 py-2.5 border border-indigo-200 rounded-xl bg-indigo-50">
-        <div className="w-7 h-7 rounded-full bg-indigo-600 flex items-center justify-center shrink-0">
-          <span className="text-white text-xs font-bold">{value.name.charAt(0)}</span>
-        </div>
-        <div className="flex-1 min-w-0">
-          <p className="text-sm font-semibold text-slate-800 truncate">{value.name}</p>
-          <p className="text-[10px] text-indigo-500">소개인 선택됨</p>
-        </div>
+      <div className="flex items-center gap-2 px-3 py-2 border border-indigo-200 rounded-lg bg-indigo-50">
+        <span className="w-5 h-5 rounded-full bg-indigo-600 flex items-center justify-center shrink-0">
+          <span className="text-white text-[10px] font-bold">{value.name.charAt(0)}</span>
+        </span>
+        <span className="flex-1 min-w-0 text-sm font-semibold text-slate-800 truncate">{value.name}</span>
+        <span className="text-[10px] text-indigo-500 shrink-0">소개인</span>
         <button type="button" onClick={handleClear}
           className="shrink-0 text-slate-400 hover:text-red-500 transition-colors">
           <X size={14} />
@@ -224,7 +222,7 @@ export default function AgentPicker({ value, onChange, onCreateNew }: Props) {
           onChange={e => { setQuery(e.target.value); if (!open) setOpen(true) }}
           onFocus={() => { setOpen(true); updatePos() }}
           placeholder="소개인 이름 검색 (임직원 / 외부 소개인)..."
-          className="w-full text-sm border border-slate-200 rounded-xl pl-8 pr-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-slate-300"
+          className="w-full text-sm border border-slate-200 rounded-lg pl-8 pr-3 py-2 bg-slate-50 focus:outline-none focus:ring-1 focus:ring-slate-300 focus:bg-white transition-colors"
         />
         {loading && (
           <div className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 border-2 border-slate-300 border-t-slate-600 rounded-full animate-spin" />
