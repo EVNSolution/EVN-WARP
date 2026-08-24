@@ -1,0 +1,71 @@
+name: Fix trip travelers data (temporary)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  AWS_REGION: ${{ secrets.AWS_REGION }}
+  AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
+  EC2_INSTANCE_ID: ${{ secrets.EC2_INSTANCE_ID }}
+
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: ${{ env.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Backup then restore travelers on trip cmrn4r39f0000hpnr9mqf2jr0
+        id: ssm
+        run: |
+          cat > /tmp/query.json << 'EOF'
+          {"commands": [
+            "set -e",
+            "cp --reflink=auto /opt/evn-warp-runtime/database/dev.db /opt/evn-warp-runtime/backups/dev-$(date +%Y%m%d-%H%M%S)-pre-trip-travelers-fix.db",
+            "ls -la /opt/evn-warp-runtime/backups | tail -5",
+            "cd /opt/evn-warp",
+            "node -e \"const {createClient}=require('@libsql/client');const c=createClient({url:'file:/opt/evn-warp-runtime/database/dev.db'});(async()=>{const id='cmrn4r39f0000hpnr9mqf2jr0';const before=await c.execute('SELECT userId, userName, travelersJson FROM \\\"TripReport\\\" WHERE id = ?', [id]);console.log('before:', JSON.stringify(before.rows));const travelersJson=JSON.stringify([{userId:'cmr97sv9s000usenryjqpjv3b',userName:'이현수'},{userId:'cmr972ard000isenr4ly21m74',userName:'여준성'}]);await c.execute('UPDATE \\\"TripReport\\\" SET userId = ?, userName = ?, travelersJson = ? WHERE id = ?', ['cmr97sv9s000usenryjqpjv3b','이현수, 여준성',travelersJson,id]);const after=await c.execute('SELECT userId, userName, travelersJson FROM \\\"TripReport\\\" WHERE id = ?', [id]);console.log('after:', JSON.stringify(after.rows));})().catch(e=>{console.error(e);process.exit(1)});\""
+          ]}
+          EOF
+
+          command_id="$(aws ssm send-command \
+            --instance-ids "$EC2_INSTANCE_ID" \
+            --document-name AWS-RunShellScript \
+            --comment "EVN-WARP fix trip travelers data" \
+            --timeout-seconds 60 \
+            --parameters file:///tmp/query.json \
+            --query 'Command.CommandId' \
+            --output text)"
+          echo "command_id=$command_id" >> "$GITHUB_OUTPUT"
+
+      - name: Get result
+        env:
+          COMMAND_ID: ${{ steps.ssm.outputs.command_id }}
+        run: |
+          for i in $(seq 1 15); do
+            status="$(aws ssm get-command-invocation \
+              --command-id "$COMMAND_ID" \
+              --instance-id "$EC2_INSTANCE_ID" \
+              --query Status --output text 2>/dev/null || echo Pending)"
+            echo "[$i] $status"
+            case "$status" in
+              Success|Failed|Cancelled|TimedOut) break ;;
+            esac
+            sleep 4
+          done
+          echo "=== STDOUT ==="
+          aws ssm get-command-invocation \
+            --command-id "$COMMAND_ID" \
+            --instance-id "$EC2_INSTANCE_ID" \
+            --query StandardOutputContent --output text || true
+          echo "=== STDERR ==="
+          aws ssm get-command-invocation \
+            --command-id "$COMMAND_ID" \
+            --instance-id "$EC2_INSTANCE_ID" \
+            --query StandardErrorContent --output text || true
