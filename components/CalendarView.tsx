@@ -251,13 +251,12 @@ export default function CalendarView({ weeks, activities, reservations, todayStr
                       <div className="space-y-0.5 mb-0.5">
                         {dayResvs.map(r => {
                           const sc = RESV_STATUS_COLOR[r.status] ?? RESV_STATUS_COLOR['신청']
-                          const startTime = new Date(r.startAt).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: false })
                           return (
                             <button key={r.id} type="button"
                               onClick={() => setSelectedResv(r)}
                               className={`flex items-center gap-0.5 text-[9px] font-semibold px-1 py-0.5 rounded w-full text-left truncate hover:opacity-80 transition-opacity ${sc.bg} ${sc.text}`}>
                               <Car size={8} className="shrink-0" />
-                              <span className="truncate">{r.vehicleName} {startTime} {r.userName}</span>
+                              <span className="truncate">{r.vehicleName} {r.userName} {r.returnLocation || '반납지 미정'}</span>
                             </button>
                           )
                         })}

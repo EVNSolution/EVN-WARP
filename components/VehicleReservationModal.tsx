@@ -77,19 +77,19 @@ export default function VehicleReservationModal({ initialDate, reservation, onCl
   })
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [pickupOther, setPickupOther] = useState(false)
+  const [returnOther, setReturnOther] = useState(false)
 
   useEffect(() => {
     fetch('/api/vehicles').then(r => r.json()).then(setVehicles).catch(() => {})
-    fetch('/api/garages').then(r => r.json()).then(setGarages).catch(() => {})
+    fetch('/api/garages').then(r => r.json()).then(gs => {
+      setGarages(gs)
+      // 기존 자유 텍스트 값이 차고지 목록에 없으면(레거시 데이터) "기타" 직접입력으로 표시해 값을 보존한다
+      if (form.pickupLocation && !gs.some((g: Garage) => g.name === form.pickupLocation)) setPickupOther(true)
+      if (form.returnLocation && !gs.some((g: Garage) => g.name === form.returnLocation)) setReturnOther(true)
+    }).catch(() => {})
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
-
-  /* 기존 자유 텍스트 값이 현재 차고지 목록에 없으면(레거시 데이터) 옵션에 임시로 추가해 값이 사라지지 않게 한다 */
-  const pickupOpts = form.pickupLocation && !garages.some(g => g.name === form.pickupLocation)
-    ? [{ id: '__legacy_pickup', name: form.pickupLocation }, ...garages]
-    : garages
-  const returnOpts = form.returnLocation && !garages.some(g => g.name === form.returnLocation)
-    ? [{ id: '__legacy_return', name: form.returnLocation }, ...garages]
-    : garages
 
   function set(k: keyof ResvFormData, v: string) {
     setForm(f => ({ ...f, [k]: v }))
@@ -240,19 +240,39 @@ export default function VehicleReservationModal({ initialDate, reservation, onCl
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-semibold text-slate-600 mb-1">픽업 장소</label>
-              <select value={form.pickupLocation} onChange={e => set('pickupLocation', e.target.value)}
+              <select value={pickupOther ? '__other__' : form.pickupLocation}
+                onChange={e => {
+                  if (e.target.value === '__other__') { setPickupOther(true); set('pickupLocation', '') }
+                  else { setPickupOther(false); set('pickupLocation', e.target.value) }
+                }}
                 className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-lime-300">
                 <option value="">차고지 선택</option>
-                {pickupOpts.map(g => <option key={g.id} value={g.name}>{g.name}</option>)}
+                {garages.map(g => <option key={g.id} value={g.name}>{g.name}</option>)}
+                <option value="__other__">기타 (직접 입력)</option>
               </select>
+              {pickupOther && (
+                <input value={form.pickupLocation} onChange={e => set('pickupLocation', e.target.value)}
+                  placeholder="픽업 장소 직접 입력" autoFocus
+                  className="mt-1.5 w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-lime-300" />
+              )}
             </div>
             <div>
               <label className="block text-xs font-semibold text-slate-600 mb-1">반납 장소</label>
-              <select value={form.returnLocation} onChange={e => set('returnLocation', e.target.value)}
+              <select value={returnOther ? '__other__' : form.returnLocation}
+                onChange={e => {
+                  if (e.target.value === '__other__') { setReturnOther(true); set('returnLocation', '') }
+                  else { setReturnOther(false); set('returnLocation', e.target.value) }
+                }}
                 className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-lime-300">
                 <option value="">차고지 선택</option>
-                {returnOpts.map(g => <option key={g.id} value={g.name}>{g.name}</option>)}
+                {garages.map(g => <option key={g.id} value={g.name}>{g.name}</option>)}
+                <option value="__other__">기타 (직접 입력)</option>
               </select>
+              {returnOther && (
+                <input value={form.returnLocation} onChange={e => set('returnLocation', e.target.value)}
+                  placeholder="반납 장소 직접 입력" autoFocus
+                  className="mt-1.5 w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-lime-300" />
+              )}
             </div>
           </div>
 
