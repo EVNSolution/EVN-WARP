@@ -125,6 +125,8 @@ class DeploymentOptimizationContractTest(unittest.TestCase):
         self.assertIn("--cache-from \"type=registry,ref=$cache_repository_uri:buildcache-main\"", workflow)
         self.assertIn("mode=max,oci-mediatypes=true,image-manifest=true,ignore-error=true", workflow)
         self.assertIn("Require clean ECR operating-system scan", workflow)
+        self.assertIn("npm run security:audit", workflow)
+        self.assertNotIn("npm audit --omit=dev --audit-level=critical", workflow)
         build_step = workflow.split("- name: Build or reuse immutable image", 1)[1].split(
             "- name: Require clean ECR operating-system scan", 1
         )[0]
