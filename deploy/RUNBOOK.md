@@ -42,7 +42,7 @@ GitHub Actions의 **Deploy WARP Blue-Green via SSM**에서 `release`를 한 번 
 1. source·ENV 검증 및 image 준비
    - ENV 값은 출력하지 않는다.
    - 필수 key, URL, secret 길이, path 형식을 검사한다.
-   - critical npm audit과 source tests를 통과한다.
+   - `npm run security:audit`과 source tests를 통과한다. Critical·미검토 High는 즉시 차단하고, 미패치 High는 [`SECURITY_ADVISORIES.md`](./SECURITY_ADVISORIES.md)의 exact advisory·도달성·만료일 통제를 모두 만족해야 한다.
    - image를 build하거나 같은 SHA image를 재사용한다.
    - immutable release ECR과 mutable cache ECR의 경계를 먼저 검증한다.
    - ECR OS scan의 critical/high가 모두 0이어야 한다.

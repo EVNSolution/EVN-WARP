@@ -97,7 +97,7 @@ jobs:
           npm run test:buildup-import
           npm run test:integration-contract
           npm run typecheck
-          npm audit --omit=dev --audit-level=critical
+          npm run security:audit
 
       - name: Enable Docker Buildx
         id: buildx
