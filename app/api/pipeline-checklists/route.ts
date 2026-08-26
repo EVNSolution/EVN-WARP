@@ -1,23 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { readFile, writeFile, mkdir } from 'fs/promises'
+import { writeFile, mkdir } from 'fs/promises'
 import { existsSync } from 'fs'
 import path from 'path'
+// Bundled at compile time — immune to volume shadowing and filesystem state
+import bundledChecklists from '@/data/pipeline-checklists.json'
 
-// Read from image-bundled path (not volume-mounted) so deploys always take effect
-const BUNDLE_PATH = path.join(process.cwd(), 'data-bundle', 'pipeline-checklists.json')
-// Write path is on the writable volume (for future admin use)
-const WRITE_PATH  = path.join(process.cwd(), 'data', 'pipeline-checklists.json')
-
-async function read(): Promise<Record<string, { key: string; label: string; field?: string; opts?: string[] }[]>> {
-  const src = existsSync(BUNDLE_PATH) ? BUNDLE_PATH : WRITE_PATH
-  if (!existsSync(src)) return {}
-  const raw = await readFile(src, 'utf-8')
-  return JSON.parse(raw)
-}
+const WRITE_PATH = path.join(process.cwd(), 'data', 'pipeline-checklists.json')
 
 export async function GET() {
-  const data = await read()
-  return NextResponse.json(data)
+  return NextResponse.json(bundledChecklists)
 }
 
 export async function PUT(req: NextRequest) {
