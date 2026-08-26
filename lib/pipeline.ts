@@ -72,6 +72,7 @@ export const PIPELINE: PipelinePhase[] = [
           { key: '1-2-1', label: '화주정보 확보',   field: 'shipper' },
           { key: '1-2-3', label: '연락 가능 ("이 분과 친구가 되었음")' },
           { key: '1-2-2', label: '구매의향 확인', noteLabel: '구매의향 근거' },
+          { key: '1-2-4', label: '1차 견적서 발송' },
         ],
         checksB2B: [
           { key: '1-2-b2b-0', label: '담당자 신뢰 확보 ("담당자와 친구가 되었음")' },
@@ -94,7 +95,7 @@ export const PIPELINE: PipelinePhase[] = [
           { key: '1-3-6', label: '사전 신용조회 (캐피탈업체)' },
           { key: '1-3-7', label: '판매방법 확정', opts: ['캐피탈', '현금', '판매보류'] },
           { key: '1-3-1', label: '차량 / 특장 옵션 확정', extLink: 'buildup-ev' },
-          { key: '1-3-2', label: '견적서 발행' },
+          { key: '1-3-2', label: '최종 견적서 발송' },
           { key: '2-1-0', label: '특장계약서 작성' },
         ],
         checksB2B: [
@@ -103,7 +104,7 @@ export const PIPELINE: PipelinePhase[] = [
           { key: '1-3-4b', label: '차량 시승' },
           { key: '1-3-b2b-vc', label: '대수 확정', field: 'vehicleCount' },
           { key: '1-3-1', label: '차량 / 특장 옵션 확정', extLink: 'buildup-ev' },
-          { key: '1-3-2', label: '견적서 발행' },
+          { key: '1-3-2', label: '최종 견적서 발송' },
           { key: '2-1-0', label: '특장 계약서 작성' },
           { key: '1-3-5', label: '신용평가 필요서류 확보' },
           { key: '1-3-b2b-0', label: '대표 미팅' },
