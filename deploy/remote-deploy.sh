@@ -266,13 +266,6 @@ prepare() {
     return 1
   fi
   docker container inspect "$name" >/dev/null 2>&1 && docker rm -f "$name" >/dev/null
-  # Sync data files from new image to host volume so code changes take effect
-  mkdir -p "$DATA_DIR"
-  _sync_cid=$(docker create "$IMAGE_REF" 2>/dev/null) || _sync_cid=""
-  if [ -n "$_sync_cid" ]; then
-    docker cp "$_sync_cid:/app/data/pipeline-checklists.json" "$DATA_DIR/pipeline-checklists.json" 2>/dev/null || true
-    docker rm "$_sync_cid" >/dev/null 2>&1 || true
-  fi
   docker run -d \
     --name "$name" \
     --restart unless-stopped \
@@ -300,7 +293,6 @@ prepare() {
     -v "$RUNTIME_DIR/database:/app/database" \
     -v "$UPLOADS_DIR:/app/uploads" \
     -v "$UPLOADS_DIR:/app/public/uploads" \
-    -v "$DATA_DIR:/app/data" \
     -v "$RUNTIME_DIR/cache/$slot:/app/.next/cache" \
     --tmpfs /tmp:rw,noexec,nosuid,size=64m \
     "$IMAGE_REF" >/dev/null
