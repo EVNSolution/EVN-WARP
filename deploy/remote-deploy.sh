@@ -266,6 +266,10 @@ prepare() {
     return 1
   fi
   docker container inspect "$name" >/dev/null 2>&1 && docker rm -f "$name" >/dev/null
+  # Sync data files from new image to host volume so code changes take effect
+  mkdir -p "$DATA_DIR"
+  docker run --rm --entrypoint sh "$IMAGE_REF" -c 'cat /app/data/pipeline-checklists.json' \
+    > "$DATA_DIR/pipeline-checklists.json" 2>/dev/null || true
   docker run -d \
     --name "$name" \
     --restart unless-stopped \
