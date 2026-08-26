@@ -293,6 +293,7 @@ prepare() {
     -v "$RUNTIME_DIR/database:/app/database" \
     -v "$UPLOADS_DIR:/app/uploads" \
     -v "$UPLOADS_DIR:/app/public/uploads" \
+    -v "$DATA_DIR:/app/data" \
     -v "$RUNTIME_DIR/cache/$slot:/app/.next/cache" \
     --tmpfs /tmp:rw,noexec,nosuid,size=64m \
     "$IMAGE_REF" >/dev/null
