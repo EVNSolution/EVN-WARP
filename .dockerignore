@@ -14,7 +14,6 @@ node_modules
 *.traineddata
 *.xls
 *.xlsx
-data
 deploy
 scripts
 uploads
