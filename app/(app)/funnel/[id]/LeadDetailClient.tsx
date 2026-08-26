@@ -19,7 +19,28 @@ const TEMP_TYPES     = ['저탑', '정탑', '하이탑']
 const FUND_METHODS   = ['캐피탈', '현금', '보조금+캐피탈', '보조금+현금']
 const BUY_TIMINGS    = ['즉시', '1개월 내', '3개월 내', '6개월 내', '미정']
 const BUY_TYPES      = ['개인', '법인', '개인사업자']
-const LOST_REASONS   = ['타사제품 구매', '구매 포기', '가격', '캐피탈 미승인', '기타']
+const LOST_REASON_GROUPS = [
+  { category: '제품',    reasons: ['적재중량', '적재부피', '기타'] },
+  { category: '판매조건', reasons: ['가격', '캐피탈 미승인', '기타'] },
+  { category: '고객',    reasons: ['일거리 없어짐', '자금부족', '기타'] },
+]
+// 기존 DB 값 → 새 계층 구조로 변환
+function parseLostReason(cur: string): { category: string; reason: string; note: string } {
+  if (cur.includes(' > ')) {
+    const idx = cur.indexOf(' > ')
+    const cat = cur.slice(0, idx)
+    const rest = cur.slice(idx + 3)
+    if (rest.startsWith('기타: ')) return { category: cat, reason: '기타', note: rest.slice(4) }
+    return { category: cat, reason: rest, note: '' }
+  }
+  // 레거시 값 매핑
+  if (cur === '가격')          return { category: '판매조건', reason: '가격',       note: '' }
+  if (cur === '캐피탈 미승인') return { category: '판매조건', reason: '캐피탈 미승인', note: '' }
+  if (cur.startsWith('기타: ')) return { category: '고객', reason: '기타', note: cur.slice(4) }
+  if (cur === '기타')           return { category: '고객', reason: '기타', note: '' }
+  // 타사제품 구매, 구매 포기 등 → 고객 > 기타 직접입력
+  return { category: '고객', reason: '기타', note: cur }
+}
 const HOLD_REASON_GROUPS: { category: string; reasons: string[] }[] = [
   { category: '고객 사유', reasons: ['구매일정 변경', '자금확보 정리', '의사결정권자 검토 지연', '비교검토', '정부보조금 대기'] },
   { category: '회사 사유', reasons: ['생산 일정 지연', '리스상품 희망', '자체할부 희망', '신제품 대기'] },
@@ -242,10 +263,11 @@ export default function LeadDetailClient({ deal, customer = null, products = [],
   const [expanded,    setExpanded]    = useState<Set<string>>(new Set())
 
   /* ── 이탈 모달 ── */
-  const [showLostModal,    setShowLostModal]    = useState(false)
-  const [pendingLostReason, setPendingLostReason] = useState('')
-  const [pendingLostNote,   setPendingLostNote]   = useState('')
-  const [lostReason,        setLostReason]        = useState(deal.lostReason)
+  const [showLostModal,      setShowLostModal]      = useState(false)
+  const [pendingLostCategory, setPendingLostCategory] = useState('')
+  const [pendingLostReason,  setPendingLostReason]  = useState('')
+  const [pendingLostNote,    setPendingLostNote]    = useState('')
+  const [lostReason,         setLostReason]         = useState(deal.lostReason)
 
   /* ── 판매보류 사유 모달 ── */
   const [showHoldModal,     setShowHoldModal]     = useState(false)
@@ -569,10 +591,10 @@ export default function LeadDetailClient({ deal, customer = null, products = [],
 
   /* ── 이탈 처리 ── */
   const handleMarkLost = async () => {
+    if (!pendingLostCategory || !pendingLostReason) return
     const reason = pendingLostReason === '기타' && pendingLostNote.trim()
-      ? `기타: ${pendingLostNote.trim()}`
-      : pendingLostReason
-    if (!reason) return
+      ? `${pendingLostCategory} > 기타: ${pendingLostNote.trim()}`
+      : `${pendingLostCategory} > ${pendingLostReason}`
     await fetch(`/api/deals/${deal.id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
@@ -1651,14 +1673,10 @@ export default function LeadDetailClient({ deal, customer = null, products = [],
                   <span className="text-xs font-bold text-red-600">구매 포기</span>
                   <button
                     onClick={() => {
-                      const cur = lostReason ?? ''
-                      if (cur.startsWith('기타: ')) {
-                        setPendingLostReason('기타')
-                        setPendingLostNote(cur.slice(4))
-                      } else {
-                        setPendingLostReason(cur)
-                        setPendingLostNote('')
-                      }
+                      const { category, reason, note } = parseLostReason(lostReason ?? '')
+                      setPendingLostCategory(category)
+                      setPendingLostReason(reason)
+                      setPendingLostNote(note)
                       setShowLostModal(true)
                     }}
                     className="text-[11px] text-red-400 hover:text-red-600 border border-red-200 hover:border-red-400 rounded-lg px-2 py-0.5 transition shrink-0">
@@ -2057,34 +2075,58 @@ export default function LeadDetailClient({ deal, customer = null, products = [],
           <div className="bg-white rounded-2xl shadow-xl p-6 w-full max-w-sm mx-4">
             <h3 className="text-base font-bold text-slate-800 mb-1">구매의사 포기</h3>
             <p className="text-xs text-slate-400 mb-4">이탈 원인을 선택해 주세요</p>
-            <div className="space-y-2">
-              {LOST_REASONS.map(r => (
-                <button key={r} onClick={() => setPendingLostReason(r)}
-                  className={`w-full text-left px-4 py-2.5 rounded-xl border text-sm transition
-                    ${pendingLostReason === r
-                      ? 'bg-red-50 border-red-300 text-red-700 font-semibold'
-                      : 'border-slate-200 text-slate-600 hover:border-slate-300 hover:bg-slate-50'}`}>
-                  {r}
+
+            {/* 1단계: 카테고리 */}
+            <div className="flex gap-2 mb-4">
+              {LOST_REASON_GROUPS.map(g => (
+                <button key={g.category}
+                  onClick={() => { setPendingLostCategory(g.category); setPendingLostReason(''); setPendingLostNote('') }}
+                  className={`flex-1 py-2 rounded-xl border text-xs font-bold transition ${
+                    pendingLostCategory === g.category
+                      ? 'bg-red-50 border-red-400 text-red-700'
+                      : 'border-slate-200 text-slate-500 hover:border-slate-300 hover:bg-slate-50'
+                  }`}>
+                  {g.category}
                 </button>
               ))}
             </div>
+
+            {/* 2단계: 세부 항목 */}
+            {pendingLostCategory && (
+              <div className="space-y-2 mb-3">
+                {LOST_REASON_GROUPS.find(g => g.category === pendingLostCategory)!.reasons.map(r => (
+                  <button key={r} onClick={() => { setPendingLostReason(r); setPendingLostNote('') }}
+                    className={`w-full text-left px-4 py-2.5 rounded-xl border text-sm transition ${
+                      pendingLostReason === r
+                        ? 'bg-red-50 border-red-300 text-red-700 font-semibold'
+                        : 'border-slate-200 text-slate-600 hover:border-slate-300 hover:bg-slate-50'
+                    }`}>
+                    {r === '기타' ? '기타 (직접입력)' : r}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {/* 3단계: 기타 직접 입력 */}
             {pendingLostReason === '기타' && (
               <input
                 type="text"
                 value={pendingLostNote}
                 onChange={e => setPendingLostNote(e.target.value)}
                 placeholder="이탈 원인을 직접 입력해 주세요"
-                className="mt-3 w-full text-sm border border-slate-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-200"
+                className="w-full text-sm border border-slate-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-200"
+                autoFocus
               />
             )}
+
             <div className="flex gap-2 mt-5">
               <button
-                onClick={() => { setShowLostModal(false); setPendingLostReason(''); setPendingLostNote('') }}
+                onClick={() => { setShowLostModal(false); setPendingLostCategory(''); setPendingLostReason(''); setPendingLostNote('') }}
                 className="flex-1 py-2 rounded-xl border border-slate-200 text-sm text-slate-600 hover:bg-slate-50 transition">
                 취소
               </button>
               <button
-                disabled={!pendingLostReason || (pendingLostReason === '기타' && !pendingLostNote.trim())}
+                disabled={!pendingLostCategory || !pendingLostReason || (pendingLostReason === '기타' && !pendingLostNote.trim())}
                 onClick={handleMarkLost}
                 className="flex-1 py-2 rounded-xl bg-red-600 text-white text-sm font-bold hover:bg-red-700 disabled:opacity-40 disabled:cursor-not-allowed transition">
                 이탈 처리
