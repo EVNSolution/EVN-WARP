@@ -49,6 +49,8 @@ export default async function LeadDetailPage({
 
   const customerSnap: CustomerSnap | null = customer ? {
     id:               customer.id,
+    name:             customer.name             ?? null,
+    phone:            customer.phone            ?? null,
     // 기본 CRM
     customerSegment:  customer.customerSegment  ?? null,
     customerCategory: customer.customerCategory ?? null,

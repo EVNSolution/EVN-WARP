@@ -160,6 +160,8 @@ interface Deal {
 
 export type CustomerSnap = {
   id: string
+  name: string | null
+  phone: string | null
   // 기본 CRM
   customerSegment: string | null; customerCategory: string | null
   source: string | null; regionCity: string | null; regionDist: string | null
@@ -1499,7 +1501,7 @@ export default function LeadDetailClient({ deal, customer = null, products = [],
                 }
                 return null
               })()}
-              <span className="text-sm text-slate-500">{f.phone || deal.phone}</span>
+              <span className="text-sm text-slate-500">{customer?.phone || f.phone || deal.phone}</span>
               {(() => {
                 const seg = customer?.customerSegment ?? deal.customerSegment
                 return seg
