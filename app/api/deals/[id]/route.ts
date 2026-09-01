@@ -5,6 +5,27 @@ import { logStageChange } from '@/lib/stageHistory'
 
 const toDate = (v: unknown) => (v ? new Date(v as string) : null)
 
+export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params
+  const session = await auth()
+  const me      = session?.user as any
+  const isAdmin = me?.role === 'admin' || me?.role === 'ceo'
+
+  const deal = await prisma.salesDeal.findUnique({
+    where: { id },
+    select: {
+      id: true, name: true, phone: true, stageCode: true, stage: true,
+      assignee: true, customerType: true, checklistJson: true,
+      customer: { select: { phone: true } },
+    },
+  })
+  if (!deal) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  if (!isAdmin && deal.assignee !== me?.name) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  }
+  return NextResponse.json(deal)
+}
+
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params
@@ -12,7 +33,8 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     const me = session?.user as any
 
     const ownerCheck = await prisma.salesDeal.findUnique({ where: { id }, select: { stageCode: true, assignee: true } })
-    if (me?.employmentType === '사외' && ownerCheck?.assignee !== me?.name) {
+    const isAdminPut = me?.role === 'admin' || me?.role === 'ceo'
+    if (!isAdminPut && ownerCheck?.assignee !== me?.name) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
     const before = b.stageCode !== undefined ? ownerCheck : null

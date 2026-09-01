@@ -16,12 +16,12 @@ export default async function FunnelPage({ searchParams }: { searchParams: Promi
 
   const session    = await auth()
   const me         = session?.user as any
-  const isExternal = me?.employmentType === '사외'
+  const isAdmin    = me?.role === 'admin' || me?.role === 'ceo'
 
   const nowIso = new Date().toISOString()
   const [rows, products, allMeetings, planRows, lastCallRows] = await Promise.all([
     prisma.salesDeal.findMany({
-      where: isExternal ? { assignee: me?.name ?? '__none__' } : undefined,
+      where: isAdmin ? undefined : { assignee: me?.name ?? '__none__' },
       orderBy: { createdAt: 'asc' },
       include: {
         customer: {

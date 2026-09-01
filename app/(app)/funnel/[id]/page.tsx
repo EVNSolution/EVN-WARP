@@ -28,7 +28,8 @@ export default async function LeadDetailPage({
     prisma.team.findMany({ orderBy: { name: 'asc' }, select: { id: true, name: true } }),
   ])
   if (!d) notFound()
-  if (me?.employmentType === '사외' && d.assignee !== me?.name) notFound()
+  const isAdmin = me?.role === 'admin' || me?.role === 'ceo'
+  if (!isAdmin && d.assignee !== me?.name) notFound()
   const customer = d.customer ?? null
 
   // agentId FK 관계: include 대신 $queryRaw (libSQL 어댑터 호환)

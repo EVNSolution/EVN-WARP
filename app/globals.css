@@ -10,3 +10,6 @@ body {
   color: #1e293b;
   font-family: var(--font-latin), var(--font-korean), sans-serif;
 }
+
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
