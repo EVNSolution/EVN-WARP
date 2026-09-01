@@ -1,6 +1,7 @@
 import { auth } from '@/auth'
 import { prisma } from '@/lib/db'
 import { redirect } from 'next/navigation'
+import { canViewAllLeads } from '@/lib/permissions'
 import MobilePipelineClient from './MobilePipelineClient'
 
 export const dynamic = 'force-dynamic'
@@ -10,7 +11,7 @@ export default async function MobilePipelinePage() {
   if (!session?.user) redirect('/login')
   const me      = session.user as any
   const myName  = me?.name ?? ''
-  const isAdmin = me?.role === 'admin' || me?.role === 'ceo'
+  const isAdmin = await canViewAllLeads(me?.id)
 
   const deals = await prisma.salesDeal.findMany({
     where: isAdmin

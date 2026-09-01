@@ -23,5 +23,5 @@ export default async function CustomerDetailPage({
   })
   if (!customer) notFound()
   if (me?.employmentType === '사외' && customer.assignee !== me?.name) notFound()
-  return <CustomerDetailClient customer={JSON.parse(JSON.stringify(customer))} returnTo={returnTo} />
+  return <CustomerDetailClient customer={JSON.parse(JSON.stringify(customer))} returnTo={returnTo} myName={me?.name ?? ''} />
 }

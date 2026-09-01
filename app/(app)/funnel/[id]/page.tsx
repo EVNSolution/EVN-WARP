@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/db'
 import { notFound } from 'next/navigation'
 import { auth } from '@/auth'
+import { canViewAllLeads } from '@/lib/permissions'
 import { PIPELINE, getStageCode } from '@/lib/pipeline'
 import LeadDetailClient, { type CustomerSnap } from './LeadDetailClient'
 
@@ -28,7 +29,7 @@ export default async function LeadDetailPage({
     prisma.team.findMany({ orderBy: { name: 'asc' }, select: { id: true, name: true } }),
   ])
   if (!d) notFound()
-  const isAdmin = me?.role === 'admin' || me?.role === 'ceo'
+  const isAdmin = await canViewAllLeads(me?.id)
   if (!isAdmin && d.assignee !== me?.name) notFound()
   const customer = d.customer ?? null
 

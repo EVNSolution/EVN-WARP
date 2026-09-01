@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { auth } from '@/auth'
+import { canViewAllLeads } from '@/lib/permissions'
 import { logStageChange } from '@/lib/stageHistory'
 
 const toDate = (v: unknown) => (v ? new Date(v as string) : null)
@@ -9,8 +10,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   const { id } = await params
   const session = await auth()
   const me      = session?.user as any
-  const isAdmin = me?.role === 'admin' || me?.role === 'ceo'
-
+  const isAdmin = await canViewAllLeads(me?.id)
   const deal = await prisma.salesDeal.findUnique({
     where: { id },
     select: {
@@ -33,7 +33,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     const me = session?.user as any
 
     const ownerCheck = await prisma.salesDeal.findUnique({ where: { id }, select: { stageCode: true, assignee: true } })
-    const isAdminPut = me?.role === 'admin' || me?.role === 'ceo'
+    const isAdminPut = await canViewAllLeads(me?.id)
     if (!isAdminPut && ownerCheck?.assignee !== me?.name) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }

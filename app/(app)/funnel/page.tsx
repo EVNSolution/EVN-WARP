@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/db'
 import { auth } from '@/auth'
+import { canViewAllLeads } from '@/lib/permissions'
 import { getStageCode, PIPELINE } from '@/lib/pipeline'
 import { nextCallDueDate } from '@/lib/callCadence'
 import PipelineView, { type PipelineDeal } from '@/components/PipelineView'
@@ -16,7 +17,7 @@ export default async function FunnelPage({ searchParams }: { searchParams: Promi
 
   const session    = await auth()
   const me         = session?.user as any
-  const isAdmin    = me?.role === 'admin' || me?.role === 'ceo'
+  const isAdmin    = await canViewAllLeads(me?.id)
 
   const nowIso = new Date().toISOString()
   const [rows, products, allMeetings, planRows, lastCallRows] = await Promise.all([

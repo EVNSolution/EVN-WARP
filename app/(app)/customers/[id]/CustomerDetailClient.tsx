@@ -86,7 +86,7 @@ type Customer = {
   leads: Lead[]; activities: Activity[]
 }
 
-export default function CustomerDetailClient({ customer, returnTo }: { customer: Customer; returnTo?: string }) {
+export default function CustomerDetailClient({ customer, returnTo, myName }: { customer: Customer; returnTo?: string; myName?: string }) {
   const router = useRouter()
 
   const [f, setF] = useState({
@@ -434,6 +434,7 @@ export default function CustomerDetailClient({ customer, returnTo }: { customer:
           stageCode:       '1-1',
           salesStatus:     '진행중',
           collectedAt:     new Date().toISOString(),
+          assignee:        f.assignee || myName || null,
         }),
       })
       const deal = await res.json()
