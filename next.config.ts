@@ -2,6 +2,8 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   output: 'standalone',
+  // 로컬 네트워크 핸드폰 테스트 허용 (개발 전용)
+  allowedDevOrigins: ['192.168.0.18'],
   deploymentId: process.env.WARP_RELEASE_ID,
   generateBuildId: async () => process.env.WARP_RELEASE_ID ?? null,
   experimental: {
