@@ -173,7 +173,7 @@ export default function MobileActivityForm({ teams, tasks, vehicles = [], initia
 
   return (
     <div className="flex flex-col h-full">
-      <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3">
+      <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3 pb-10">
         <h1 className="text-base font-bold text-gray-900 px-0.5">활동 추가</h1>
 
         {/* ① 과제 연계 */}

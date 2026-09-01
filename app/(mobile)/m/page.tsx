@@ -19,7 +19,7 @@ function getWeekDates() {
 }
 
 const ACT_SELECT = {
-  id: true, date: true, type: true, title: true, planStatus: true,
+  id: true, date: true, type: true, title: true, content: true, planStatus: true,
   expenseTransport: true, expenseAccomm: true, expenseMeal: true, expenseOther: true,
   expensePaymentMethod: true, mentions: true, userName: true,
   team: { select: { name: true } },
