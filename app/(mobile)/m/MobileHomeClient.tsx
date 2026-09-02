@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import { Bell, Car, PlusCircle, ChevronRight, X } from 'lucide-react'
+import { Bell, Car, PlusCircle, ChevronRight, X, CheckCircle } from 'lucide-react'
 
 const TYPE_ICON: Record<string, string> = {
   '국내출장': '🚗', '해외출장': '✈️', '내부회의': '💬', '외부미팅': '🤝',
@@ -79,11 +79,37 @@ export default function MobileHomeClient({
   const [scope,        setScope]        = useState<ScopeKey>('개인')
   const [selectedDate, setSelectedDate] = useState(todayStr)
   const [detailAct,    setDetailAct]    = useState<Activity | null>(null)
+  const [myActs,       setMyActs]       = useState(myActivities)
+  const [teamActs,     setTeamActs]     = useState(teamActivities)
+  const [allActs,      setAllActs]      = useState(allActivities)
+  const [statusBusy,   setStatusBusy]   = useState(false)
 
   const scopeMap: Record<ScopeKey, Activity[]> = {
-    '개인': myActivities,
-    '팀':   teamActivities,
-    '전사': allActivities,
+    '개인': myActs,
+    '팀':   teamActs,
+    '전사': allActs,
+  }
+
+  async function handleMarkDone() {
+    if (!detailAct || statusBusy) return
+    setStatusBusy(true)
+    try {
+      const res = await fetch(`/api/activities/${detailAct.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ planStatus: '완료' }),
+      })
+      if (res.ok) {
+        const updater = (list: Activity[]) =>
+          list.map(a => a.id === detailAct.id ? { ...a, planStatus: '완료' } : a)
+        setMyActs(updater)
+        setTeamActs(updater)
+        setAllActs(updater)
+        setDetailAct(prev => prev ? { ...prev, planStatus: '완료' } : null)
+      }
+    } finally {
+      setStatusBusy(false)
+    }
   }
   const currentActs = scopeMap[scope]
   const byDate      = buildByDate(currentActs)
@@ -394,6 +420,23 @@ export default function MobileHomeClient({
                   <div className="bg-indigo-50 rounded-xl px-3 py-2 text-sm text-indigo-700">
                     {detailAct.mentions}
                   </div>
+                </div>
+              )}
+
+              {/* 완료 전환 버튼 */}
+              {detailAct.planStatus !== '완료' && (!detailAct.userName || detailAct.userName === myName) && (
+                <button
+                  onClick={handleMarkDone}
+                  disabled={statusBusy}
+                  className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-emerald-500 text-white font-semibold text-sm active:bg-emerald-600 disabled:opacity-50 transition-colors">
+                  <CheckCircle size={16} />
+                  {statusBusy ? '처리 중...' : '완료로 전환'}
+                </button>
+              )}
+              {detailAct.planStatus === '완료' && (
+                <div className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-emerald-50 text-emerald-600 font-semibold text-sm">
+                  <CheckCircle size={16} />
+                  완료된 활동입니다
                 </div>
               )}
             </div>
