@@ -18,9 +18,12 @@ ALLOWED_ADVISORIES = {
     1138808: "image-size ICNS parser denial of service",
     1138809: "image-size JXL/HEIF parser denial of service",
     1145093: "deepmerge-ts recursive graph stack exhaustion",
+    1153173: "mysql2 auth plugin downgrade leaks plaintext credentials",
 }
 IMAGE_ADVISORIES = {1138808, 1138809}
 PRISMA_ADVISORIES = {1145093}
+MYSQL2_ADVISORIES = {1153173}
+MYSQL2_VERSION = "3.15.3"
 EXPECTED_PPTX_IMPORTS = {
     "app/api/a3/[id]/export/route.ts",
     "scripts/sample-ppt.ts",
@@ -125,6 +128,23 @@ def validate_image_control() -> None:
         raise AuditPolicyError(f"PptxGenJS import surface changed: {sorted(imports)}")
 
 
+def validate_mysql2_control() -> None:
+    lock = json.loads((ROOT / "package-lock.json").read_text(encoding="utf-8"))
+    pkg = lock.get("packages", {}).get("node_modules/mysql2", {})
+    if pkg.get("version") != MYSQL2_VERSION:
+        raise AuditPolicyError("mysql2 advisory topology changed; review the control")
+    root_dependencies = lock.get("packages", {}).get("", {}).get("dependencies", {})
+    root_dev_dependencies = lock.get("packages", {}).get("", {}).get("devDependencies", {})
+    if "mysql2" in root_dependencies or "mysql2" in root_dev_dependencies:
+        raise AuditPolicyError("mysql2 must remain transitive; direct dependency requires a new security review")
+    for directory in ("app", "lib", "scripts"):
+        for path in (ROOT / directory).rglob("*"):
+            if path.suffix not in {".js", ".mjs", ".cjs", ".ts", ".tsx"}:
+                continue
+            if "mysql2" in path.read_text(encoding="utf-8"):
+                raise AuditPolicyError(f"mysql2 import found in WARP source; credential leak reachability requires review: {path}")
+
+
 def validate_prisma_control() -> None:
     versions = package_versions()
     expected = {
@@ -151,6 +171,8 @@ def enforce(report: dict, today: dt.date | None = None) -> set[int]:
         validate_image_control()
     if allowed & PRISMA_ADVISORIES:
         validate_prisma_control()
+    if allowed & MYSQL2_ADVISORIES:
+        validate_mysql2_control()
     return allowed
 
 

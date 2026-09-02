@@ -13,7 +13,11 @@ The upstream packages below have no compatible patched release as of 2026-08-24.
 | `GHSA-w3rx-r6r6-pgpr`, `GHSA-5p2g-fcmc-qvqq` | `pptxgenjs@4.0.1` carries `image-size@1.2.1`, but WARP generates text, shapes and tables only. No `addImage` path exists. | Scan every application and script source for PptxGenJS imports and image calls. A new import surface or image call blocks release. |
 | `GHSA-ggr8-5vv4-36mx` | Prisma CLI loads a static repository-owned config during trusted build and migration commands. No request or provider payload reaches recursive config merge. | Pin the reviewed Prisma topology and exact `prisma.config.ts` digest. Any change blocks release. |
 
-Prisma CLI, Client and libSQL adapter are aligned at 7.9.1. This removes the previous Hono and Valibot Moderate advisory paths but upstream Prisma still carries `deepmerge-ts@7.1.5`.
+Prisma CLI, Client and libSQL adapter are aligned at 7.9.1. This removes the previous Hono and Valibot Moderate advisory paths but upstream Prisma still carries `deepmerge-ts@7.1.5` and `mysql2@3.15.3`.
+
+| Advisory | Current reachability | Enforced control |
+| --- | --- | --- |
+| `GHSA-3f6p-5ww8-9rcr` (npm 1153173) | Prisma CLI carries `mysql2@3.15.3` as a transitive dependency, but WARP connects only to SQLite/libSQL. No WARP source file imports mysql2 and no MySQL connection string is configured. The auth plugin downgrade path requires an active MySQL server connection, which never occurs. | Pin mysql2 as transitive (not root dependency). Scan all WARP source for mysql2 imports. Any direct import or root dependency entry blocks release. |
 
 ## Removal
 
