@@ -542,8 +542,16 @@ export default function CalendarView({ weeks, activities, reservations, todayStr
            : fieldFilter === 'vehicle' ? false
            : !LEAVE_TYPES.has(a.type)))
 
-        const allDayActs = dayActs.filter(a => !a.startTime)
-        const timedActs  = dayActs.filter(a => !!a.startTime)
+        // 반차(오전/오후): startTime이 없으면 합성 시간 부여 → 타임라인 막대로 표시
+        const HALF_DAY_TIMES: Record<string, { startTime: string; endTime: string }> = {
+          '반차(오전)': { startTime: '09:00', endTime: '13:00' },
+          '반차(오후)': { startTime: '13:00', endTime: '18:00' },
+        }
+        const enriched = dayActs.map(a =>
+          (!a.startTime && HALF_DAY_TIMES[a.type]) ? { ...a, ...HALF_DAY_TIMES[a.type] } : a
+        )
+        const allDayActs = enriched.filter(a => !a.startTime)
+        const timedActs  = enriched.filter(a => !!a.startTime)
 
         // ── 겹치는 활동 컬럼 배치 알고리즘 (Teams 스타일) ──
         const layoutMap = new Map<string, { col: number; totalCols: number }>()
@@ -578,6 +586,13 @@ export default function CalendarView({ weeks, activities, reservations, todayStr
           }
         }
 
+        // 최대 동시 컬럼 수 → 가로 스크롤 최소 너비 계산 (8컬럼 보장, 초과 시 스크롤)
+        const MIN_COL_PX = 140
+        const maxCols = timedActs.length > 0
+          ? Math.max(...timedActs.map(a => layoutMap.get(a.id)?.totalCols ?? 1))
+          : 1
+        const eventsMinWidth = Math.max(8, maxCols) * MIN_COL_PX
+
         const hours = Array.from({ length: END_HOUR - BASE_HOUR }, (_, i) => BASE_HOUR + i)
 
         const navDay = (delta: number) => {
@@ -595,7 +610,7 @@ export default function CalendarView({ weeks, activities, reservations, todayStr
         return (
           <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/50"
             onClick={() => setShowDayView(false)}>
-            <div className="bg-white w-full sm:rounded-2xl sm:max-w-4xl shadow-2xl flex flex-col max-h-screen sm:max-h-[90vh]"
+            <div className="bg-white w-full sm:rounded-2xl sm:max-w-6xl shadow-2xl flex flex-col max-h-screen sm:max-h-[90vh]"
               onClick={e => e.stopPropagation()}>
 
               {/* 헤더 */}
@@ -650,13 +665,12 @@ export default function CalendarView({ weeks, activities, reservations, todayStr
                 </div>
               </div>
 
-              {/* 시간 그리드 */}
-              <div className="flex-1 overflow-y-auto">
-                {/* 레이블 컬럼 + 이벤트 컬럼을 flex로 분리 */}
-                <div className="flex" style={{ height: TOTAL_PX, minHeight: TOTAL_PX }}>
+              {/* 시간 그리드 — 가로 스크롤: 8개 이상 겹칠 때 자동 */}
+              <div className="flex-1 overflow-auto">
+                <div className="flex" style={{ height: TOTAL_PX, minHeight: TOTAL_PX, minWidth: LABEL_W + eventsMinWidth }}>
 
-                  {/* 시간 레이블 (고정 너비) */}
-                  <div className="shrink-0 relative" style={{ width: LABEL_W }}>
+                  {/* 시간 레이블 — 가로 스크롤 시 고정 */}
+                  <div className="shrink-0 relative" style={{ width: LABEL_W, position: 'sticky', left: 0, background: 'white', zIndex: 5 }}>
                     {hours.map(h => (
                       <div key={h} className="absolute right-0 pr-2 pointer-events-none"
                         style={{ top: (h - BASE_HOUR) * 2 * ROW_PX - 7 }}>
@@ -667,8 +681,8 @@ export default function CalendarView({ weeks, activities, reservations, todayStr
                     ))}
                   </div>
 
-                  {/* 이벤트 영역 (상대 위치 기준) */}
-                  <div className="flex-1 relative border-l border-slate-200 pr-2">
+                  {/* 이벤트 영역 — 컬럼 수에 따라 최소 너비 확보 */}
+                  <div className="relative border-l border-slate-200 pr-2" style={{ minWidth: eventsMinWidth, flex: '1 0 auto' }}>
 
                     {/* 정시 구분선 */}
                     {hours.map(h => (
@@ -689,9 +703,9 @@ export default function CalendarView({ weeks, activities, reservations, todayStr
                       const baseMin = BASE_HOUR * 60
                       const topPx  = clamp((sMin - baseMin) / 30 * ROW_PX, 0, TOTAL_PX - 24)
                       const hPx    = Math.max((eMin - sMin) / 30 * ROW_PX, 24)
-                      const { col, totalCols } = layoutMap.get(act.id) ?? { col: 0, totalCols: 1 }
-                      const leftPct = (col / totalCols) * 100
-                      const widthPct = (1 / totalCols) * 100
+                      const { col } = layoutMap.get(act.id) ?? { col: 0 }
+                      const colLeft = col * MIN_COL_PX + 2
+                      const colWidth = MIN_COL_PX - 4
                       const cCount = act.companions
                         ? act.companions.split(',').map(s => s.trim()).filter(Boolean).length : 0
                       const nameTag = act.userName
@@ -706,14 +720,20 @@ export default function CalendarView({ weeks, activities, reservations, todayStr
                             top: topPx,
                             height: hPx,
                             minHeight: 24,
-                            left: `calc(${leftPct}% + 2px)`,
-                            width: `calc(${widthPct}% - 4px)`,
+                            left: colLeft,
+                            width: colWidth,
                           }}>
-                          <div className="text-xs font-semibold truncate leading-tight">
-                            {act.startTime}–{act.endTime ?? ''} {act.title}
+                          {/* 1줄: 시간 */}
+                          <div className="text-[10px] font-medium opacity-80 leading-tight truncate">
+                            {act.startTime}–{act.endTime ?? ''}
                           </div>
-                          {hPx >= 44 && (
-                            <div className="text-[10px] truncate opacity-80">{act.teamName}{nameTag}</div>
+                          {/* 2줄: 활동명 */}
+                          <div className="text-xs font-semibold truncate leading-tight">
+                            {act.title}
+                          </div>
+                          {/* 3줄: 담당자 (충분한 높이일 때) */}
+                          {hPx >= 52 && (
+                            <div className="text-[10px] truncate opacity-70">{nameTag || act.teamName}</div>
                           )}
                         </button>
                       )
