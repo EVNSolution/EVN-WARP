@@ -18,6 +18,7 @@ Prisma CLI, Client and libSQL adapter are aligned at 7.9.1. This removes the pre
 | Advisory | Current reachability | Enforced control |
 | --- | --- | --- |
 | `GHSA-3f6p-5ww8-9rcr` (npm 1153173) | Prisma CLI carries `mysql2@3.15.3` as a transitive dependency, but WARP connects only to SQLite/libSQL. No WARP source file imports mysql2 and no MySQL connection string is configured. The auth plugin downgrade path requires an active MySQL server connection, which never occurs. | Pin mysql2 as transitive (not root dependency). Scan all WARP source for mysql2 imports. Any direct import or root dependency entry blocks release. |
+| npm 1158532 | Prisma CLI carries `mysql2@3.15.3` as a transitive dependency. Same isolation as 1153173: WARP has no MySQL connection, no mysql2 import, and no MySQL connection string. Vulnerability reachability requires an active MySQL server connection which never occurs in WARP. | Same control as 1153173: transitive-only, no WARP source import, no root dependency entry. |
 
 ## Removal
 

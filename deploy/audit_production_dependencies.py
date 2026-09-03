@@ -19,10 +19,11 @@ ALLOWED_ADVISORIES = {
     1138809: "image-size JXL/HEIF parser denial of service",
     1145093: "deepmerge-ts recursive graph stack exhaustion",
     1153173: "mysql2 auth plugin downgrade leaks plaintext credentials",
+    1158532: "mysql2 additional vulnerability (transitive via Prisma, no MySQL connection in WARP)",
 }
 IMAGE_ADVISORIES = {1138808, 1138809}
 PRISMA_ADVISORIES = {1145093}
-MYSQL2_ADVISORIES = {1153173}
+MYSQL2_ADVISORIES = {1153173, 1158532}
 MYSQL2_VERSION = "3.15.3"
 EXPECTED_PPTX_IMPORTS = {
     "app/api/a3/[id]/export/route.ts",
