@@ -3,7 +3,7 @@
 import { useState, useCallback, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { Plus, X, ExternalLink, Mail, Car, Pencil, Trash2, MapPin } from 'lucide-react'
+import { Plus, X, ExternalLink, Mail, Car, Pencil, Trash2, MapPin, ChevronLeft, ChevronRight } from 'lucide-react'
 import VehicleReservationModal from './VehicleReservationModal'
 import VehicleStatusModal from './VehicleStatusModal'
 
@@ -249,15 +249,17 @@ export default function CalendarView({ weeks, activities, reservations, todayStr
                       : 'bg-white'
                     }`}>
 
-                    {/* 날짜 번호 */}
+                    {/* 날짜 번호 — 클릭하면 일별 보기 */}
                     <div className="flex items-center justify-between mb-1">
-                      <span className={`w-6 h-6 flex items-center justify-center text-xs font-bold rounded-full ${
-                        isToday    ? 'bg-red-500 text-white'
-                        : !inMonth ? 'text-slate-300'
-                        : dow === 0 ? 'text-red-400'
-                        : dow === 6 ? 'text-blue-400'
-                        : 'text-slate-700'
-                      }`}>{day}</span>
+                      <button type="button"
+                        onClick={() => { setDayViewDate(dateStr); setShowDayView(true) }}
+                        className={`w-6 h-6 flex items-center justify-center text-xs font-bold rounded-full transition-colors hover:ring-2 hover:ring-indigo-300 ${
+                          isToday    ? 'bg-red-500 text-white'
+                          : !inMonth ? 'text-slate-300'
+                          : dow === 0 ? 'text-red-400'
+                          : dow === 6 ? 'text-blue-400'
+                          : 'text-slate-700'
+                        }`}>{day}</button>
                       <div className="opacity-0 group-hover:opacity-100 transition-opacity flex gap-0.5">
                         <button
                           onClick={() => openNewResv(dateStr)}
@@ -558,50 +560,58 @@ export default function CalendarView({ weeks, activities, reservations, todayStr
         return (
           <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/50"
             onClick={() => setShowDayView(false)}>
-            <div className="bg-white w-full sm:rounded-2xl sm:max-w-2xl shadow-2xl flex flex-col max-h-screen sm:max-h-[90vh]"
+            <div className="bg-white w-full sm:rounded-2xl sm:max-w-4xl shadow-2xl flex flex-col max-h-screen sm:max-h-[90vh]"
               onClick={e => e.stopPropagation()}>
 
-              {/* 헤더 */}
-              <div className="flex items-center gap-2 px-4 py-3 border-b border-slate-200 shrink-0">
+              {/* 헤더: 절대 위치 X + 중앙 날짜 네비게이션 */}
+              <div className="relative flex items-center justify-center px-12 py-3 border-b border-slate-200 shrink-0">
                 <button onClick={() => navDay(-1)}
-                  className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-slate-100 text-slate-500 text-lg font-bold transition-colors">
-                  ‹
+                  className="absolute left-3 w-8 h-8 flex items-center justify-center rounded-full hover:bg-slate-100 text-slate-500 transition-colors">
+                  <ChevronLeft size={18} />
                 </button>
-                <div className="flex-1 text-center">
+                <div className="text-center">
                   <div className="text-sm font-bold text-slate-800">{dateLabel}</div>
                   {dayViewDate === todayStr && (
                     <div className="text-[10px] text-red-500 font-bold">오늘</div>
                   )}
                 </div>
                 <button onClick={() => navDay(1)}
-                  className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-slate-100 text-slate-500 text-lg font-bold transition-colors">
-                  ›
+                  className="absolute right-12 w-8 h-8 flex items-center justify-center rounded-full hover:bg-slate-100 text-slate-500 transition-colors">
+                  <ChevronRight size={18} />
                 </button>
                 <button onClick={() => setShowDayView(false)}
-                  className="ml-2 w-8 h-8 flex items-center justify-center rounded-full hover:bg-slate-100 transition-colors">
+                  className="absolute right-3 w-8 h-8 flex items-center justify-center rounded-full hover:bg-slate-100 transition-colors">
                   <X size={15} className="text-slate-500" />
                 </button>
               </div>
 
-              {/* 종일 활동 */}
-              {allDayActs.length > 0 && (
-                <div className="px-4 py-2 border-b border-slate-100 bg-slate-50 shrink-0">
-                  <div className="flex items-start gap-2">
-                    <span className="text-[10px] font-bold text-slate-400 w-10 shrink-0 pt-1">종일</span>
+              {/* 종일 활동 — 시간 없는 활동 모두 표시 */}
+              <div className="px-4 py-2 border-b border-slate-100 bg-slate-50/80 shrink-0">
+                <div className="flex items-start gap-2">
+                  <span className="text-[10px] font-bold text-slate-400 w-10 shrink-0 pt-1.5 text-right pr-1">종일</span>
+                  {allDayActs.length > 0 ? (
                     <div className="flex flex-col gap-1 flex-1 min-w-0">
                       {allDayActs.map(act => {
                         const c = TYPE_COLORS[act.type] ?? TYPE_COLORS['문서·자료작성']
+                        const companionCount = act.companions
+                          ? act.companions.split(',').map((s: string) => s.trim()).filter(Boolean).length : 0
+                        const nameTag = act.userName
+                          ? companionCount > 0 ? ` (${act.userName} 외 ${companionCount}명)` : ` (${act.userName})`
+                          : ''
                         return (
                           <button key={act.id} type="button" onClick={() => { setShowDayView(false); setSelected(act) }}
                             className={`text-left px-2 py-1 rounded text-xs font-medium truncate hover:opacity-80 ${c.bg} ${c.text}`}>
-                            {act.title}{act.userName ? ` (${act.userName})` : ''}
+                            {act.type !== '내부회의' && <span className="opacity-70 mr-1">[{act.type}]</span>}
+                            {act.title}{nameTag}
                           </button>
                         )
                       })}
                     </div>
-                  </div>
+                  ) : (
+                    <span className="text-[11px] text-slate-300 pt-1">종일 활동 없음</span>
+                  )}
                 </div>
-              )}
+              </div>
 
               {/* 시간 그리드 */}
               <div className="flex-1 overflow-y-auto">
