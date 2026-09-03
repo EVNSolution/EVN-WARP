@@ -872,18 +872,24 @@ export default function ActivityForm({ teams, tasks, users = [], vehicles = [], 
                     <span className="ml-1.5 text-[10px] font-bold text-teal-600 bg-teal-50 px-1.5 py-0.5 rounded-full">{companionChips.length}명</span>
                   )}
                 </p>
-                <select
-                  multiple
-                  value={companionChips}
-                  onChange={e => setCompanionChips(Array.from(e.target.selectedOptions).map(o => o.value))}
-                  size={Math.min(users.length, 5)}
-                  className="w-full border border-slate-200 rounded-lg px-3 py-1.5 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-teal-300"
-                >
-                  {users.map(u => (
-                    <option key={u.id} value={u.name ?? u.email}>{u.name ?? u.email}</option>
-                  ))}
-                </select>
-                <p className="mt-1 text-[10px] text-slate-400">클릭·드래그로 여러 명 선택</p>
+                <div className="border border-slate-200 rounded-lg overflow-y-auto" style={{ maxHeight: 160 }}>
+                  {users.map(u => {
+                    const name = u.name ?? u.email
+                    const checked = companionChips.includes(name)
+                    return (
+                      <button key={u.id} type="button"
+                        onClick={() => setCompanionChips(prev =>
+                          checked ? prev.filter(n => n !== name) : [...prev, name]
+                        )}
+                        className={`w-full flex items-center gap-2 px-3 py-1.5 text-sm text-left transition-colors ${checked ? 'bg-teal-50 text-teal-700 font-medium' : 'text-slate-700 hover:bg-slate-50'}`}>
+                        <span className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 ${checked ? 'bg-teal-500 border-teal-500' : 'border-slate-300'}`}>
+                          {checked && <svg viewBox="0 0 10 8" className="w-2.5 h-2.5 fill-none stroke-white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><polyline points="1,4 3.5,6.5 9,1"/></svg>}
+                        </span>
+                        {name}
+                      </button>
+                    )
+                  })}
+                </div>
               </div>
             </div>
           </div>
