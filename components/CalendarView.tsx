@@ -527,8 +527,8 @@ export default function CalendarView({ weeks, activities, reservations, todayStr
       {showDayView && (() => {
         const BASE_HOUR = 8
         const END_HOUR  = 21
-        const ROW_PX    = 32 // 30분당 픽셀
-        const TOTAL_PX  = (END_HOUR - BASE_HOUR) * 2 * ROW_PX // 832px
+        const ROW_PX    = 36 // 30분당 픽셀
+        const TOTAL_PX  = (END_HOUR - BASE_HOUR) * 2 * ROW_PX
 
         const timeToMin = (t: string) => {
           const [h, m] = t.split(':').map(Number)
@@ -542,8 +542,41 @@ export default function CalendarView({ weeks, activities, reservations, todayStr
            : fieldFilter === 'vehicle' ? false
            : !LEAVE_TYPES.has(a.type)))
 
-        const allDayActs  = dayActs.filter(a => !a.startTime)
-        const timedActs   = dayActs.filter(a => !!a.startTime)
+        const allDayActs = dayActs.filter(a => !a.startTime)
+        const timedActs  = dayActs.filter(a => !!a.startTime)
+
+        // ── 겹치는 활동 컬럼 배치 알고리즘 (Teams 스타일) ──
+        const layoutMap = new Map<string, { col: number; totalCols: number }>()
+        if (timedActs.length > 0) {
+          const sorted = [...timedActs].sort((a, b) => {
+            const aS = timeToMin(a.startTime!), bS = timeToMin(b.startTime!)
+            const aE = a.endTime ? timeToMin(a.endTime) : aS + 60
+            const bE = b.endTime ? timeToMin(b.endTime) : bS + 60
+            return aS !== bS ? aS - bS : bE - aE
+          })
+          const colEnds: number[] = []
+          for (const act of sorted) {
+            const sMin = timeToMin(act.startTime!)
+            const eMin = act.endTime ? timeToMin(act.endTime) : sMin + 60
+            let col = colEnds.findIndex(e => e <= sMin)
+            if (col === -1) { col = colEnds.length; colEnds.push(eMin) }
+            else colEnds[col] = eMin
+            layoutMap.set(act.id, { col, totalCols: 0 })
+          }
+          // 각 활동의 totalCols = 겹치는 활동들 중 최대 col + 1
+          for (const act of timedActs) {
+            const sMin = timeToMin(act.startTime!)
+            const eMin = act.endTime ? timeToMin(act.endTime) : sMin + 60
+            let maxCol = layoutMap.get(act.id)!.col
+            for (const other of timedActs) {
+              if (other.id === act.id) continue
+              const oS = timeToMin(other.startTime!)
+              const oE = other.endTime ? timeToMin(other.endTime) : oS + 60
+              if (sMin < oE && eMin > oS) maxCol = Math.max(maxCol, layoutMap.get(other.id)!.col)
+            }
+            layoutMap.get(act.id)!.totalCols = maxCol + 1
+          }
+        }
 
         const hours = Array.from({ length: END_HOUR - BASE_HOUR }, (_, i) => BASE_HOUR + i)
 
@@ -557,13 +590,15 @@ export default function CalendarView({ weeks, activities, reservations, todayStr
           year: 'numeric', month: 'long', day: 'numeric', weekday: 'short',
         })
 
+        const LABEL_W = 56 // px — 시간 레이블 너비
+
         return (
           <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/50"
             onClick={() => setShowDayView(false)}>
             <div className="bg-white w-full sm:rounded-2xl sm:max-w-4xl shadow-2xl flex flex-col max-h-screen sm:max-h-[90vh]"
               onClick={e => e.stopPropagation()}>
 
-              {/* 헤더: 절대 위치 X + 중앙 날짜 네비게이션 */}
+              {/* 헤더 */}
               <div className="relative flex items-center justify-center px-12 py-3 border-b border-slate-200 shrink-0">
                 <button onClick={() => navDay(-1)}
                   className="absolute left-3 w-8 h-8 flex items-center justify-center rounded-full hover:bg-slate-100 text-slate-500 transition-colors">
@@ -571,9 +606,7 @@ export default function CalendarView({ weeks, activities, reservations, todayStr
                 </button>
                 <div className="text-center">
                   <div className="text-sm font-bold text-slate-800">{dateLabel}</div>
-                  {dayViewDate === todayStr && (
-                    <div className="text-[10px] text-red-500 font-bold">오늘</div>
-                  )}
+                  {dayViewDate === todayStr && <div className="text-[10px] text-red-500 font-bold">오늘</div>}
                 </div>
                 <button onClick={() => navDay(1)}
                   className="absolute right-12 w-8 h-8 flex items-center justify-center rounded-full hover:bg-slate-100 text-slate-500 transition-colors">
@@ -585,110 +618,119 @@ export default function CalendarView({ weeks, activities, reservations, todayStr
                 </button>
               </div>
 
-              {/* 종일 활동 — 시간 없는 활동 모두 표시 */}
-              <div className="px-4 py-2 border-b border-slate-100 bg-slate-50/80 shrink-0">
-                <div className="flex items-start gap-2">
-                  <span className="text-[10px] font-bold text-slate-400 w-10 shrink-0 pt-1.5 text-right pr-1">종일</span>
-                  {allDayActs.length > 0 ? (
-                    <div className="flex flex-col gap-1 flex-1 min-w-0">
-                      {allDayActs.map(act => {
-                        const c = TYPE_COLORS[act.type] ?? TYPE_COLORS['문서·자료작성']
-                        const companionCount = act.companions
-                          ? act.companions.split(',').map((s: string) => s.trim()).filter(Boolean).length : 0
-                        const nameTag = act.userName
-                          ? companionCount > 0 ? ` (${act.userName} 외 ${companionCount}명)` : ` (${act.userName})`
-                          : ''
-                        return (
-                          <button key={act.id} type="button" onClick={() => { setShowDayView(false); setSelected(act) }}
-                            className={`text-left px-2 py-1 rounded text-xs font-medium truncate hover:opacity-80 ${c.bg} ${c.text}`}>
-                            {act.type !== '내부회의' && <span className="opacity-70 mr-1">[{act.type}]</span>}
-                            {act.title}{nameTag}
-                          </button>
-                        )
-                      })}
-                    </div>
-                  ) : (
-                    <span className="text-[11px] text-slate-300 pt-1">종일 활동 없음</span>
-                  )}
+              {/* 종일 섹션 */}
+              <div className="border-b border-slate-100 bg-slate-50/80 shrink-0">
+                <div className="flex items-start">
+                  <span className="text-[10px] font-bold text-slate-400 shrink-0 pt-2 pb-1.5 text-right pr-2"
+                    style={{ width: LABEL_W }}>종일</span>
+                  <div className="flex-1 border-l border-slate-200 py-1.5 px-2 min-h-[32px]">
+                    {allDayActs.length > 0 ? (
+                      <div className="flex flex-col gap-0.5">
+                        {allDayActs.map(act => {
+                          const c = TYPE_COLORS[act.type] ?? TYPE_COLORS['문서·자료작성']
+                          const cCount = act.companions
+                            ? act.companions.split(',').map((s: string) => s.trim()).filter(Boolean).length : 0
+                          const nameTag = act.userName
+                            ? cCount > 0 ? ` (${act.userName} 외 ${cCount}명)` : ` (${act.userName})`
+                            : ''
+                          return (
+                            <button key={act.id} type="button"
+                              onClick={() => { setShowDayView(false); setSelected(act) }}
+                              className={`text-left px-2 py-0.5 rounded text-xs font-medium truncate hover:opacity-80 ${c.bg} ${c.text}`}>
+                              <span className="opacity-60 mr-1 text-[10px]">[{act.type}]</span>
+                              {act.title}{nameTag}
+                            </button>
+                          )
+                        })}
+                      </div>
+                    ) : (
+                      <span className="text-[11px] text-slate-300">종일 활동 없음</span>
+                    )}
+                  </div>
                 </div>
               </div>
 
               {/* 시간 그리드 */}
               <div className="flex-1 overflow-y-auto">
-                <div className="relative" style={{ height: TOTAL_PX + 'px', minHeight: TOTAL_PX + 'px' }}>
+                {/* 레이블 컬럼 + 이벤트 컬럼을 flex로 분리 */}
+                <div className="flex" style={{ height: TOTAL_PX, minHeight: TOTAL_PX }}>
 
-                  {/* 시간 눈금선 + 레이블 */}
-                  {hours.map(h => {
-                    const top = (h - BASE_HOUR) * 2 * ROW_PX
-                    return (
-                      <div key={h} className="absolute inset-x-0 flex items-start pointer-events-none"
-                        style={{ top }}>
-                        <span className="w-14 shrink-0 text-right pr-3 text-[10px] text-slate-400 font-medium leading-none">
+                  {/* 시간 레이블 (고정 너비) */}
+                  <div className="shrink-0 relative" style={{ width: LABEL_W }}>
+                    {hours.map(h => (
+                      <div key={h} className="absolute right-0 pr-2 pointer-events-none"
+                        style={{ top: (h - BASE_HOUR) * 2 * ROW_PX - 7 }}>
+                        <span className="text-[10px] text-slate-400 font-medium">
                           {String(h).padStart(2, '0')}:00
                         </span>
-                        <div className="flex-1 border-t border-slate-200" />
                       </div>
-                    )
-                  })}
+                    ))}
+                  </div>
 
-                  {/* 30분 보조선 */}
-                  {hours.map(h => {
-                    const top = (h - BASE_HOUR) * 2 * ROW_PX + ROW_PX
-                    return (
-                      <div key={`h-${h}`} className="absolute inset-x-0 flex items-start pointer-events-none"
-                        style={{ top }}>
-                        <span className="w-14 shrink-0" />
-                        <div className="flex-1 border-t border-slate-100 border-dashed" />
+                  {/* 이벤트 영역 (상대 위치 기준) */}
+                  <div className="flex-1 relative border-l border-slate-200 pr-2">
+
+                    {/* 정시 구분선 */}
+                    {hours.map(h => (
+                      <div key={h} className="absolute inset-x-0 border-t border-slate-200 pointer-events-none"
+                        style={{ top: (h - BASE_HOUR) * 2 * ROW_PX }} />
+                    ))}
+                    {/* 30분 보조선 */}
+                    {hours.map(h => (
+                      <div key={`hh-${h}`} className="absolute inset-x-0 border-t border-slate-100 border-dashed pointer-events-none"
+                        style={{ top: (h - BASE_HOUR) * 2 * ROW_PX + ROW_PX }} />
+                    ))}
+
+                    {/* 이벤트 블록 — 컬럼 분리 배치 */}
+                    {timedActs.map(act => {
+                      const c = TYPE_COLORS[act.type] ?? TYPE_COLORS['문서·자료작성']
+                      const sMin   = timeToMin(act.startTime!)
+                      const eMin   = act.endTime ? timeToMin(act.endTime) : sMin + 60
+                      const baseMin = BASE_HOUR * 60
+                      const topPx  = clamp((sMin - baseMin) / 30 * ROW_PX, 0, TOTAL_PX - 24)
+                      const hPx    = Math.max((eMin - sMin) / 30 * ROW_PX, 24)
+                      const { col, totalCols } = layoutMap.get(act.id) ?? { col: 0, totalCols: 1 }
+                      const leftPct = (col / totalCols) * 100
+                      const widthPct = (1 / totalCols) * 100
+                      const cCount = act.companions
+                        ? act.companions.split(',').map(s => s.trim()).filter(Boolean).length : 0
+                      const nameTag = act.userName
+                        ? cCount > 0 ? ` (${act.userName} 외 ${cCount}명)` : ` (${act.userName})`
+                        : ''
+
+                      return (
+                        <button key={act.id} type="button"
+                          onClick={() => { setShowDayView(false); setSelected(act) }}
+                          className={`absolute rounded-md px-2 py-1 text-left hover:opacity-90 transition-opacity shadow-sm border border-white/60 overflow-hidden ${c.bg} ${c.text}`}
+                          style={{
+                            top: topPx,
+                            height: hPx,
+                            minHeight: 24,
+                            left: `calc(${leftPct}% + 2px)`,
+                            width: `calc(${widthPct}% - 4px)`,
+                          }}>
+                          <div className="text-xs font-semibold truncate leading-tight">
+                            {act.startTime}–{act.endTime ?? ''} {act.title}
+                          </div>
+                          {hPx >= 44 && (
+                            <div className="text-[10px] truncate opacity-80">{act.teamName}{nameTag}</div>
+                          )}
+                        </button>
+                      )
+                    })}
+
+                    {timedActs.length === 0 && allDayActs.length === 0 && (
+                      <div className="absolute inset-0 flex items-center justify-center">
+                        <p className="text-sm text-slate-400">이 날의 활동이 없습니다</p>
                       </div>
-                    )
-                  })}
-
-                  {/* 이벤트 블록 */}
-                  {timedActs.map((act, idx) => {
-                    const c = TYPE_COLORS[act.type] ?? TYPE_COLORS['문서·자료작성']
-                    const startMin  = timeToMin(act.startTime!)
-                    const endMin    = act.endTime ? timeToMin(act.endTime) : startMin + 60
-                    const baseMin   = BASE_HOUR * 60
-                    const topPx     = clamp((startMin - baseMin) / 30 * ROW_PX, 0, TOTAL_PX - 24)
-                    const heightPx  = Math.max((endMin - startMin) / 30 * ROW_PX, 24)
-                    const companionCount = act.companions
-                      ? act.companions.split(',').map(s => s.trim()).filter(Boolean).length : 0
-                    const nameTag = act.userName
-                      ? companionCount > 0 ? ` (${act.userName} 외 ${companionCount}명)` : ` (${act.userName})`
-                      : ''
-
-                    return (
-                      <button key={act.id + idx} type="button"
-                        onClick={() => { setShowDayView(false); setSelected(act) }}
-                        className={`absolute rounded-md px-2 py-1 text-left hover:opacity-90 transition-opacity shadow-sm border border-white/50 ${c.bg} ${c.text}`}
-                        style={{
-                          top: topPx,
-                          left: 60,
-                          right: 12,
-                          height: heightPx,
-                          minHeight: 24,
-                        }}>
-                        <div className="text-xs font-semibold truncate leading-tight">
-                          {act.startTime}–{act.endTime ?? ''} {act.title}
-                        </div>
-                        {heightPx >= 40 && (
-                          <div className="text-[10px] truncate opacity-80">{act.teamName}{nameTag}</div>
-                        )}
-                      </button>
-                    )
-                  })}
-
-                  {timedActs.length === 0 && allDayActs.length === 0 && (
-                    <div className="absolute inset-0 flex items-center justify-center">
-                      <p className="text-sm text-slate-400">이 날의 활동이 없습니다</p>
-                    </div>
-                  )}
+                    )}
+                  </div>
                 </div>
               </div>
 
               {/* 하단 버튼 */}
               <div className="flex justify-between items-center px-4 py-3 border-t border-slate-100 bg-slate-50/60 shrink-0">
-                <button onClick={() => { setDayViewDate(todayStr); }}
+                <button onClick={() => setDayViewDate(todayStr)}
                   className="text-xs text-indigo-500 hover:underline">오늘로</button>
                 <Link href={`/notes/new?date=${dayViewDate}`}
                   onClick={() => setShowDayView(false)}
