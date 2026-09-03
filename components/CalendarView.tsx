@@ -14,6 +14,7 @@ export type CalActivity = {
   title:        string
   content:      string | null
   mentions:     string | null
+  companions:   string | null
   referenceUrl: string | null
   planStatus:   string
   taskTitle:    string | null
@@ -24,6 +25,8 @@ export type CalActivity = {
   tripId?:      string
   tripStart?:   string
   tripEnd?:     string
+  // HR 연차 전용
+  leaveId?:     string
 }
 
 export type CalVehicleReservation = {
@@ -305,7 +308,12 @@ export default function CalendarView({ weeks, activities, reservations, todayStr
                           })}
                           {otherActs.map(act => {
                             const c = TYPE_COLORS[act.type] ?? TYPE_COLORS['문서·자료작성']
-                            const nameTag = act.userName ? `(${act.userName})` : ''
+                            const companionCount = act.companions
+                              ? act.companions.split(',').map(s => s.trim()).filter(Boolean).length
+                              : 0
+                            const nameTag = act.userName
+                              ? companionCount > 0 ? `(${act.userName} 외 ${companionCount}명)` : `(${act.userName})`
+                              : ''
                             if (act.tripId) {
                               return (
                                 <Link key={act.id + act.date} href={`/trip/${act.tripId}`}
@@ -382,6 +390,12 @@ export default function CalendarView({ weeks, activities, reservations, todayStr
                   <>
                     <span className="text-slate-400">작성자</span>
                     <span className="text-slate-700">{selected.userName}</span>
+                  </>
+                )}
+                {selected.companions?.trim() && (
+                  <>
+                    <span className="text-slate-400">동반인원</span>
+                    <span className="text-slate-700">{selected.companions}</span>
                   </>
                 )}
               </div>

@@ -346,6 +346,9 @@ export default function ActivityForm({ teams, tasks, users = [], vehicles = [], 
 
   const [date,         setDate]         = useState(initial?.date    ?? new Date().toISOString().slice(0, 10))
   const [endDate,      setEndDate]      = useState(initial?.endDate ?? '')
+  const [allDay,       setAllDay]       = useState(!(initial as any)?.startTime)
+  const [startTime,    setStartTime]    = useState((initial as any)?.startTime ?? '09:00')
+  const [endTime,      setEndTime]      = useState((initial as any)?.endTime   ?? '18:00')
   const [type,         setType]         = useState<string>(initial?.type ?? '내부회의')
   const [title,        setTitle]        = useState(initial?.title     ?? '')
   const [content,      setContent]      = useState(initial?.content   ?? '')
@@ -353,6 +356,11 @@ export default function ActivityForm({ teams, tasks, users = [], vehicles = [], 
     const raw = initial?.mentions ?? ''
     if (!raw) return []
     return raw.split(/[\s,]+/).filter(m => m.startsWith('@') && m.length > 1)
+  })
+  const [companionChips, setCompanionChips] = useState<string[]>(() => {
+    const raw = (initial as any)?.companions ?? ''
+    if (!raw) return []
+    return raw.split(',').map((s: string) => s.trim()).filter(Boolean)
   })
   const [activePicker, setActivePicker] = useState<'team' | 'user' | null>(null)
   const [referenceUrl, setReferenceUrl] = useState(initial?.referenceUrl ?? '')
@@ -375,8 +383,8 @@ export default function ActivityForm({ teams, tasks, users = [], vehicles = [], 
   const [resvDone,         setResvDone]         = useState(false)
 
   // 하단 옵션 패널
-  const [openPanel, setOpenPanel] = useState<'mention' | 'expense' | null>(null)
-  function togglePanel(p: 'mention' | 'expense') {
+  const [openPanel, setOpenPanel] = useState<'mention' | 'expense' | 'companion' | null>(null)
+  function togglePanel(p: 'mention' | 'expense' | 'companion') {
     setOpenPanel(v => v === p ? null : p)
     if (p === 'expense') setUseExpense(true)
   }
@@ -569,7 +577,10 @@ export default function ActivityForm({ teams, tasks, users = [], vehicles = [], 
       ...(userId   && { userId }),
       ...(userName && { userName }),
       date, type, title: finalTitle, content,
-      mentions: mentionChips.length > 0 ? mentionChips.join(', ') : null,
+      mentions:   mentionChips.length   > 0 ? mentionChips.join(', ')   : null,
+      companions: companionChips.length > 0 ? companionChips.join(', ') : null,
+      startTime:  (!allDay && !endDate) ? startTime : null,
+      endTime:    (!allDay && !endDate) ? endTime   : null,
       planStatus,
       referenceUrl: referenceUrl.trim() || null,
       countermeasureId: countermeasureId || null,
@@ -875,8 +886,46 @@ export default function ActivityForm({ teams, tasks, users = [], vehicles = [], 
                 })()}
               </div>
             ) : (
-              <input type="date" value={date} onChange={e => setDate(e.target.value)}
-                className="border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-400" />
+              <div className="space-y-2">
+                <input type="date" value={date} onChange={e => setDate(e.target.value)}
+                  className="border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-400" />
+                {/* 시간 선택 — 30분 단위 (Teams 캘린더 호환) */}
+                <div className="flex items-center gap-3 flex-wrap">
+                  <label className="flex items-center gap-1.5 cursor-pointer select-none">
+                    <input type="checkbox" checked={allDay} onChange={e => setAllDay(e.target.checked)}
+                      className="w-4 h-4 rounded border-slate-300 text-indigo-500 cursor-pointer" />
+                    <span className="text-sm text-slate-600">하루 종일</span>
+                  </label>
+                  {!allDay && (
+                    <div className="flex items-center gap-2">
+                      <select value={startTime} onChange={e => {
+                        setStartTime(e.target.value)
+                        if (e.target.value >= endTime) {
+                          const [h, m] = e.target.value.split(':').map(Number)
+                          const next = m === 30 ? `${String(h + 1).padStart(2, '0')}:00` : `${String(h).padStart(2, '0')}:30`
+                          if (next <= '23:30') setEndTime(next)
+                        }
+                      }}
+                        className="border border-slate-200 rounded-lg px-2 py-1.5 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-400">
+                        {Array.from({ length: 48 }, (_, i) => {
+                          const h = Math.floor(i / 2), m = i % 2 === 0 ? '00' : '30'
+                          const val = `${String(h).padStart(2, '0')}:${m}`
+                          return <option key={val} value={val}>{val}</option>
+                        })}
+                      </select>
+                      <span className="text-slate-400 text-sm">~</span>
+                      <select value={endTime} onChange={e => setEndTime(e.target.value)}
+                        className="border border-slate-200 rounded-lg px-2 py-1.5 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-400">
+                        {Array.from({ length: 48 }, (_, i) => {
+                          const h = Math.floor(i / 2), m = i % 2 === 0 ? '00' : '30'
+                          const val = `${String(h).padStart(2, '0')}:${m}`
+                          return <option key={val} value={val} disabled={val <= startTime}>{val}</option>
+                        })}
+                      </select>
+                    </div>
+                  )}
+                </div>
+              </div>
             )}
           </div>
 
@@ -1143,6 +1192,21 @@ export default function ActivityForm({ teams, tasks, users = [], vehicles = [], 
           <div className="flex items-center gap-2 px-4 py-3 flex-wrap">
             <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mr-1 shrink-0">선택 추가</span>
 
+            {/* 동반인원 */}
+            <button type="button" onClick={() => togglePanel('companion')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg border transition-colors ${
+                companionChips.length > 0 || openPanel === 'companion'
+                  ? 'bg-teal-50 border-teal-200 text-teal-700'
+                  : 'border-slate-200 text-slate-500 hover:border-teal-200 hover:text-teal-600 hover:bg-teal-50'
+              }`}>
+              <Users size={12} />동반인원
+              {companionChips.length > 0 && (
+                <span className="bg-teal-600 text-white rounded-full w-4 h-4 text-[9px] flex items-center justify-center shrink-0">
+                  {companionChips.length}
+                </span>
+              )}
+            </button>
+
             {/* @알림 */}
             <button type="button" onClick={() => togglePanel('mention')}
               className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg border transition-colors ${
@@ -1211,6 +1275,36 @@ export default function ActivityForm({ teams, tasks, users = [], vehicles = [], 
               </a>
             )}
           </div>
+
+          {/* 동반인원 패널 */}
+          {openPanel === 'companion' && (
+            <div className="px-4 pb-4 pt-1 border-t border-slate-100 bg-teal-50/30">
+              {companionChips.length > 0 && (
+                <div className="flex flex-wrap gap-1.5 mb-3 pt-3">
+                  {companionChips.map((chip, i) => (
+                    <span key={i} className="flex items-center gap-1 px-2.5 py-1 bg-teal-50 border border-teal-200 rounded-full text-xs text-teal-700 font-semibold">
+                      {chip}
+                      <button type="button"
+                        onClick={() => setCompanionChips(prev => prev.filter((_, j) => j !== i))}
+                        className="text-teal-400 hover:text-teal-600 ml-0.5">×</button>
+                    </span>
+                  ))}
+                </div>
+              )}
+              <div className="flex gap-2 flex-wrap pt-2">
+                {users.filter(u => !companionChips.includes(u.name ?? u.email)).map(u => (
+                  <button key={u.id} type="button"
+                    onClick={() => { const n = u.name ?? u.email; if (n) setCompanionChips(p => [...p, n]) }}
+                    className="flex items-center gap-1 px-3 py-1.5 text-xs font-semibold rounded-lg border border-slate-200 text-slate-600 hover:border-teal-300 hover:text-teal-600 hover:bg-teal-50 transition-colors bg-white">
+                    {u.name ?? u.email}
+                  </button>
+                ))}
+              </div>
+              {companionChips.length === 0 && (
+                <p className="mt-2 text-[11px] text-slate-400">함께 참여한 팀원을 선택하세요.</p>
+              )}
+            </div>
+          )}
 
           {/* @알림 패널 */}
           {openPanel === 'mention' && (

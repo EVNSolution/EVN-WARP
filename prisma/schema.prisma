@@ -183,7 +183,10 @@ model WorkActivity {
   type      String       // 활동 유형 (7개 카테고리 체계)
   title     String
   content   String?
-  mentions  String?      // @멘션 대상 (콤마 구분)
+  mentions    String?      // @멘션 대상 (콤마 구분)
+  companions  String?      // 동반인원 이름 (콤마 구분, workActivity 기록용)
+  startTime   String?      // "HH:MM" — null이면 하루종일
+  endTime     String?      // "HH:MM" — null이면 하루종일
   referenceUrl     String?        // 이메일 등 참고 URL (아웃룩 링크 등)
   planStatus       String         @default("계획")  // "계획" | "완료"
   kpiItemId        String?        // 실적추가 시 연결된 KPI 항목

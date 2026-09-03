@@ -4,7 +4,7 @@ import { prisma } from '@/lib/db'
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const body = await req.json()
-  const { type, title, content, mentions, date, endDate, kpiItemId, kpiWeek, actualNum, countermeasureId, planStatus, referenceUrl,
+  const { type, title, content, mentions, companions, startTime, endTime, date, endDate, kpiItemId, kpiWeek, actualNum, countermeasureId, planStatus, referenceUrl,
     taskId, teamId, userId, userName,
     expenseTransport, expenseAccomm, expenseMeal, expenseOther, expensePaymentMethod, expenseCardId, expenseNote,
     expenseTransportReceipt, expenseAccommReceipt, expenseMealReceipt, expenseOtherReceipt,
@@ -31,7 +31,10 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
       ...(type     !== undefined && { type }),
       ...(title    !== undefined && { title: title.trim() }),
       ...(content  !== undefined && { content: content || null }),
-      ...(mentions !== undefined && { mentions: mentions || null }),
+      ...(mentions   !== undefined && { mentions:   mentions   || null }),
+      ...(companions !== undefined && { companions: companions || null }),
+      ...(startTime  !== undefined && { startTime:  startTime  || null }),
+      ...(endTime    !== undefined && { endTime:    endTime    || null }),
       ...(date     !== undefined && { date }),
       ...(endDate  !== undefined && { endDate: endDate || null }),
       ...(kpiItemId        !== undefined && { kpiItemId:        kpiItemId        || null }),

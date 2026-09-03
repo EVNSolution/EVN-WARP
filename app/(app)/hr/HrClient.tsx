@@ -52,9 +52,10 @@ export default function HrClient({
   const [myLeaves, setMyLeaves] = useState(initialMyLeaves)
   const [pendingLeaves, setPendingLeaves] = useState(initialPendingLeaves)
   const [leaveType, setLeaveType] = useState(LEAVE_TYPES[0])
-  const [startDate, setStartDate] = useState('')
-  const [endDate,   setEndDate]   = useState('')
-  const [reason,    setReason]    = useState('')
+  const [startDate,     setStartDate]     = useState('')
+  const [endDate,       setEndDate]       = useState('')
+  const [reason,        setReason]        = useState('')
+  const [leaveTargetId, setLeaveTargetId] = useState(me.id)  // 관리자: 대신 신청할 직원
   const [submittingLeave, setSubmittingLeave] = useState(false)
   const [processingId, setProcessingId] = useState<string | null>(null)
 
@@ -72,14 +73,22 @@ export default function HrClient({
     if (!startDate || !effEnd) return
     setSubmittingLeave(true)
     try {
+      const targetUser = allUsers.find(u => u.id === leaveTargetId)
       const res = await fetch('/api/leave-requests', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ type: leaveType, startDate, endDate: effEnd, days, reason }),
+        body: JSON.stringify({
+          type: leaveType, startDate, endDate: effEnd, days, reason,
+          ...(leaveTargetId !== me.id && {
+            targetUserId:   leaveTargetId,
+            targetUserName: targetUser?.name,
+          }),
+        }),
       })
       if (res.ok) {
         const data = await res.json()
         setMyLeaves(prev => [data, ...prev])
         setStartDate(''); setEndDate(''); setReason('')
+        setLeaveTargetId(me.id)
       }
     } finally { setSubmittingLeave(false) }
   }
@@ -209,6 +218,17 @@ export default function HrClient({
 
           <div className="bg-white rounded-2xl border border-slate-200 p-5">
             <p className="text-sm font-bold text-slate-700 mb-3">휴가 신청</p>
+            {isManager && (
+              <div className="mb-3">
+                <label className="text-xs text-slate-500 mb-1 block">신청 대상</label>
+                <select value={leaveTargetId} onChange={e => setLeaveTargetId(e.target.value)}
+                  className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-slate-400">
+                  {allUsers.map(u => (
+                    <option key={u.id} value={u.id}>{u.name}{u.id === me.id ? ' (나)' : ''}</option>
+                  ))}
+                </select>
+              </div>
+            )}
             <div className="flex flex-wrap gap-1.5 mb-3">
               {LEAVE_TYPES.map(t => (
                 <button key={t} type="button" onClick={() => setLeaveType(t)}

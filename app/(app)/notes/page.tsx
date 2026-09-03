@@ -176,7 +176,7 @@ export default async function NotesPage({ searchParams }: { searchParams: Promis
   }
 
   /* ── DB 조회 ── */
-  const [activities, userRows, tripReports, recentVehicleLogs, rawReservations] = await Promise.all([
+  const [activities, userRows, tripReports, recentVehicleLogs, rawReservations, approvedLeaves] = await Promise.all([
     prisma.workActivity.findMany({
       where: {
         date: { gte: calFromDate, lte: calToDate },
@@ -224,6 +224,19 @@ export default async function NotesPage({ searchParams }: { searchParams: Promis
       include: { vehicle: { select: { name: true, plateNo: true } } },
       orderBy: { startAt: 'asc' },
     }),
+    // 승인된 연차/반차를 캘린더에 표시
+    prisma.leaveRequest.findMany({
+      where: {
+        status: '승인',
+        startDate: { lte: calToDate },
+        endDate:   { gte: calFromDate },
+        ...((uidParam || userParam) ? { OR: [
+          ...(uidParam  ? [{ userId: uidParam }] : []),
+          ...(userParam ? [{ userName: userParam }] : []),
+        ] } : {}),
+      },
+      orderBy: { startDate: 'asc' },
+    }),
   ])
   const userNames = userRows.map(r => r.userName!).filter(Boolean)
 
@@ -238,6 +251,7 @@ export default async function NotesPage({ searchParams }: { searchParams: Promis
       title:        a.title,
       content:      a.content      ?? null,
       mentions:     a.mentions     ?? null,
+      companions:   (a as any).companions ?? null,
       referenceUrl: (a as any).referenceUrl ?? null,
       planStatus:   a.planStatus,
       taskTitle:    a.task?.title  ?? null,
@@ -277,6 +291,7 @@ export default async function NotesPage({ searchParams }: { searchParams: Promis
           title:        trip.title,
           content:      trip.purpose ?? null,
           mentions:     null,
+          companions:   null,
           referenceUrl: null,
           planStatus:   '완료',
           taskTitle:    null,
@@ -286,6 +301,34 @@ export default async function NotesPage({ searchParams }: { searchParams: Promis
           tripId:       trip.id,
           tripStart:    trip.startDate,
           tripEnd:      trip.endDate,
+        })
+      }
+      cur.setDate(cur.getDate() + 1)
+    }
+  }
+
+  // 승인된 LeaveRequest → calActivities에 추가 (근태 탭에 표시)
+  for (const leave of approvedLeaves) {
+    const cur = new Date(leave.startDate)
+    const end = new Date(leave.endDate)
+    while (cur <= end) {
+      const dateStr = cur.toISOString().slice(0, 10)
+      if (dateStr >= calFromDate && dateStr <= calToDate) {
+        calActivities.push({
+          id:           leave.id,
+          date:         dateStr,
+          type:         leave.type,
+          title:        leave.type,
+          content:      leave.reason ?? null,
+          mentions:     null,
+          companions:   null,
+          referenceUrl: null,
+          planStatus:   '완료',
+          taskTitle:    null,
+          taskCode:     null,
+          teamName:     '',
+          userName:     leave.userName,
+          leaveId:      leave.id,
         })
       }
       cur.setDate(cur.getDate() + 1)
