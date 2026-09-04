@@ -5,6 +5,8 @@ import PeriodSelector from './PeriodSelector'
 import TodayTodoButton from './TodayTodoButton'
 import { computeCallDue, type CallCadenceDeal, type CallDueLead } from '@/lib/callCadence'
 import { PIPELINE } from '@/lib/pipeline'
+import { auth } from '@/auth'
+import { isAdminRole } from '@/lib/permissions'
 
 type SearchParams = { period?: string; from?: string; to?: string; view?: string; mode?: string }
 
@@ -64,6 +66,9 @@ export default async function SalesReportPage({
 }: {
   searchParams: Promise<SearchParams>
 }) {
+  const session = await auth()
+  const isAdmin = isAdminRole((session?.user as any)?.role)
+
   const sp     = await searchParams
   const period = sp.period ?? 'month'
   const view   = sp.view   ?? 'summary'
@@ -266,10 +271,12 @@ export default async function SalesReportPage({
               </p>
             </div>
             <div className="flex items-center gap-3">
-              <a href="/sales-report/kia-letter" target="_blank" rel="noopener noreferrer"
-                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg border border-blue-200 text-blue-700 bg-blue-50 hover:bg-blue-100 transition-colors">
-                📄 공문발송 (기아 대장동)
-              </a>
+              {isAdmin && (
+                <a href="/sales-report/kia-letter" target="_blank" rel="noopener noreferrer"
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg border border-blue-200 text-blue-700 bg-blue-50 hover:bg-blue-100 transition-colors">
+                  📄 공문발송 (기아 대장동)
+                </a>
+              )}
               <TodayTodoButton
                 dateLabel={fmtFull(todayStart.toISOString().slice(0, 10))}
                 assignees={allAssignees}

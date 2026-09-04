@@ -2,6 +2,7 @@ import { prisma } from '@/lib/db'
 import { auth } from '@/auth'
 import { redirect } from 'next/navigation'
 import PrintButton from './PrintButton'
+import { isAdminRole } from '@/lib/permissions'
 
 function fmt(d: Date | string | null | undefined) {
   if (!d) return '—'
@@ -22,6 +23,7 @@ function maskPhone(phone: string | null | undefined) {
 export default async function KiaLetterPage() {
   const session = await auth()
   if (!(session?.user as any)?.id) redirect('/login')
+  if (!isAdminRole((session?.user as any)?.role)) redirect('/sales-report')
 
   const today = new Date()
   const dateStr = today.toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' })
