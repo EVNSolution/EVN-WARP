@@ -1,7 +1,9 @@
 'use client'
 
-import { useState } from 'react'
-import { Plus, MessageSquareText, ChevronDown, Trash2, X } from 'lucide-react'
+import { useRef, useState } from 'react'
+import { Plus, MessageSquareText, ChevronDown, Trash2, X, ImageIcon, Paperclip } from 'lucide-react'
+
+type SuggestionFile = { name: string; url: string }
 
 type Suggestion = {
   id: string
@@ -11,9 +13,11 @@ type Suggestion = {
   title: string
   content: string
   imagesJson: string | null
+  filesJson: string | null
   status: string
   replyContent: string | null
   replyImagesJson: string | null
+  replyFilesJson: string | null
   repliedByName: string | null
   repliedAt: string | null
   createdAt: string
@@ -37,19 +41,44 @@ function fmt(d: string) {
 
 function parseImages(json: string | null): string[] {
   if (!json) return []
-  try {
-    const arr = JSON.parse(json)
-    return Array.isArray(arr) ? arr : []
-  } catch { return [] }
+  try { const arr = JSON.parse(json); return Array.isArray(arr) ? arr : [] } catch { return [] }
 }
 
-async function uploadPastedImage(file: File): Promise<string | null> {
-  const fd = new FormData()
-  fd.append('file', file)
+function parseFiles(json: string | null): SuggestionFile[] {
+  if (!json) return []
+  try { const arr = JSON.parse(json); return Array.isArray(arr) ? arr : [] } catch { return [] }
+}
+
+function FileThumbs({ files, onRemove }: { files: SuggestionFile[]; onRemove?: (i: number) => void }) {
+  if (files.length === 0) return null
+  return (
+    <div className="flex flex-wrap gap-1.5 mt-1.5">
+      {files.map((f, i) => (
+        <div key={f.url + i} className="flex items-center gap-1 bg-white border border-slate-200 rounded-lg px-2.5 py-1">
+          <Paperclip size={10} className="text-slate-400 shrink-0" />
+          <a href={f.url} target="_blank" rel="noreferrer" className="text-xs text-slate-600 hover:underline max-w-[160px] truncate">{f.name}</a>
+          {onRemove && (
+            <button type="button" onClick={() => onRemove(i)} className="text-slate-300 hover:text-red-400 ml-0.5"><X size={10} /></button>
+          )}
+        </div>
+      ))}
+    </div>
+  )
+}
+
+async function uploadImage(file: File): Promise<string | null> {
+  const fd = new FormData(); fd.append('file', file)
   const res = await fetch('/api/suggestions/upload-image', { method: 'POST', body: fd })
   if (!res.ok) return null
+  return (await res.json()).url ?? null
+}
+
+async function uploadFile(file: File): Promise<SuggestionFile | null> {
+  const fd = new FormData(); fd.append('file', file)
+  const res = await fetch('/api/suggestions/upload-file', { method: 'POST', body: fd })
+  if (!res.ok) return null
   const data = await res.json()
-  return data.url ?? null
+  return data.url ? { name: data.name ?? file.name, url: data.url } : null
 }
 
 function ImageThumbs({ urls, onRemove }: { urls: string[]; onRemove?: (i: number) => void }) {
@@ -91,22 +120,24 @@ export default function SuggestionsClient({
   const [newTitle, setNewTitle] = useState('')
   const [newContent, setNewContent] = useState('')
   const [newImages, setNewImages] = useState<string[]>([])
-  const [newImageUploading, setNewImageUploading] = useState(false)
+  const [newFiles, setNewFiles] = useState<SuggestionFile[]>([])
+  const [newUploading, setNewUploading] = useState(false)
   const [posting, setPosting] = useState(false)
+  const newImgRef = useRef<HTMLInputElement>(null)
+  const newFileRef = useRef<HTMLInputElement>(null)
 
   const handleNewContentPaste = async (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
     const imageItems = Array.from(e.clipboardData.items).filter(it => it.type.startsWith('image/'))
     if (imageItems.length === 0) return
     e.preventDefault()
-    setNewImageUploading(true)
+    setNewUploading(true)
     try {
       for (const item of imageItems) {
-        const file = item.getAsFile()
-        if (!file) continue
-        const url = await uploadPastedImage(file)
+        const file = item.getAsFile(); if (!file) continue
+        const url = await uploadImage(file)
         if (url) setNewImages(prev => [...prev, url])
       }
-    } finally { setNewImageUploading(false) }
+    } finally { setNewUploading(false) }
   }
 
   const handleSubmit = async () => {
@@ -116,11 +147,11 @@ export default function SuggestionsClient({
       const res = await fetch('/api/suggestions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ type: newType, title: newTitle, content: newContent, images: newImages }),
+        body: JSON.stringify({ type: newType, title: newTitle, content: newContent, images: newImages, files: newFiles }),
       })
       const data = await res.json()
       setItems(prev => [data, ...prev])
-      setNewTitle(''); setNewContent(''); setNewType('제안'); setNewImages([])
+      setNewTitle(''); setNewContent(''); setNewType('제안'); setNewImages([]); setNewFiles([])
       setShowForm(false)
     } finally { setPosting(false) }
   }
@@ -128,22 +159,24 @@ export default function SuggestionsClient({
   /* 관리자 답변/상태변경 */
   const [replyDraft, setReplyDraft] = useState<Record<string, string>>({})
   const [replyImages, setReplyImages] = useState<Record<string, string[]>>({})
-  const [replyImageUploading, setReplyImageUploading] = useState<string | null>(null)
+  const [replyFiles, setReplyFiles] = useState<Record<string, SuggestionFile[]>>({})
+  const [replyUploading, setReplyUploading] = useState<string | null>(null)
   const [replying, setReplying] = useState<string | null>(null)
+  const replyImgRefs = useRef<Record<string, HTMLInputElement | null>>({})
+  const replyFileRefs = useRef<Record<string, HTMLInputElement | null>>({})
 
   const handleReplyPaste = async (id: string, e: React.ClipboardEvent<HTMLTextAreaElement>) => {
     const imageItems = Array.from(e.clipboardData.items).filter(it => it.type.startsWith('image/'))
     if (imageItems.length === 0) return
     e.preventDefault()
-    setReplyImageUploading(id)
+    setReplyUploading(id)
     try {
       for (const item of imageItems) {
-        const file = item.getAsFile()
-        if (!file) continue
-        const url = await uploadPastedImage(file)
+        const file = item.getAsFile(); if (!file) continue
+        const url = await uploadImage(file)
         if (url) setReplyImages(prev => ({ ...prev, [id]: [...(prev[id] ?? []), url] }))
       }
-    } finally { setReplyImageUploading(null) }
+    } finally { setReplyUploading(null) }
   }
 
   const handleReply = async (id: string) => {
@@ -154,12 +187,13 @@ export default function SuggestionsClient({
       const res = await fetch(`/api/suggestions/${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ replyContent: text, replyImages: replyImages[id] ?? [] }),
+        body: JSON.stringify({ replyContent: text, replyImages: replyImages[id] ?? [], replyFiles: replyFiles[id] ?? [] }),
       })
       const data = await res.json()
       setItems(prev => prev.map(s => s.id === id ? data : s))
       setReplyDraft(prev => ({ ...prev, [id]: '' }))
       setReplyImages(prev => ({ ...prev, [id]: [] }))
+      setReplyFiles(prev => ({ ...prev, [id]: [] }))
     } finally { setReplying(null) }
   }
 
@@ -216,10 +250,37 @@ export default function SuggestionsClient({
             placeholder="제목"
             className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 mb-2 focus:outline-none focus:ring-1 focus:ring-slate-300" />
           <textarea value={newContent} onChange={e => setNewContent(e.target.value)} onPaste={handleNewContentPaste} rows={4}
-            placeholder="내용을 자유롭게 적어주세요 (이미지는 복사 붙여넣기로 첨부할 수 있습니다)"
+            placeholder="내용을 자유롭게 적어주세요 (이미지 붙여넣기도 가능)"
             className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 resize-none focus:outline-none focus:ring-1 focus:ring-slate-300" />
+          <div className="flex items-center gap-2 mt-2">
+            <button type="button" onClick={() => newImgRef.current?.click()}
+              className="flex items-center gap-1.5 px-2.5 py-1 text-xs text-slate-500 border border-slate-200 rounded-lg hover:border-indigo-200 hover:text-indigo-500 hover:bg-indigo-50 transition-colors">
+              <ImageIcon size={11} /> 이미지
+              {newImages.length > 0 && <span className="font-bold text-indigo-600">{newImages.length}</span>}
+            </button>
+            <button type="button" onClick={() => newFileRef.current?.click()}
+              className="flex items-center gap-1.5 px-2.5 py-1 text-xs text-slate-500 border border-slate-200 rounded-lg hover:border-teal-200 hover:text-teal-600 hover:bg-teal-50 transition-colors">
+              <Paperclip size={11} /> 파일
+              {newFiles.length > 0 && <span className="font-bold text-teal-600">{newFiles.length}</span>}
+            </button>
+            {newUploading && <span className="text-[11px] text-slate-400">업로드 중...</span>}
+          </div>
+          <input ref={newImgRef} type="file" accept="image/*" multiple className="hidden" onChange={async e => {
+            const files = Array.from(e.target.files ?? []); if (!files.length) return
+            setNewUploading(true)
+            try { for (const f of files) { const url = await uploadImage(f); if (url) setNewImages(prev => [...prev, url]) } }
+            finally { setNewUploading(false); e.target.value = '' }
+          }} />
+          <input ref={newFileRef} type="file" multiple className="hidden"
+            accept=".pdf,.doc,.docx,.xls,.xlsx,.hwp,.ppt,.pptx,.txt,.zip"
+            onChange={async e => {
+              const files = Array.from(e.target.files ?? []); if (!files.length) return
+              setNewUploading(true)
+              try { for (const f of files) { const r = await uploadFile(f); if (r) setNewFiles(prev => [...prev, r]) } }
+              finally { setNewUploading(false); e.target.value = '' }
+            }} />
           <ImageThumbs urls={newImages} onRemove={i => setNewImages(prev => prev.filter((_, idx) => idx !== i))} />
-          {newImageUploading && <p className="text-[11px] text-slate-400 mt-1.5">이미지 업로드 중...</p>}
+          <FileThumbs files={newFiles} onRemove={i => setNewFiles(prev => prev.filter((_, idx) => idx !== i))} />
           <div className="flex justify-end gap-2 mt-3">
             <button onClick={() => setShowForm(false)}
               className="px-4 py-2 text-xs font-semibold text-slate-500 hover:text-slate-700 transition">취소</button>
@@ -264,7 +325,9 @@ export default function SuggestionsClient({
             const statusStyle = STATUS_STYLE[s.status] ?? STATUS_STYLE['대기']
             const canManage = isAdmin || s.userId === myUserId
             const contentImages = parseImages(s.imagesJson)
+            const contentFiles = parseFiles(s.filesJson)
             const replyImgs = parseImages(s.replyImagesJson)
+            const replyFileList = parseFiles(s.replyFilesJson)
             return (
               <div key={s.id} className="bg-white rounded-xl border border-slate-200 overflow-hidden">
                 <button onClick={() => setExpandedId(isOpen ? null : s.id)}
@@ -280,6 +343,7 @@ export default function SuggestionsClient({
                   <div className="px-5 pb-4 border-t border-slate-100">
                     <p className="text-sm text-slate-700 whitespace-pre-wrap leading-relaxed pt-3">{s.content}</p>
                     <ImageThumbs urls={contentImages} />
+                    <FileThumbs files={contentFiles} />
 
                     {s.replyContent && (
                       <div className="mt-3 flex gap-2 bg-slate-50 rounded-lg px-4 py-3">
@@ -287,6 +351,7 @@ export default function SuggestionsClient({
                         <div className="flex-1 min-w-0">
                           <p className="text-sm text-slate-700 whitespace-pre-wrap leading-relaxed">{s.replyContent}</p>
                           <ImageThumbs urls={replyImgs} />
+                          <FileThumbs files={replyFileList} />
                           <p className="text-[10px] text-slate-400 mt-1.5">{s.repliedByName} · {s.repliedAt ? fmt(s.repliedAt) : ''}</p>
                         </div>
                       </div>
@@ -314,9 +379,38 @@ export default function SuggestionsClient({
                             </select>
                           </div>
                         </div>
+                        <div className="flex items-center gap-2 mt-1.5">
+                          <button type="button" onClick={() => { replyImgRefs.current[s.id]?.click() }}
+                            className="flex items-center gap-1 px-2 py-0.5 text-[11px] text-slate-400 border border-slate-200 rounded hover:text-indigo-500 hover:border-indigo-200 transition-colors">
+                            <ImageIcon size={10} /> 이미지
+                            {(replyImages[s.id]?.length ?? 0) > 0 && <span className="font-bold text-indigo-600">{replyImages[s.id].length}</span>}
+                          </button>
+                          <button type="button" onClick={() => { replyFileRefs.current[s.id]?.click() }}
+                            className="flex items-center gap-1 px-2 py-0.5 text-[11px] text-slate-400 border border-slate-200 rounded hover:text-teal-600 hover:border-teal-200 transition-colors">
+                            <Paperclip size={10} /> 파일
+                            {(replyFiles[s.id]?.length ?? 0) > 0 && <span className="font-bold text-teal-600">{replyFiles[s.id].length}</span>}
+                          </button>
+                          {replyUploading === s.id && <span className="text-[11px] text-slate-400">업로드 중...</span>}
+                        </div>
+                        <input ref={el => { replyImgRefs.current[s.id] = el }} type="file" accept="image/*" multiple className="hidden"
+                          onChange={async e => {
+                            const files = Array.from(e.target.files ?? []); if (!files.length) return
+                            setReplyUploading(s.id)
+                            try { for (const f of files) { const url = await uploadImage(f); if (url) setReplyImages(prev => ({ ...prev, [s.id]: [...(prev[s.id] ?? []), url] })) } }
+                            finally { setReplyUploading(null); e.target.value = '' }
+                          }} />
+                        <input ref={el => { replyFileRefs.current[s.id] = el }} type="file" multiple className="hidden"
+                          accept=".pdf,.doc,.docx,.xls,.xlsx,.hwp,.ppt,.pptx,.txt,.zip"
+                          onChange={async e => {
+                            const files = Array.from(e.target.files ?? []); if (!files.length) return
+                            setReplyUploading(s.id)
+                            try { for (const f of files) { const r = await uploadFile(f); if (r) setReplyFiles(prev => ({ ...prev, [s.id]: [...(prev[s.id] ?? []), r] })) } }
+                            finally { setReplyUploading(null); e.target.value = '' }
+                          }} />
                         <ImageThumbs urls={replyImages[s.id] ?? []}
                           onRemove={i => setReplyImages(prev => ({ ...prev, [s.id]: (prev[s.id] ?? []).filter((_, idx) => idx !== i) }))} />
-                        {replyImageUploading === s.id && <p className="text-[11px] text-slate-400 mt-1.5">이미지 업로드 중...</p>}
+                        <FileThumbs files={replyFiles[s.id] ?? []}
+                          onRemove={i => setReplyFiles(prev => ({ ...prev, [s.id]: (prev[s.id] ?? []).filter((_, idx) => idx !== i) }))} />
                       </div>
                     )}
 

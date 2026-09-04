@@ -11,7 +11,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   if (!isAdminRole(me?.role)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
   const body = await req.json()
-  const { status, replyContent, replyImages } = body
+  const { status, replyContent, replyImages, replyFiles } = body
 
   const suggestion = await prisma.suggestion.update({
     where: { id },
@@ -21,6 +21,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
         replyContent:    replyContent || null,
         replyImagesJson: replyContent && Array.isArray(replyImages) && replyImages.length > 0
           ? JSON.stringify(replyImages) : null,
+        replyFilesJson:  replyContent && Array.isArray(replyFiles) && replyFiles.length > 0
+          ? JSON.stringify(replyFiles) : null,
         repliedByName:   replyContent ? (me.name ?? '관리자') : null,
         repliedAt:       replyContent ? new Date() : null,
         status:          replyContent ? '답변완료' : status,

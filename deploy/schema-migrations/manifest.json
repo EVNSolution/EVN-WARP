@@ -1,12 +1,13 @@
 {
-  "prismaSchemaSha256": "000e31d99ce4d89b449763f57780f399b965593fbb9a94358fc2287d6e6b719d",
+  "prismaSchemaSha256": "97967f2ab9117ad70eb7efa77832723fc0e79d96d4c5920a5766a8c72fcb5726",
   "requiredTables": [
     "Announcement",
     "BuildupEvent",
     "Garage"
   ],
   "requiredColumnAdditions": {
-    "WorkActivity": ["companions", "startTime", "endTime", "imageUrl"]
+    "WorkActivity": ["companions", "startTime", "endTime", "imageUrl"],
+    "Suggestion": ["filesJson", "replyFilesJson"]
   },
   "requiredIndexes": [
     "BuildupEvent_eventKey_key",

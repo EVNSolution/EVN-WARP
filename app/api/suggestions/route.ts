@@ -18,7 +18,7 @@ export async function POST(req: NextRequest) {
   if (!me?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const body = await req.json()
-  const { type, title, content, images } = body
+  const { type, title, content, images, files } = body
   if (!title?.trim() || !content?.trim()) {
     return NextResponse.json({ error: '제목과 내용을 입력해주세요.' }, { status: 400 })
   }
@@ -31,6 +31,7 @@ export async function POST(req: NextRequest) {
       title:      title.trim(),
       content:    content.trim(),
       imagesJson: Array.isArray(images) && images.length > 0 ? JSON.stringify(images) : null,
+      filesJson:  Array.isArray(files)  && files.length  > 0 ? JSON.stringify(files)  : null,
     },
   })
   return NextResponse.json(suggestion, { status: 201 })
