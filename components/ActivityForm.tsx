@@ -406,6 +406,16 @@ export default function ActivityForm({ teams, tasks, users = [], vehicles = [], 
   const [pendingImgFiles, setPendingImgFiles] = useState<File[]>([])
   const imgInputRef = useRef<HTMLInputElement>(null)
 
+  // 파일 첨부 (세부내용 섹션)
+  const [uploadingFile,    setUploadingFile]    = useState(false)
+  const [pendingFileItems, setPendingFileItems] = useState<File[]>([])
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
+  function getFileDisplayName(url: string) {
+    const seg = decodeURIComponent(url.split('/').pop() ?? url)
+    return seg.replace(/^\d+_/, '')
+  }
+
   // 비용정산
   const [expenseTransport, setExpenseTransport] = useState<string>(initial?.expenseTransport ? String(initial.expenseTransport) : '')
   const [expenseAccomm,    setExpenseAccomm]    = useState<string>(initial?.expenseAccomm    ? String(initial.expenseAccomm)    : '')
@@ -635,6 +645,15 @@ export default function ActivityForm({ teams, tasks, users = [], vehicles = [], 
           const fd = new FormData()
           fd.append('file', imgFile)
           await fetch(`/api/activities/${data.id}/images`, { method: 'POST', body: fd })
+        }
+      }
+
+      // 신규 저장 시 대기 중인 파일 업로드
+      if (pendingFileItems.length > 0 && data.id && mode === 'new') {
+        for (const f of pendingFileItems) {
+          const fd = new FormData()
+          fd.append('file', f)
+          await fetch(`/api/activities/${data.id}/documents`, { method: 'POST', body: fd })
         }
       }
 
@@ -1202,6 +1221,26 @@ export default function ActivityForm({ teams, tasks, users = [], vehicles = [], 
             <label className="block text-sm font-semibold text-slate-700 mb-1.5">세부 내용</label>
             <textarea value={content} onChange={e => setContent(e.target.value)} rows={4}
               placeholder={meta.placeholder}
+              onPaste={async e => {
+                const items = Array.from(e.clipboardData.items)
+                const imageItem = items.find(it => it.type.startsWith('image/'))
+                if (!imageItem) return
+                e.preventDefault()
+                const file = imageItem.getAsFile()
+                if (!file) return
+                const imgFile = new File([file], `paste_${Date.now()}.png`, { type: file.type })
+                if (initial?.id) {
+                  setUploadingImg(true)
+                  try {
+                    const fd = new FormData(); fd.append('file', imgFile)
+                    const res = await fetch(`/api/activities/${initial.id}/images`, { method: 'POST', body: fd })
+                    const data = await res.json()
+                    if (res.ok) setImageUrl(data.imageUrl ?? data.url)
+                  } finally { setUploadingImg(false) }
+                } else {
+                  setPendingImgFiles(prev => [...prev, imgFile])
+                }
+              }}
               className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm text-slate-800 placeholder-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-400 resize-none" />
             <div className="mt-2 flex flex-wrap gap-2">
               <button type="button" onClick={() => setShowMeetingAnalysis(true)}
@@ -1227,7 +1266,42 @@ export default function ActivityForm({ teams, tasks, users = [], vehicles = [], 
                   </span>
                 )}
               </button>
+              <button type="button" onClick={() => fileInputRef.current?.click()}
+                disabled={uploadingFile}
+                className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors disabled:opacity-50 ${
+                  documentUrl || pendingFileItems.length > 0
+                    ? 'bg-teal-50 border-teal-200 text-teal-600'
+                    : 'text-slate-500 border-slate-200 hover:border-teal-200 hover:text-teal-500 hover:bg-teal-50'
+                }`}>
+                <Paperclip size={12} />
+                {uploadingFile ? '업로드 중…' : '파일 추가'}
+                {(documentUrl || pendingFileItems.length > 0) && (
+                  <span className="text-[10px] font-bold">
+                    {pendingFileItems.length > 0
+                      ? `${pendingFileItems.length}개`
+                      : `${documentUrl.split('|').length}개`}
+                  </span>
+                )}
+              </button>
             </div>
+            {/* 업로드된 파일 목록 */}
+            {(documentUrl || pendingFileItems.length > 0) && (
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {documentUrl && documentUrl.split('|').map((url, i) => (
+                  <a key={i} href={url} target="_blank" rel="noopener noreferrer"
+                    className="flex items-center gap-1 px-2 py-0.5 text-[11px] text-teal-700 bg-teal-50 border border-teal-200 rounded hover:bg-teal-100 transition-colors">
+                    <Paperclip size={9} />{getFileDisplayName(url)}
+                  </a>
+                ))}
+                {pendingFileItems.map((f, i) => (
+                  <span key={i} className="flex items-center gap-1 px-2 py-0.5 text-[11px] text-slate-500 bg-slate-50 border border-slate-200 rounded">
+                    <Paperclip size={9} />{f.name}
+                    <button type="button" onClick={() => setPendingFileItems(prev => prev.filter((_, idx) => idx !== i))}
+                      className="ml-0.5 text-slate-300 hover:text-red-400">✕</button>
+                  </span>
+                ))}
+              </div>
+            )}
             <input ref={imgInputRef} type="file" accept="image/*" multiple className="hidden"
               onChange={async e => {
                 const files = Array.from(e.target.files ?? [])
@@ -1244,6 +1318,26 @@ export default function ActivityForm({ teams, tasks, users = [], vehicles = [], 
                   } finally { setUploadingImg(false) }
                 } else {
                   setPendingImgFiles(prev => [...prev, ...files])
+                }
+                e.target.value = ''
+              }} />
+            <input ref={fileInputRef} type="file" multiple className="hidden"
+              accept=".pdf,.doc,.docx,.xls,.xlsx,.hwp,.ppt,.pptx,.txt,.zip,.jpg,.jpeg,.png"
+              onChange={async e => {
+                const files = Array.from(e.target.files ?? [])
+                if (!files.length) return
+                if (initial?.id) {
+                  setUploadingFile(true)
+                  try {
+                    for (const f of files) {
+                      const fd = new FormData(); fd.append('file', f)
+                      const res = await fetch(`/api/activities/${initial.id}/documents`, { method: 'POST', body: fd })
+                      const data = await res.json()
+                      if (res.ok) setDocumentUrl(data.documentUrl ?? data.url)
+                    }
+                  } finally { setUploadingFile(false) }
+                } else {
+                  setPendingFileItems(prev => [...prev, ...files])
                 }
                 e.target.value = ''
               }} />
