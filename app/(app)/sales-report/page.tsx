@@ -265,11 +265,17 @@ export default async function SalesReportPage({
                 {fmtFull(range.from)} ~ {fmtFull(range.to)}
               </p>
             </div>
-            <TodayTodoButton
-              dateLabel={fmtFull(todayStart.toISOString().slice(0, 10))}
-              assignees={allAssignees}
-              todoByAssignee={Object.fromEntries(todoByAssignee)}
-            />
+            <div className="flex items-center gap-3">
+              <a href="/sales-report/kia-letter" target="_blank" rel="noopener noreferrer"
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg border border-blue-200 text-blue-700 bg-blue-50 hover:bg-blue-100 transition-colors">
+                📄 공문발송 (기아 대장동)
+              </a>
+              <TodayTodoButton
+                dateLabel={fmtFull(todayStart.toISOString().slice(0, 10))}
+                assignees={allAssignees}
+                todoByAssignee={Object.fromEntries(todoByAssignee)}
+              />
+            </div>
           </div>
           <Suspense>
             <PeriodSelector from={range.from} to={range.to} period={period} view={view} mode={mode} />
