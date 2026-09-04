@@ -198,7 +198,7 @@ export default async function KiaLetterPage() {
         <div className="confirm-list">
           <div className="cl-title">📋 귀 대리점 확인 요청사항</div>
           <ol>
-            <li><strong>차량 견적 제공일</strong> — 각 고객별 공식 견적서 제공 일자</li>
+            <li><strong>차량 견적 제공일 및 견적서 제공</strong> — 각 고객별 공식 견적서 제공 일자 및 실제 차량 견적서 송부 요청</li>
             <li><strong>보조금 신청 현황</strong> — 신청 전 / 신청 진행 중 / 신청 완료 여부 및 처리 기관</li>
             <li><strong>차량 출고 예정 시점</strong> — 현재 기준 예상 납차 일정 (월/분기 단위도 가능)</li>
           </ol>
