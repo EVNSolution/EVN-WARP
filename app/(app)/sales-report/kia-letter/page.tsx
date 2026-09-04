@@ -27,14 +27,19 @@ export default async function KiaLetterPage() {
   const dateStr = today.toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' })
   const docNo = `EVN-${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}${String(today.getDate()).padStart(2,'0')}-01`
 
-  const deals = await prisma.salesDeal.findMany({
-    where: { stageCode: '2-1', salesStatus: { not: '이탈' } },
-    select: {
-      name: true, phone: true, vehicleModel: true,
-      purchaseMethod: true, contractedAt: true, capitalCheckedAt: true, bodyType: true,
-    },
-    orderBy: { stageChangedAt: 'desc' },
-  })
+  let deals: { name: string | null; phone: string | null; vehicleModel: string | null; purchaseMethod: string | null; contractedAt: Date | null; capitalCheckedAt: Date | null; bodyType: string | null }[] = []
+  try {
+    deals = await prisma.salesDeal.findMany({
+      where: { stageCode: '2-1', salesStatus: { not: '이탈' } },
+      select: {
+        name: true, phone: true, vehicleModel: true,
+        purchaseMethod: true, contractedAt: true, capitalCheckedAt: true, bodyType: true,
+      },
+      orderBy: { stageChangedAt: 'desc' },
+    })
+  } catch {
+    // local dev.db may not have SalesDeal table
+  }
 
   return (
     <>
