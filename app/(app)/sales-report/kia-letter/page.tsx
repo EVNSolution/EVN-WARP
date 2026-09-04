@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/db'
 import { auth } from '@/auth'
 import { redirect } from 'next/navigation'
+import PrintButton from './PrintButton'
 
 function fmt(d: Date | string | null | undefined) {
   if (!d) return '—'
@@ -101,7 +102,7 @@ export default async function KiaLetterPage() {
 
       <div className="print-bar">
         <a href="/sales-report" className="btn btn-back">← 영업리포트</a>
-        <button className="btn btn-print" onClick={() => window.print()}>🖨 인쇄 / PDF 저장</button>
+        <PrintButton />
       </div>
 
       <div className="page">
@@ -222,9 +223,6 @@ export default async function KiaLetterPage() {
         </div>
       </div>
 
-      <script dangerouslySetInnerHTML={{ __html: `
-        document.querySelector('.btn-print')?.addEventListener('click', () => window.print());
-      `}} />
     </>
   )
 }
