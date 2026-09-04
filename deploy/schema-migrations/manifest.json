@@ -1,12 +1,12 @@
 {
-  "prismaSchemaSha256": "df1c7a74ab4b30e22b20a8a1e5fc0dc0b5064578e6d5ef4a20d7c3e3a04ee10b",
+  "prismaSchemaSha256": "000e31d99ce4d89b449763f57780f399b965593fbb9a94358fc2287d6e6b719d",
   "requiredTables": [
     "Announcement",
     "BuildupEvent",
     "Garage"
   ],
   "requiredColumnAdditions": {
-    "WorkActivity": ["companions", "startTime", "endTime"]
+    "WorkActivity": ["companions", "startTime", "endTime", "imageUrl"]
   },
   "requiredIndexes": [
     "BuildupEvent_eventKey_key",

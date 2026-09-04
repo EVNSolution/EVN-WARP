@@ -8,7 +8,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     taskId, teamId, userId, userName,
     expenseTransport, expenseAccomm, expenseMeal, expenseOther, expensePaymentMethod, expenseCardId, expenseNote,
     expenseTransportReceipt, expenseAccommReceipt, expenseMealReceipt, expenseOtherReceipt,
-    documentUrl } = body
+    documentUrl, imageUrl } = body
 
   if (type === '실적추가' && kpiItemId && kpiWeek && actualNum != null) {
     const act = await prisma.workActivity.findUnique({ where: { id }, select: { taskId: true } })
@@ -54,6 +54,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
       ...(expenseMealReceipt      !== undefined && { expenseMealReceipt:      expenseMealReceipt      || null }),
       ...(expenseOtherReceipt     !== undefined && { expenseOtherReceipt:     expenseOtherReceipt     || null }),
       ...(documentUrl             !== undefined && { documentUrl:             documentUrl             || null }),
+      ...(imageUrl                !== undefined && { imageUrl:                imageUrl                || null }),
     },
   })
   return NextResponse.json(activity)

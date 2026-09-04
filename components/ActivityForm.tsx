@@ -400,6 +400,12 @@ export default function ActivityForm({ teams, tasks, users = [], vehicles = [], 
   const [pendingDocFile, setPendingDocFile] = useState<File | null>(null)
   const docInputRef = useRef<HTMLInputElement>(null)
 
+  // 이미지 첨부
+  const [imageUrl,        setImageUrl]        = useState((initial as any)?.imageUrl ?? '')
+  const [uploadingImg,    setUploadingImg]    = useState(false)
+  const [pendingImgFiles, setPendingImgFiles] = useState<File[]>([])
+  const imgInputRef = useRef<HTMLInputElement>(null)
+
   // 비용정산
   const [expenseTransport, setExpenseTransport] = useState<string>(initial?.expenseTransport ? String(initial.expenseTransport) : '')
   const [expenseAccomm,    setExpenseAccomm]    = useState<string>(initial?.expenseAccomm    ? String(initial.expenseAccomm)    : '')
@@ -605,6 +611,7 @@ export default function ActivityForm({ teams, tasks, users = [], vehicles = [], 
         expenseMealReceipt: null, expenseOtherReceipt: null,
       } : {}),
       documentUrl: documentUrl || null,
+      imageUrl:    imageUrl    || null,
     }
 
     try {
@@ -620,6 +627,15 @@ export default function ActivityForm({ teams, tasks, users = [], vehicles = [], 
         fd.append('file', pendingDocFile)
         fd.append('date', date)
         await fetch(`/api/activities/${data.id}/documents`, { method: 'POST', body: fd })
+      }
+
+      // 신규 저장 시 대기 중인 이미지 파일 업로드
+      if (pendingImgFiles.length > 0 && data.id && mode === 'new') {
+        for (const imgFile of pendingImgFiles) {
+          const fd = new FormData()
+          fd.append('file', imgFile)
+          await fetch(`/api/activities/${data.id}/images`, { method: 'POST', body: fd })
+        }
       }
 
       // 차량사용 예약은 모달에서 이미 독립적으로 처리됨
@@ -1187,11 +1203,50 @@ export default function ActivityForm({ teams, tasks, users = [], vehicles = [], 
             <textarea value={content} onChange={e => setContent(e.target.value)} rows={4}
               placeholder={meta.placeholder}
               className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm text-slate-800 placeholder-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-400 resize-none" />
-            <button type="button" onClick={() => setShowMeetingAnalysis(true)}
-              className="mt-2 flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-indigo-600 bg-indigo-50 border border-indigo-200 rounded-lg hover:bg-indigo-100 transition-colors">
-              <Mic size={12} />
-              음성 회의록으로 자동 작성
-            </button>
+            <div className="mt-2 flex flex-wrap gap-2">
+              <button type="button" onClick={() => setShowMeetingAnalysis(true)}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-indigo-600 bg-indigo-50 border border-indigo-200 rounded-lg hover:bg-indigo-100 transition-colors">
+                <Mic size={12} />
+                음성 회의록으로 자동 작성
+              </button>
+              <button type="button" onClick={() => imgInputRef.current?.click()}
+                disabled={uploadingImg}
+                className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors disabled:opacity-50 ${
+                  imageUrl || pendingImgFiles.length > 0
+                    ? 'bg-orange-50 border-orange-200 text-orange-600'
+                    : 'text-slate-500 border-slate-200 hover:border-orange-200 hover:text-orange-500 hover:bg-orange-50'
+                }`}>
+                <svg xmlns="http://www.w3.org/2000/svg" width={12} height={12} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/>
+                  <polyline points="21,15 16,10 5,21"/>
+                </svg>
+                {uploadingImg ? '업로드 중…' : '이미지 추가'}
+                {(imageUrl || pendingImgFiles.length > 0) && (
+                  <span className="text-[10px] font-bold">
+                    {pendingImgFiles.length > 0 ? `${pendingImgFiles.length}장` : '✓'}
+                  </span>
+                )}
+              </button>
+            </div>
+            <input ref={imgInputRef} type="file" accept="image/*" multiple className="hidden"
+              onChange={async e => {
+                const files = Array.from(e.target.files ?? [])
+                if (!files.length) return
+                if (initial?.id) {
+                  setUploadingImg(true)
+                  try {
+                    for (const f of files) {
+                      const fd = new FormData(); fd.append('file', f)
+                      const res = await fetch(`/api/activities/${initial.id}/images`, { method: 'POST', body: fd })
+                      const data = await res.json()
+                      if (res.ok) setImageUrl(data.imageUrl ?? data.url)
+                    }
+                  } finally { setUploadingImg(false) }
+                } else {
+                  setPendingImgFiles(prev => [...prev, ...files])
+                }
+                e.target.value = ''
+              }} />
           </div>
         </div>
 
@@ -1470,6 +1525,40 @@ export default function ActivityForm({ teams, tasks, users = [], vehicles = [], 
                     <button type="button" onClick={() => setPendingDocFile(null)} className="text-slate-300 hover:text-red-400 ml-0.5"><X size={11} /></button>
                   </div>
                 )}
+              </div>
+            </div>
+          )}
+
+          {/* 이미지 첨부 미리보기 */}
+          {(imageUrl || pendingImgFiles.length > 0) && (
+            <div className="px-4 pb-3 pt-2 border-t border-slate-100 bg-orange-50/30">
+              <p className="text-[10px] font-semibold text-slate-400 mb-2">첨부 이미지</p>
+              <div className="flex flex-wrap gap-2">
+                {imageUrl && imageUrl.split('|').map((url: string, i: number) => (
+                  <div key={i} className="relative group w-20 h-20 rounded-lg overflow-hidden border border-orange-200 bg-white">
+                    <img src={url} alt={`이미지${i + 1}`} className="w-full h-full object-cover" />
+                    <button type="button"
+                      onClick={() => {
+                        const parts = imageUrl.split('|').filter((_: string, idx: number) => idx !== i)
+                        const next = parts.join('|')
+                        setImageUrl(next)
+                        if (initial?.id) fetch(`/api/activities/${initial.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ imageUrl: next || null }) })
+                      }}
+                      className="absolute top-0.5 right-0.5 w-5 h-5 rounded-full bg-black/50 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                      <X size={10} />
+                    </button>
+                  </div>
+                ))}
+                {pendingImgFiles.map((f, i) => (
+                  <div key={`p-${i}`} className="relative group w-20 h-20 rounded-lg overflow-hidden border border-orange-200 bg-white">
+                    <img src={URL.createObjectURL(f)} alt={f.name} className="w-full h-full object-cover" />
+                    <button type="button"
+                      onClick={() => setPendingImgFiles(prev => prev.filter((_, idx) => idx !== i))}
+                      className="absolute top-0.5 right-0.5 w-5 h-5 rounded-full bg-black/50 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                      <X size={10} />
+                    </button>
+                  </div>
+                ))}
               </div>
             </div>
           )}

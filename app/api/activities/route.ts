@@ -30,7 +30,7 @@ export async function POST(req: NextRequest) {
     const { taskId, teamId, date, endDate, type, title, content, mentions, companions, startTime, endTime, kpiItemId, kpiWeek, actualNum, countermeasureId, userId, userName, planStatus, referenceUrl,
       expenseTransport, expenseAccomm, expenseMeal, expenseOther, expensePaymentMethod, expenseCardId, expenseNote,
       expenseTransportReceipt, expenseAccommReceipt, expenseMealReceipt, expenseOtherReceipt,
-      documentUrl } = body
+      documentUrl, imageUrl } = body
 
     if (!teamId || !date || !type || !title?.trim()) {
       return NextResponse.json({ error: '필수 항목을 입력해주세요.' }, { status: 400 })
@@ -84,6 +84,7 @@ export async function POST(req: NextRequest) {
         expenseMealReceipt:      expenseMealReceipt      || null,
         expenseOtherReceipt:     expenseOtherReceipt     || null,
         documentUrl:             documentUrl             || null,
+        imageUrl:                imageUrl                || null,
       },
     })
     return NextResponse.json(activity, { status: 201 })
