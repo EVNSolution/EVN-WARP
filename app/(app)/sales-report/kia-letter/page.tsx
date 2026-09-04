@@ -101,7 +101,9 @@ export default async function KiaLetterPage() {
         @media print {
           body { background: white; padding: 0; }
           .print-bar { display: none; }
-          .page { box-shadow: none; padding: 20mm 18mm; }
+          aside { display: none !important; }
+          main { overflow: visible !important; }
+          .page { box-shadow: none; padding: 20mm 18mm; max-width: none; margin: 0; }
         }
       `}</style>
 
