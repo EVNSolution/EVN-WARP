@@ -29,17 +29,20 @@ export default async function KiaLetterPage() {
   const dateStr = today.toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' })
   const docNo = `EVN-${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}${String(today.getDate()).padStart(2,'0')}-01`
 
-  let deals: { name: string | null; phone: string | null; vehicleModel: string | null; purchaseMethod: string | null; contractedAt: Date | null; capitalCheckedAt: Date | null; bodyType: string | null; product: { name: string } | null }[] = []
+  type DealRow = { name: string | null; phone: string | null; vehicleModel: string | null; purchaseMethod: string | null; contractedAt: string | null; capitalCheckedAt: string | null; bodyType: string | null; productName: string | null }
+  let deals: DealRow[] = []
   try {
-    deals = await prisma.salesDeal.findMany({
-      where: { stageCode: '2-1', salesStatus: { not: '이탈' } },
-      select: {
-        name: true, phone: true, vehicleModel: true,
-        purchaseMethod: true, contractedAt: true, capitalCheckedAt: true, bodyType: true,
-        product: { select: { name: true } },
-      },
-      orderBy: { stageChangedAt: 'desc' },
-    })
+    deals = await prisma.$queryRaw<DealRow[]>`
+      SELECT
+        sd.name, sd.phone, sd."vehicleModel", sd."purchaseMethod",
+        sd."contractedAt", sd."capitalCheckedAt", sd."bodyType",
+        p.name AS productName
+      FROM "SalesDeal" sd
+      LEFT JOIN "Product" p ON sd."productId" = p.id
+      WHERE sd."stageCode" = '2-1'
+        AND (sd."salesStatus" IS NULL OR sd."salesStatus" != '이탈')
+      ORDER BY sd."stageChangedAt" DESC
+    `
   } catch {
     // local dev.db may not have SalesDeal table
   }
@@ -185,7 +188,7 @@ export default async function KiaLetterPage() {
                   <tr key={i}>
                     <td className="td-evn name-cell">{d.name}</td>
                     <td className="td-evn phone-cell">{maskPhone(d.phone)}</td>
-                    <td className="td-evn model-cell">{d.vehicleModel ?? d.product?.name ?? '—'}</td>
+                    <td className="td-evn model-cell">{d.vehicleModel ?? d.productName ?? '—'}</td>
                     <td className="td-evn center">{d.purchaseMethod ?? '—'}</td>
                     <td className="td-evn center">{fmt(d.contractedAt)}</td>
                     <td className="td-evn center">{fmt(d.capitalCheckedAt)}</td>

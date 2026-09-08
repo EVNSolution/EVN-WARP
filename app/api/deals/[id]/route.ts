@@ -130,6 +130,24 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
       },
     })
 
+    // DateTime/문자열 핵심 필드: libSQL 어댑터 호환 — $executeRaw로 별도 보장
+    if (b.purchaseMethod !== undefined) {
+      const v = b.purchaseMethod || null
+      await prisma.$executeRaw`UPDATE "SalesDeal" SET "purchaseMethod" = ${v} WHERE id = ${id}`
+    }
+    if (b.vehicleModel !== undefined) {
+      const v = b.vehicleModel || null
+      await prisma.$executeRaw`UPDATE "SalesDeal" SET "vehicleModel" = ${v} WHERE id = ${id}`
+    }
+    if (b.capitalCheckedAt !== undefined) {
+      const v = b.capitalCheckedAt || null
+      await prisma.$executeRaw`UPDATE "SalesDeal" SET "capitalCheckedAt" = ${v} WHERE id = ${id}`
+    }
+    if (b.contractedAt !== undefined) {
+      const v = b.contractedAt || null
+      await prisma.$executeRaw`UPDATE "SalesDeal" SET "contractedAt" = ${v} WHERE id = ${id}`
+    }
+
     // FK 필드: libSQL 어댑터 호환 — $executeRaw로 별도 처리
     if (b.agentId !== undefined) {
       const agentId = b.agentId || null
