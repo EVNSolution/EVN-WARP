@@ -59,6 +59,7 @@ export default async function EditActivityPage({ params }: { params: Promise<{ i
         expenseMealReceipt:      (activity as any).expenseMealReceipt      ?? '',
         expenseOtherReceipt:     (activity as any).expenseOtherReceipt     ?? '',
         documentUrl:             (activity as any).documentUrl              ?? '',
+        imageUrl:                (activity as any).imageUrl                 ?? '',
       }}
       returnUrl="/notes"
     />

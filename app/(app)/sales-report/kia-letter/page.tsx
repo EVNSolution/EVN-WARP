@@ -29,13 +29,14 @@ export default async function KiaLetterPage() {
   const dateStr = today.toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' })
   const docNo = `EVN-${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}${String(today.getDate()).padStart(2,'0')}-01`
 
-  let deals: { name: string | null; phone: string | null; vehicleModel: string | null; purchaseMethod: string | null; contractedAt: Date | null; capitalCheckedAt: Date | null; bodyType: string | null }[] = []
+  let deals: { name: string | null; phone: string | null; vehicleModel: string | null; purchaseMethod: string | null; contractedAt: Date | null; capitalCheckedAt: Date | null; bodyType: string | null; product: { name: string } | null }[] = []
   try {
     deals = await prisma.salesDeal.findMany({
       where: { stageCode: '2-1', salesStatus: { not: '이탈' } },
       select: {
         name: true, phone: true, vehicleModel: true,
         purchaseMethod: true, contractedAt: true, capitalCheckedAt: true, bodyType: true,
+        product: { select: { name: true } },
       },
       orderBy: { stageChangedAt: 'desc' },
     })
@@ -184,7 +185,7 @@ export default async function KiaLetterPage() {
                   <tr key={i}>
                     <td className="td-evn name-cell">{d.name}</td>
                     <td className="td-evn phone-cell">{maskPhone(d.phone)}</td>
-                    <td className="td-evn model-cell">{d.vehicleModel ?? '—'}</td>
+                    <td className="td-evn model-cell">{d.vehicleModel ?? d.product?.name ?? '—'}</td>
                     <td className="td-evn center">{d.purchaseMethod ?? '—'}</td>
                     <td className="td-evn center">{fmt(d.contractedAt)}</td>
                     <td className="td-evn center">{fmt(d.capitalCheckedAt)}</td>

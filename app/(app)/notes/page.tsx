@@ -635,6 +635,18 @@ function NoteList({ items, emptyText }: { items: any[]; emptyText: string }) {
               </div>
               <p className="text-sm font-semibold text-slate-800 truncate group-hover:text-indigo-600 transition-colors">{act.title}</p>
               {act.content && <p className="text-xs text-slate-400 truncate mt-0.5">{act.content}</p>}
+              {act.imageUrl && (
+                <div className="flex gap-1.5 mt-1.5 flex-wrap">
+                  {(act.imageUrl as string).split('|').slice(0, 3).map((url: string, i: number) => (
+                    <img key={i} src={url} alt="" className="w-12 h-12 rounded object-cover border border-slate-200" />
+                  ))}
+                  {(act.imageUrl as string).split('|').length > 3 && (
+                    <div className="w-12 h-12 rounded border border-slate-200 bg-slate-100 flex items-center justify-center text-[10px] text-slate-400 font-semibold">
+                      +{(act.imageUrl as string).split('|').length - 3}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
             <div className="text-right shrink-0">
               <p className="text-[10px] text-slate-400">{act.date}</p>
