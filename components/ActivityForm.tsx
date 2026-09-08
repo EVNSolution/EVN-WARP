@@ -308,6 +308,7 @@ interface Props {
     expenseMealReceipt?:      string | null
     expenseOtherReceipt?:     string | null
     documentUrl?:             string | null
+    imageUrl?:                string | null
   }
   mode:            'new' | 'edit'
   returnUrl?:      string
