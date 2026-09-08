@@ -34,9 +34,14 @@ export default async function KiaLetterPage() {
   try {
     deals = await prisma.$queryRaw<DealRow[]>`
       SELECT
-        sd.name, sd.phone, sd."vehicleModel", sd."purchaseMethod",
-        sd."contractedAt", sd."capitalCheckedAt", sd."bodyType",
-        p.name AS productName
+        sd.name AS name,
+        sd.phone AS phone,
+        sd."vehicleModel" AS "vehicleModel",
+        sd."purchaseMethod" AS "purchaseMethod",
+        sd."contractedAt" AS "contractedAt",
+        sd."capitalCheckedAt" AS "capitalCheckedAt",
+        sd."bodyType" AS "bodyType",
+        p.name AS "productName"
       FROM "SalesDeal" sd
       LEFT JOIN "Product" p ON sd."productId" = p.id
       WHERE sd."stageCode" = '2-1'
@@ -51,68 +56,69 @@ export default async function KiaLetterPage() {
     <>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Noto+Serif+KR:wght@400;600;700&family=Noto+Sans+KR:wght@300;400;500;600&display=swap');
-        * { box-sizing: border-box; margin: 0; padding: 0; }
-        body { font-family: 'Noto Sans KR', 'Apple SD Gothic Neo', sans-serif; background: #e8ecf2; color: #1c2536; font-size: 14px; line-height: 1.75; padding: 32px 16px 48px; }
-        .print-bar { max-width: 860px; margin: 0 auto 20px; display: flex; justify-content: flex-end; gap: 8px; }
-        .btn { padding: 8px 18px; border: none; font-family: 'Noto Sans KR', sans-serif; font-size: 13px; font-weight: 500; cursor: pointer; border-radius: 4px; }
-        .btn-print { background: #1a4b8c; color: #fff; }
-        .btn-back { background: #fff; color: #4a5570; border: 1px solid #c5d0e0; }
-        .page { background: #fff; max-width: 860px; margin: 0 auto; box-shadow: 0 4px 32px rgba(26,36,54,.14); padding: 64px 72px 72px; }
-        .letterhead { display: flex; align-items: flex-start; justify-content: space-between; padding-bottom: 20px; border-bottom: 3px solid #1a4b8c; margin-bottom: 32px; }
-        .lh-name { font-family: 'Noto Serif KR', serif; font-size: 22px; font-weight: 700; color: #1a4b8c; }
-        .lh-sub { font-size: 11px; color: #8898b4; letter-spacing: .05em; margin-top: 2px; }
-        .lh-meta { text-align: right; font-size: 11px; color: #4a5570; line-height: 1.6; }
-        .lh-meta strong { color: #1c2536; font-weight: 600; }
-        .doc-header { background: #f4f6f9; border: 1px solid #c5d0e0; border-left: 4px solid #1a4b8c; padding: 18px 22px; margin-bottom: 28px; display: grid; grid-template-columns: auto 1fr; gap: 6px 24px; font-size: 13px; }
-        .doc-header .lbl { color: #8898b4; font-weight: 600; white-space: nowrap; }
-        .doc-subject { margin-bottom: 28px; padding-bottom: 16px; border-bottom: 1px solid #dde4ef; }
-        .doc-subject .subject-label { font-size: 10px; font-weight: 600; letter-spacing: .12em; color: #8898b4; text-transform: uppercase; margin-bottom: 6px; }
-        .doc-subject h1 { font-family: 'Noto Serif KR', serif; font-size: 18px; font-weight: 700; }
-        .body-p { font-size: 13.5px; line-height: 1.9; word-break: keep-all; margin-bottom: 24px; }
-        .section-title { font-weight: 600; font-size: 13px; color: #1a4b8c; margin-bottom: 8px; display: flex; align-items: center; gap: 6px; }
-        .section-title::before { content: ''; display: inline-block; width: 3px; height: 14px; background: #1a4b8c; border-radius: 2px; }
-        .table-note { font-size: 12.5px; color: #4a5570; margin-bottom: 8px; }
-        .table-wrap { overflow-x: auto; border: 1px solid #c5d0e0; margin: 0 0 20px; }
-        table { width: 100%; border-collapse: collapse; font-size: 12px; font-variant-numeric: tabular-nums; min-width: 680px; }
-        .thead-group th { padding: 8px 12px; font-size: 10.5px; font-weight: 700; letter-spacing: .06em; text-align: center; border-bottom: 1px solid #c5d0e0; border-right: 1px solid #c5d0e0; }
-        .th-evn { background: #dde5f2; color: #1a4b8c; }
-        .th-kia { background: #d0e2fb; color: #1355aa; }
-        .thead-col th { padding: 9px 10px; font-size: 11px; font-weight: 600; color: #4a5570; border-bottom: 2px solid #c5d0e0; border-right: 1px solid #dde4ef; white-space: nowrap; text-align: center; }
-        .col-evn { background: #f4f6f9; }
-        .col-kia { background: #e8f0fc; }
-        tbody tr { border-bottom: 1px solid #dde4ef; }
-        tbody tr:last-child { border-bottom: none; }
-        tbody td { padding: 9px 10px; border-right: 1px solid #dde4ef; vertical-align: middle; }
-        tbody td:last-child { border-right: none; }
-        .td-evn { background: #fafbfd; }
-        .td-kia { background: #f5f9ff; color: #8898b4; text-align: center; font-size: 11px; }
-        td.name-cell { font-weight: 600; }
-        td.phone-cell { font-size: 11px; color: #4a5570; text-align: center; }
-        td.center { text-align: center; }
-        td.model-cell { font-weight: 500; color: #2d6abf; text-align: center; }
-        .confirm-list { background: #e8f0fc; border: 1px solid #b8d0f5; border-left: 4px solid #2d6abf; padding: 16px 20px; margin: 20px 0; }
-        .confirm-list .cl-title { font-weight: 700; font-size: 12.5px; color: #1a4b8c; margin-bottom: 10px; }
-        .confirm-list ol { padding-left: 20px; }
-        .confirm-list li { font-size: 13px; line-height: 1.8; margin-bottom: 4px; }
-        .confirm-list li strong { color: #2d6abf; }
-        .signature { margin-top: 48px; display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
-        .sig-date { font-size: 13px; color: #4a5570; margin-bottom: 12px; }
-        .sig-block { text-align: right; padding: 16px 24px; border: 1px solid #c5d0e0; min-width: 220px; }
-        .sig-company { font-family: 'Noto Serif KR', serif; font-size: 14px; font-weight: 700; margin-bottom: 2px; }
-        .sig-ceo { font-size: 13px; color: #4a5570; }
-        .sig-stamp { display: flex; align-items: center; justify-content: center; width: 56px; height: 56px; border: 2px solid #cc2b2b; border-radius: 4px; font-family: 'Noto Serif KR', serif; font-size: 13px; font-weight: 700; color: #cc2b2b; margin: 10px 0 0 auto; }
-        .footnote { margin-top: 32px; padding-top: 16px; border-top: 1px solid #dde4ef; font-size: 11px; color: #8898b4; line-height: 1.7; }
-        .fn-mark { color: #2d6abf; font-weight: 600; }
-        .no-data { text-align: center; padding: 24px; color: #8898b4; font-size: 13px; }
+        .kia-letter-root, .kia-letter-root * { box-sizing: border-box; }
+        .kia-letter-root { font-family: 'Noto Sans KR', 'Apple SD Gothic Neo', sans-serif; background: #e8ecf2; color: #1c2536; font-size: 14px; line-height: 1.75; padding: 32px 16px 48px; }
+        .kia-letter-root .print-bar { max-width: 860px; margin: 0 auto 20px; display: flex; justify-content: flex-end; gap: 8px; }
+        .kia-letter-root .btn { padding: 8px 18px; border: none; font-family: 'Noto Sans KR', sans-serif; font-size: 13px; font-weight: 500; cursor: pointer; border-radius: 4px; }
+        .kia-letter-root .btn-print { background: #1a4b8c; color: #fff; }
+        .kia-letter-root .btn-back { background: #fff; color: #4a5570; border: 1px solid #c5d0e0; }
+        .kia-letter-root .page { background: #fff; max-width: 860px; margin: 0 auto; box-shadow: 0 4px 32px rgba(26,36,54,.14); padding: 64px 72px 72px; }
+        .kia-letter-root .letterhead { display: flex; align-items: flex-start; justify-content: space-between; padding-bottom: 20px; border-bottom: 3px solid #1a4b8c; margin-bottom: 32px; }
+        .kia-letter-root .lh-name { font-family: 'Noto Serif KR', serif; font-size: 22px; font-weight: 700; color: #1a4b8c; }
+        .kia-letter-root .lh-sub { font-size: 11px; color: #8898b4; letter-spacing: .05em; margin-top: 2px; }
+        .kia-letter-root .lh-meta { text-align: right; font-size: 11px; color: #4a5570; line-height: 1.6; }
+        .kia-letter-root .lh-meta strong { color: #1c2536; font-weight: 600; }
+        .kia-letter-root .doc-header { background: #f4f6f9; border: 1px solid #c5d0e0; border-left: 4px solid #1a4b8c; padding: 18px 22px; margin-bottom: 28px; display: grid; grid-template-columns: auto 1fr; gap: 6px 24px; font-size: 13px; }
+        .kia-letter-root .doc-header .lbl { color: #8898b4; font-weight: 600; white-space: nowrap; }
+        .kia-letter-root .doc-subject { margin-bottom: 28px; padding-bottom: 16px; border-bottom: 1px solid #dde4ef; }
+        .kia-letter-root .doc-subject .subject-label { font-size: 10px; font-weight: 600; letter-spacing: .12em; color: #8898b4; text-transform: uppercase; margin-bottom: 6px; }
+        .kia-letter-root .doc-subject h1 { font-family: 'Noto Serif KR', serif; font-size: 18px; font-weight: 700; margin: 0; }
+        .kia-letter-root .body-p { font-size: 13.5px; line-height: 1.9; word-break: keep-all; margin-bottom: 24px; }
+        .kia-letter-root .section-title { font-weight: 600; font-size: 13px; color: #1a4b8c; margin-bottom: 8px; display: flex; align-items: center; gap: 6px; }
+        .kia-letter-root .section-title::before { content: ''; display: inline-block; width: 3px; height: 14px; background: #1a4b8c; border-radius: 2px; }
+        .kia-letter-root .table-note { font-size: 12.5px; color: #4a5570; margin-bottom: 8px; }
+        .kia-letter-root .table-wrap { overflow-x: auto; border: 1px solid #c5d0e0; margin: 0 0 20px; }
+        .kia-letter-root table { width: 100%; border-collapse: collapse; font-size: 12px; font-variant-numeric: tabular-nums; min-width: 680px; }
+        .kia-letter-root .thead-group th { padding: 8px 12px; font-size: 10.5px; font-weight: 700; letter-spacing: .06em; text-align: center; border-bottom: 1px solid #c5d0e0; border-right: 1px solid #c5d0e0; }
+        .kia-letter-root .th-evn { background: #dde5f2; color: #1a4b8c; }
+        .kia-letter-root .th-kia { background: #d0e2fb; color: #1355aa; }
+        .kia-letter-root .thead-col th { padding: 9px 10px; font-size: 11px; font-weight: 600; color: #4a5570; border-bottom: 2px solid #c5d0e0; border-right: 1px solid #dde4ef; white-space: nowrap; text-align: center; }
+        .kia-letter-root .col-evn { background: #f4f6f9; }
+        .kia-letter-root .col-kia { background: #e8f0fc; }
+        .kia-letter-root tbody tr { border-bottom: 1px solid #dde4ef; }
+        .kia-letter-root tbody tr:last-child { border-bottom: none; }
+        .kia-letter-root tbody td { padding: 9px 10px; border-right: 1px solid #dde4ef; vertical-align: middle; }
+        .kia-letter-root tbody td:last-child { border-right: none; }
+        .kia-letter-root .td-evn { background: #fafbfd; }
+        .kia-letter-root .td-kia { background: #f5f9ff; color: #8898b4; text-align: center; font-size: 11px; }
+        .kia-letter-root td.name-cell { font-weight: 600; }
+        .kia-letter-root td.phone-cell { font-size: 11px; color: #4a5570; text-align: center; }
+        .kia-letter-root td.center { text-align: center; }
+        .kia-letter-root td.model-cell { font-weight: 500; color: #2d6abf; text-align: center; }
+        .kia-letter-root .confirm-list { background: #e8f0fc; border: 1px solid #b8d0f5; border-left: 4px solid #2d6abf; padding: 16px 20px; margin: 20px 0; }
+        .kia-letter-root .confirm-list .cl-title { font-weight: 700; font-size: 12.5px; color: #1a4b8c; margin-bottom: 10px; }
+        .kia-letter-root .confirm-list ol { padding-left: 20px; }
+        .kia-letter-root .confirm-list li { font-size: 13px; line-height: 1.8; margin-bottom: 4px; }
+        .kia-letter-root .confirm-list li strong { color: #2d6abf; }
+        .kia-letter-root .signature { margin-top: 48px; display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
+        .kia-letter-root .sig-date { font-size: 13px; color: #4a5570; margin-bottom: 12px; }
+        .kia-letter-root .sig-block { text-align: right; padding: 16px 24px; border: 1px solid #c5d0e0; min-width: 220px; }
+        .kia-letter-root .sig-company { font-family: 'Noto Serif KR', serif; font-size: 14px; font-weight: 700; margin-bottom: 2px; }
+        .kia-letter-root .sig-ceo { font-size: 13px; color: #4a5570; }
+        .kia-letter-root .sig-stamp { display: flex; align-items: center; justify-content: center; width: 56px; height: 56px; border: 2px solid #cc2b2b; border-radius: 4px; font-family: 'Noto Serif KR', serif; font-size: 13px; font-weight: 700; color: #cc2b2b; margin: 10px 0 0 auto; }
+        .kia-letter-root .footnote { margin-top: 32px; padding-top: 16px; border-top: 1px solid #dde4ef; font-size: 11px; color: #8898b4; line-height: 1.7; }
+        .kia-letter-root .fn-mark { color: #2d6abf; font-weight: 600; }
+        .kia-letter-root .no-data { text-align: center; padding: 24px; color: #8898b4; font-size: 13px; }
         @media print {
           body { background: white; padding: 0; }
-          .print-bar { display: none; }
+          .kia-letter-root .print-bar { display: none; }
           aside { display: none !important; }
           main { overflow: visible !important; }
-          .page { box-shadow: none; padding: 20mm 18mm; max-width: none; margin: 0; }
+          .kia-letter-root .page { box-shadow: none; padding: 20mm 18mm; max-width: none; margin: 0; }
         }
       `}</style>
 
+      <div className="kia-letter-root">
       <div className="print-bar">
         <a href="/sales-report" className="btn btn-back">← 영업리포트</a>
         <PrintButton />
@@ -234,6 +240,7 @@ export default async function KiaLetterPage() {
           「개인정보 보호법」 제17조에 따른 제3자 제공 동의를 득한 정보입니다.<br />
           <span className="fn-mark">※</span> 연락처: EVN 영업팀 · adamlee@evnsolution.com
         </div>
+      </div>
       </div>
 
     </>
