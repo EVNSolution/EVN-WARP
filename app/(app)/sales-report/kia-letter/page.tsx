@@ -6,7 +6,21 @@ import { isAdminRole } from '@/lib/permissions'
 
 function fmt(d: Date | string | null | undefined) {
   if (!d) return '—'
-  return new Date(d).toLocaleDateString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/\. /g, '.').replace(/\.$/, '')
+  const dt = new Date(d)
+  if (isNaN(dt.getTime())) return '—'
+  return dt.toLocaleDateString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/\. /g, '.').replace(/\.$/, '')
+}
+
+function fromChecklist(json: string | null): { purchaseMethod: string | null; capitalCheckedAt: string | null; contractedAt: string | null } {
+  if (!json) return { purchaseMethod: null, capitalCheckedAt: null, contractedAt: null }
+  try {
+    const c = JSON.parse(json)
+    return {
+      purchaseMethod:   c['1-3-4'] ? String(c['1-3-4']) : null,
+      capitalCheckedAt: c['1-3-6-at'] ? String(c['1-3-6-at']) : null,
+      contractedAt:     c['2-1-1-at'] ? String(c['2-1-1-at']) : null,
+    }
+  } catch { return { purchaseMethod: null, capitalCheckedAt: null, contractedAt: null } }
 }
 
 function maskPhone(phone: string | null | undefined) {
@@ -29,7 +43,7 @@ export default async function KiaLetterPage() {
   const dateStr = today.toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' })
   const docNo = `EVN-${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}${String(today.getDate()).padStart(2,'0')}-01`
 
-  type DealRow = { name: string | null; phone: string | null; vehicleModel: string | null; purchaseMethod: string | null; contractedAt: string | null; capitalCheckedAt: string | null; bodyType: string | null; productName: string | null }
+  type DealRow = { name: string | null; phone: string | null; vehicleModel: string | null; purchaseMethod: string | null; contractedAt: string | null; capitalCheckedAt: string | null; bodyType: string | null; productName: string | null; checklistJson: string | null }
   let deals: DealRow[] = []
   try {
     deals = await prisma.$queryRaw<DealRow[]>`
@@ -41,6 +55,7 @@ export default async function KiaLetterPage() {
         sd."contractedAt" AS "contractedAt",
         sd."capitalCheckedAt" AS "capitalCheckedAt",
         sd."bodyType" AS "bodyType",
+        sd."checklistJson" AS "checklistJson",
         p.name AS "productName"
       FROM "SalesDeal" sd
       LEFT JOIN "Product" p ON sd."productId" = p.id
@@ -190,19 +205,25 @@ export default async function KiaLetterPage() {
               <tbody>
                 {deals.length === 0 ? (
                   <tr><td colSpan={9} className="no-data">판매신청단계(2-1) 고객이 없습니다.</td></tr>
-                ) : deals.map((d, i) => (
+                ) : deals.map((d, i) => {
+                  const cl = fromChecklist(d.checklistJson)
+                  const purchaseMethod   = d.purchaseMethod   ?? cl.purchaseMethod   ?? null
+                  const contractedAt     = d.contractedAt     ?? cl.contractedAt     ?? null
+                  const capitalCheckedAt = d.capitalCheckedAt ?? cl.capitalCheckedAt ?? null
+                  return (
                   <tr key={i}>
                     <td className="td-evn name-cell">{d.name}</td>
                     <td className="td-evn phone-cell">{maskPhone(d.phone)}</td>
                     <td className="td-evn model-cell">{d.vehicleModel ?? d.productName ?? '—'}</td>
-                    <td className="td-evn center">{d.purchaseMethod ?? '—'}</td>
-                    <td className="td-evn center">{fmt(d.contractedAt)}</td>
-                    <td className="td-evn center">{fmt(d.capitalCheckedAt)}</td>
+                    <td className="td-evn center">{purchaseMethod ?? '—'}</td>
+                    <td className="td-evn center">{fmt(contractedAt)}</td>
+                    <td className="td-evn center">{fmt(capitalCheckedAt)}</td>
                     <td className="td-kia">—</td>
                     <td className="td-kia">—</td>
                     <td className="td-kia">—</td>
                   </tr>
-                ))}
+                  )
+                })}
               </tbody>
             </table>
           </div>
