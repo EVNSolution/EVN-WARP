@@ -15,10 +15,12 @@ function fromChecklist(json: string | null): { purchaseMethod: string | null; ca
   if (!json) return { purchaseMethod: null, capitalCheckedAt: null, contractedAt: null }
   try {
     const c = JSON.parse(json)
+    // opts 항목(1-3-4 자금조달방법): value = "캐피탈" 등 선택값
+    // 일반 toggle 항목(1-3-6, 2-1-1): value = ISO 날짜 문자열 (toggleCheck이 직접 저장)
     return {
       purchaseMethod:   c['1-3-4'] ? String(c['1-3-4']) : null,
-      capitalCheckedAt: c['1-3-6-at'] ? String(c['1-3-6-at']) : null,
-      contractedAt:     c['2-1-1-at'] ? String(c['2-1-1-at']) : null,
+      capitalCheckedAt: c['1-3-6'] && typeof c['1-3-6'] === 'string' && c['1-3-6'].match(/^\d{4}/) ? c['1-3-6'] : null,
+      contractedAt:     c['2-1-1'] && typeof c['2-1-1'] === 'string' && c['2-1-1'].match(/^\d{4}/) ? c['2-1-1'] : null,
     }
   } catch { return { purchaseMethod: null, capitalCheckedAt: null, contractedAt: null } }
 }
