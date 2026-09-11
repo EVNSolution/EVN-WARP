@@ -27,7 +27,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const [body, session] = await Promise.all([req.json(), auth()])
-    const { taskId, teamId, date, endDate, type, title, content, mentions, companions, startTime, endTime, kpiItemId, kpiWeek, actualNum, countermeasureId, userId, userName, planStatus, referenceUrl,
+    const { taskId, teamId, date, endDate, type, title, content, mentions, companions, startTime, endTime, kpiItemId, kpiWeek, actualNum, countermeasureId, userId, userName, planStatus, referenceUrl, source,
       expenseTransport, expenseAccomm, expenseMeal, expenseOther, expensePaymentMethod, expenseCardId, expenseNote,
       expenseTransportReceipt, expenseAccommReceipt, expenseMealReceipt, expenseOtherReceipt,
       documentUrl, imageUrl } = body
@@ -65,6 +65,7 @@ export async function POST(req: NextRequest) {
         startTime:        startTime        || null,
         endTime:          endTime          || null,
         planStatus:       planStatus === '완료' ? '완료' : '계획',
+        source:           source === 'mcp' ? 'mcp' : 'web', // AI(개인 Claude) 경유 등록 추적 — 임의 값은 web 으로
         referenceUrl:     referenceUrl || null,
         kpiItemId:        kpiItemId        || null,
         kpiWeek:          kpiWeek          || null,
