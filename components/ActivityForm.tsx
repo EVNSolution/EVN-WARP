@@ -370,9 +370,7 @@ export default function ActivityForm({ teams, tasks, users = [], vehicles = [], 
   const [kpiItemId,        setKpiItemId]        = useState(initial?.kpiItemId        ?? '')
   const [kpiWeek,          setKpiWeek]          = useState(initial?.kpiWeek          || currentWeekId)
   const [countermeasureId, setCountermeasureId] = useState(initial?.countermeasureId ?? '')
-  const [planStatus, setPlanStatus] = useState<'계획'|'완료'>(
-    initial?.planStatus === '완료' ? '완료' : '계획'
-  )
+  const planStatus = '완료'
   const [actualStr,  setActualStr]  = useState('')
   const [saving,              setSaving]              = useState(false)
   const [error,               setError]               = useState('')
@@ -1080,28 +1078,6 @@ export default function ActivityForm({ teams, tasks, users = [], vehicles = [], 
             </div>
           </div>
 
-          {/* 진행 상태 */}
-          <div className="border-t border-slate-100 pt-4">
-            <p className="text-sm font-semibold text-slate-700 mb-2">진행 상태</p>
-            <div className="flex gap-2">
-              <button type="button" onClick={() => setPlanStatus('계획')}
-                className={`px-5 py-1.5 rounded-lg border text-sm font-medium transition-colors ${
-                  planStatus === '계획'
-                    ? 'bg-slate-600 text-white border-slate-600'
-                    : 'border-slate-200 text-slate-600 hover:bg-slate-50'
-                }`}>
-                계획
-              </button>
-              <button type="button" onClick={() => setPlanStatus('완료')}
-                className={`px-5 py-1.5 rounded-lg border text-sm font-medium transition-colors ${
-                  planStatus === '완료'
-                    ? 'bg-emerald-600 text-white border-emerald-600'
-                    : 'border-slate-200 text-slate-600 hover:bg-slate-50'
-                }`}>
-                완료
-              </button>
-            </div>
-          </div>
         </div>
 
         {/* ⑤-a2 증명서 발급 패널 */}

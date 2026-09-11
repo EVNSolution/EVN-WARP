@@ -150,7 +150,7 @@ export default async function FunnelPage({ searchParams }: { searchParams: Promi
         <div>
           <h1 className="text-lg font-bold text-white leading-tight">영업 파이프라인</h1>
           <p className="text-[11px] mt-0.5" style={{ color: '#C5D42A' }}>
-            4단계 · 11 프로세스 통합 관리
+            3단계 · 9 프로세스 통합 관리
           </p>
         </div>
         <div className="flex items-center gap-3 text-xs">

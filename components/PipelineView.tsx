@@ -457,10 +457,11 @@ export default function PipelineView({ deals, salesTarget, initialStage, initial
 
   const assigneeOptions = [...new Set(tabDeals.map(d => d.assignee).filter((a): a is string => !!a))].sort()
 
-  const activeDeals = tabDeals.filter(d => d.salesStatus !== '이탈' && d.salesStatus !== '완료' && d.salesStatus !== '판매보류' && d.salesStatus !== '고객전환')
-  const lostDeals   = tabDeals.filter(d => d.salesStatus === '이탈')
-  const doneDeals   = tabDeals.filter(d => d.salesStatus === '완료')
-  const holdDeals   = tabDeals.filter(d => d.salesStatus === '판매보류')
+  const activeDeals   = tabDeals.filter(d => d.salesStatus !== '이탈' && d.salesStatus !== '완료' && d.salesStatus !== '판매보류' && d.salesStatus !== '고객전환' && d.salesStatus !== '판매성공')
+  const lostDeals     = tabDeals.filter(d => d.salesStatus === '이탈')
+  const doneDeals     = tabDeals.filter(d => d.salesStatus === '완료')
+  const holdDeals     = tabDeals.filter(d => d.salesStatus === '판매보류')
+  const successDeals  = tabDeals.filter(d => d.salesStatus === '판매성공')
 
   /* B2B는 리드당 대수(미입력 시 1대)를 합산, B2C는 리드 건수(1)로 카운트 */
   const countByCode: Record<string, number> = {}
@@ -473,8 +474,9 @@ export default function PipelineView({ deals, salesTarget, initialStage, initial
     const pool = selectedCode === '이탈' ? lostDeals
                : selectedCode === '완료' ? doneDeals
                : selectedCode === '판매보류' ? holdDeals
+               : selectedCode === '판매성공' ? successDeals
                : showLost ? tabDeals : activeDeals
-    const byStage = selectedCode && selectedCode !== '이탈' && selectedCode !== '완료' && selectedCode !== '판매보류'
+    const byStage = selectedCode && selectedCode !== '이탈' && selectedCode !== '완료' && selectedCode !== '판매보류' && selectedCode !== '판매성공'
       ? pool.filter(d => d.stageCode === selectedCode)
       : pool
     const byAssignee = assigneeFilter ? byStage.filter(d => d.assignee === assigneeFilter) : byStage
@@ -941,8 +943,15 @@ export default function PipelineView({ deals, salesTarget, initialStage, initial
           )
         })}
 
-        {/* 판매보류 / 이탈 — 위 4단계와 동일한 색상 블록 UI */}
+        {/* 판매성공 / 판매보류 / 이탈 */}
         <div className="mt-1 flex flex-col gap-[6px]">
+          <button
+            onClick={() => setSelectedCode(selectedCode === '판매성공' ? null : '판매성공')}
+            className={`w-full rounded-lg overflow-hidden shadow-sm transition-all flex items-center justify-between px-3 py-2
+              ${selectedCode === '판매성공' ? 'ring-2 ring-green-400' : ''} bg-green-600`}>
+            <span className="text-white font-bold text-[13px]">판매성공</span>
+            <span className="text-white font-black text-[16px] tabular-nums">{successDeals.length}</span>
+          </button>
           <button
             onClick={() => setSelectedCode(selectedCode === '판매보류' ? null : '판매보류')}
             className={`w-full rounded-lg overflow-hidden shadow-sm transition-all flex items-center justify-between px-3 py-2
@@ -978,7 +987,7 @@ export default function PipelineView({ deals, salesTarget, initialStage, initial
                     <span className="text-xs text-slate-400">확인사항 {checkCount}개</span>
                   </>
                 : <span className="font-bold text-sm text-slate-700">
-                    {selectedCode === '이탈' ? '이탈 리드' : selectedCode === '판매보류' ? '판매보류 리드' : '전체 리드'}
+                    {selectedCode === '이탈' ? '이탈 리드' : selectedCode === '판매보류' ? '판매보류 리드' : selectedCode === '판매성공' ? '판매성공 리드' : '전체 리드'}
                   </span>
             }
             {!crmView && (

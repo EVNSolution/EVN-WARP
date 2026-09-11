@@ -1649,23 +1649,58 @@ export default function LeadDetailClient({ deal, customer = null, products = [],
               </div>
             )}
 
-            {salesStatus !== '판매보류' && salesStatus !== '이탈' && salesStatus !== '완료' && (
-              <button
-                onClick={() => {
-                  setChecks(prev => ({
-                    ...prev,
-                    [SALE_HOLD_CHECK_KEY]: '판매보류',
-                    [`${SALE_HOLD_CHECK_KEY}-at`]: new Date().toISOString(),
-                  }))
-                  setSalesStatus('판매보류')
-                  setPendingHoldCategory(HOLD_REASON_GROUPS[0].category)
-                  setPendingHoldReason('')
-                  setShowHoldModal(true)
-                  setSaved(false)
-                }}
-                className="w-full px-3 py-1.5 rounded-lg text-xs font-bold border border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100 transition text-left">
-                판매보류로 전환
-              </button>
+            {/* 판매성공 */}
+            {salesStatus === '판매성공' && (
+              <div className="rounded-xl border border-green-200 bg-green-50 px-3 py-2.5 space-y-1.5">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-xs font-bold text-green-700">판매 성공</span>
+                  <button
+                    onClick={async () => {
+                      await fetch(`/api/deals/${deal.id}`, {
+                        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ salesStatus: '진행중' }),
+                      })
+                      setSalesStatus('진행중')
+                    }}
+                    className="text-[11px] text-green-500 hover:text-green-700 border border-green-200 hover:border-green-400 rounded-lg px-2 py-0.5 transition shrink-0">
+                    취소
+                  </button>
+                </div>
+                <p className="text-xs text-green-600">판매 성공 처리된 리드입니다.</p>
+              </div>
+            )}
+
+            {salesStatus !== '판매보류' && salesStatus !== '이탈' && salesStatus !== '완료' && salesStatus !== '판매성공' && (
+              <>
+                <button
+                  onClick={async () => {
+                    await fetch(`/api/deals/${deal.id}`, {
+                      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ salesStatus: '판매성공' }),
+                    })
+                    setSalesStatus('판매성공')
+                    setSaved(false)
+                  }}
+                  className="w-full px-3 py-1.5 rounded-lg text-xs font-bold border border-green-200 bg-green-50 text-green-700 hover:bg-green-100 transition text-left">
+                  판매성공으로 전환
+                </button>
+                <button
+                  onClick={() => {
+                    setChecks(prev => ({
+                      ...prev,
+                      [SALE_HOLD_CHECK_KEY]: '판매보류',
+                      [`${SALE_HOLD_CHECK_KEY}-at`]: new Date().toISOString(),
+                    }))
+                    setSalesStatus('판매보류')
+                    setPendingHoldCategory(HOLD_REASON_GROUPS[0].category)
+                    setPendingHoldReason('')
+                    setShowHoldModal(true)
+                    setSaved(false)
+                  }}
+                  className="w-full px-3 py-1.5 rounded-lg text-xs font-bold border border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100 transition text-left">
+                  판매보류로 전환
+                </button>
+              </>
             )}
 
             {/* 이탈 / 구매의사 포기 */}
@@ -1687,7 +1722,7 @@ export default function LeadDetailClient({ deal, customer = null, products = [],
                 </div>
                 <p className="text-xs text-red-400">{lostReason || '원인 미기재'}</p>
               </div>
-            ) : salesStatus !== '완료' && (
+            ) : salesStatus !== '완료' && salesStatus !== '판매성공' && (
               <button
                 onClick={() => setShowLostModal(true)}
                 className="w-full px-3 py-1.5 rounded-lg text-xs font-bold border border-red-200 bg-red-50 text-red-600 hover:bg-red-100 transition text-left">

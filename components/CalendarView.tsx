@@ -385,9 +385,6 @@ export default function CalendarView({ weeks, activities, reservations, todayStr
                 <span className="text-slate-400">날짜</span>
                 <div className="flex items-center gap-2">
                   <span className="text-slate-700">{selected.date}</span>
-                  {selected.planStatus === '완료' && (
-                    <span className="text-[9px] font-bold text-emerald-600 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded">완료</span>
-                  )}
                 </div>
                 <span className="text-slate-400">팀</span>
                 <span className="text-slate-700">{selected.teamName}</span>

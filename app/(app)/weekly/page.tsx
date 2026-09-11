@@ -444,7 +444,7 @@ export default async function WeeklyPage({ searchParams }: { searchParams: Promi
                               <span className="shrink-0 text-xs" style={{ color: dotCls }}>●</span>
                               <span>
                                 <span className="hover:underline hover:text-indigo-600">{act.title}</span>
-                                <span className="ml-1 text-slate-400">({act.userName ?? '담당자 미상'}, {act.planStatus === '완료' ? '완료' : '계획'} {+act.date.slice(5,7)}/{+act.date.slice(8,10)})</span>
+                                <span className="ml-1 text-slate-400">({act.userName ?? '담당자 미상'}, {+act.date.slice(5,7)}/{+act.date.slice(8,10)})</span>
                               </span>
                             </Link>
                           ))}
@@ -573,7 +573,7 @@ export default async function WeeklyPage({ searchParams }: { searchParams: Promi
                               <span className="shrink-0 text-xs" style={{ color: dotCls }}>●</span>
                               <span>
                                 <span className="hover:underline hover:text-indigo-600">{act.title}</span>
-                                <span className="ml-1 text-slate-400">({act.userName ?? '담당자 미상'}, {act.planStatus === '완료' ? '완료' : '계획'} {+act.date.slice(5,7)}/{+act.date.slice(8,10)})</span>
+                                <span className="ml-1 text-slate-400">({act.userName ?? '담당자 미상'}, {+act.date.slice(5,7)}/{+act.date.slice(8,10)})</span>
                               </span>
                             </Link>
                           ))}

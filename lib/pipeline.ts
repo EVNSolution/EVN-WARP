@@ -221,37 +221,6 @@ export const PIPELINE: PipelinePhase[] = [
       },
     ],
   },
-  {
-    phase: 4, name: '대행업무', color: 'bg-teal-600', textColor: 'text-teal-600',
-    processes: [
-      {
-        code: '4-1', name: '영업용번호판', target: 1, conversionRate: 1.00,
-        checks: [
-          { key: '4-1-0', label: '영업용 번호판 신청 서류 준비' },
-          { key: '4-1-1', label: '영업용 번호판 신청 대행' },
-          { key: '4-1-2', label: '배 번호판 신청 (필요 시)' },
-          { key: '4-1-3', label: '번호판 수령 및 장착 완료' },
-        ],
-        documents: [
-          { key: 'plate_application', label: '영업용 번호판 신청서' },
-          { key: 'plate_receipt',     label: '번호판 수령 확인서' },
-        ],
-      },
-      {
-        code: '4-2', name: '보험/취등록세', target: 1, conversionRate: 1.00,
-        checks: [
-          { key: '4-2-0', label: '자동차 보험 가입 대행' },
-          { key: '4-2-1', label: '취득세 / 등록세 납부 대행' },
-          { key: '4-2-2', label: '등록증 수령 및 고객 전달' },
-        ],
-        documents: [
-          { key: 'insurance_cert',   label: '자동차 보험증권' },
-          { key: 'acquisition_tax',  label: '취득세 납부 확인서' },
-          { key: 'registration_cert', label: '차량 등록증' },
-        ],
-      },
-    ],
-  },
 ]
 
 // '판매방법 확정'(1-3-7)에서 이 옵션을 선택하면 salesStatus가 자동으로 "판매보류"로 전환된다

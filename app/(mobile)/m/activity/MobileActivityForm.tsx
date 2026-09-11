@@ -64,7 +64,9 @@ export default function MobileActivityForm({ teams, tasks, vehicles = [], initia
   const [date,    setDate]    = useState(new Date().toISOString().slice(0, 10))
   const [catIdx,  setCatIdx]  = useState(0)
   const [type,    setType]    = useState('내부회의')
-  const [status,  setStatus]  = useState<'계획'|'완료'>('완료')
+  const [allDay,     setAllDay]     = useState(true)
+  const [startTime,  setStartTime]  = useState('09:00')
+  const [endTime,    setEndTime]    = useState('18:00')
   const [title,   setTitle]   = useState(initial?.dealName ? `[${initial.dealName}] ` : '')
   const [content, setContent] = useState('')
 
@@ -135,7 +137,9 @@ export default function MobileActivityForm({ teams, tasks, vehicles = [], initia
         body: JSON.stringify({
           teamId: finalTeamId, taskId: finalTaskId,
           userId: initial?.userId, userName: initial?.userName,
-          date, type, title: title.trim(), content: content || null, planStatus: status,
+          date, type, title: title.trim(), content: content || null, planStatus: '완료',
+          startTime: !allDay ? startTime : null,
+          endTime:   !allDay ? endTime   : null,
           mentions: mentions.length > 0 ? mentions.join(', ') : null,
           ...(hasExp ? {
             expenseTransport: parseInt(expTransport.replace(/,/g,''),10) || null,
@@ -279,19 +283,43 @@ export default function MobileActivityForm({ teams, tasks, vehicles = [], initia
           </div>
         </div>
 
-        {/* ⑥ 진행 상태 */}
+        {/* ⑥ 시간 설정 */}
         <div className={CARD}>
-          <div className={LBL}>진행 상태</div>
-          <div className={`${BODY} flex gap-2`}>
-            {(['계획','완료'] as const).map(s => (
-              <button key={s} onClick={() => setStatus(s)}
-                className={`flex-1 py-2 rounded-lg border text-sm font-medium transition-colors
-                  ${status === s
-                    ? s === '완료' ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-gray-600 text-white border-gray-600'
-                    : 'border-gray-200 text-gray-500 bg-white'}`}>
-                {s}
-              </button>
-            ))}
+          <div className={LBL}>시간 설정</div>
+          <div className={`${BODY} space-y-2`}>
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input type="checkbox" checked={allDay} onChange={e => setAllDay(e.target.checked)}
+                className="w-4 h-4 rounded border-gray-300 text-blue-500 cursor-pointer" />
+              <span className="text-sm text-gray-700">하루 종일</span>
+            </label>
+            {!allDay && (
+              <div className="flex items-center gap-2 flex-wrap">
+                <select value={startTime} onChange={e => {
+                  setStartTime(e.target.value)
+                  if (e.target.value >= endTime) {
+                    const [h, m] = e.target.value.split(':').map(Number)
+                    const next = m === 30 ? `${String(h + 1).padStart(2, '0')}:00` : `${String(h).padStart(2, '0')}:30`
+                    if (next <= '23:30') setEndTime(next)
+                  }
+                }}
+                  className="flex-1 rounded-lg border border-gray-200 bg-gray-50 px-2 py-2 text-sm text-gray-800 outline-none focus:border-blue-400">
+                  {Array.from({ length: 48 }, (_, i) => {
+                    const h = Math.floor(i / 2), m = i % 2 === 0 ? '00' : '30'
+                    const val = `${String(h).padStart(2, '0')}:${m}`
+                    return <option key={val} value={val}>{val}</option>
+                  })}
+                </select>
+                <span className="text-gray-400 text-sm">~</span>
+                <select value={endTime} onChange={e => setEndTime(e.target.value)}
+                  className="flex-1 rounded-lg border border-gray-200 bg-gray-50 px-2 py-2 text-sm text-gray-800 outline-none focus:border-blue-400">
+                  {Array.from({ length: 48 }, (_, i) => {
+                    const h = Math.floor(i / 2), m = i % 2 === 0 ? '00' : '30'
+                    const val = `${String(h).padStart(2, '0')}:${m}`
+                    return <option key={val} value={val} disabled={val <= startTime}>{val}</option>
+                  })}
+                </select>
+              </div>
+            )}
           </div>
         </div>
 
