@@ -189,6 +189,7 @@ model WorkActivity {
   endTime     String?      // "HH:MM" — null이면 하루종일
   referenceUrl     String?        // 이메일 등 참고 URL (아웃룩 링크 등)
   planStatus       String         @default("계획")  // "계획" | "완료"
+  source           String         @default("web")   // "web"(화면 입력) | "mcp"(개인 Claude 업무 기록 도우미) — AI 기록 추적용
   kpiItemId        String?        // 실적추가 시 연결된 KPI 항목
   kpiItem          KpiItem?       @relation(fields: [kpiItemId], references: [id])
   kpiWeek          String?        // 실적추가 기준 주 (예: "2026-W24")
