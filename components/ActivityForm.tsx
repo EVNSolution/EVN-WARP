@@ -309,6 +309,8 @@ interface Props {
     expenseOtherReceipt?:     string | null
     documentUrl?:             string | null
     imageUrl?:                string | null
+    companions?:              string | null
+    visibility?:              string | null
   }
   mode:            'new' | 'edit'
   returnUrl?:      string
@@ -327,7 +329,7 @@ export default function ActivityForm({ teams, tasks, users = [], vehicles = [], 
 
   const [userId,   setUserId]   = useState(initial?.userId   ?? '')
   const [userName, setUserName] = useState(initial?.userName ?? '')
-  const [linked, setLinked] = useState<boolean>(initial?.taskId != null ? true : false)
+  const [linked, setLinked] = useState<boolean>(initial ? initial.taskId != null : true)
 
   const initTask       = initial?.taskId ? tasks.find(t => t.id === initial.taskId) : null
   const initTaskParent = initTask?.parentId ? tasks.find(t => t.id === initTask.parentId) : null
@@ -347,7 +349,7 @@ export default function ActivityForm({ teams, tasks, users = [], vehicles = [], 
 
   const [date,         setDate]         = useState(initial?.date    ?? new Date().toISOString().slice(0, 10))
   const [endDate,      setEndDate]      = useState(initial?.endDate ?? '')
-  const [allDay,       setAllDay]       = useState(!(initial as any)?.startTime)
+  const [allDay,       setAllDay]       = useState(initial ? !(initial as any)?.startTime : false)
   const [startTime,    setStartTime]    = useState((initial as any)?.startTime ?? '09:00')
   const [endTime,      setEndTime]      = useState((initial as any)?.endTime   ?? '18:00')
   const [type,         setType]         = useState<string>(initial?.type ?? '내부회의')
@@ -359,10 +361,13 @@ export default function ActivityForm({ teams, tasks, users = [], vehicles = [], 
     return raw.split(/[\s,]+/).filter(m => m.startsWith('@') && m.length > 1)
   })
   const [companionChips, setCompanionChips] = useState<string[]>(() => {
-    const raw = (initial as any)?.companions ?? ''
+    const raw = initial?.companions ?? ''
     if (!raw) return []
     return raw.split(',').map((s: string) => s.trim()).filter(Boolean)
   })
+  const [visibility, setVisibility] = useState<'공개' | '제목만 공개' | '전체 비공개'>(
+    (initial?.visibility as '공개' | '제목만 공개' | '전체 비공개') ?? '공개'
+  )
   const [activePicker, setActivePicker] = useState<'team' | 'user' | null>(null)
   const [referenceUrl, setReferenceUrl] = useState(initial?.referenceUrl ?? '')
   const [certPurpose, setCertPurpose] = useState('')
@@ -597,6 +602,7 @@ export default function ActivityForm({ teams, tasks, users = [], vehicles = [], 
       startTime:  (!allDay && !endDate) ? startTime : null,
       endTime:    (!allDay && !endDate) ? endTime   : null,
       planStatus,
+      visibility,
       referenceUrl: referenceUrl.trim() || null,
       countermeasureId: countermeasureId || null,
       endDate: (isTrip || LEAVE_TYPES.has(type)) && endDate && endDate > date ? endDate : null,
@@ -686,36 +692,72 @@ export default function ActivityForm({ teams, tasks, users = [], vehicles = [], 
 
       <form onSubmit={handleSubmit} className="space-y-4">
 
-        {/* ① 과제 연계 여부 */}
-        <div className="bg-white border border-slate-200 rounded-xl p-5">
-          <p className="text-sm font-semibold text-slate-700 mb-3">과제 연계 여부</p>
-          <div className="flex gap-3">
-            <button type="button"
-              onClick={() => setLinked(true)}
-              className={`flex items-center gap-2 px-4 py-2.5 rounded-lg border text-sm font-medium transition-colors ${
-                linked
-                  ? 'border-indigo-500 bg-indigo-600 text-white'
-                  : 'border-slate-200 text-slate-600 hover:border-slate-300 hover:bg-slate-50'
-              }`}>
-              <Link2 size={14} />
-              과제 연계
-            </button>
-            <button type="button"
-              onClick={() => { setLinked(false); setParentTaskId(''); setChildTaskId(''); setGrandchildTaskId(''); setKpiItemId(''); setCountermeasureId('') }}
-              className={`flex items-center gap-2 px-4 py-2.5 rounded-lg border text-sm font-medium transition-colors ${
-                !linked
-                  ? 'border-slate-500 bg-slate-600 text-white'
-                  : 'border-slate-200 text-slate-600 hover:border-slate-300 hover:bg-slate-50'
-              }`}>
-              <Unlink size={14} />
-              독립 활동
-            </button>
+        {/* ① 과제 연계 여부 + 공개여부 */}
+        <div className="flex gap-4">
+          <div className="flex-1 bg-white border border-slate-200 rounded-xl p-5">
+            <p className="text-sm font-semibold text-slate-700 mb-3">과제 연계 여부</p>
+            <div className="flex gap-3">
+              <button type="button"
+                onClick={() => setLinked(true)}
+                className={`flex items-center gap-2 px-4 py-2.5 rounded-lg border text-sm font-medium transition-colors ${
+                  linked
+                    ? 'border-indigo-500 bg-indigo-600 text-white'
+                    : 'border-slate-200 text-slate-600 hover:border-slate-300 hover:bg-slate-50'
+                }`}>
+                <Link2 size={14} />
+                과제 연계
+              </button>
+              <button type="button"
+                onClick={() => { setLinked(false); setParentTaskId(''); setChildTaskId(''); setGrandchildTaskId(''); setKpiItemId(''); setCountermeasureId('') }}
+                className={`flex items-center gap-2 px-4 py-2.5 rounded-lg border text-sm font-medium transition-colors ${
+                  !linked
+                    ? 'border-slate-500 bg-slate-600 text-white'
+                    : 'border-slate-200 text-slate-600 hover:border-slate-300 hover:bg-slate-50'
+                }`}>
+                <Unlink size={14} />
+                독립 활동
+              </button>
+            </div>
+            {linked && (
+              <p className="mt-2 text-xs text-slate-400">
+                입력한 활동이 3페이지 주간업무보고 해당 과제 아래 자동 표시됩니다.
+              </p>
+            )}
           </div>
-          {linked && (
+
+          {/* 공개여부 */}
+          <div className="flex-1 bg-white border border-slate-200 rounded-xl p-5">
+            <p className="text-sm font-semibold text-slate-700 mb-3">공개 여부</p>
+            <div className="flex gap-2 flex-wrap">
+              <button type="button" onClick={() => setVisibility('공개')}
+                className={`px-4 py-2.5 rounded-lg border text-sm font-medium transition-colors ${
+                  visibility === '공개'
+                    ? 'border-emerald-500 bg-emerald-600 text-white'
+                    : 'border-slate-200 text-slate-600 hover:border-slate-300 hover:bg-slate-50'
+                }`}>
+                공개
+              </button>
+              <button type="button" onClick={() => setVisibility('제목만 공개')}
+                className={`px-4 py-2.5 rounded-lg border text-sm font-medium transition-colors ${
+                  visibility === '제목만 공개'
+                    ? 'border-amber-500 bg-amber-500 text-white'
+                    : 'border-slate-200 text-slate-600 hover:border-slate-300 hover:bg-slate-50'
+                }`}>
+                제목만 공개
+              </button>
+              <button type="button" onClick={() => setVisibility('전체 비공개')}
+                className={`px-4 py-2.5 rounded-lg border text-sm font-medium transition-colors ${
+                  visibility === '전체 비공개'
+                    ? 'border-slate-600 bg-slate-700 text-white'
+                    : 'border-slate-200 text-slate-600 hover:border-slate-300 hover:bg-slate-50'
+                }`}>
+                전체 비공개
+              </button>
+            </div>
             <p className="mt-2 text-xs text-slate-400">
-              입력한 활동이 3페이지 주간업무보고 해당 과제 아래 자동 표시됩니다.
+              {visibility === '공개' ? '모든 팀원이 내용까지 확인할 수 있습니다.' : visibility === '제목만 공개' ? '제목만 공개되고 내용은 본인만 확인할 수 있습니다.' : '본인만 확인할 수 있습니다.'}
             </p>
-          )}
+          </div>
         </div>
 
         {/* ② 과제 연계 시: 전략과제 → 세부과제 선택 */}
@@ -906,7 +948,7 @@ export default function ActivityForm({ teams, tasks, users = [], vehicles = [], 
                     <span className="ml-1.5 text-[10px] font-bold text-teal-600 bg-teal-50 px-1.5 py-0.5 rounded-full">{companionChips.length}명</span>
                   )}
                 </p>
-                <div className="border border-slate-200 rounded-lg overflow-y-auto" style={{ maxHeight: 160 }}>
+                <div className="flex flex-wrap gap-1.5">
                   {users.map(u => {
                     const name = u.name ?? u.email
                     const checked = companionChips.includes(name)
@@ -915,11 +957,12 @@ export default function ActivityForm({ teams, tasks, users = [], vehicles = [], 
                         onClick={() => setCompanionChips(prev =>
                           checked ? prev.filter(n => n !== name) : [...prev, name]
                         )}
-                        className={`w-full flex items-center gap-2 px-3 py-1.5 text-sm text-left transition-colors ${checked ? 'bg-teal-50 text-teal-700 font-medium' : 'text-slate-700 hover:bg-slate-50'}`}>
-                        <span className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 ${checked ? 'bg-teal-500 border-teal-500' : 'border-slate-300'}`}>
-                          {checked && <svg viewBox="0 0 10 8" className="w-2.5 h-2.5 fill-none stroke-white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><polyline points="1,4 3.5,6.5 9,1"/></svg>}
-                        </span>
-                        {name}
+                        className={`px-3 py-1 rounded-full border text-xs font-medium transition-colors ${
+                          checked
+                            ? 'bg-teal-500 border-teal-500 text-white'
+                            : 'border-slate-200 text-slate-600 hover:border-teal-300 hover:bg-teal-50'
+                        }`}>
+                        {checked && '✓ '}{name}
                       </button>
                     )
                   })}

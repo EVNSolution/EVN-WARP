@@ -218,6 +218,8 @@ model WorkActivity {
   documentUrl       String?   // 첨부 문서 URL (| 구분 다중)
   imageUrl          String?   // 첨부 이미지 URL (| 구분 다중)
 
+  visibility        String         @default("공개")  // "공개" | "제목만 공개" | "전체 비공개"
+
   createdAt        DateTime       @default(now())
   updatedAt        DateTime       @updatedAt
 }
