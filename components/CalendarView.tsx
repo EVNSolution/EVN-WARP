@@ -357,31 +357,31 @@ export default function CalendarView({ weeks, activities, reservations, todayStr
       {selected && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40"
           onClick={() => setSelected(null)}>
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md relative overflow-hidden max-h-[85vh] flex flex-col"
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl relative overflow-hidden max-h-[90vh] flex flex-col"
             onClick={e => e.stopPropagation()}>
 
             {(() => {
               const c = TYPE_COLORS[selected.type] ?? TYPE_COLORS['문서·자료작성']
               return (
-                <div className={`px-6 pt-5 pb-4 shrink-0 ${c.bg}`}>
+                <div className={`px-8 pt-6 pb-5 shrink-0 ${c.bg}`}>
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex-1 min-w-0">
-                      <span className={`inline-block text-[10px] font-bold px-2 py-0.5 rounded mb-2 bg-white/60 ${c.text}`}>
+                      <span className={`inline-block text-xs font-bold px-2.5 py-1 rounded mb-3 bg-white/60 ${c.text}`}>
                         {selected.type}
                       </span>
-                      <h3 className={`text-sm font-bold leading-snug ${c.text}`}>{selected.title}</h3>
+                      <h3 className={`text-base font-bold leading-snug ${c.text}`}>{selected.title}</h3>
                     </div>
                     <button onClick={() => setSelected(null)}
-                      className="shrink-0 w-6 h-6 flex items-center justify-center rounded-full bg-white/50 hover:bg-white/80 transition-colors mt-0.5">
-                      <X size={13} className={c.text} />
+                      className="shrink-0 w-7 h-7 flex items-center justify-center rounded-full bg-white/50 hover:bg-white/80 transition-colors mt-0.5">
+                      <X size={15} className={c.text} />
                     </button>
                   </div>
                 </div>
               )
             })()}
 
-            <div className="px-6 py-4 space-y-3 flex-1 overflow-y-auto min-h-0">
-              <div className="grid grid-cols-[56px,1fr] gap-y-1.5 text-xs">
+            <div className="px-8 py-5 space-y-4 flex-1 overflow-y-auto min-h-0">
+              <div className="grid grid-cols-[72px,1fr] gap-y-2 text-sm">
                 <span className="text-slate-400">날짜</span>
                 <div className="flex items-center gap-2">
                   <span className="text-slate-700">{selected.date}</span>
@@ -408,30 +408,30 @@ export default function CalendarView({ weeks, activities, reservations, todayStr
                 )}
               </div>
               {selected.content && (
-                <div className="bg-slate-50 rounded-lg px-4 py-3">
-                  <p className="text-xs text-slate-600 leading-relaxed whitespace-pre-wrap">{selected.content}</p>
+                <div className="bg-slate-50 rounded-lg px-5 py-4">
+                  <p className="text-sm text-slate-600 leading-relaxed whitespace-pre-wrap">{selected.content}</p>
                 </div>
               )}
               {selected.type === '이메일' && selected.referenceUrl && (
                 <a href={selected.referenceUrl} target="_blank" rel="noopener noreferrer"
-                  className="flex items-center gap-2 px-4 py-2.5 bg-sky-50 border border-sky-200 rounded-lg text-xs text-sky-700 font-medium hover:bg-sky-100 transition-colors">
-                  <Mail size={12} />
+                  className="flex items-center gap-2 px-4 py-3 bg-sky-50 border border-sky-200 rounded-lg text-sm text-sky-700 font-medium hover:bg-sky-100 transition-colors">
+                  <Mail size={14} />
                   이메일 열기
-                  <ExternalLink size={11} className="ml-auto" />
+                  <ExternalLink size={13} className="ml-auto" />
                 </a>
               )}
               {selected.mentions?.trim() && (
-                <p className="text-xs text-indigo-500">@ {selected.mentions}</p>
+                <p className="text-sm text-indigo-500">@ {selected.mentions}</p>
               )}
             </div>
 
-            <div className="flex gap-2 justify-end px-6 py-4 border-t border-slate-100 bg-slate-50/60 shrink-0">
+            <div className="flex gap-2 justify-end px-8 py-4 border-t border-slate-100 bg-slate-50/60 shrink-0">
               <button onClick={() => setSelected(null)}
-                className="px-4 py-1.5 text-sm text-slate-500 border border-slate-200 rounded-lg hover:bg-white transition-colors">
+                className="px-5 py-2 text-sm text-slate-500 border border-slate-200 rounded-lg hover:bg-white transition-colors">
                 닫기
               </button>
               <Link href={`/notes/${selected.id}/edit`}
-                className="px-4 py-1.5 text-sm text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 transition-colors">
+                className="px-5 py-2 text-sm text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 transition-colors">
                 수정하기
               </Link>
             </div>
