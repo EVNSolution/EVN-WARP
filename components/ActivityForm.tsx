@@ -311,6 +311,8 @@ interface Props {
     imageUrl?:                string | null
     companions?:              string | null
     visibility?:              string | null
+    startTime?:               string | null
+    endTime?:                 string | null
   }
   mode:            'new' | 'edit'
   returnUrl?:      string
@@ -383,9 +385,9 @@ export default function ActivityForm({ teams, tasks, users = [], vehicles = [], 
 
   const [date,         setDate]         = useState(initial?.date    ?? new Date().toISOString().slice(0, 10))
   const [endDate,      setEndDate]      = useState(initial?.endDate ?? '')
-  const [allDay,       setAllDay]       = useState(mode === 'edit' ? !(initial as any)?.startTime : false)
-  const [startTime,    setStartTime]    = useState((initial as any)?.startTime ?? '09:00')
-  const [endTime,      setEndTime]      = useState((initial as any)?.endTime   ?? '18:00')
+  const [allDay,       setAllDay]       = useState(mode === 'edit' ? !initial?.startTime : false)
+  const [startTime,    setStartTime]    = useState(initial?.startTime ?? '09:00')
+  const [endTime,      setEndTime]      = useState(initial?.endTime   ?? '18:00')
   const [type,         setType]         = useState<string>(initial?.type ?? '내부회의')
   const [title,        setTitle]        = useState(initial?.title     ?? '')
   const [content,      setContent]      = useState(initial?.content   ?? '')
