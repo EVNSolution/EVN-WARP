@@ -4,10 +4,17 @@ import { getWeekId } from '@/lib/week'
 import { auth } from '@/auth'
 
 export async function GET(req: NextRequest) {
-  const { searchParams } = new URL(req.url)
+  const [{ searchParams }, session] = await Promise.all([
+    Promise.resolve(new URL(req.url)),
+    auth(),
+  ])
   const from = searchParams.get('from')
   const to   = searchParams.get('to')
   const week = searchParams.get('week')
+
+  const me = session?.user as any
+  const myUserId = me?.id ?? null
+  const isPrivileged = me?.role === 'admin' || me?.role === 'ceo'
 
   const where: any = {}
   if (week) {
@@ -21,7 +28,24 @@ export async function GET(req: NextRequest) {
     include: { task: { select: { id: true, code: true, title: true, strategy: true } }, team: true },
     orderBy: [{ date: 'asc' }, { createdAt: 'asc' }],
   })
-  return NextResponse.json(activities)
+
+  const filtered = activities
+    .filter(a => {
+      if (isPrivileged) return true
+      const vis = (a as any).visibility ?? '공개'
+      if (vis === '전체 비공개') return a.userId === myUserId
+      return true
+    })
+    .map(a => {
+      if (isPrivileged) return a
+      const vis = (a as any).visibility ?? '공개'
+      if (vis === '제목만 공개' && a.userId !== myUserId) {
+        return { ...a, content: null, mentions: null, companions: null }
+      }
+      return a
+    })
+
+  return NextResponse.json(filtered)
 }
 
 export async function POST(req: NextRequest) {

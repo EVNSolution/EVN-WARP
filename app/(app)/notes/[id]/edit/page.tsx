@@ -40,6 +40,8 @@ export default async function EditActivityPage({ params }: { params: Promise<{ i
         teamId:    activity.teamId,
         date:      activity.date,
         endDate:   activity.endDate ?? '',
+        startTime: (activity as any).startTime ?? null,
+        endTime:   (activity as any).endTime   ?? null,
         type:      activity.type,
         title:     activity.title,
         content:   activity.content  ?? '',
