@@ -1031,11 +1031,6 @@ export default function ActivityForm({ teams, tasks, users = [], vehicles = [], 
                 <input type="date" value={date} onChange={e => setDate(e.target.value)}
                   className="border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-400" />
                 {/* 시간 선택 — 30분 단위 (Teams 캘린더 호환) */}
-                <label className="flex items-center gap-1.5 cursor-pointer select-none">
-                  <input type="checkbox" checked={allDay} onChange={e => setAllDay(e.target.checked)}
-                    className="w-4 h-4 rounded border-slate-300 text-indigo-500 cursor-pointer" />
-                  <span className="text-sm text-slate-600">하루 종일</span>
-                </label>
                 {!allDay && (
                   <>
                     <select value={startTime} onChange={e => {
@@ -1064,6 +1059,11 @@ export default function ActivityForm({ teams, tasks, users = [], vehicles = [], 
                     </select>
                   </>
                 )}
+                <label className="flex items-center gap-1.5 cursor-pointer select-none">
+                  <input type="checkbox" checked={allDay} onChange={e => setAllDay(e.target.checked)}
+                    className="w-4 h-4 rounded border-slate-300 text-indigo-500 cursor-pointer" />
+                  <span className="text-sm text-slate-600">하루 종일</span>
+                </label>
               </div>
             )}
           </div>
