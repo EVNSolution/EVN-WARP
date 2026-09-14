@@ -322,6 +322,40 @@ const LEAVE_TYPES = new Set(['연차', '반차(오전)', '반차(오후)'])
 const DOC_TYPES   = new Set(['견적서 발행', 'PO 발행', '수주 확정', '세금계산서 발행'])
 const CERT_TYPES  = new Set(['재직증명서'])
 
+function CompanionAdder({
+  users, selected, currentUserName, onAdd,
+}: {
+  users: { id: string; name?: string | null; email?: string | null }[]
+  selected: string[]
+  currentUserName: string
+  onAdd: (name: string) => void
+}) {
+  const [pick, setPick] = useState('')
+  const available = users.filter(u => {
+    const name = u.name ?? u.email ?? ''
+    return !selected.includes(name) && name !== currentUserName
+  })
+  return (
+    <div className="flex gap-2">
+      <select value={pick} onChange={e => setPick(e.target.value)}
+        className="flex-1 border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-teal-300">
+        <option value="">-- 동반인원 추가 --</option>
+        {available.map(u => {
+          const name = u.name ?? u.email ?? ''
+          return <option key={u.id} value={name}>{name}</option>
+        })}
+      </select>
+      <button type="button"
+        onClick={() => { if (pick) { onAdd(pick); setPick('') } }}
+        disabled={!pick}
+        className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-teal-300 bg-teal-50 text-teal-700 text-sm font-medium hover:bg-teal-100 transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
+        <svg viewBox="0 0 16 16" className="w-3.5 h-3.5 fill-current"><path d="M8 2a6 6 0 1 0 0 12A6 6 0 0 0 8 2ZM0 8a8 8 0 1 1 16 0A8 8 0 0 1 0 8Zm8-3a1 1 0 0 1 1 1v2h2a1 1 0 1 1 0 2H9v2a1 1 0 1 1-2 0V10H5a1 1 0 1 1 0-2h2V6a1 1 0 0 1 1-1Z"/></svg>
+        추가
+      </button>
+    </div>
+  )
+}
+
 export default function ActivityForm({ teams, tasks, users = [], vehicles = [], initial, mode, returnUrl = '/notes', expensePrintUrl }: Props) {
   const router = useRouter()
   const WEEK_OPTIONS = generateWeekOptions()
@@ -329,7 +363,7 @@ export default function ActivityForm({ teams, tasks, users = [], vehicles = [], 
 
   const [userId,   setUserId]   = useState(initial?.userId   ?? '')
   const [userName, setUserName] = useState(initial?.userName ?? '')
-  const [linked, setLinked] = useState<boolean>(initial ? initial.taskId != null : true)
+  const [linked, setLinked] = useState<boolean>(mode === 'edit' ? initial?.taskId != null : true)
 
   const initTask       = initial?.taskId ? tasks.find(t => t.id === initial.taskId) : null
   const initTaskParent = initTask?.parentId ? tasks.find(t => t.id === initTask.parentId) : null
@@ -349,7 +383,7 @@ export default function ActivityForm({ teams, tasks, users = [], vehicles = [], 
 
   const [date,         setDate]         = useState(initial?.date    ?? new Date().toISOString().slice(0, 10))
   const [endDate,      setEndDate]      = useState(initial?.endDate ?? '')
-  const [allDay,       setAllDay]       = useState(initial ? !(initial as any)?.startTime : false)
+  const [allDay,       setAllDay]       = useState(mode === 'edit' ? !(initial as any)?.startTime : false)
   const [startTime,    setStartTime]    = useState((initial as any)?.startTime ?? '09:00')
   const [endTime,      setEndTime]      = useState((initial as any)?.endTime   ?? '18:00')
   const [type,         setType]         = useState<string>(initial?.type ?? '내부회의')
@@ -948,25 +982,25 @@ export default function ActivityForm({ teams, tasks, users = [], vehicles = [], 
                     <span className="ml-1.5 text-[10px] font-bold text-teal-600 bg-teal-50 px-1.5 py-0.5 rounded-full">{companionChips.length}명</span>
                   )}
                 </p>
-                <div className="flex flex-wrap gap-1.5">
-                  {users.map(u => {
-                    const name = u.name ?? u.email
-                    const checked = companionChips.includes(name)
-                    return (
-                      <button key={u.id} type="button"
-                        onClick={() => setCompanionChips(prev =>
-                          checked ? prev.filter(n => n !== name) : [...prev, name]
-                        )}
-                        className={`px-3 py-1 rounded-full border text-xs font-medium transition-colors ${
-                          checked
-                            ? 'bg-teal-500 border-teal-500 text-white'
-                            : 'border-slate-200 text-slate-600 hover:border-teal-300 hover:bg-teal-50'
-                        }`}>
-                        {checked && '✓ '}{name}
-                      </button>
-                    )
-                  })}
-                </div>
+                {/* 추가된 동반인원 칩 */}
+                {companionChips.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5 mb-2">
+                    {companionChips.map(name => (
+                      <span key={name} className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-teal-50 border border-teal-200 text-teal-700 text-xs font-medium">
+                        {name}
+                        <button type="button" onClick={() => setCompanionChips(prev => prev.filter(n => n !== name))}
+                          className="ml-0.5 text-teal-400 hover:text-teal-700 leading-none">×</button>
+                      </span>
+                    ))}
+                  </div>
+                )}
+                {/* 드롭다운 + 추가 버튼 */}
+                <CompanionAdder
+                  users={users}
+                  selected={companionChips}
+                  currentUserName={userName}
+                  onAdd={name => setCompanionChips(prev => prev.includes(name) ? prev : [...prev, name])}
+                />
               </div>
             </div>
           </div>
