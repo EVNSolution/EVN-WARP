@@ -1,5 +1,5 @@
 {
-  "prismaSchemaSha256": "d9b17726314f2c89d69955391e1265988cb7aad9846052d8d78da719a22d0e1e",
+  "prismaSchemaSha256": "f186a5afa087c2d7f13988dc8c695ff4a91a8fd99670951ad51e255d5a025f55",
   "requiredTables": [
     "Announcement",
     "BuildupEvent",
