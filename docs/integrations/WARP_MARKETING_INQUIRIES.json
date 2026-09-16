@@ -1,0 +1,85 @@
+{
+  "schema_version": 1,
+  "contract_id": "warp-marketing-inquiries",
+  "status": "draft-pending-owner-review",
+  "owner": "OziinG",
+  "review": {
+    "issue": "https://github.com/EVNSolution/EVN-WARP/issues/48",
+    "pull_request": null,
+    "required_before_production": true
+  },
+  "authentication": {
+    "header": "x-api-key",
+    "environment": "WARP_MARKETING_API_KEY",
+    "scope": "marketing.inquiry.append",
+    "existing_buildup_key_accepted": false
+  },
+  "repositories": {
+    "EVN-WARP": {
+      "route_style": "next",
+      "route_root": "app/api/external",
+      "source_roots": [
+        "app",
+        "lib"
+      ]
+    },
+    "evn-marketing": {
+      "route_style": "caller-only",
+      "source_roots": [
+        "lib",
+        "workers"
+      ]
+    }
+  },
+  "endpoints": [
+    {
+      "id": "warp.marketing-inquiry.append",
+      "method": "POST",
+      "path": "/api/external/marketing-inquiries",
+      "provider": "EVN-WARP",
+      "caller": "evn-marketing",
+      "capability": "marketing.inquiry.append",
+      "sources": {
+        "EVN-WARP": {
+          "file": "app/api/external/marketing-inquiries/route.ts",
+          "token": "export async function POST"
+        },
+        "evn-marketing": {
+          "file": "lib/warp-delivery.ts",
+          "token": "/api/external/marketing-inquiries"
+        }
+      }
+    }
+  ],
+  "source_scope": {
+    "source": "mleverage-admin",
+    "companyScopeId": "55f9a8bb-73f9-4316-bcd7-7dcdce0bdcc3",
+    "homepageScopeId": "5c7a6115-a0a9-4e8d-bf65-efce52195fa4"
+  },
+  "request_fields": [
+    "source",
+    "companyScopeId",
+    "homepageScopeId",
+    "sourceId",
+    "inquiryDate",
+    "inquiryTime",
+    "sourceStatus",
+    "name",
+    "phone"
+  ],
+  "response_fields": [
+    "ok",
+    "customerId",
+    "activityId",
+    "created",
+    "duplicate"
+  ],
+  "rules": [
+    "One source inquiry creates exactly one customer activity, including on retry.",
+    "An exact unique normalized primary phone match receives a new activity; do not overwrite its customer profile.",
+    "Multiple primary phone matches return ambiguous_phone and create no record.",
+    "Unknown names remain blank; source status remains in activity content.",
+    "Read and append only within the fixed source scope. No arbitrary customer updates or deletion.",
+    "Interpret original date and minute as Asia/Seoul for CRM date fields and preserve the original strings in activity content."
+  ]
+}
