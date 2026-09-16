@@ -2,7 +2,7 @@
 
 2026-09-16 · 운영 담당자: OziinG · 상태: 로컬 검증 완료, Owner 검토·배포 전
 
-기계 판독 계약은 [WARP_MARKETING_INQUIRIES.json](WARP_MARKETING_INQUIRIES.json)이다. 동일 계약이 마케팅 저장소에도 있다. 이 변경은 기존 WARP–BUILDUP 계약과 공유키 권한을 수정하지 않는다. [검토 Issue #48](https://github.com/EVNSolution/EVN-WARP/issues/48)에 연결하며 Owner 승인은 아직 없다.
+기계 판독 계약은 [WARP_MARKETING_INQUIRIES.json](WARP_MARKETING_INQUIRIES.json)이다. 동일 계약이 마케팅 저장소에도 있다. 이 변경은 기존 WARP–BUILDUP 계약과 공유키 권한을 수정하지 않는다. [검토 Issue #48](https://github.com/EVNSolution/EVN-WARP/issues/48)과 [검토 PR #49](https://github.com/EVNSolution/EVN-WARP/pull/49)에 연결하며 Owner 승인은 아직 없다.
 
 ## 변경 결과
 

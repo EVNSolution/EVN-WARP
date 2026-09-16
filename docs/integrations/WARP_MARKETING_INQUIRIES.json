@@ -5,7 +5,7 @@
   "owner": "OziinG",
   "review": {
     "issue": "https://github.com/EVNSolution/EVN-WARP/issues/48",
-    "pull_request": null,
+    "pull_request": "https://github.com/EVNSolution/EVN-WARP/pull/49",
     "required_before_production": true
   },
   "authentication": {
