@@ -3,6 +3,7 @@ import { createHash } from 'node:crypto'
 import type { PrismaClient } from '@/app/generated/prisma/client'
 import { safeKeyEqual } from '@/lib/external-lookup/config'
 import { digitsOnly } from '@/lib/external-lookup/match'
+import { unknownCustomerName } from '@/lib/format'
 
 const MAX_BODY_BYTES = 16 * 1024
 const MIN_KEY_LENGTH = 32
@@ -164,7 +165,7 @@ async function appendInquiry(prisma: PrismaClient, payload: MarketingInquiry, oc
 
         const customerId = matches[0]?.id ?? (await transaction.customer.create({
           data: {
-            name: payload.name.trim(),
+            name: payload.name.trim() || unknownCustomerName({ phone: payload.phone }),
             phone: payload.phone,
             customerSegment: 'B2C',
             status: '잠재고객',
