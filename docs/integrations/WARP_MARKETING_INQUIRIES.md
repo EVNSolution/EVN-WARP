@@ -2,7 +2,7 @@
 
 2026-09-17 · 운영 담당자: OziinG · 상태: 신규 이름 규칙의 후속 Owner 검토 대기
 
-기계 판독 계약은 [WARP_MARKETING_INQUIRIES.json](WARP_MARKETING_INQUIRIES.json)이다. 이 변경은 기존 WARP–BUILDUP 계약과 공유키 권한을 수정하지 않는다. [Issue #48](https://github.com/EVNSolution/EVN-WARP/issues/48)과 [PR #49](https://github.com/EVNSolution/EVN-WARP/pull/49)는 빈 이름을 그대로 두던 이전 계약의 검토 이력이다. 이번 신규 고객 표시 이름 규칙은 후속 Owner 검토가 필요하다. 2026-09-17 기존 Owner 검토에서는 UUID 대소문자 중복 및 독립 DB 연결의 잠금 경합을 재현해 수정했다. 최종 승인·배포 Revision과 결과는 후속 PR에 기록한다.
+기계 판독 계약은 [WARP_MARKETING_INQUIRIES.json](WARP_MARKETING_INQUIRIES.json)이다. 이 변경은 기존 WARP–BUILDUP 계약과 공유키 권한을 수정하지 않는다. [Issue #48](https://github.com/EVNSolution/EVN-WARP/issues/48)과 [PR #49](https://github.com/EVNSolution/EVN-WARP/pull/49)는 빈 이름을 그대로 두던 이전 계약의 검토 이력이다. 이번 신규 고객 표시 이름 규칙은 후속 Owner 검토가 필요하다. 2026-09-17 기존 Owner 검토에서는 UUID 대소문자 중복 및 독립 DB 연결의 잠금 경합을 재현해 수정했다. 최종 승인·배포 Revision과 결과는 [후속 PR #50](https://github.com/EVNSolution/EVN-WARP/pull/50)에 기록한다.
 
 ## 변경 결과
 
