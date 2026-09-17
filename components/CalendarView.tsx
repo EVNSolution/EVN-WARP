@@ -18,6 +18,8 @@ export type CalActivity = {
   startTime?:   string | null
   endTime?:     string | null
   referenceUrl: string | null
+  imageUrl:     string | null
+  documentUrl:  string | null
   planStatus:   string
   taskTitle:    string | null
   taskCode:     string | null
@@ -422,6 +424,27 @@ export default function CalendarView({ weeks, activities, reservations, todayStr
               )}
               {selected.mentions?.trim() && (
                 <p className="text-sm text-indigo-500">@ {selected.mentions}</p>
+              )}
+              {selected.imageUrl && (
+                <div className="space-y-2">
+                  <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide">첨부 이미지</p>
+                  <div className="grid grid-cols-2 gap-2">
+                    {selected.imageUrl.split('|').map((url, i) => (
+                      <a key={i} href={url} target="_blank" rel="noopener noreferrer"
+                        className="block rounded-lg overflow-hidden border border-slate-200 hover:opacity-90 transition-opacity">
+                        <img src={url} alt={`첨부 이미지 ${i + 1}`} className="w-full h-36 object-cover" />
+                      </a>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {selected.documentUrl && (
+                <a href={selected.documentUrl} target="_blank" rel="noopener noreferrer"
+                  className="flex items-center gap-2 px-4 py-3 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-700 font-medium hover:bg-slate-100 transition-colors">
+                  <ExternalLink size={14} className="text-slate-400" />
+                  첨부 문서 열기
+                  <ExternalLink size={13} className="ml-auto text-slate-400" />
+                </a>
               )}
             </div>
 

@@ -255,6 +255,8 @@ export default async function NotesPage({ searchParams }: { searchParams: Promis
       startTime:    (a as any).startTime  ?? null,
       endTime:      (a as any).endTime    ?? null,
       referenceUrl: (a as any).referenceUrl ?? null,
+      imageUrl:     (a as any).imageUrl     ?? null,
+      documentUrl:  (a as any).documentUrl  ?? null,
       planStatus:   a.planStatus,
       taskTitle:    a.task?.title  ?? null,
       taskCode:     a.task?.code   ?? null,
