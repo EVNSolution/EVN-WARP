@@ -7,6 +7,7 @@ on:
     paths:
       - app/api/external/**
       - lib/buildup-import/**
+      - lib/marketing-inquiries*.ts
       - docs/integrations/**
       - scripts/verify-direct-integration-contract.mjs
       - package.json
@@ -30,6 +31,8 @@ jobs:
       - name: Verify direct integration behavior and contract
         run: |
           npm ci
+          DATABASE_URL=file:/tmp/warp-ci.db npx prisma generate
           npm run test:external-lookup
           npm run test:buildup-import
+          npm run test:marketing-inquiries
           npm run test:integration-contract

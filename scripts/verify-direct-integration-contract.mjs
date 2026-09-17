@@ -5,7 +5,9 @@ import process from 'node:process'
 const METHODS = 'GET|POST|PUT|PATCH|DELETE'
 const root = process.cwd()
 const repository = process.argv[2]
-const manifestPath = path.join(root, 'docs/integrations/WARP_BUILDUP_DIRECT_API.json')
+const manifestNames = repository === 'evn-marketing'
+  ? ['WARP_MARKETING_INQUIRIES.json']
+  : ['WARP_BUILDUP_DIRECT_API.json', 'WARP_MARKETING_INQUIRIES.json']
 
 function fail(message) {
   throw new Error(`Direct integration contract: ${message}`)
@@ -91,7 +93,14 @@ async function verifyOutboundLiterals(manifest, config) {
 }
 
 async function main() {
-  const manifest = JSON.parse(await readFile(manifestPath, 'utf8'))
+  const manifests = await Promise.all(manifestNames.map(async name =>
+    JSON.parse(await readFile(path.join(root, 'docs/integrations', name), 'utf8'))))
+  if (manifests.some(item => item.owner !== 'OziinG')) fail('owner must remain OziinG')
+  const manifest = {
+    owner: 'OziinG',
+    repositories: Object.assign({}, ...manifests.map(item => item.repositories)),
+    endpoints: manifests.flatMap(item => item.endpoints),
+  }
   const config = manifest.repositories?.[repository]
   if (!repository || !config) fail(`unknown repository ${repository ?? '(missing)'}`)
   if (manifest.owner !== 'OziinG') fail('owner must remain OziinG')
@@ -100,7 +109,7 @@ async function main() {
   if (new Set(signatures).size !== signatures.length) fail('duplicate method and path')
 
   await verifySourceTokens(manifest)
-  const actual = config.route_style === 'next'
+  const actual = config.route_style === 'caller-only' ? [] : config.route_style === 'next'
     ? await nextRoutes(config)
     : await expressRoutes(config)
   const declared = manifest.endpoints
@@ -111,7 +120,7 @@ async function main() {
     fail(`owned route drift\ndeclared=${JSON.stringify(declared)}\nactual=${JSON.stringify(actual)}`)
   }
   await verifyOutboundLiterals(manifest, config)
-  console.log(`Verified ${manifest.endpoints.length} WARP–BUILDUP-EV endpoints for ${repository}`)
+  console.log(`Verified ${manifest.endpoints.length} declared integration endpoints for ${repository}`)
 }
 
 await main()
