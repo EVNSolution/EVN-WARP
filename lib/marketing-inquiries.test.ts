@@ -192,6 +192,18 @@ test('replays one source inquiry without adding another customer or activity', a
   assert.equal(await prisma.customerActivity.count(), 1)
 })
 
+test('treats upper- and lowercase spellings of one source UUID as the same inquiry', async () => {
+  const inquiry = payload('abcdefab-cdef-4abc-8def-abcdefabcdef')
+  const first = await send({ ...inquiry, sourceId: inquiry.sourceId.toUpperCase() })
+  const replay = await send(inquiry)
+
+  assert.equal(first.response.status, 200)
+  assert.equal(replay.response.status, 200)
+  assert.deepEqual(replay.body, { ...first.body, created: false, duplicate: true })
+  assert.equal(await prisma.customer.count(), 1)
+  assert.equal(await prisma.customerActivity.count(), 1)
+})
+
 test('serializes concurrent retries of one source inquiry', async () => {
   const inquiry = payload('00000000-0000-4000-8000-000000000006')
   const results = await Promise.all(Array.from({ length: 6 }, () => send(inquiry)))
@@ -212,6 +224,55 @@ test('keeps distinct same-phone inquiries as two activities on one customer', as
   assert.notEqual(first.body.activityId, second.body.activityId)
   assert.equal(await prisma.customer.count(), 1)
   assert.equal(await prisma.customerActivity.count(), 2)
+})
+
+test('serializes independent database clients and leaves the database writable after contention', async () => {
+  const other = createPrisma(`file:${path.join(temporaryDirectory, 'test.db')}`)
+  const inquiry = payload('abcdefab-cdef-4abc-8def-abcdefabcdef')
+  try {
+    const responses = await Promise.all([
+      handleMarketingInquiryRequest(request(inquiry), prisma, ENV),
+      handleMarketingInquiryRequest(request({ ...inquiry, sourceId: inquiry.sourceId.toUpperCase() }), other, ENV),
+    ])
+    assert.deepEqual(responses.map(response => response.status), [200, 200])
+    const receipts = await Promise.all(responses.map(response => response.json()))
+    assert.equal(receipts.filter(receipt => receipt.created).length, 1)
+    assert.equal(receipts.filter(receipt => receipt.duplicate).length, 1)
+    assert.equal(await other.customer.count(), 1)
+    assert.equal(await prisma.customerActivity.count(), 1)
+    const next = await handleMarketingInquiryRequest(request(payload('cccccccc-cccc-4ccc-8ccc-cccccccccccc')), other, ENV)
+    assert.equal(next.status, 200)
+    assert.equal(await prisma.customerActivity.count(), 2)
+  } finally {
+    await other.$disconnect()
+  }
+})
+
+test('rolls back a failed append, releases the writer, and logs no customer or database error text', async () => {
+  const logs: unknown[][] = []
+  const logger = test.mock.method(console, 'error', (...args: unknown[]) => logs.push(args))
+  const inquiry = payload('dddddddd-dddd-4ddd-8ddd-dddddddddddd')
+  await prisma.$executeRawUnsafe(`CREATE TRIGGER reject_marketing_test BEFORE INSERT ON CustomerActivity
+    BEGIN SELECT RAISE(ABORT, 'synthetic-private-database-message'); END`)
+  try {
+    const failed = await send(inquiry)
+    assert.equal(failed.response.status, 503)
+    assert.deepEqual(failed.body, { error: 'temporarily_unavailable' })
+    assert.equal(await prisma.customer.count(), 0)
+    assert.equal(await prisma.customerActivity.count(), 0)
+    assert.equal(logs.length, 1)
+    assert.equal(logs[0][0], 'marketing_inquiry_failed')
+    const logged = JSON.stringify(logs)
+    for (const privateValue of [inquiry.name, inquiry.phone, KEY, 'synthetic-private-database-message']) {
+      assert.equal(logged.includes(privateValue), false)
+    }
+  } finally {
+    logger.mock.restore()
+    await prisma.$executeRawUnsafe('DROP TRIGGER reject_marketing_test')
+  }
+  assert.equal((await send(inquiry)).response.status, 200)
+  assert.equal(await prisma.customer.count(), 1)
+  assert.equal(await prisma.customerActivity.count(), 1)
 })
 
 test('cancels a streamed body without content-length as soon as it exceeds 16KB', async () => {

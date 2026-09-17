@@ -86,7 +86,7 @@ function parsePayload(value: unknown): { payload: MarketingInquiry; occurredAt: 
 
 export function marketingInquiryActivityId(payload: MarketingInquiry) {
   return `mleverage_${createHash('sha256')
-    .update([payload.source, payload.companyScopeId, payload.homepageScopeId, payload.sourceId].join(':'))
+    .update([payload.source, payload.companyScopeId, payload.homepageScopeId, payload.sourceId.toLowerCase()].join(':'))
     .digest('hex')}`
 }
 
@@ -102,8 +102,13 @@ function activityContent(payload: MarketingInquiry) {
   ].join('\n')
 }
 
-function retryable(error: unknown) {
+function databaseErrorCode(error: unknown) {
   const code = typeof error === 'object' && error !== null && 'code' in error ? String(error.code) : ''
+  return /^P\d{4}$/.test(code) ? code : 'unknown'
+}
+
+function retryable(error: unknown) {
+  const code = databaseErrorCode(error)
   const message = error instanceof Error ? error.message : ''
   return code === 'P2002' || code === 'P2034' || code === 'P1008' || /SQLITE_BUSY|database is locked/i.test(message)
 }
@@ -136,6 +141,10 @@ async function appendInquiry(prisma: PrismaClient, payload: MarketingInquiry, oc
   for (let attempt = 0; attempt < 4; attempt += 1) {
     try {
       return await prisma.$transaction(async transaction => {
+        // Reserve the SQLite writer before reading; deferred read-to-write upgrades can deadlock across clients.
+        // Retry asynchronously instead of blocking the Node event loop while another client holds the writer.
+        await transaction.$executeRaw`PRAGMA busy_timeout = 0`
+        await transaction.$executeRaw`UPDATE "CustomerActivity" SET "id" = "id" WHERE 0`
         const duplicate = await transaction.customerActivity.findUnique({
           where: { id: activityId },
           select: { id: true, customerId: true },
@@ -212,6 +221,7 @@ export async function handleMarketingInquiryRequest(
     return Response.json(await appendInquiry(prisma, validated.payload, validated.occurredAt), { headers: NO_STORE })
   } catch (caught) {
     if (caught instanceof AmbiguousPhoneError) return error('ambiguous_phone', 409)
+    console.error('marketing_inquiry_failed', { code: databaseErrorCode(caught), retryable: retryable(caught) })
     return error('temporarily_unavailable', 503)
   }
 }

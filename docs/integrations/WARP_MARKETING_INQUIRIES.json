@@ -1,12 +1,18 @@
 {
   "schema_version": 1,
   "contract_id": "warp-marketing-inquiries",
-  "status": "draft-pending-owner-review",
+  "status": "source-reviewed-activation-pending",
   "owner": "OziinG",
   "review": {
     "issue": "https://github.com/EVNSolution/EVN-WARP/issues/48",
     "pull_request": "https://github.com/EVNSolution/EVN-WARP/pull/49",
-    "required_before_production": true
+    "required_before_production": true,
+    "source_review_date": "2026-09-17",
+    "activation_required": [
+      "Verify the caller repository uses this reviewed contract and passes its delivery tests.",
+      "Provision the dedicated key through the approved secret-management path on both sides.",
+      "Verify an authenticated delivery, replay, and CRM readback before processing the backlog."
+    ]
   },
   "authentication": {
     "header": "x-api-key",
@@ -75,7 +81,8 @@
     "duplicate"
   ],
   "rules": [
-    "One source inquiry creates exactly one customer activity, including on retry.",
+    "One source inquiry creates exactly one customer activity while that activity is retained, including on retry; source UUID spelling is case-insensitive.",
+    "Explicit deletion of the receipt activity or its customer ends replay protection and a later delivery can recreate records.",
     "An exact unique normalized primary phone match receives a new activity; do not overwrite its customer profile.",
     "Multiple primary phone matches return ambiguous_phone and create no record.",
     "Unknown names remain blank; source status remains in activity content.",
