@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "contract_id": "warp-marketing-inquiries",
-  "status": "source-reviewed-activation-pending",
+  "status": "follow-up-owner-review-pending",
   "owner": "OziinG",
   "review": {
     "issue": "https://github.com/EVNSolution/EVN-WARP/issues/48",
@@ -9,7 +9,8 @@
     "required_before_production": true,
     "source_review_date": "2026-09-17",
     "activation_required": [
-      "Verify the caller repository uses this reviewed contract and passes its delivery tests.",
+      "Obtain Owner review of the follow-up generated display-name policy; Issue #48 and PR #49 reviewed the earlier blank-name policy.",
+      "Verify the caller repository uses this follow-up contract and passes its delivery tests.",
       "Provision the dedicated key through the approved secret-management path on both sides.",
       "Verify an authenticated delivery, replay, and CRM readback before processing the backlog."
     ]
@@ -85,7 +86,7 @@
     "Explicit deletion of the receipt activity or its customer ends replay protection and a later delivery can recreate records.",
     "An exact unique normalized primary phone match receives a new activity; do not overwrite its customer profile.",
     "Multiple primary phone matches return ambiguous_phone and create no record.",
-    "Unknown names remain blank; source status remains in activity content.",
+    "For a new customer, use the trimmed source name or WARP's unknownCustomerName with the source phone when blank; preserve the raw source name and source status in activity content. Never overwrite a matching customer's profile.",
     "Read and append only within the fixed source scope. No arbitrary customer updates or deletion.",
     "Interpret original date and minute as Asia/Seoul for CRM date fields and preserve the original strings in activity content."
   ]
