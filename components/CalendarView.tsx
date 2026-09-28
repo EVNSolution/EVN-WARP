@@ -256,49 +256,59 @@ export default function CalendarView({ weeks, activities, reservations, schedule
                 const dayResvs = (fieldFilter === 'activity' || fieldFilter === 'leave' || fieldFilter === 'schedule') ? [] : resvForDate(dateStr)
                 const isToday  = dateStr === todayStr
 
+                const daySchedItems = (fieldFilter === 'all' || fieldFilter === 'schedule')
+                  ? (schedByDate.get(dateStr) ?? [])
+                  : []
+
                 return (
                   <div key={dateStr}
-                    className={`group relative min-h-[140px] p-1.5 ${
+                    className={`group relative min-h-[140px] flex flex-col ${
                       !inMonth ? 'bg-slate-50/60'
                       : dow === 0 ? 'bg-red-50/10'
                       : dow === 6 ? 'bg-blue-50/10'
                       : 'bg-white'
                     }`}>
 
-                    {/* 날짜 번호 — 클릭하면 일별 보기 */}
-                    <div className="flex items-center justify-between mb-1">
-                      <button type="button"
-                        onClick={() => { setDayViewDate(dateStr); setShowDayView(true) }}
-                        className={`w-6 h-6 flex items-center justify-center text-xs font-bold rounded-full transition-colors hover:ring-2 hover:ring-indigo-300 ${
-                          isToday    ? 'bg-red-500 text-white'
-                          : !inMonth ? 'text-slate-300'
-                          : dow === 0 ? 'text-red-400'
-                          : dow === 6 ? 'text-blue-400'
-                          : 'text-slate-700'
-                        }`}>{day}</button>
-                      <div className="opacity-0 group-hover:opacity-100 transition-opacity flex gap-0.5">
-                        <button
-                          onClick={() => openNewResv(dateStr)}
-                          title="차량 신청"
-                          className="w-5 h-5 flex items-center justify-center rounded-full bg-lime-50 text-lime-500 hover:bg-lime-100 hover:text-lime-700">
-                          <Car size={9} />
-                        </button>
-                        <Link href={`/notes/new?date=${dateStr}`}
-                          className="w-5 h-5 flex items-center justify-center rounded-full bg-indigo-50 text-indigo-400 hover:bg-indigo-100 hover:text-indigo-600">
-                          <Plus size={11} />
-                        </Link>
+                    {/* ── 상단 고정 영역: 날짜 + 운영일정 ── */}
+                    <div className={`p-1.5 ${daySchedItems.length > 0 ? 'pb-1 border-b border-amber-100' : ''}`}>
+                      {/* 날짜 번호 — 클릭하면 일별 보기 */}
+                      <div className="flex items-center justify-between mb-1">
+                        <button type="button"
+                          onClick={() => { setDayViewDate(dateStr); setShowDayView(true) }}
+                          className={`w-6 h-6 flex items-center justify-center text-xs font-bold rounded-full transition-colors hover:ring-2 hover:ring-indigo-300 ${
+                            isToday    ? 'bg-red-500 text-white'
+                            : !inMonth ? 'text-slate-300'
+                            : dow === 0 ? 'text-red-400'
+                            : dow === 6 ? 'text-blue-400'
+                            : 'text-slate-700'
+                          }`}>{day}</button>
+                        <div className="opacity-0 group-hover:opacity-100 transition-opacity flex gap-0.5">
+                          <button
+                            onClick={() => openNewResv(dateStr)}
+                            title="차량 신청"
+                            className="w-5 h-5 flex items-center justify-center rounded-full bg-lime-50 text-lime-500 hover:bg-lime-100 hover:text-lime-700">
+                            <Car size={9} />
+                          </button>
+                          <Link href={`/notes/new?date=${dateStr}`}
+                            className="w-5 h-5 flex items-center justify-center rounded-full bg-indigo-50 text-indigo-400 hover:bg-indigo-100 hover:text-indigo-600">
+                            <Plus size={11} />
+                          </Link>
+                        </div>
                       </div>
+
+                      {/* 운영일정 칩 — 상단 고정 */}
+                      {daySchedItems.map(s => (
+                        <div key={s.id}
+                          title={s.title}
+                          className="flex items-center gap-0.5 text-[9px] font-semibold px-1 py-0.5 rounded w-full truncate mb-0.5 bg-amber-50 text-amber-700 border border-amber-200">
+                          <span className="shrink-0 text-[8px]">📅</span>
+                          <span className="truncate">{s.title}</span>
+                        </div>
+                      ))}
                     </div>
 
-                    {/* 운영일정 칩 */}
-                    {(fieldFilter === 'all' || fieldFilter === 'schedule') && (schedByDate.get(dateStr) ?? []).map(s => (
-                      <div key={s.id}
-                        title={s.title}
-                        className="flex items-center gap-0.5 text-[9px] font-semibold px-1 py-0.5 rounded w-full truncate mb-0.5 bg-amber-50 text-amber-700 border border-amber-200">
-                        <span className="shrink-0 text-[8px]">📅</span>
-                        <span className="truncate">{s.title}</span>
-                      </div>
-                    ))}
+                    {/* ── 스크롤 가능한 활동 영역 ── */}
+                    <div className="flex-1 p-1.5 pt-1 overflow-y-auto">
 
                     {/* 차량 예약 칩 */}
                     {dayResvs.length > 0 && (
@@ -372,6 +382,7 @@ export default function CalendarView({ weeks, activities, reservations, schedule
                       )
                     })()}
                   </div>
+                </div>
                 )
               })}
             </div>
