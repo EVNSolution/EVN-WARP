@@ -130,12 +130,18 @@ export async function GET() {
   }
 
   // 3. 회사 운영일정 알림 (CompanyScheduleRule — 오늘~7일 이내)
-  const rules = await prisma.$queryRaw<any[]>`
-    SELECT id, title, recurrence, dayOfWeek, dayOfMonth, active
-    FROM "CompanyScheduleRule"
-    WHERE active = 1
-  `
-  const scheduleNotifs = buildScheduleNotifs(rules)
+  // 로컬 DB에 테이블이 없는 경우(마이그레이션 전) 빈 배열로 처리
+  let scheduleNotifs: any[] = []
+  try {
+    const rules = await prisma.$queryRaw<any[]>`
+      SELECT id, title, recurrence, dayOfWeek, dayOfMonth, active
+      FROM "CompanyScheduleRule"
+      WHERE active = 1
+    `
+    scheduleNotifs = buildScheduleNotifs(rules)
+  } catch {
+    // CompanyScheduleRule 테이블 미존재 시 무시
+  }
 
   // 합쳐서 최신순 정렬
   const combined = [...notifications, ...mentionNotifs, ...scheduleNotifs]
