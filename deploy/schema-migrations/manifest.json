@@ -1,8 +1,9 @@
 {
-  "prismaSchemaSha256": "f186a5afa087c2d7f13988dc8c695ff4a91a8fd99670951ad51e255d5a025f55",
+  "prismaSchemaSha256": "8444a7b50336142e627e75617eaa0ff327e5ed344b412da4951b51935aef24fd",
   "requiredTables": [
     "Announcement",
     "BuildupEvent",
+    "CompanyScheduleRule",
     "Garage"
   ],
   "requiredColumnAdditions": {

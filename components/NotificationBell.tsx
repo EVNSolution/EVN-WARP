@@ -12,6 +12,7 @@ interface Notif {
   link: string | null
   read: boolean
   createdAt: string
+  scheduledDate?: string | null
 }
 
 const TYPE_ICON: Record<string, string> = {
@@ -19,6 +20,7 @@ const TYPE_ICON: Record<string, string> = {
   approved:         '✅',
   rejected:         '❌',
   announcement:     '📢',
+  schedule:         '📅',
 }
 
 export default function NotificationBell() {
@@ -228,10 +230,13 @@ export default function NotificationBell() {
                     <div className="flex-1 min-w-0">
                       <p className="leading-snug break-words">{n.message}</p>
                       <p className="mt-0.5 text-[10px]" style={{ color: '#3a3a3a' }}>
-                        {new Date(n.createdAt).toLocaleString('ko-KR', {
-                          month: 'short', day: 'numeric',
-                          hour: '2-digit', minute: '2-digit',
-                        })}
+                        {n.type === 'schedule' && n.scheduledDate
+                          ? `예정일: ${new Date(n.scheduledDate + 'T00:00:00').toLocaleDateString('ko-KR', { month: 'long', day: 'numeric' })}`
+                          : new Date(n.createdAt).toLocaleString('ko-KR', {
+                              month: 'short', day: 'numeric',
+                              hour: '2-digit', minute: '2-digit',
+                            })
+                        }
                       </p>
                     </div>
                     {!n.read && (

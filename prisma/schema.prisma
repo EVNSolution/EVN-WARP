@@ -914,3 +914,13 @@ model VehicleLog {
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 }
+
+model CompanyScheduleRule {
+  id          String   @id @default(cuid())
+  title       String
+  recurrence  String   // "WEEKLY_DOW" | "MONTHLY_DAY" | "MONTHLY_LAST"
+  dayOfWeek   Int?     // 0=Sun 1=Mon ... 6=Sat  (WEEKLY_DOW 전용)
+  dayOfMonth  Int?     // 1–31 (MONTHLY_DAY 전용)
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+}
