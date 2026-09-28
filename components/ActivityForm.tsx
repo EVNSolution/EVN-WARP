@@ -1344,10 +1344,20 @@ export default function ActivityForm({ teams, tasks, users = [], vehicles = [], 
             {(documentUrl || pendingFileItems.length > 0) && (
               <div className="mt-2 flex flex-wrap gap-1.5">
                 {documentUrl && documentUrl.split('|').map((url, i) => (
-                  <a key={i} href={url} target="_blank" rel="noopener noreferrer"
-                    className="flex items-center gap-1 px-2 py-0.5 text-[11px] text-teal-700 bg-teal-50 border border-teal-200 rounded hover:bg-teal-100 transition-colors">
-                    <Paperclip size={9} />{getFileDisplayName(url)}
-                  </a>
+                  <span key={i} className="flex items-center gap-1 px-2 py-0.5 text-[11px] text-teal-700 bg-teal-50 border border-teal-200 rounded">
+                    <a href={url} target="_blank" rel="noopener noreferrer"
+                      className="flex items-center gap-1 hover:underline">
+                      <Paperclip size={9} />{getFileDisplayName(url)}
+                    </a>
+                    <button type="button"
+                      onClick={() => {
+                        const parts = documentUrl.split('|').filter((_, idx) => idx !== i)
+                        const next = parts.join('|') || ''
+                        setDocumentUrl(next)
+                        if (initial?.id) fetch(`/api/activities/${initial.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ documentUrl: next || null }) })
+                      }}
+                      className="ml-0.5 text-slate-300 hover:text-red-400">✕</button>
+                  </span>
                 ))}
                 {pendingFileItems.map((f, i) => (
                   <span key={i} className="flex items-center gap-1 px-2 py-0.5 text-[11px] text-slate-500 bg-slate-50 border border-slate-200 rounded">
