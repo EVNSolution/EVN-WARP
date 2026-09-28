@@ -120,12 +120,13 @@ interface Props {
   todayStr:      string
 }
 
-type FieldFilter = 'all' | 'activity' | 'leave' | 'vehicle'
+type FieldFilter = 'all' | 'activity' | 'leave' | 'vehicle' | 'schedule'
 const FIELD_FILTERS: { key: FieldFilter; label: string }[] = [
   { key: 'all',      label: '전체' },
   { key: 'activity', label: '활동' },
   { key: 'leave',    label: '근태' },
   { key: 'vehicle',  label: '차량' },
+  { key: 'schedule', label: '재무회계일정' },
 ]
 
 export default function CalendarView({ weeks, activities, reservations, scheduleItems, todayStr }: Props) {
@@ -245,14 +246,14 @@ export default function CalendarView({ weeks, activities, reservations, schedule
           <div key={wIdx} className="border-b border-slate-200 last:border-b-0">
             <div className="grid grid-cols-7 divide-x divide-slate-100">
               {week.map(({ dateStr, day, inMonth, dow }) => {
-                const dayActs = fieldFilter === 'vehicle'
+                const dayActs = (fieldFilter === 'vehicle' || fieldFilter === 'schedule')
                   ? []
                   : (actByDate.get(dateStr) ?? []).filter(a => {
                       if (fieldFilter === 'all') return true
                       const isLeave = LEAVE_TYPES.has(a.type)
                       return fieldFilter === 'leave' ? isLeave : !isLeave
                     })
-                const dayResvs = (fieldFilter === 'activity' || fieldFilter === 'leave') ? [] : resvForDate(dateStr)
+                const dayResvs = (fieldFilter === 'activity' || fieldFilter === 'leave' || fieldFilter === 'schedule') ? [] : resvForDate(dateStr)
                 const isToday  = dateStr === todayStr
 
                 return (
@@ -290,7 +291,7 @@ export default function CalendarView({ weeks, activities, reservations, schedule
                     </div>
 
                     {/* 운영일정 칩 */}
-                    {(schedByDate.get(dateStr) ?? []).map(s => (
+                    {(fieldFilter === 'all' || fieldFilter === 'schedule') && (schedByDate.get(dateStr) ?? []).map(s => (
                       <div key={s.id}
                         title={s.title}
                         className="flex items-center gap-0.5 text-[9px] font-semibold px-1 py-0.5 rounded w-full truncate mb-0.5 bg-amber-50 text-amber-700 border border-amber-200">
