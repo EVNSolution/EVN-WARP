@@ -13,15 +13,17 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).parents[1]
-REVIEW_BY = dt.date(2026, 10, 1)
+REVIEW_BY = dt.date(2027, 1, 15)
 ALLOWED_ADVISORIES = {
     1138808: "image-size ICNS parser denial of service",
     1138809: "image-size JXL/HEIF parser denial of service",
+    1239765: "image-size additional advisory ID for same ICNS/JXL/HEIF DoS (GHSA-w3rx-r6r6-pgpr / GHSA-5p2g-fcmc-qvqq)",
+    1239766: "image-size additional advisory ID for same ICNS/JXL/HEIF DoS (GHSA-w3rx-r6r6-pgpr / GHSA-5p2g-fcmc-qvqq)",
     1145093: "deepmerge-ts recursive graph stack exhaustion",
     1153173: "mysql2 auth plugin downgrade leaks plaintext credentials",
     1158532: "mysql2 additional vulnerability (transitive via Prisma, no MySQL connection in WARP)",
 }
-IMAGE_ADVISORIES = {1138808, 1138809}
+IMAGE_ADVISORIES = {1138808, 1138809, 1239765, 1239766}
 PRISMA_ADVISORIES = {1145093}
 MYSQL2_ADVISORIES = {1153173, 1158532}
 MYSQL2_VERSION = "3.15.3"
