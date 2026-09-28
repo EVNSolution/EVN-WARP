@@ -10,7 +10,7 @@ import {
   PieChart, Landmark, Award,
   Building, Receipt, RefreshCw, Scale, Car, Palette,
 } from 'lucide-react'
-import CalendarView, { type CalActivity, type CalVehicleReservation } from '@/components/CalendarView'
+import CalendarView, { type CalActivity, type CalVehicleReservation, type CalScheduleItem } from '@/components/CalendarView'
 import FilterSelects from './FilterSelects'
 import PersonalScopeToggle from './PersonalScopeToggle'
 import { auth } from '@/auth'
@@ -360,6 +360,35 @@ export default async function NotesPage({ searchParams }: { searchParams: Promis
     status:         r.status,
   }))
 
+  // CompanyScheduleRule → 달력 범위 날짜로 전개
+  const calScheduleItems: CalScheduleItem[] = []
+  try {
+    const schedRules = await prisma.$queryRaw<any[]>`
+      SELECT id, title, recurrence, dayOfWeek, dayOfMonth
+      FROM "CompanyScheduleRule"
+      WHERE active = 1
+    `
+    const rangeStart = new Date(calFromDate + 'T00:00:00Z')
+    const rangeEnd   = new Date(calToDate   + 'T00:00:00Z')
+    const utcLastDay = (y: number, m: number) => new Date(Date.UTC(y, m + 1, 0)).getUTCDate()
+    const cur = new Date(rangeStart)
+    while (cur <= rangeEnd) {
+      const y   = cur.getUTCFullYear()
+      const m   = cur.getUTCMonth()
+      const dom = cur.getUTCDate()
+      const dow = cur.getUTCDay()
+      const ds  = cur.toISOString().slice(0, 10)
+      for (const rule of schedRules) {
+        let match = false
+        if (rule.recurrence === 'WEEKLY_DOW')   match = rule.dayOfWeek  === dow
+        if (rule.recurrence === 'MONTHLY_DAY')  match = rule.dayOfMonth === dom
+        if (rule.recurrence === 'MONTHLY_LAST') match = dom === utcLastDay(y, m)
+        if (match) calScheduleItems.push({ id: `${rule.id}-${ds}`, date: ds, title: rule.title })
+      }
+      cur.setUTCDate(dom + 1)
+    }
+  } catch { /* 테이블 미존재 시 무시 */ }
+
   // 업무노트 탭 섹션 데이터
   const meetings = activities.filter(a => a.type === '내부회의' || a.type === '외부미팅' || a.type === '외부회의')
   const expenseActivities = activities.filter(a =>
@@ -437,7 +466,7 @@ export default async function NotesPage({ searchParams }: { searchParams: Promis
           캘린더 탭 — CalendarView 클라이언트 컴포넌트
       ══════════════════════════════════════ */}
       {activeTab === 'calendar' && (
-        <CalendarView weeks={weeks} activities={calActivities} reservations={calReservations} todayStr={todayStr} />
+        <CalendarView weeks={weeks} activities={calActivities} reservations={calReservations} scheduleItems={calScheduleItems} todayStr={todayStr} />
       )}
 
 

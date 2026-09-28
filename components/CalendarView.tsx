@@ -106,11 +106,18 @@ const RESV_STATUS_COLOR: Record<string, { bg: string; text: string }> = {
   '취소': { bg: 'bg-red-50',     text: 'text-red-400' },
 }
 
+export type CalScheduleItem = {
+  id:    string
+  date:  string  // YYYY-MM-DD
+  title: string
+}
+
 interface Props {
-  weeks:        WeekDay[][]
-  activities:   CalActivity[]
-  reservations: CalVehicleReservation[]
-  todayStr:     string
+  weeks:         WeekDay[][]
+  activities:    CalActivity[]
+  reservations:  CalVehicleReservation[]
+  scheduleItems: CalScheduleItem[]
+  todayStr:      string
 }
 
 type FieldFilter = 'all' | 'activity' | 'leave' | 'vehicle'
@@ -121,7 +128,7 @@ const FIELD_FILTERS: { key: FieldFilter; label: string }[] = [
   { key: 'vehicle',  label: '차량' },
 ]
 
-export default function CalendarView({ weeks, activities, reservations, todayStr }: Props) {
+export default function CalendarView({ weeks, activities, reservations, scheduleItems, todayStr }: Props) {
   const router = useRouter()
   const [selected, setSelected]         = useState<CalActivity | null>(null)
   const [selectedResv, setSelectedResv] = useState<CalVehicleReservation | null>(null)
@@ -176,6 +183,12 @@ export default function CalendarView({ weeks, activities, reservations, todayStr
   for (const a of activities) {
     if (!actByDate.has(a.date)) actByDate.set(a.date, [])
     actByDate.get(a.date)!.push(a)
+  }
+
+  const schedByDate = new Map<string, CalScheduleItem[]>()
+  for (const s of scheduleItems) {
+    if (!schedByDate.has(s.date)) schedByDate.set(s.date, [])
+    schedByDate.get(s.date)!.push(s)
   }
 
   function openNewResv(dateStr: string) {
@@ -275,6 +288,16 @@ export default function CalendarView({ weeks, activities, reservations, todayStr
                         </Link>
                       </div>
                     </div>
+
+                    {/* 운영일정 칩 */}
+                    {(schedByDate.get(dateStr) ?? []).map(s => (
+                      <div key={s.id}
+                        title={s.title}
+                        className="flex items-center gap-0.5 text-[9px] font-semibold px-1 py-0.5 rounded w-full truncate mb-0.5 bg-amber-50 text-amber-700 border border-amber-200">
+                        <span className="shrink-0 text-[8px]">📅</span>
+                        <span className="truncate">{s.title}</span>
+                      </div>
+                    ))}
 
                     {/* 차량 예약 칩 */}
                     {dayResvs.length > 0 && (
