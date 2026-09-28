@@ -50,7 +50,7 @@ class ProductionDependencyAuditTest(unittest.TestCase):
 
     def test_expired_compensating_control_is_rejected(self):
         with self.assertRaisesRegex(MODULE.AuditPolicyError, "expired"):
-            MODULE.enforce(report(), today=dt.date(2026, 10, 2))
+            MODULE.enforce(report(), today=dt.date(2027, 1, 16))
 
 
 if __name__ == "__main__":
