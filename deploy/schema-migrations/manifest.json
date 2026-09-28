@@ -1,5 +1,5 @@
 {
-  "prismaSchemaSha256": "8444a7b50336142e627e75617eaa0ff327e5ed344b412da4951b51935aef24fd",
+  "prismaSchemaSha256": "119bc265b3d786864f5ae32d71425aee32c84ab3ff97a6e4150d6e4e86e88e32",
   "requiredTables": [
     "Announcement",
     "BuildupEvent",
@@ -8,7 +8,8 @@
   ],
   "requiredColumnAdditions": {
     "WorkActivity": ["companions", "startTime", "endTime", "imageUrl", "visibility"],
-    "Suggestion": ["filesJson", "replyFilesJson"]
+    "Suggestion": ["filesJson", "replyFilesJson"],
+    "CompanyScheduleRule": ["month"]
   },
   "requiredIndexes": [
     "BuildupEvent_eventKey_key",

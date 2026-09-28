@@ -38,6 +38,8 @@ function buildScheduleNotifs(rules: any[]): any[] {
         match = rule.dayOfMonth === dom
       } else if (rule.recurrence === 'MONTHLY_LAST') {
         match = dom === lastDayOfMonth(year, month)
+      } else if (rule.recurrence === 'YEARLY_MONTHDAY') {
+        match = rule.month === month + 1 && rule.dayOfMonth === dom
       }
 
       if (match) {

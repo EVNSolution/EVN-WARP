@@ -918,9 +918,10 @@ model VehicleLog {
 model CompanyScheduleRule {
   id          String   @id @default(cuid())
   title       String
-  recurrence  String   // "WEEKLY_DOW" | "MONTHLY_DAY" | "MONTHLY_LAST"
+  recurrence  String   // "WEEKLY_DOW" | "MONTHLY_DAY" | "MONTHLY_LAST" | "YEARLY_MONTHDAY"
   dayOfWeek   Int?     // 0=Sun 1=Mon ... 6=Sat  (WEEKLY_DOW 전용)
-  dayOfMonth  Int?     // 1–31 (MONTHLY_DAY 전용)
+  dayOfMonth  Int?     // 1–31 (MONTHLY_DAY / YEARLY_MONTHDAY 전용)
+  month       Int?     // 1–12 (YEARLY_MONTHDAY 전용)
   active      Boolean  @default(true)
   createdAt   DateTime @default(now())
 }

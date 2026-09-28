@@ -364,7 +364,7 @@ export default async function NotesPage({ searchParams }: { searchParams: Promis
   const calScheduleItems: CalScheduleItem[] = []
   try {
     const schedRules = await prisma.$queryRaw<any[]>`
-      SELECT id, title, recurrence, dayOfWeek, dayOfMonth
+      SELECT id, title, recurrence, dayOfWeek, dayOfMonth, month
       FROM "CompanyScheduleRule"
       WHERE active = 1
     `
@@ -380,9 +380,10 @@ export default async function NotesPage({ searchParams }: { searchParams: Promis
       const ds  = cur.toISOString().slice(0, 10)
       for (const rule of schedRules) {
         let match = false
-        if (rule.recurrence === 'WEEKLY_DOW')   match = rule.dayOfWeek  === dow
-        if (rule.recurrence === 'MONTHLY_DAY')  match = rule.dayOfMonth === dom
-        if (rule.recurrence === 'MONTHLY_LAST') match = dom === utcLastDay(y, m)
+        if (rule.recurrence === 'WEEKLY_DOW')      match = rule.dayOfWeek  === dow
+        if (rule.recurrence === 'MONTHLY_DAY')     match = rule.dayOfMonth === dom
+        if (rule.recurrence === 'MONTHLY_LAST')    match = dom === utcLastDay(y, m)
+        if (rule.recurrence === 'YEARLY_MONTHDAY') match = rule.month === m + 1 && rule.dayOfMonth === dom
         if (match) calScheduleItems.push({ id: `${rule.id}-${ds}`, date: ds, title: rule.title })
       }
       cur.setUTCDate(dom + 1)
