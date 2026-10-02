@@ -40,12 +40,13 @@ function activityTotal(a: Activity) { return (a.expenseTransport ?? 0) + (a.expe
 function fmt(d: string) { return d?.slice(0, 10) ?? '' }
 
 export default function FinanceClient({
-  initialPending, initialStats, initialFrom, initialTo,
+  initialPending, initialStats, initialFrom, initialTo, canViewCardUsage,
 }: {
   initialPending: Activity[]
   initialStats: Stats
   initialFrom: string
   initialTo: string
+  canViewCardUsage: boolean
 }) {
   const [tab, setTab] = useState<'approval' | 'cards' | 'stats'>('approval')
 
@@ -113,7 +114,7 @@ export default function FinanceClient({
       <div className="flex gap-0 mb-4 border-b border-slate-200">
         {[
           { key: 'approval', label: '비용승인', icon: CheckCircle2 },
-          { key: 'cards',    label: '카드사용', icon: CreditCard },
+          ...(canViewCardUsage ? [{ key: 'cards',    label: '카드사용', icon: CreditCard }] : []),
           { key: 'stats',    label: '비용통계', icon: BarChart3 },
         ].map(({ key, label, icon: Icon }) => (
           <button key={key} onClick={() => setTab(key as any)}
@@ -193,7 +194,7 @@ export default function FinanceClient({
       )}
 
       {/* ══ 카드사용 (CardUsage) ══ */}
-      {tab === 'cards' && <CardUsageApproval initialFrom={initialFrom} initialTo={initialTo} />}
+      {tab === 'cards' && canViewCardUsage && <CardUsageApproval initialFrom={initialFrom} initialTo={initialTo} />}
 
       {/* ══ 비용통계 ══ */}
       {tab === 'stats' && (

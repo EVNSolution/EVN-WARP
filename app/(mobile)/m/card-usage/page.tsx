@@ -1,6 +1,6 @@
 import { auth } from '@/auth'
 import { redirect } from 'next/navigation'
-import { canManageUsers } from '@/lib/permissions'
+import { canViewAllCardUsage } from '@/lib/permissions'
 import { CardUsageManager } from '@/components/CardUsageModal'
 
 export const dynamic = 'force-dynamic'
@@ -11,7 +11,7 @@ export default async function MobileCardUsagePage() {
   if (!me?.id) redirect('/login')
 
   const todayStr = new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 10)  // KST
-  const canViewAll = await canManageUsers(me.id)
+  const canViewAll = await canViewAllCardUsage(me.id)
 
   return (
     <div className="flex flex-col h-full overflow-y-auto bg-white">

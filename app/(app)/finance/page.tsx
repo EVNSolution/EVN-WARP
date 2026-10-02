@@ -1,7 +1,7 @@
 import { auth } from '@/auth'
 import { prisma } from '@/lib/db'
 import { redirect } from 'next/navigation'
-import { canManageUsers } from '@/lib/permissions'
+import { canManageUsers, canViewAllCardUsage } from '@/lib/permissions'
 import FinanceClient from './FinanceClient'
 
 const HAS_EXPENSE = {
@@ -85,6 +85,7 @@ export default async function FinancePage() {
       initialStats={initialStats}
       initialFrom={from}
       initialTo={to}
+      canViewCardUsage={await canViewAllCardUsage(me.id)}
     />
   )
 }

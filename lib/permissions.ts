@@ -30,3 +30,12 @@ export async function canManageUsers(userId: string | null | undefined): Promise
   const teamName = user.team?.name
   return !!teamName && USER_MANAGER_TEAMS.includes(teamName)
 }
+
+// 카드/현금 사용내역 전체 열람·결재 권한: admin·ceo 또는 '경영관리팀' (그 외는 본인 내역만)
+export async function canViewAllCardUsage(userId: string | null | undefined): Promise<boolean> {
+  if (!userId) return false
+  const user = await prisma.user.findUnique({ where: { id: userId }, select: { role: true, team: { select: { name: true } } } })
+  if (!user) return false
+  if (isAdminRole(user.role)) return true
+  return user.team?.name === '경영관리팀'
+}

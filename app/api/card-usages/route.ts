@@ -2,14 +2,14 @@ import { NextRequest, NextResponse } from 'next/server'
 import { randomUUID } from 'crypto'
 import { prisma } from '@/lib/db'
 import { auth } from '@/auth'
-import { canManageUsers } from '@/lib/permissions'
+import { canViewAllCardUsage } from '@/lib/permissions'
 import { parseCardUsageInput, withActivityTitles } from '@/lib/cardUsageServer'
 
 // 카드/현금 사용내역 조회
-//  ?activityId=  해당 활동에 연계된 내역
+//  ?activityId=  해당 활동에 연계된 내역 (권한자 외에는 본인 내역만)
 //  ?from=&to=    기간 (YYYY-MM-DD)
 //  ?status=      신청|승인|반려
-//  ?scope=all    전체 사용자 (관리 권한자만, 그 외는 본인 내역)
+//  ?scope=all    전체 사용자 (admin·ceo·경영관리팀만, 그 외는 본인 내역)
 export async function GET(req: NextRequest) {
   const session = await auth()
   const me = session?.user as any
@@ -20,11 +20,13 @@ export async function GET(req: NextRequest) {
   const from   = sp.get('from')
   const to     = sp.get('to')
   const status = sp.get('status')
-  const wantAll = sp.get('scope') === 'all' && await canManageUsers(me.id)
+  const canViewAll = await canViewAllCardUsage(me.id)
+  const wantAll = sp.get('scope') === 'all' && canViewAll
 
   const rows = await prisma.cardUsage.findMany({
     where: {
-      ...(activityId ? { activityId } : wantAll ? {} : { userId: me.id }),
+      ...(activityId ? { activityId } : {}),
+      ...((activityId ? canViewAll : wantAll) ? {} : { userId: me.id }),
       ...(from || to ? { date: { ...(from ? { gte: from } : {}), ...(to ? { lte: to } : {}) } } : {}),
       ...(status ? { status } : {}),
     },

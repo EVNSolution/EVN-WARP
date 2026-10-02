@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { auth } from '@/auth'
-import { canManageUsers } from '@/lib/permissions'
+import { canViewAllCardUsage } from '@/lib/permissions'
 import { createNotification } from '@/lib/createNotification'
 import { parseCardUsageInput } from '@/lib/cardUsageServer'
 
@@ -11,7 +11,7 @@ async function loadWithAccess(id: string) {
   if (!me?.id) return { error: NextResponse.json({ error: '로그인이 필요합니다.' }, { status: 401 }) }
   const row = await prisma.cardUsage.findUnique({ where: { id } })
   if (!row) return { error: NextResponse.json({ error: '내역을 찾을 수 없습니다.' }, { status: 404 }) }
-  const isManager = await canManageUsers(me.id)
+  const isManager = await canViewAllCardUsage(me.id)
   if (row.userId !== me.id && !isManager) return { error: NextResponse.json({ error: 'Forbidden' }, { status: 403 }) }
   return { me, row, isManager }
 }
