@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { Paperclip, Plus, X } from 'lucide-react'
-import { CARD_USAGE_CATEGORIES, PAY_METHODS, RECEIPT_PAY_METHODS, type CardUsageDraft } from '@/lib/cardUsage'
+import { CARD_USAGE_CATEGORIES, PAY_METHODS, RECEIPT_PAY_METHODS, type CardUsageCategory, type CardUsageDraft } from '@/lib/cardUsage'
 
 export type CorporateCardOption = { id: string; holderName: string; cardNumberMasked: string; userId: string | null; userName: string | null }
 export type PersonalCardOption  = { id: string; alias: string; last4: string | null }
@@ -163,16 +163,9 @@ export default function CardUsageForm({
       {/* 해당업무 */}
       <div>
         <label className="block text-[11px] font-semibold text-slate-500 mb-1">해당업무</label>
-        <div className="flex flex-wrap gap-1.5">
-          {CARD_USAGE_CATEGORIES.map(c => (
-            <button key={c} type="button" onClick={() => onChange({ category: c })}
-              className={`px-2.5 py-1 rounded-full text-xs font-semibold border transition ${
-                draft.category === c ? 'bg-slate-800 text-white border-slate-800' : 'bg-white border-slate-200 text-slate-500 hover:border-slate-400'
-              }`}>
-              {c}
-            </button>
-          ))}
-        </div>
+        <select value={draft.category} onChange={e => onChange({ category: e.target.value as CardUsageCategory })} className={inputCls}>
+          {CARD_USAGE_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+        </select>
       </div>
 
       {/* 사용처 */}
