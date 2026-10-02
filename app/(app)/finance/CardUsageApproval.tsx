@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
-import { Check, X } from 'lucide-react'
+import { Check, Download, X } from 'lucide-react'
 import { CARD_USAGE_CATEGORIES, STATUS_STYLE, type CardUsage } from '@/lib/cardUsage'
 import ReceiptLinks from '@/components/ReceiptLinks'
 
@@ -76,6 +76,10 @@ export default function CardUsageApproval({ initialFrom, initialTo }: { initialF
           ))}
         </div>
         <p className="ml-auto text-sm text-slate-500">{rows.length}건 · <b className="text-slate-800">{won(total)}</b></p>
+        <a href={`/api/card-usages/export?${new URLSearchParams({ from, to, ...(status ? { status } : {}) })}`}
+          className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold bg-emerald-600 text-white hover:bg-emerald-700 transition">
+          <Download size={13} /> 엑셀 다운로드
+        </a>
       </div>
 
       {rows.length > 0 && (
