@@ -2,36 +2,23 @@ import { prisma } from '@/lib/db'
 import { auth } from '@/auth'
 import Link from 'next/link'
 import { getWeekId, getWeekStart, adjacentWeek, formatWeekLabel } from '@/lib/week'
-import { ChevronLeft, ChevronRight, CheckCircle, Clock, Layers } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Presentation, Printer } from 'lucide-react'
 import GanttChart from '@/components/GanttChart'
-import { teamOrderIndex } from '@/lib/teamOrder'
-import { stratColor, WEEKLY_STATUS_BADGE as STATUS_BADGE } from '@/lib/a3'
+import WeeklyReportColumns from '@/components/WeeklyReportColumns'
+import { StartSlideshowButton } from '@/components/WeeklySlideShell'
 import { aggregateDateRange } from '@/lib/kpiAggregate'
+import { loadWeeklyReport } from '@/lib/weeklyReport'
 
-function isDateRangeActive(
-  start: Date | null,
-  end: Date | null,
-  rangeStart: number,
-  rangeEnd: number,
-): boolean {
-  if (!start || !end) return false
-  const s = start.getTime()
-  const e = end.getTime() + 86400000
-  return s < rangeEnd && e > rangeStart
-}
-
-type SearchParams = { week?: string; tab?: string; view?: string; presentTeam?: string }
+type SearchParams = { week?: string; tab?: string; view?: string }
 
 export default async function WeeklyPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
-  const { week: weekParam, tab, view: viewParam, presentTeam: presentTeamParam } = await searchParams
+  const { week: weekParam, tab, view: viewParam } = await searchParams
   const activeTab  = tab === 'gantt' ? 'gantt' : 'weekly'
   const activeView = (viewParam === 'team' || viewParam === 'personal') ? viewParam : 'company'
 
   const currentWeekId = getWeekId(new Date())
   const weekId        = weekParam ?? currentWeekId
   const isCurrentWeek = weekId === currentWeekId
-  // 오늘이 포함된 주는 항상 "Weekly Completed Works"로 표시 (그 이전 주도 마찬가지, 이후 주만 Planned)
-  const isPastWeek    = weekId <= currentWeekId
 
   // 7주 윈도우: [weekId-1 … weekId+5]
   const ganttWeeks: string[] = []
@@ -46,59 +33,14 @@ export default async function WeeklyPage({ searchParams }: { searchParams: Promi
   const nextWeek     = adjacentWeek(weekId,  1)
   const weekStartIso = getWeekStart(weekId).toISOString()
 
-  const weekStartMs     = getWeekStart(weekId).getTime()
-  const weekEndMs       = weekStartMs + 7 * 86400000
-  const nextWeekStartMs = getWeekStart(nextWeek).getTime()
-  const nextWeekEndMs   = nextWeekStartMs + 7 * 86400000
-
-  const nextWeekFromDate = getWeekStart(nextWeek).toISOString().slice(0, 10)
-  const nextWeekToDate   = (() => {
-    const d = getWeekStart(nextWeek); d.setUTCDate(d.getUTCDate() + 6); return d.toISOString().slice(0, 10)
-  })()
-  const thisWeekFromDate = getWeekStart(weekId).toISOString().slice(0, 10)
-  const thisWeekToDate   = (() => {
-    const d = getWeekStart(weekId); d.setUTCDate(d.getUTCDate() + 6); return d.toISOString().slice(0, 10)
-  })()
-
   const session   = await auth()
   const me        = session?.user as any
   const myUserId  = me?.id  as string | undefined
   const dbUser    = myUserId ? await prisma.user.findUnique({ where: { id: myUserId }, select: { teamId: true } }) : null
   const myTeamId  = dbUser?.teamId ?? null
 
-  const [tasks, weeklyUpdates, prevWeekUpdates, thisWeekActivities, nextWeekActivities] = await Promise.all([
-    prisma.strategyTask.findMany({
-      where: { parentId: { not: null }, parent: { parentId: null }, suspended: false },
-      include: {
-        team: true,
-        countermeasures: { orderBy: { index: 'asc' } },
-        parent: { select: { id: true, title: true, code: true, strategy: true } },
-        subTasks: {
-          select: {
-            id: true, title: true, startDate: true, endDate: true, owner: true,
-            countermeasures: { orderBy: { index: 'asc' } },
-          },
-          orderBy: { subSeq: 'asc' },
-        },
-      },
-      orderBy: [{ teamId: 'asc' }, { teamSeq: 'asc' }],
-    }),
-    prisma.weeklyUpdate.findMany({
-      where: { week: weekId },
-    }),
-    prisma.weeklyUpdate.findMany({
-      where: { week: prevWeek },
-      select: { taskId: true, status: true },
-    }),
-    prisma.workActivity.findMany({
-      where: { date: { gte: thisWeekFromDate, lte: thisWeekToDate } },
-      orderBy: [{ date: 'asc' }],
-    }),
-    prisma.workActivity.findMany({
-      where: { date: { gte: nextWeekFromDate, lte: nextWeekToDate } },
-      orderBy: [{ date: 'asc' }],
-    }),
-  ])
+  const report = await loadWeeklyReport(weekId)
+  const { tasks, prevWeekUpdates, thisWeekActivities, nextWeekActivities, updateByTaskId, teamMap, teamEntries } = report
 
   // 팀과제 자체 기간이 없으면(신규 경량 팀과제) 세부과제 기간에서 자동 계산
   const effRangeByTaskId = new Map<string, { start: Date | null; end: Date | null }>()
@@ -111,52 +53,11 @@ export default async function WeeklyPage({ searchParams }: { searchParams: Promi
     }
   }
 
-  const updateByTaskId      = new Map(weeklyUpdates.map(u => [u.taskId, u]))
-  const thisActByTask       = new Map<string, typeof thisWeekActivities>()
-  const nextActByTask       = new Map<string, typeof nextWeekActivities>()
-  for (const a of thisWeekActivities) {
-    if (!a.taskId) continue
-    if (!thisActByTask.has(a.taskId)) thisActByTask.set(a.taskId, [])
-    thisActByTask.get(a.taskId)!.push(a)
-  }
-  for (const a of nextWeekActivities) {
-    if (!a.taskId) continue
-    if (!nextActByTask.has(a.taskId)) nextActByTask.set(a.taskId, [])
-    nextActByTask.get(a.taskId)!.push(a)
-  }
-
-  const teamMap = new Map<string, { teamName: string; tasks: typeof tasks }>()
-  for (const task of tasks) {
-    if (!teamMap.has(task.teamId)) {
-      teamMap.set(task.teamId, { teamName: task.team.name, tasks: [] })
-    }
-    teamMap.get(task.teamId)!.tasks.push(task)
-  }
-  const teamEntries = [...teamMap.entries()]
-    .sort((a, b) => teamOrderIndex(a[1].teamName) - teamOrderIndex(b[1].teamName))
-
-  // ── 발표 모드: 주간업무보고 탭 · 전사 보기에서 팀을 한 팀씩 페이지 넘기며 보기 ──
-  const presentTeamId = (activeTab === 'weekly' && activeView === 'company'
-    && presentTeamParam && teamEntries.some(([tid]) => tid === presentTeamParam))
-    ? presentTeamParam
-    : null
-  const presentTeamIdx  = presentTeamId ? teamEntries.findIndex(([tid]) => tid === presentTeamId) : -1
-  const presentTeamName = presentTeamIdx >= 0 ? teamEntries[presentTeamIdx][1].teamName : ''
-  const prevTeamId = teamEntries.length > 0 ? teamEntries[(presentTeamIdx - 1 + teamEntries.length) % teamEntries.length][0] : null
-  const nextTeamId = teamEntries.length > 0 ? teamEntries[(presentTeamIdx + 1) % teamEntries.length][0] : null
-  const withParams = (o: { week?: string; tab?: string; view?: string; presentTeam?: string | null }) => {
-    const w  = o.week ?? weekId
-    const t  = o.tab  ?? activeTab
-    const v  = o.view ?? activeView
-    const pt = o.presentTeam !== undefined ? o.presentTeam : presentTeamId
-    return `/weekly?week=${w}&tab=${t}&view=${v}${pt ? `&presentTeam=${pt}` : ''}`
-  }
-
   // ── 뷰 스코프 필터 ──
   const myThisActTaskIds = new Set(thisWeekActivities.filter(a => a.userId === myUserId && a.taskId).map(a => a.taskId!))
   const myNextActTaskIds = new Set(nextWeekActivities.filter(a => a.userId === myUserId && a.taskId).map(a => a.taskId!))
 
-  const scopedTeamEntries = activeView === 'personal'
+  const viewTeamEntries = activeView === 'personal'
     ? teamEntries.map(([tid, te]) => [tid, {
         ...te,
         tasks: te.tasks.filter(t => myThisActTaskIds.has(t.id) || myNextActTaskIds.has(t.id)),
@@ -165,16 +66,12 @@ export default async function WeeklyPage({ searchParams }: { searchParams: Promi
     ? teamEntries.filter(([tid]) => tid === myTeamId)
     : teamEntries
 
-  const viewTeamEntries = presentTeamId
-    ? scopedTeamEntries.filter(([tid]) => tid === presentTeamId)
-    : scopedTeamEntries
+  const withParams = (o: { week?: string }) =>
+    `/weekly?week=${o.week ?? weekId}&tab=${activeTab}&view=${activeView}`
 
   const todayMs  = Date.now()
   const todayPos = todayMs >= windowStart.getTime() && todayMs <= windowEnd.getTime()
     ? (todayMs - windowStart.getTime()) / 86400000 / windowDays * 100 : null
-
-  const weekDateRange     = formatWeekLabel(weekId).match(/\((.+)\)/)?.[1] ?? ''
-  const nextWeekDateRange = formatWeekLabel(nextWeek).match(/\((.+)\)/)?.[1] ?? ''
 
   /* GanttChart 클라이언트 컴포넌트에 넘길 직렬화 데이터 — 뷰 스코프 적용 */
   const ganttTeamEntries = viewTeamEntries.map(([teamId, { teamName, tasks: tt }]) => ({
@@ -276,33 +173,17 @@ export default async function WeeklyPage({ searchParams }: { searchParams: Promi
           <span className="text-xs text-slate-400">{teamMap.get(myTeamId)?.teamName ?? ''} 과제만 표시</span>
         )}
 
-        {/* 발표 모드 — 주간업무보고 탭 · 전사 보기일 때만 */}
-        {activeTab === 'weekly' && activeView === 'company' && (
+        {/* 팀별 보고 화면 — 회의용 독립 페이지(팀당 한 장) · 인쇄/PDF */}
+        {activeTab === 'weekly' && (
           <>
             <span className="w-px h-4 bg-slate-200 mx-1" />
-            <span className="text-xs text-slate-400 font-medium">발표 모드:</span>
-            {presentTeamId ? (
-              <div className="flex items-center border border-slate-200 rounded-lg overflow-hidden bg-white">
-                <Link href={withParams({ presentTeam: prevTeamId })}
-                  className="px-2 py-1 text-slate-400 hover:text-slate-700 hover:bg-slate-50 transition-colors border-r border-slate-200">
-                  <ChevronLeft size={14} />
-                </Link>
-                <span className="px-3 py-1 text-xs font-bold text-slate-700 min-w-[130px] text-center">
-                  {presentTeamName} ({presentTeamIdx + 1}/{teamEntries.length})
-                </span>
-                <Link href={withParams({ presentTeam: nextTeamId })}
-                  className="px-2 py-1 text-slate-400 hover:text-slate-700 hover:bg-slate-50 transition-colors border-l border-slate-200">
-                  <ChevronRight size={14} />
-                </Link>
-              </div>
-            ) : (
-              <span className="text-xs text-slate-300">전체 팀 표시 중</span>
-            )}
-            <Link
-              href={presentTeamId ? withParams({ presentTeam: null }) : withParams({ presentTeam: teamEntries[0]?.[0] ?? null })}
-              className="px-3 py-1 text-xs font-semibold rounded-full border border-slate-200 text-slate-500 hover:border-slate-400 transition-colors"
-            >
-              {presentTeamId ? '전체 팀 보기' : '팀별로 보기 시작'}
+            <StartSlideshowButton href={`/weekly-report?week=${weekId}`}
+              className="flex items-center gap-1.5 px-3 py-1 text-xs font-semibold rounded-full bg-slate-800 text-white hover:bg-slate-700 transition-colors">
+              <Presentation size={12} /> 팀별 보고 (슬라이드쇼)
+            </StartSlideshowButton>
+            <Link href={`/weekly-report?week=${weekId}&print=1`} target="_blank"
+              className="flex items-center gap-1.5 px-3 py-1 text-xs font-semibold rounded-full border border-slate-200 text-slate-500 hover:border-slate-400 transition-colors">
+              <Printer size={12} /> 인쇄/PDF
             </Link>
           </>
         )}
@@ -386,268 +267,7 @@ export default async function WeeklyPage({ searchParams }: { searchParams: Promi
           주간 관리 탭
       ══════════════════════════════ */}
       {activeTab === 'weekly' && (
-        <>
-          <section className="grid grid-cols-2 gap-4 mb-4">
-
-            {/* Weekly Completed Works */}
-            <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
-              <div className="px-5 py-3 border-b border-indigo-100 bg-indigo-50/60">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <CheckCircle size={14} className="text-indigo-500" />
-                    <h2 className="text-sm font-bold text-indigo-900">{isPastWeek ? 'Weekly Completed Works' : 'Weekly Planned Works'}</h2>
-                  </div>
-                  <span className="text-xs text-indigo-400">{weekDateRange}</span>
-                </div>
-              </div>
-              <div className="divide-y divide-slate-100" style={{ minHeight: '100px' }}>
-                {(() => {
-                  type LeafItem = { id: string; title: string; startDate: Date | null; endDate: Date | null }
-                  type RI = { teamName: string; parentTask: typeof tasks[0]; leaf: LeafItem; update: (typeof weeklyUpdates)[0] | undefined; taskActs: typeof thisWeekActivities; lines: string[] }
-                  const buckets = new Map<string, RI[]>()
-
-                  for (const [, { teamName, tasks: tt }] of viewTeamEntries) {
-                    for (const task of tt) {
-                      // 세부전략과제가 없는 팀과제는 아직 실행 단위로 쪼개지지 않은 것이므로 주간관리에 표시하지 않는다
-                      const leaves: LeafItem[] = task.subTasks.map(s => ({ id: s.id, title: s.title, startDate: s.startDate, endDate: s.endDate }))
-
-                      for (const leaf of leaves) {
-                        const update   = updateByTaskId.get(leaf.id)
-                        const taskActs = thisActByTask.get(leaf.id) ?? []
-                        const isActive = isDateRangeActive(leaf.startDate, leaf.endDate, weekStartMs, weekEndMs)
-                        if (taskActs.length === 0 && !isActive && !update?.completed?.trim()) continue
-                        const sl = (task.strategy || (task.parent as any)?.strategy || '') as string
-                        const key = sl || '기타'
-                        if (!buckets.has(key)) buckets.set(key, [])
-                        buckets.get(key)!.push({ teamName, parentTask: task, leaf, update, taskActs, lines: update?.completed?.split('\n').filter(l => l.trim()) ?? [] })
-                      }
-                    }
-                  }
-
-                  const renderLeafRow = (ri: RI, dotCls: string, num: number) => {
-                    const { leaf, update, taskActs, lines } = ri
-                    return (
-                      <div key={leaf.id} className="pl-9 pr-4 py-1.5">
-                        <div className="flex items-center gap-2 mb-1 pb-1 border-b border-slate-100">
-                          <span className="text-xs font-bold text-slate-400 shrink-0">{num})</span>
-                          <span className="text-xs font-bold text-slate-800 flex-1 truncate">{leaf.title}</span>
-                          {update && (
-                            <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded border shrink-0 ${STATUS_BADGE[update.status] ?? 'bg-gray-100 text-gray-600 border-gray-200'}`}>
-                              {update.status}
-                            </span>
-                          )}
-                        </div>
-                        <div className="pl-3 space-y-0.5">
-                          {taskActs.map((act: any) => (
-                            <Link key={act.id} href={`/notes/${act.id}/edit`}
-                              className="flex items-start gap-1.5 text-xs text-slate-600 hover:bg-slate-50 rounded px-1 -mx-1 transition-colors">
-                              <span className="shrink-0 text-xs" style={{ color: dotCls }}>●</span>
-                              <span>
-                                <span className="hover:underline hover:text-indigo-600">{act.title}</span>
-                                <span className="ml-1 text-slate-400">({act.userName ?? '담당자 미상'}, {+act.date.slice(5,7)}/{+act.date.slice(8,10)})</span>
-                              </span>
-                            </Link>
-                          ))}
-                        </div>
-                        {lines.length > 0 && (
-                          <div className={`pl-3 ${taskActs.length > 0 ? 'mt-1 pt-1 border-t border-slate-50' : ''} space-y-0.5`}>
-                            {lines.map((line, i) => (
-                              <div key={i} className="flex items-start gap-1 text-xs text-slate-600">
-                                <span className="shrink-0 text-slate-400">-</span><span>{line}</span>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                        {taskActs.length === 0 && lines.length === 0 && update?.completed && (
-                          <p className="pl-3 text-xs text-slate-700 leading-relaxed">{update.completed}</p>
-                        )}
-                      </div>
-                    )
-                  }
-
-                  /* 팀 안에서 팀전략 단위로 묶어서 렌더 — 팀전략 라벨을 한 번 보여주고 그 아래 세부전략과제들을 번호로 나열 */
-                  const renderTeamLeaves = (items: RI[], dot: string) => {
-                    const out: React.ReactNode[] = []
-                    let i = 0
-                    while (i < items.length) {
-                      const { parentTask } = items[i]
-                      const group: RI[] = []
-                      while (i < items.length && items[i].parentTask.id === parentTask.id) { group.push(items[i]); i++ }
-                      out.push(
-                        <div key={`pt-${parentTask.id}`} className="pl-8 pr-4 py-1 flex items-center gap-1.5 bg-indigo-50/70">
-                          <Layers size={11} className="text-indigo-400 shrink-0" />
-                          <span className="text-[9px] font-bold text-indigo-500 align-middle">[팀과제]</span>
-                          <span className="text-[11px] text-indigo-900/70 align-middle">{parentTask.title}</span>
-                        </div>
-                      )
-                      group.forEach((ri, idx) => out.push(renderLeafRow(ri, dot, idx + 1)))
-                    }
-                    return out
-                  }
-
-                  const totalCount = [...buckets.values()].reduce((s, b) => s + b.length, 0)
-                  if (totalCount === 0) {
-                    return <div className="flex items-center justify-center h-20"><p className="text-xs text-slate-400">이번 주 완료사항이 없습니다.</p></div>
-                  }
-
-                  const sortedKeys = [...buckets.keys()].sort((a, b) => a === '기타' ? 1 : b === '기타' ? -1 : a.localeCompare(b))
-                  return sortedKeys.flatMap(key => {
-                    const items = buckets.get(key)!
-                    if (items.length === 0) return []
-                    const hdr = key === '기타' ? 'bg-slate-600' : stratColor(key).bold
-                    const dot = key === '기타' ? '#94a3b8' : stratColor(key).hex
-                    /* 섹션 헤더 레이블: "{letter}. {전략명}" or "기타 과제" */
-                    const parentTitle = items[0]?.parentTask.parent?.title ?? items[0]?.parentTask.title ?? ''
-                    const headerLabel = key !== '기타' && parentTitle ? `${key}. ${parentTitle}` : '기타 과제'
-                    /* 팀별 서브그룹 */
-                    const teamOrder: string[] = []
-                    const byTeam = new Map<string, RI[]>()
-                    for (const ri of items) {
-                      if (!byTeam.has(ri.teamName)) { teamOrder.push(ri.teamName); byTeam.set(ri.teamName, []) }
-                      byTeam.get(ri.teamName)!.push(ri)
-                    }
-                    return [
-                      <div key={`sh-${key}`} className={`px-4 py-2 ${hdr} flex items-center gap-2`}>
-                        <span className="text-xs font-bold text-white">{headerLabel}</span>
-                        <span className="text-[10px] text-white/50">{items.length}건</span>
-                      </div>,
-                      ...teamOrder.flatMap(tn => [
-                        <div key={`th-${key}-${tn}`} className="px-4 py-1.5 bg-slate-100 border-b border-slate-200">
-                          <span className="text-xs font-extrabold text-slate-800 tracking-tight">{tn}</span>
-                        </div>,
-                        ...renderTeamLeaves(byTeam.get(tn)!, dot),
-                      ]),
-                    ]
-                  })
-                })()}
-              </div>
-            </div>
-
-            {/* Weekly Planned Works */}
-            <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
-              <div className="px-5 py-3 border-b border-slate-100 bg-slate-50/70">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Clock size={14} className="text-slate-400" />
-                    <h2 className="text-sm font-bold text-slate-700">{nextWeek <= currentWeekId ? 'Weekly Completed Works' : 'Weekly Planned Works'}</h2>
-                  </div>
-                  <span className="text-xs text-slate-400">{nextWeekDateRange}</span>
-                </div>
-              </div>
-              <div className="divide-y divide-slate-100" style={{ minHeight: '100px' }}>
-                {(() => {
-                  type LeafItem = { id: string; title: string; startDate: Date | null; endDate: Date | null }
-                  type RI2 = { teamName: string; parentTask: typeof tasks[0]; leaf: LeafItem; update: (typeof weeklyUpdates)[0] | undefined; taskActs: typeof nextWeekActivities; lines: string[] }
-                  const buckets = new Map<string, RI2[]>()
-
-                  for (const [, { teamName, tasks: tt }] of viewTeamEntries) {
-                    for (const task of tt) {
-                      // 세부전략과제가 없는 팀과제는 아직 실행 단위로 쪼개지지 않은 것이므로 주간관리에 표시하지 않는다
-                      const leaves: LeafItem[] = task.subTasks.map(s => ({ id: s.id, title: s.title, startDate: s.startDate, endDate: s.endDate }))
-
-                      for (const leaf of leaves) {
-                        const update   = updateByTaskId.get(leaf.id)
-                        const taskActs = nextActByTask.get(leaf.id) ?? []
-                        const isActive = isDateRangeActive(leaf.startDate, leaf.endDate, nextWeekStartMs, nextWeekEndMs)
-                        if (taskActs.length === 0 && !isActive && !update?.planned?.trim()) continue
-                        const sl = (task.strategy || (task.parent as any)?.strategy || '') as string
-                        const key = sl || '기타'
-                        if (!buckets.has(key)) buckets.set(key, [])
-                        buckets.get(key)!.push({ teamName, parentTask: task, leaf, update, taskActs, lines: update?.planned?.split('\n').filter(l => l.trim()) ?? [] })
-                      }
-                    }
-                  }
-
-                  const renderLeafRow = (ri: RI2, dotCls: string, num: number) => {
-                    const { leaf, taskActs, lines } = ri
-                    return (
-                      <div key={leaf.id} className="pl-9 pr-4 py-1.5">
-                        <div className="flex items-center gap-2 mb-1 pb-1 border-b border-slate-100">
-                          <span className="text-xs font-bold text-slate-400 shrink-0">{num})</span>
-                          <span className="text-xs font-bold text-slate-800 flex-1 truncate">{leaf.title}</span>
-                        </div>
-                        <div className="pl-3 space-y-0.5">
-                          {taskActs.map((act: any) => (
-                            <Link key={act.id} href={`/notes/${act.id}/edit`}
-                              className="flex items-start gap-1.5 text-xs text-slate-600 hover:bg-slate-50 rounded px-1 -mx-1 transition-colors">
-                              <span className="shrink-0 text-xs" style={{ color: dotCls }}>●</span>
-                              <span>
-                                <span className="hover:underline hover:text-indigo-600">{act.title}</span>
-                                <span className="ml-1 text-slate-400">({act.userName ?? '담당자 미상'}, {+act.date.slice(5,7)}/{+act.date.slice(8,10)})</span>
-                              </span>
-                            </Link>
-                          ))}
-                        </div>
-                        {lines.length > 0 && (
-                          <div className={`pl-3 ${taskActs.length > 0 ? 'mt-1 pt-1 border-t border-slate-50' : ''} space-y-0.5`}>
-                            {lines.map((line, i) => (
-                              <div key={i} className="flex items-start gap-1 text-xs text-slate-600">
-                                <span className="shrink-0 text-slate-400">-</span><span>{line}</span>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    )
-                  }
-
-                  const renderTeamLeaves = (items: RI2[], dot: string) => {
-                    const out: React.ReactNode[] = []
-                    let i = 0
-                    while (i < items.length) {
-                      const { parentTask } = items[i]
-                      const group: RI2[] = []
-                      while (i < items.length && items[i].parentTask.id === parentTask.id) { group.push(items[i]); i++ }
-                      out.push(
-                        <div key={`pt-${parentTask.id}`} className="pl-8 pr-4 py-1 flex items-center gap-1.5 bg-indigo-50/70">
-                          <Layers size={11} className="text-indigo-400 shrink-0" />
-                          <span className="text-[9px] font-bold text-indigo-500 align-middle">[팀과제]</span>
-                          <span className="text-[11px] text-indigo-900/70 align-middle">{parentTask.title}</span>
-                        </div>
-                      )
-                      group.forEach((ri, idx) => out.push(renderLeafRow(ri, dot, idx + 1)))
-                    }
-                    return out
-                  }
-
-                  const totalCount = [...buckets.values()].reduce((s, b) => s + b.length, 0)
-                  if (totalCount === 0) {
-                    return <div className="flex items-center justify-center h-20"><p className="text-xs text-slate-400">차주 계획이 없습니다.</p></div>
-                  }
-
-                  const sortedKeys = [...buckets.keys()].sort((a, b) => a === '기타' ? 1 : b === '기타' ? -1 : a.localeCompare(b))
-                  return sortedKeys.flatMap(key => {
-                    const items = buckets.get(key)!
-                    if (items.length === 0) return []
-                    const hdr = key === '기타' ? 'bg-slate-600' : stratColor(key).bold
-                    const dot = key === '기타' ? '#94a3b8' : stratColor(key).hex
-                    const parentTitle = items[0]?.parentTask.parent?.title ?? items[0]?.parentTask.title ?? ''
-                    const headerLabel = key !== '기타' && parentTitle ? `${key}. ${parentTitle}` : '기타 과제'
-                    const teamOrder: string[] = []
-                    const byTeam = new Map<string, RI2[]>()
-                    for (const ri of items) {
-                      if (!byTeam.has(ri.teamName)) { teamOrder.push(ri.teamName); byTeam.set(ri.teamName, []) }
-                      byTeam.get(ri.teamName)!.push(ri)
-                    }
-                    return [
-                      <div key={`sh-${key}`} className={`px-4 py-2 ${hdr} flex items-center gap-2`}>
-                        <span className="text-xs font-bold text-white">{headerLabel}</span>
-                        <span className="text-[10px] text-white/50">{items.length}건</span>
-                      </div>,
-                      ...teamOrder.flatMap(tn => [
-                        <div key={`th-${key}-${tn}`} className="px-4 py-1.5 bg-slate-100 border-b border-slate-200">
-                          <span className="text-xs font-extrabold text-slate-800 tracking-tight">{tn}</span>
-                        </div>,
-                        ...renderTeamLeaves(byTeam.get(tn)!, dot),
-                      ]),
-                    ]
-                  })
-                })()}
-              </div>
-            </div>
-          </section>
-
-        </>
+        <WeeklyReportColumns report={report} entries={viewTeamEntries} />
       )}
 
     </div>
