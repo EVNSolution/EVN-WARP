@@ -14,6 +14,7 @@ import CalendarView, { type CalActivity, type CalVehicleReservation, type CalSch
 import FilterSelects from './FilterSelects'
 import PersonalScopeToggle from './PersonalScopeToggle'
 import { auth } from '@/auth'
+import { canManageUsers } from '@/lib/permissions'
 
 /* ── 상수 ── */
 const TYPE_META: Record<string, { icon: React.ReactNode; bg: string; text: string }> = {
@@ -112,6 +113,7 @@ export default async function NotesPage({ searchParams }: { searchParams: Promis
   const session  = await auth()
   const myName   = (session?.user as any)?.name as string | undefined
   const myUserId = (session?.user as any)?.id   as string | undefined
+  const canViewAllCardUsage = await canManageUsers(myUserId)
 
   // 전체 팀 목록 조회 (팀 선택 드롭다운용)
   const allTeams = await prisma.team.findMany({ orderBy: { name: 'asc' }, select: { id: true, name: true } })
@@ -467,7 +469,8 @@ export default async function NotesPage({ searchParams }: { searchParams: Promis
           캘린더 탭 — CalendarView 클라이언트 컴포넌트
       ══════════════════════════════════════ */}
       {activeTab === 'calendar' && (
-        <CalendarView weeks={weeks} activities={calActivities} reservations={calReservations} scheduleItems={calScheduleItems} todayStr={todayStr} />
+        <CalendarView weeks={weeks} activities={calActivities} reservations={calReservations} scheduleItems={calScheduleItems} todayStr={todayStr}
+          myUserId={myUserId} canViewAllCardUsage={canViewAllCardUsage} />
       )}
 
 

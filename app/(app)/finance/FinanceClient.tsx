@@ -1,7 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-import { Wallet, CheckCircle2, BarChart3, Check, X } from 'lucide-react'
+import { Wallet, CheckCircle2, BarChart3, Check, X, CreditCard } from 'lucide-react'
+import CardUsageApproval from './CardUsageApproval'
 
 type Activity = {
   id: string; date: string; endDate: string | null; type: string; title: string
@@ -46,7 +47,7 @@ export default function FinanceClient({
   initialFrom: string
   initialTo: string
 }) {
-  const [tab, setTab] = useState<'approval' | 'stats'>('approval')
+  const [tab, setTab] = useState<'approval' | 'cards' | 'stats'>('approval')
 
   /* ── 비용승인 ── */
   const [filter, setFilter] = useState<'' | '신청' | '승인' | '반려'>('신청')
@@ -103,7 +104,7 @@ export default function FinanceClient({
       <div className="flex items-center justify-between px-6 py-4 mb-4 rounded-xl" style={{ backgroundColor: '#111111' }}>
         <div>
           <h1 className="text-xl font-bold text-white">재무 / 회계</h1>
-          <p className="text-xs mt-0.5" style={{ color: '#C5D42A' }}>비용 승인 · 비용 통계</p>
+          <p className="text-xs mt-0.5" style={{ color: '#C5D42A' }}>비용 승인 · 카드사용 · 비용 통계</p>
         </div>
         <Wallet size={22} color="#C5D42A" />
       </div>
@@ -112,6 +113,7 @@ export default function FinanceClient({
       <div className="flex gap-0 mb-4 border-b border-slate-200">
         {[
           { key: 'approval', label: '비용승인', icon: CheckCircle2 },
+          { key: 'cards',    label: '카드사용', icon: CreditCard },
           { key: 'stats',    label: '비용통계', icon: BarChart3 },
         ].map(({ key, label, icon: Icon }) => (
           <button key={key} onClick={() => setTab(key as any)}
@@ -189,6 +191,9 @@ export default function FinanceClient({
           </div>
         </div>
       )}
+
+      {/* ══ 카드사용 (CardUsage) ══ */}
+      {tab === 'cards' && <CardUsageApproval initialFrom={initialFrom} initialTo={initialTo} />}
 
       {/* ══ 비용통계 ══ */}
       {tab === 'stats' && (

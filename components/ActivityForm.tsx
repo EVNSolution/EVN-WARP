@@ -14,6 +14,9 @@ import {
 import Link from 'next/link'
 import CallAnalysisModal from '@/components/CallAnalysisModal'
 import VehicleReservationModal from '@/components/VehicleReservationModal'
+import ActivityCardUsagePanel from '@/components/ActivityCardUsagePanel'
+import { draftToBody } from '@/components/CardUsageForm'
+import type { CardUsageDraft } from '@/lib/cardUsage'
 import { teamOrderIndex } from '@/lib/teamOrder'
 import { stratColor } from '@/lib/a3'
 
@@ -426,13 +429,7 @@ export default function ActivityForm({ teams, tasks, users = [], vehicles = [], 
   const [openPanel, setOpenPanel] = useState<'mention' | 'expense' | 'companion' | null>(null)
   function togglePanel(p: 'mention' | 'expense' | 'companion') {
     setOpenPanel(v => v === p ? null : p)
-    if (p === 'expense') setUseExpense(true)
   }
-
-  // 비용정산 토글 (기존 비용 데이터가 있으면 열림)
-  const [useExpense, setUseExpense] = useState(() =>
-    !!(initial?.expenseTransport || initial?.expenseAccomm || initial?.expenseMeal || initial?.expenseOther)
-  )
 
   // 문서 첨부
   const [documentUrl,    setDocumentUrl]    = useState(initial?.documentUrl ?? '')
@@ -456,74 +453,17 @@ export default function ActivityForm({ teams, tasks, users = [], vehicles = [], 
     return seg.replace(/^\d+_/, '')
   }
 
-  // 비용정산
-  const [expenseTransport, setExpenseTransport] = useState<string>(initial?.expenseTransport ? String(initial.expenseTransport) : '')
-  const [expenseAccomm,    setExpenseAccomm]    = useState<string>(initial?.expenseAccomm    ? String(initial.expenseAccomm)    : '')
-  const [expenseMeal,      setExpenseMeal]      = useState<string>(initial?.expenseMeal      ? String(initial.expenseMeal)      : '')
-  const [expenseOther,     setExpenseOther]     = useState<string>(initial?.expenseOther     ? String(initial.expenseOther)     : '')
-  const [expensePaymentMethod, setExpensePaymentMethod] = useState(initial?.expensePaymentMethod ?? '')
-  const [expenseCardId,        setExpenseCardId]        = useState(initial?.expenseCardId ?? '')
-  const [corporateCards, setCorporateCards] = useState<{ id: string; holderName: string; cardNumberMasked: string; userId: string | null; userName: string | null }[]>([])
-  const [expenseNote,      setExpenseNote]      = useState(initial?.expenseNote ?? '')
-  const [expenseTransportReceipt, setExpenseTransportReceipt] = useState(initial?.expenseTransportReceipt ?? '')
-  const [expenseAccommReceipt,    setExpenseAccommReceipt]    = useState(initial?.expenseAccommReceipt    ?? '')
-  const [expenseMealReceipt,      setExpenseMealReceipt]      = useState(initial?.expenseMealReceipt      ?? '')
-  const [expenseOtherReceipt,     setExpenseOtherReceipt]     = useState(initial?.expenseOtherReceipt     ?? '')
-  const [uploadingCat, setUploadingCat] = useState<string | null>(null)
-  const receiptInputRef = useRef<HTMLInputElement>(null)
-  const pendingCat      = useRef<string | null>(null)
-  const expenseTotal = (Number(expenseTransport) || 0) + (Number(expenseAccomm) || 0) + (Number(expenseMeal) || 0) + (Number(expenseOther) || 0)
-
-  const EXPENSE_ROWS = [
-    { key: 'transport', label: '교통비', amount: expenseTransport, setAmount: setExpenseTransport, receipt: expenseTransportReceipt, setReceipt: setExpenseTransportReceipt },
-    { key: 'accomm',   label: '숙박비', amount: expenseAccomm,    setAmount: setExpenseAccomm,    receipt: expenseAccommReceipt,    setReceipt: setExpenseAccommReceipt },
-    { key: 'meal',     label: '식비',   amount: expenseMeal,      setAmount: setExpenseMeal,      receipt: expenseMealReceipt,      setReceipt: setExpenseMealReceipt },
-    { key: 'other',    label: '기타',   amount: expenseOther,     setAmount: setExpenseOther,     receipt: expenseOtherReceipt,     setReceipt: setExpenseOtherReceipt },
-  ] as const
-
-  // 법인카드 목록 로드 (결제수단에서 "법인카드" 선택 시 사용)
-  useEffect(() => {
-    fetch('/api/corporate-cards').then(r => r.json()).then(setCorporateCards).catch(() => {})
-  }, [])
-
-  // "법인카드" 선택 시, 담당자 본인 명의로 배정된 카드가 있으면 기본값으로 선택
-  useEffect(() => {
-    if (expensePaymentMethod !== '법인카드' || expenseCardId) return
-    const myCard = corporateCards.find(c => c.userId === userId)
-    if (myCard) setExpenseCardId(myCard.id)
-  }, [expensePaymentMethod, corporateCards, userId])
-
-  async function uploadReceipt(category: string, file: File) {
-    if (!initial?.id) return
-    setUploadingCat(category)
-    try {
-      const fd = new FormData()
-      fd.append('file', file)
-      fd.append('category', category)
-      fd.append('date', date)
-      const res  = await fetch(`/api/activities/${initial.id}/receipts`, { method: 'POST', body: fd })
-      const data = await res.json()
-      const row  = EXPENSE_ROWS.find(r => r.key === category)
-      if (!row) return
-      // 영수증 URL 누적
-      const prev = row.receipt
-      row.setReceipt(prev ? `${prev}|${data.url}` : data.url)
-      // OCR 금액 누적
-      if (data.amount != null) {
-        const cur = Number(row.amount) || 0
-        row.setAmount(String(cur + data.amount))
-      }
-      // payload에 즉시 반영 (PUT)
-      const patch: Record<string, any> = {
-        [`expense${category.charAt(0).toUpperCase() + category.slice(1)}Receipt`]:
-          prev ? `${prev}|${data.url}` : data.url,
-      }
-      if (data.amount != null) patch[`expense${category.charAt(0).toUpperCase() + category.slice(1)}`] = (Number(row.amount) || 0) + data.amount
-      await fetch(`/api/activities/${initial.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(patch) })
-    } finally {
-      setUploadingCat(null)
-    }
-  }
+  // 비용 — 카드/현금 사용내역(CardUsage)으로 입력. 기존 4칸 방식 데이터는 읽기 전용으로 표시
+  const legacyExpense = [
+    { label: '교통비', amount: initial?.expenseTransport ?? 0 },
+    { label: '숙박비', amount: initial?.expenseAccomm    ?? 0 },
+    { label: '식비',   amount: initial?.expenseMeal      ?? 0 },
+    { label: '기타',   amount: initial?.expenseOther     ?? 0 },
+  ].filter(r => r.amount > 0)
+  const legacyTotal = legacyExpense.reduce((s, r) => s + r.amount, 0)
+  const [pendingUsages, setPendingUsages] = useState<CardUsageDraft[]>([])
+  const [usageTotal,    setUsageTotal]    = useState(0)
+  const expenseTotal = legacyTotal + usageTotal
 
   async function uploadDocument(file: File) {
     if (!initial?.id) { setPendingDocFile(file); return }
@@ -626,7 +566,6 @@ export default function ActivityForm({ teams, tasks, users = [], vehicles = [], 
 
     const actualNum = IS_KPI_TYPE ? parseInt(digitsOnly(actualStr), 10) : undefined
     const isTrip = TRIP_TYPES.has(type)
-    const hasExpense = type !== '해외출장' && !LEAVE_TYPES.has(type) && !CERT_TYPES.has(type)
     const payload = {
       taskId: finalTaskId,
       teamId: finalTeamId,
@@ -643,24 +582,6 @@ export default function ActivityForm({ teams, tasks, users = [], vehicles = [], 
       countermeasureId: countermeasureId || null,
       endDate: (isTrip || LEAVE_TYPES.has(type)) && endDate && endDate > date ? endDate : null,
       ...(IS_KPI_TYPE && { kpiItemId, kpiWeek, actualNum }),
-      ...(hasExpense && useExpense ? {
-        expenseTransport: expenseTransport ? Number(expenseTransport) : null,
-        expenseAccomm:    expenseAccomm    ? Number(expenseAccomm)    : null,
-        expenseMeal:      expenseMeal      ? Number(expenseMeal)      : null,
-        expenseOther:     expenseOther     ? Number(expenseOther)     : null,
-        expensePaymentMethod: expensePaymentMethod || null,
-        expenseCardId:        expensePaymentMethod === '법인카드' ? (expenseCardId || null) : null,
-        expenseNote:      expenseNote.trim() || null,
-        expenseTransportReceipt: expenseTransportReceipt || null,
-        expenseAccommReceipt:    expenseAccommReceipt    || null,
-        expenseMealReceipt:      expenseMealReceipt      || null,
-        expenseOtherReceipt:     expenseOtherReceipt     || null,
-      } : hasExpense ? {
-        expenseTransport: null, expenseAccomm: null, expenseMeal: null, expenseOther: null,
-        expensePaymentMethod: null, expenseCardId: null,
-        expenseNote: null, expenseTransportReceipt: null, expenseAccommReceipt: null,
-        expenseMealReceipt: null, expenseOtherReceipt: null,
-      } : {}),
       documentUrl: documentUrl || null,
       imageUrl:    imageUrl    || null,
     }
@@ -671,6 +592,19 @@ export default function ActivityForm({ teams, tasks, users = [], vehicles = [], 
       const res    = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
       const data   = await res.json()
       if (!res.ok) { setError(data.error ?? '저장 실패'); setSaving(false); return }
+
+      // 신규 저장 시 대기 중인 카드/현금 사용내역 등록
+      if (pendingUsages.length > 0 && data.id && mode === 'new') {
+        const failed: string[] = []
+        for (const d of pendingUsages) {
+          const r = await fetch('/api/card-usages', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(draftToBody(d, data.id)),
+          })
+          if (!r.ok) failed.push(d.merchant)
+        }
+        if (failed.length > 0) alert(`활동은 저장되었지만 사용내역 ${failed.length}건(${failed.join(', ')}) 등록에 실패했습니다. 수정 화면에서 다시 입력해주세요.`)
+      }
 
       // 신규 저장 시 대기 중인 문서 파일 업로드
       if (pendingDocFile && data.id && mode === 'new') {
@@ -1411,13 +1345,6 @@ export default function ActivityForm({ teams, tasks, users = [], vehicles = [], 
         </div>
 
         {/* ── 숨겨진 파일 input들 ── */}
-        <input ref={receiptInputRef} type="file" accept="image/*,application/pdf" className="hidden"
-          onChange={e => {
-            const cat = pendingCat.current
-            if (!cat || !e.target.files?.[0]) return
-            uploadReceipt(cat, e.target.files[0])
-            e.target.value = ''
-          }} />
         <input ref={docInputRef} type="file"
           accept=".pdf,.jpg,.jpeg,.png,.gif,.webp,.doc,.docx,.xls,.xlsx,.hwp"
           className="hidden"
@@ -1468,7 +1395,7 @@ export default function ActivityForm({ teams, tasks, users = [], vehicles = [], 
             {type !== '해외출장' && !LEAVE_TYPES.has(type) && !CERT_TYPES.has(type) && (
               <button type="button" onClick={() => togglePanel('expense')}
                 className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg border transition-colors ${
-                  useExpense || openPanel === 'expense'
+                  expenseTotal > 0 || openPanel === 'expense'
                     ? 'bg-amber-50 border-amber-200 text-amber-700'
                     : 'border-slate-200 text-slate-500 hover:border-amber-200 hover:text-amber-600 hover:bg-amber-50'
                 }`}>
@@ -1496,7 +1423,7 @@ export default function ActivityForm({ teams, tasks, users = [], vehicles = [], 
             )}
 
             {/* 비용신청품의서 인쇄 (비용 입력 시) */}
-            {expensePrintUrl && expenseTotal > 0 && useExpense && (
+            {expensePrintUrl && legacyTotal > 0 && (
               <a href={expensePrintUrl} target="_blank" rel="noopener noreferrer"
                 className="ml-auto flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg border border-indigo-200 text-indigo-600 bg-indigo-50 hover:bg-indigo-100 transition-all">
                 🖨 비용신청품의서
@@ -1582,83 +1509,26 @@ export default function ActivityForm({ teams, tasks, users = [], vehicles = [], 
             </div>
           )}
 
-          {/* 비용정산 패널 */}
-          {openPanel === 'expense' && (
-            <div className="px-4 pb-4 pt-3 border-t border-slate-100 bg-amber-50/20">
-              <div className="space-y-2 mb-3">
-                {EXPENSE_ROWS.map(row => {
-                  const isUploading = uploadingCat === row.key
-                  const receiptUrls = row.receipt ? row.receipt.split('|') : []
-                  return (
-                    <div key={row.key} className="flex items-start gap-2">
-                      <label className="w-14 text-xs font-medium text-slate-500 pt-2.5 shrink-0">{row.label}</label>
-                      <div className="flex-1">
-                        <input type="text" inputMode="numeric"
-                          value={row.amount ? Number(row.amount).toLocaleString('ko-KR') : ''}
-                          onChange={e => { const raw = e.target.value.replace(/,/g, ''); if (raw === '' || /^\d+$/.test(raw)) row.setAmount(raw) }}
-                          placeholder="0"
-                          className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm text-right focus:outline-none focus:ring-2 focus:ring-amber-300 bg-white" />
-                        {receiptUrls.length > 0 && (
-                          <div className="flex flex-wrap gap-1 mt-1">
-                            {receiptUrls.map((url, i) => (
-                              <div key={i} className="flex items-center gap-0.5">
-                                <a href={url} target="_blank" rel="noopener noreferrer" className="text-[10px] text-blue-500 hover:underline">📄{i + 1}</a>
-                                <button type="button" onClick={() => { const next = receiptUrls.filter((_, idx) => idx !== i); row.setReceipt(next.join('|')) }} className="text-[9px] text-slate-300 hover:text-red-400">✕</button>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                      {mode === 'edit' && initial?.id ? (
-                        isUploading
-                          ? <span className="text-[10px] text-blue-400 pt-2.5">업로드중…</span>
-                          : <button type="button" onClick={() => { pendingCat.current = row.key; receiptInputRef.current?.click() }}
-                              className="text-lg pt-1.5 text-slate-300 hover:text-blue-500 transition shrink-0" title="영수증 첨부">📎</button>
-                      ) : <span className="w-6 shrink-0" />}
-                    </div>
-                  )
-                })}
-              </div>
-
-              <div className="flex items-center gap-2 mb-3">
-                <label className="w-14 text-xs font-medium text-slate-500 shrink-0">결제수단</label>
-                <div className="flex-1 flex gap-1.5">
-                  {(['현금', '법인카드', '개인카드'] as const).map(m => (
-                    <button key={m} type="button"
-                      onClick={() => { setExpensePaymentMethod(expensePaymentMethod === m ? '' : m); if (m !== '법인카드') setExpenseCardId('') }}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition ${
-                        expensePaymentMethod === m ? 'bg-amber-600 text-white border-amber-600' : 'bg-white border-slate-200 text-slate-500 hover:border-slate-400'
-                      }`}>
-                      {m}
-                    </button>
-                  ))}
-                </div>
-              </div>
-              {expensePaymentMethod === '법인카드' && (
-                <div className="flex items-center gap-2 mb-3">
-                  <label className="w-14 text-xs font-medium text-slate-500 shrink-0">사용 카드</label>
-                  <select value={expenseCardId} onChange={e => setExpenseCardId(e.target.value)}
-                    className="flex-1 border border-slate-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300">
-                    <option value="">카드 선택</option>
-                    {corporateCards.map(c => (
-                      <option key={c.id} value={c.id}>{c.holderName} {c.cardNumberMasked}{c.userName ? ` · ${c.userName}` : ''}</option>
-                    ))}
-                  </select>
+          {/* 비용 패널 — 카드/현금 사용내역 (닫혀 있어도 마운트 유지: 합계 표시·신규 대기 목록 보존) */}
+          {type !== '해외출장' && !LEAVE_TYPES.has(type) && !CERT_TYPES.has(type) && (
+            <div hidden={openPanel !== 'expense'} className="px-4 pb-4 pt-3 border-t border-slate-100 bg-amber-50/20">
+              {legacyTotal > 0 && (
+                <div className="mb-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+                  <p className="text-[11px] font-semibold text-slate-500 mb-1">이전 방식으로 입력된 비용 (읽기 전용)</p>
+                  <p className="text-xs text-slate-600">
+                    {legacyExpense.map(r => `${r.label} ${r.amount.toLocaleString('ko-KR')}원`).join(' · ')}
+                    {initial?.expensePaymentMethod ? ` · ${initial.expensePaymentMethod}` : ''}
+                  </p>
                 </div>
               )}
-
-              {expenseTotal > 0 && (
-                <div className="flex justify-end items-center gap-2 py-2 border-t border-amber-100 mb-3">
-                  <span className="text-xs text-slate-500">합계</span>
-                  <span className="text-sm font-bold text-amber-700">{expenseTotal.toLocaleString('ko-KR')}원</span>
-                </div>
-              )}
-              <input type="text" value={expenseNote} onChange={e => setExpenseNote(e.target.value)}
-                placeholder="비용 관련 특이사항"
-                className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-300 bg-white" />
-              {mode === 'new' && (
-                <p className="text-[11px] text-slate-400 mt-2">💡 영수증 첨부는 저장 후 수정 화면에서 가능합니다.</p>
-              )}
+              <ActivityCardUsagePanel
+                activityId={mode === 'edit' ? initial?.id : undefined}
+                defaultDate={date}
+                myUserId={userId}
+                pending={pendingUsages}
+                setPending={setPendingUsages}
+                onTotalChange={setUsageTotal}
+              />
             </div>
           )}
 

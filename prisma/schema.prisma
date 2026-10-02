@@ -762,6 +762,45 @@ model CorporateCard {
   createdAt  DateTime @default(now())
 }
 
+// 사용자 본인 명의 개인카드 (비용 정산용, 카드번호는 뒤 4자리만 저장)
+model PersonalCard {
+  id        String   @id @default(cuid())
+  userId    String   // 소유 사용자 id (단순 참조, 관계 없음)
+  alias     String   // 카드 별칭 (예: 신한 개인)
+  last4     String?  // 카드번호 뒤 4자리
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}
+
+// 카드/현금 사용내역 — 활동 연계(activityId) 또는 단독 입력 모두 이 테이블에 저장
+model CardUsage {
+  id              String    @id @default(cuid())
+  date            String    // "YYYY-MM-DD"
+  payMethod       String    // "법인카드" | "개인카드" | "현금"
+  corporateCardId String?   // 법인카드 결제 시 CorporateCard.id
+  personalCardId  String?   // 개인카드 결제 시 PersonalCard.id
+  cardLabel       String?   // 표시용 카드명 스냅샷
+  merchant        String    // 사용처
+  attendees       String?   // 참석자 (콤마 구분)
+  category        String    // 교통비|숙박비|통신비|수수료|접대비|마케팅비|식대|기타
+  description     String?   // 사용내용
+  amount          Float     // 금액 (원)
+  activityId      String?   // 연계 활동 WorkActivity.id (단순 참조, 관계 없음)
+  userId          String?   // 사용자 id
+  userName        String?   // 사용자 이름
+  status          String    @default("신청")  // '신청' | '승인' | '반려'
+  approverName    String?
+  approverNote    String?
+  approvedAt      DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @default(now())
+
+  @@index([date])
+  @@index([activityId])
+  @@index([userId])
+}
+
 /* ── HR: 근태(연차/반차) ── */
 model LeaveRequest {
   id           String    @id @default(cuid())

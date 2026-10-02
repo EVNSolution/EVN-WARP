@@ -1,10 +1,12 @@
 {
-  "prismaSchemaSha256": "119bc265b3d786864f5ae32d71425aee32c84ab3ff97a6e4150d6e4e86e88e32",
+  "prismaSchemaSha256": "c9c024ead762a776dc268d32bdd278f78d5ad489bfeb9d0315ddbb934d56d70e",
   "requiredTables": [
     "Announcement",
     "BuildupEvent",
+    "CardUsage",
     "CompanyScheduleRule",
-    "Garage"
+    "Garage",
+    "PersonalCard"
   ],
   "requiredColumnAdditions": {
     "WorkActivity": ["companions", "startTime", "endTime", "imageUrl", "visibility"],

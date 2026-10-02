@@ -3,9 +3,10 @@
 import { useState, useCallback, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { Plus, X, ExternalLink, Mail, Car, Pencil, Trash2, MapPin, ChevronLeft, ChevronRight } from 'lucide-react'
+import { Plus, X, ExternalLink, Mail, Car, Pencil, Trash2, MapPin, ChevronLeft, ChevronRight, CreditCard } from 'lucide-react'
 import VehicleReservationModal from './VehicleReservationModal'
 import VehicleStatusModal from './VehicleStatusModal'
+import CardUsageModal from './CardUsageModal'
 
 export type CalActivity = {
   id:           string
@@ -118,6 +119,8 @@ interface Props {
   reservations:  CalVehicleReservation[]
   scheduleItems: CalScheduleItem[]
   todayStr:      string
+  myUserId?:     string
+  canViewAllCardUsage?: boolean
 }
 
 type FieldFilter = 'all' | 'activity' | 'leave' | 'vehicle' | 'schedule'
@@ -129,12 +132,13 @@ const FIELD_FILTERS: { key: FieldFilter; label: string }[] = [
   { key: 'schedule', label: '재무회계일정' },
 ]
 
-export default function CalendarView({ weeks, activities, reservations, scheduleItems, todayStr }: Props) {
+export default function CalendarView({ weeks, activities, reservations, scheduleItems, todayStr, myUserId, canViewAllCardUsage = false }: Props) {
   const router = useRouter()
   const [selected, setSelected]         = useState<CalActivity | null>(null)
   const [selectedResv, setSelectedResv] = useState<CalVehicleReservation | null>(null)
   const [showNewResv, setShowNewResv]   = useState(false)
   const [showVehStatus, setShowVehStatus] = useState(false)
+  const [showCardUsage, setShowCardUsage] = useState(false)
   const [newResvDate, setNewResvDate]   = useState('')
   const [fieldFilter, setFieldFilter]   = useState<FieldFilter>('all')
   const [editingResv, setEditingResv]   = useState<CalVehicleReservation | null>(null)
@@ -216,8 +220,14 @@ export default function CalendarView({ weeks, activities, reservations, schedule
           일별 보기
         </button>
         <button
+          onClick={() => setShowCardUsage(true)}
+          className="ml-auto flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-semibold text-amber-700 bg-white border border-amber-200 rounded-lg hover:bg-amber-50 transition-colors">
+          <CreditCard size={11} />
+          법인카드사용
+        </button>
+        <button
           onClick={() => setShowVehStatus(true)}
-          className="ml-auto flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-semibold text-lime-700 bg-white border border-lime-200 rounded-lg hover:bg-lime-50 transition-colors">
+          className="flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-semibold text-lime-700 bg-white border border-lime-200 rounded-lg hover:bg-lime-50 transition-colors">
           <MapPin size={11} />
           차량현황
         </button>
@@ -822,6 +832,12 @@ export default function CalendarView({ weeks, activities, reservations, schedule
       {/* ─── 차량현황 모달 ─── */}
       {showVehStatus && (
         <VehicleStatusModal onClose={() => setShowVehStatus(false)} />
+      )}
+
+      {/* ─── 법인카드사용 모달 ─── */}
+      {showCardUsage && (
+        <CardUsageModal todayStr={todayStr} myUserId={myUserId} canViewAll={canViewAllCardUsage}
+          onClose={() => setShowCardUsage(false)} />
       )}
 
       {/* ─── 차량 신청 모달 ─── */}
