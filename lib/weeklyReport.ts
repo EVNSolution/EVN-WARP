@@ -116,13 +116,3 @@ export function collectReportItems(report: WeeklyReport, entries: readonly TeamE
   return buckets
 }
 
-// 전사 요약용 팀별 건수
-export function teamSummary(report: WeeklyReport) {
-  return report.teamEntries.map(entry => {
-    const count = (kind: 'this' | 'next') => {
-      const items = [...collectReportItems(report, [entry], kind).values()].flat()
-      return { tasks: items.length, activities: items.reduce((s, i) => s + i.taskActs.length, 0) }
-    }
-    return { teamId: entry[0], teamName: entry[1].teamName, this: count('this'), next: count('next') }
-  })
-}
