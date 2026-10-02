@@ -7,18 +7,25 @@ import test from 'node:test'
 
 import { createPrisma } from '@/lib/db'
 
-import { handleMarketingInquiryRequest, type MarketingInquiry } from './marketing-inquiries'
+import {
+  handleMarketingInquiryCheckRequest,
+  handleMarketingInquiryRequest,
+  type MarketingInquiry,
+} from './marketing-inquiries'
 
 const temporaryDirectory = mkdtempSync(path.join(tmpdir(), 'warp-marketing-inquiries-'))
 const prisma = createPrisma(`file:${path.join(temporaryDirectory, 'test.db')}`)
 const KEY = 'marketing-test-key-that-is-at-least-32-chars'
 const ENV = { WARP_MARKETING_API_KEY: KEY }
+const SCOPE = {
+  source: 'mleverage-admin',
+  companyScopeId: '55f9a8bb-73f9-4316-bcd7-7dcdce0bdcc3',
+  homepageScopeId: '5c7a6115-a0a9-4e8d-bf65-efce52195fa4',
+}
 
 function payload(sourceId: string, overrides: Partial<MarketingInquiry> = {}): MarketingInquiry {
   return {
-    source: 'mleverage-admin',
-    companyScopeId: '55f9a8bb-73f9-4316-bcd7-7dcdce0bdcc3',
-    homepageScopeId: '5c7a6115-a0a9-4e8d-bf65-efce52195fa4',
+    ...SCOPE,
     sourceId,
     inquiryDate: '2026-09-15',
     inquiryTime: '09:07',
@@ -27,6 +34,19 @@ function payload(sourceId: string, overrides: Partial<MarketingInquiry> = {}): M
     phone: '010-1234-5678',
     ...overrides,
   }
+}
+
+function checkRequest(body: unknown, key = KEY, raw = false) {
+  return new Request('http://localhost/api/external/marketing-inquiries/check', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', 'x-api-key': key },
+    body: raw ? String(body) : JSON.stringify(body),
+  })
+}
+
+async function check(body: unknown, key = KEY, raw = false) {
+  const response = await handleMarketingInquiryCheckRequest(checkRequest(body, key, raw), prisma, ENV)
+  return { response, body: await response.json() }
 }
 
 function request(body: unknown, key = KEY, raw = false) {
@@ -142,7 +162,7 @@ test('attaches an exact normalized primary-phone match without changing its prof
   })
   await prisma.customer.create({
     data: {
-      id: 'existing-customer', name: '기존 이름', phone: '010 1234 5678', customerSegment: 'B2B',
+      id: 'existing-customer', name: '기존 이름', phone: '+82 10 1234 5678', customerSegment: 'B2B',
       status: '활성', source: '소개', assignee: '담당자', memo: '기존 메모',
     },
     select: { id: true },
@@ -155,7 +175,7 @@ test('attaches an exact normalized primary-phone match without changing its prof
     where: { id: 'existing-customer' },
     select: { name: true, phone: true, customerSegment: true, status: true, source: true, assignee: true, memo: true },
   }), {
-    name: '기존 이름', phone: '010 1234 5678', customerSegment: 'B2B', status: '활성',
+    name: '기존 이름', phone: '+82 10 1234 5678', customerSegment: 'B2B', status: '활성',
     source: '소개', assignee: '담당자', memo: '기존 메모',
   })
 })
@@ -329,6 +349,7 @@ test('rejects missing or weak configuration, bad authentication, and invalid inp
     [{ ...valid, name: 'x'.repeat(101) }],
     [{ ...valid, phone: '123' }],
     [{ ...valid, sourceStatus: 1 }],
+    [{ ...valid, rejectExistingCustomer: false }],
     ['x'.repeat(16 * 1024 + 1), true],
   ]
   for (const [body, raw] of invalid) {
@@ -338,4 +359,106 @@ test('rejects missing or weak configuration, bad authentication, and invalid inp
   }
   assert.equal(await prisma.customer.count(), 0)
   assert.equal(await prisma.customerActivity.count(), 0)
+})
+
+test('check enforces authentication, fixed scope, exact input, unique source IDs, and the 16KB limit', async () => {
+  const item = { sourceId: '10000000-0000-4000-8000-000000000001', phone: '010-1234-5678' }
+  const valid = { ...SCOPE, items: [item] }
+  const missing = await handleMarketingInquiryCheckRequest(checkRequest(valid), prisma, {})
+  const unauthorized = await check(valid, 'wrong-key')
+  assert.equal(missing.status, 503)
+  assert.deepEqual(await missing.json(), { error: 'not_configured' })
+  assert.equal(unauthorized.response.status, 401)
+  assert.deepEqual(unauthorized.body, { error: 'unauthorized' })
+
+  const invalid = [
+    { ...valid, source: 'other' },
+    { ...valid, companyScopeId: '00000000-0000-4000-8000-000000000000' },
+    { ...valid, homepageScopeId: '00000000-0000-4000-8000-000000000000' },
+    { ...valid, items: [] },
+    { ...valid, items: Array.from({ length: 51 }, (_, index) => ({ ...item, sourceId: `10000000-0000-4000-8000-${String(index).padStart(12, '0')}` })) },
+    { ...valid, items: [item, { ...item, sourceId: item.sourceId.toUpperCase() }] },
+    { ...valid, items: [{ ...item, sourceId: 'not-a-uuid' }] },
+    { ...valid, items: [{ ...item, phone: '123' }] },
+    { ...valid, items: [{ ...item, phone: '0'.repeat(41) }] },
+    { ...valid, items: [{ ...item, extra: true }] },
+    { ...valid, extra: true },
+  ]
+  for (const body of invalid) {
+    const result = await check(body)
+    assert.equal(result.response.status, 400)
+    assert.deepEqual(result.body, { error: 'bad_payload' })
+  }
+  const oversized = await check('x'.repeat(16 * 1024 + 1), KEY, true)
+  assert.equal(oversized.response.status, 400)
+  assert.deepEqual(oversized.body, { error: 'bad_payload' })
+  assert.equal(await prisma.customer.count(), 0)
+  assert.equal(await prisma.customerActivity.count(), 0)
+})
+
+test('check is read-only, batched, name-independent, format-normalized, and only returns own receipts', async () => {
+  await prisma.customer.createMany({ data: [
+    { id: 'other-customer', name: '완전히 다른 이름', phone: '010-1111-2222' },
+    { id: 'international-customer', name: '국제형식', phone: '+82 10 3333 4444' },
+    { id: 'company-only', name: '회사번호 전용', phone: null, companyPhone: '010-5555-6666' },
+  ] })
+  const own = payload('20000000-0000-4000-8000-000000000001', { phone: '010-7777-8888' })
+  const created = await send(own)
+  const before = [await prisma.customer.count(), await prisma.customerActivity.count()]
+  const result = await check({ ...SCOPE, items: [
+    { sourceId: own.sourceId, phone: '010-0000-0000' },
+    { sourceId: '20000000-0000-4000-8000-000000000002', phone: '+82 10 1111 2222' },
+    { sourceId: 'ABCDEFAB-CDEF-4ABC-8DEF-ABCDEFABCDEF', phone: '010-3333-4444' },
+    { sourceId: '20000000-0000-4000-8000-000000000004', phone: '010-5555-6666' },
+  ] })
+
+  assert.equal(result.response.status, 200)
+  assert.deepEqual(result.body, { ok: true, results: [
+    {
+      sourceId: own.sourceId,
+      exists: true,
+      receipt: { ok: true, customerId: created.body.customerId, activityId: created.body.activityId, created: false, duplicate: true },
+    },
+    { sourceId: '20000000-0000-4000-8000-000000000002', exists: true },
+    { sourceId: 'abcdefab-cdef-4abc-8def-abcdefabcdef', exists: true },
+    { sourceId: '20000000-0000-4000-8000-000000000004', exists: false },
+  ] })
+  assert.deepEqual([await prisma.customer.count(), await prisma.customerActivity.count()], before)
+  assert.equal(JSON.stringify(result.body.results.slice(1)).includes('customerId'), false)
+})
+
+test('rejectExistingCustomer blocks existing phones while legacy registration still appends', async () => {
+  await prisma.customer.create({
+    data: { id: 'existing', name: '기존 고객', phone: '+82 10 1234 5678' },
+    select: { id: true },
+  })
+  const guarded = payload('30000000-0000-4000-8000-000000000001', { rejectExistingCustomer: true })
+  const rejected = await send(guarded)
+  assert.equal(rejected.response.status, 409)
+  assert.deepEqual(rejected.body, { error: 'phone_exists' })
+  assert.equal(await prisma.customer.count(), 1)
+  assert.equal(await prisma.customerActivity.count(), 0)
+
+  const legacy = await send(payload('30000000-0000-4000-8000-000000000002'))
+  assert.equal(legacy.response.status, 200)
+  assert.equal(legacy.body.customerId, 'existing')
+  assert.equal(await prisma.customer.count(), 1)
+  assert.equal(await prisma.customerActivity.count(), 1)
+})
+
+test('guard serializes competing writes and checks replay before phone_exists', async () => {
+  const inquiries = [
+    payload('40000000-0000-4000-8000-000000000001', { rejectExistingCustomer: true }),
+    payload('40000000-0000-4000-8000-000000000002', { rejectExistingCustomer: true }),
+  ]
+  const responses = await Promise.all(inquiries.map(inquiry => send(inquiry)))
+  assert.deepEqual(responses.map(result => result.response.status).sort(), [200, 409])
+  assert.equal(await prisma.customer.count(), 1)
+  assert.equal(await prisma.customerActivity.count(), 1)
+
+  const winner = inquiries[responses.findIndex(result => result.response.status === 200)]
+  const replay = await send(winner)
+  assert.equal(replay.response.status, 200)
+  assert.equal(replay.body.created, false)
+  assert.equal(replay.body.duplicate, true)
 })
