@@ -4,6 +4,9 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { CheckCircle2, Loader2, Link2, Unlink, AtSign, Car, Wallet, X } from 'lucide-react'
 import { stratColor } from '@/lib/a3'
+import ActivityCardUsagePanel from '@/components/ActivityCardUsagePanel'
+import { draftToBody } from '@/components/CardUsageForm'
+import type { CardUsageDraft } from '@/lib/cardUsage'
 
 const CATEGORIES = [
   { label: '커뮤니케이션', types: ['내부회의', '외부미팅', '이메일', '전화·통화'] },
@@ -86,12 +89,8 @@ export default function MobileActivityForm({ teams, tasks, vehicles = [], initia
 
   // ── 비용 ──
   const [showExpense,  setShowExpense]  = useState(false)
-  const [expTransport, setExpTransport] = useState('')
-  const [expAccomm,    setExpAccomm]    = useState('')
-  const [expMeal,      setExpMeal]      = useState('')
-  const [expOther,     setExpOther]     = useState('')
-  const [expMethod,    setExpMethod]    = useState('')
-  const [expNote,      setExpNote]      = useState('')
+  const [pendingUsages, setPendingUsages] = useState<CardUsageDraft[]>([])
+  const [expTotal,      setExpTotal]      = useState(0)
 
   // ── 제출 ──
   const [saving,  setSaving]  = useState(false)
@@ -105,11 +104,6 @@ export default function MobileActivityForm({ teams, tasks, vehicles = [], initia
     ? (tasks.find(t => t.id === (childId || parentId))?.teamId ?? teamId)
     : teamId
 
-  const expTotal = [expTransport, expAccomm, expMeal, expOther]
-    .reduce((s, v) => s + (parseInt(v.replace(/,/g,''), 10) || 0), 0)
-
-  function fmtNum(v: string) { const n = parseInt(v.replace(/,/g,''),10); return isNaN(n) ? '' : n.toLocaleString('ko-KR') }
-  function rawNum(v: string) { return v.replace(/[^0-9]/g,'') }
 
   async function reserveVehicle() {
     if (!vehicleId || !vPurpose.trim()) { setVError('차량과 목적을 입력하세요.'); return }
@@ -130,7 +124,6 @@ export default function MobileActivityForm({ teams, tasks, vehicles = [], initia
     if (linked && !parentId) { setError('전략과제를 선택하세요.'); return }
     if (!title.trim())       { setError('제목을 입력하세요.'); return }
     setSaving(true); setError('')
-    const hasExp = showExpense && expTotal > 0
     try {
       const res = await fetch('/api/activities', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -141,18 +134,21 @@ export default function MobileActivityForm({ teams, tasks, vehicles = [], initia
           startTime: !allDay ? startTime : null,
           endTime:   !allDay ? endTime   : null,
           mentions: mentions.length > 0 ? mentions.join(', ') : null,
-          ...(hasExp ? {
-            expenseTransport: parseInt(expTransport.replace(/,/g,''),10) || null,
-            expenseAccomm:    parseInt(expAccomm.replace(/,/g,''),10) || null,
-            expenseMeal:      parseInt(expMeal.replace(/,/g,''),10) || null,
-            expenseOther:     parseInt(expOther.replace(/,/g,''),10) || null,
-            expensePaymentMethod: expMethod || null,
-            expenseNote: expNote || null,
-          } : {}),
         }),
       })
       const d = await res.json()
       if (!res.ok) throw new Error(d.error ?? '저장 실패')
+      // 대기 중인 카드/현금 사용내역을 활동에 연계해 등록
+      const failed: string[] = []
+      for (const u of pendingUsages) {
+        const r = await fetch('/api/card-usages', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(draftToBody(u, d.id)),
+        })
+        if (!r.ok) failed.push(u.merchant)
+      }
+      setPendingUsages([])
+      if (failed.length > 0) alert(`활동은 저장되었지만 사용내역 ${failed.length}건(${failed.join(', ')}) 등록에 실패했습니다. 법인카드사용 화면에서 다시 입력해주세요.`)
       setDone(true)
     } catch (e: any) { setError(e.message) }
     finally { setSaving(false) }
@@ -444,44 +440,17 @@ export default function MobileActivityForm({ teams, tasks, vehicles = [], initia
             </div>
           )}
 
-          {/* 비용 패널 */}
-          {showExpense && (
-            <div className="px-4 pb-4 pt-3 border-t border-gray-100 bg-amber-50/30 space-y-2">
-              <p className="text-xs font-semibold text-amber-700 mb-2">비용 정산</p>
-              {[
-                { label: '교통비', val: expTransport, set: setExpTransport },
-                { label: '숙박비', val: expAccomm,    set: setExpAccomm },
-                { label: '식비',   val: expMeal,      set: setExpMeal },
-                { label: '기타',   val: expOther,     set: setExpOther },
-              ].map(({ label, val, set }) => (
-                <div key={label} className="flex items-center gap-2">
-                  <span className="w-12 text-xs text-gray-500 shrink-0">{label}</span>
-                  <input type="text" inputMode="numeric" value={fmtNum(val)}
-                    onChange={e => set(rawNum(e.target.value))}
-                    placeholder="0"
-                    className="flex-1 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-right outline-none focus:border-amber-400" />
-                  <span className="text-xs text-gray-400 shrink-0">원</span>
-                </div>
-              ))}
-              {expTotal > 0 && (
-                <div className="flex justify-between items-center pt-1 border-t border-amber-100">
-                  <span className="text-xs text-gray-500">합계</span>
-                  <span className="text-sm font-bold text-amber-700">{expTotal.toLocaleString()}원</span>
-                </div>
-              )}
-              <div>
-                <p className="text-xs text-gray-500 mb-1.5">결제수단</p>
-                <div className="flex gap-1.5">
-                  {(['현금','법인카드','개인카드'] as const).map(m => (
-                    <button key={m} onClick={() => setExpMethod(expMethod === m ? '' : m)}
-                      className={`${CHIP} ${expMethod === m ? 'bg-amber-500 text-white border-amber-500' : 'border-gray-200 text-gray-500 bg-white'}`}>
-                      {m}
-                    </button>
-                  ))}
-                </div>
-              </div>
-              <input value={expNote} onChange={e => setExpNote(e.target.value)} placeholder="비용 특이사항 (선택)"
-                className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:border-amber-400" />
+          {/* 비용 패널 — 카드/현금 사용내역 (닫혀 있어도 마운트 유지: 합계·대기 목록 보존) */}
+          {!isLeave && (
+            <div hidden={!showExpense} className="px-4 pb-4 pt-3 border-t border-gray-100 bg-amber-50/30">
+              <p className="text-xs font-semibold text-amber-700 mb-2">비용 (카드 · 현금 사용내역)</p>
+              <ActivityCardUsagePanel
+                defaultDate={date}
+                myUserId={initial?.userId}
+                pending={pendingUsages}
+                setPending={setPendingUsages}
+                onTotalChange={setExpTotal}
+              />
             </div>
           )}
         </div>

@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { Pencil, Plus, Trash2 } from 'lucide-react'
 import CardUsageForm, { useCardOptions, draftToBody } from './CardUsageForm'
+import ReceiptLinks from './ReceiptLinks'
 import { emptyDraft, draftFromUsage, validateDraft, STATUS_STYLE, type CardUsage, type CardUsageDraft } from '@/lib/cardUsage'
 
 type Item = CardUsageDraft & { status?: string; cardLabel?: string | null; key: string }
@@ -93,6 +94,7 @@ export default function ActivityCardUsagePanel({
             <p className="text-[11px] text-slate-500 truncate">
               {it.date.slice(5).replace('-', '/')} · {cardText(it)}
               {it.attendees ? ` · 참석: ${it.attendees}` : ''}{it.description ? ` · ${it.description}` : ''}
+              <ReceiptLinks receiptUrl={it.receiptUrl} />
             </p>
           </div>
           {it.status && (

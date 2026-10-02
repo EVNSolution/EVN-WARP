@@ -786,6 +786,7 @@ model CardUsage {
   category        String    // 교통비|숙박비|통신비|수수료|접대비|마케팅비|식대|기타
   description     String?   // 사용내용
   amount          Float     // 금액 (원)
+  receiptUrl      String?   // 영수증 URL (| 구분 다중) — 개인카드·현금만
   activityId      String?   // 연계 활동 WorkActivity.id (단순 참조, 관계 없음)
   userId          String?   // 사용자 id
   userName        String?   // 사용자 이름

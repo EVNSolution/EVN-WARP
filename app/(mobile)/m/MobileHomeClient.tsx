@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import { Bell, Car, PlusCircle, ChevronRight, X, CheckCircle } from 'lucide-react'
+import { Bell, Car, PlusCircle, ChevronRight, X, CheckCircle, CreditCard } from 'lucide-react'
 
 const TYPE_ICON: Record<string, string> = {
   '국내출장': '🚗', '해외출장': '✈️', '내부회의': '💬', '외부미팅': '🤝',
@@ -330,6 +330,11 @@ export default function MobileHomeClient({
           className="flex items-center gap-2 bg-[#0B1D3A] text-white rounded-xl px-4 py-3 active:bg-[#1a3050]">
           <Car size={18} />
           <span className="text-sm font-semibold">차량 신청</span>
+        </Link>
+        <Link href="/m/card-usage"
+          className="col-span-2 flex items-center gap-2 bg-amber-500 text-white rounded-xl px-4 py-3 active:bg-amber-600">
+          <CreditCard size={18} />
+          <span className="text-sm font-semibold">법인카드사용</span>
         </Link>
       </div>
 

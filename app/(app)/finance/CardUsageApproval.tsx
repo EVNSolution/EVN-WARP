@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
 import { Check, X } from 'lucide-react'
 import { CARD_USAGE_CATEGORIES, STATUS_STYLE, type CardUsage } from '@/lib/cardUsage'
+import ReceiptLinks from '@/components/ReceiptLinks'
 
 const FILTERS = ['', '신청', '승인', '반려'] as const
 
@@ -124,6 +125,7 @@ export default function CardUsageApproval({ initialFrom, initialTo }: { initialF
                     {r.date} · {r.userName ?? '알 수 없음'}
                     {r.attendees ? ` · 참석: ${r.attendees}` : ''}
                     {r.description ? ` · ${r.description}` : ''}
+                    <ReceiptLinks receiptUrl={r.receiptUrl} />
                   </p>
                   {r.activityId ? (
                     <Link href={`/notes/${r.activityId}/edit`} className="text-[11px] text-indigo-500 hover:underline">활동: {r.activityTitle ?? '연계 활동'}</Link>

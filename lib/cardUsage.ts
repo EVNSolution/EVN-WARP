@@ -6,6 +6,10 @@ export const CARD_USAGE_CATEGORIES = [
 
 export const PAY_METHODS = ['법인카드', '개인카드', '현금'] as const
 
+// 영수증 첨부는 개인카드·현금만 (법인카드는 카드사 내역으로 증빙)
+export const RECEIPT_PAY_METHODS = new Set<string>(['개인카드', '현금'])
+export const CARD_RECEIPT_PREFIX = '/uploads/card-receipts/'
+
 export type CardUsageCategory = typeof CARD_USAGE_CATEGORIES[number]
 export type PayMethod = typeof PAY_METHODS[number]
 
@@ -21,6 +25,7 @@ export type CardUsage = {
   category:        string
   description:     string | null
   amount:          number
+  receiptUrl:      string | null
   activityId:      string | null
   activityTitle?:  string | null
   userId:          string | null
@@ -44,12 +49,13 @@ export type CardUsageDraft = {
   category:        CardUsageCategory
   description:     string
   amount:          string
+  receiptUrl:      string   // | 구분 다중
 }
 
 export function emptyDraft(date: string): CardUsageDraft {
   return {
     date, payMethod: '법인카드', corporateCardId: '', personalCardId: '',
-    merchant: '', attendees: '', category: '식대', description: '', amount: '',
+    merchant: '', attendees: '', category: '식대', description: '', amount: '', receiptUrl: '',
   }
 }
 
@@ -65,6 +71,7 @@ export function draftFromUsage(u: CardUsage): CardUsageDraft {
     category:        (CARD_USAGE_CATEGORIES as readonly string[]).includes(u.category) ? u.category as CardUsageCategory : '기타',
     description:     u.description ?? '',
     amount:          String(u.amount),
+    receiptUrl:      u.receiptUrl ?? '',
   }
 }
 
@@ -82,4 +89,8 @@ export const STATUS_STYLE: Record<string, string> = {
   '신청': 'bg-amber-100 text-amber-700',
   '승인': 'bg-green-100 text-green-700',
   '반려': 'bg-red-100 text-red-600',
+}
+
+export function receiptList(receiptUrl: string | null | undefined) {
+  return receiptUrl ? receiptUrl.split('|').filter(Boolean) : []
 }

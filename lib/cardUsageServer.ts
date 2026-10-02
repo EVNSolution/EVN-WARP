@@ -1,5 +1,5 @@
 import { prisma } from '@/lib/db'
-import { CARD_USAGE_CATEGORIES, PAY_METHODS } from '@/lib/cardUsage'
+import { CARD_USAGE_CATEGORIES, PAY_METHODS, RECEIPT_PAY_METHODS, CARD_RECEIPT_PREFIX } from '@/lib/cardUsage'
 
 export type CardUsageInput = {
   date:            string
@@ -12,6 +12,7 @@ export type CardUsageInput = {
   category:        string
   description:     string | null
   amount:          number
+  receiptUrl:      string | null
   activityId:      string | null
 }
 
@@ -55,10 +56,15 @@ export async function parseCardUsageInput(body: any, ownerUserId: string | null)
   const attendees   = String(body?.attendees ?? '').trim() || null
   const description = String(body?.description ?? '').trim() || null
   const activityId  = body?.activityId ? String(body.activityId) : null
+  // 영수증은 개인카드·현금만, 업로드 API가 만든 경로만 허용
+  const receiptUrl  = RECEIPT_PAY_METHODS.has(payMethod)
+    ? String(body?.receiptUrl ?? '').split('|').map(s => s.trim())
+        .filter(u => u.startsWith(CARD_RECEIPT_PREFIX) && !u.includes('..')).join('|') || null
+    : null
 
   return {
     date, payMethod, corporateCardId, personalCardId, cardLabel,
-    merchant, attendees, category, description, amount: Math.round(amount), activityId,
+    merchant, attendees, category, description, amount: Math.round(amount), receiptUrl, activityId,
   }
 }
 

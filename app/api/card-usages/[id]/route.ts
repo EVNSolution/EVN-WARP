@@ -36,7 +36,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
       "date" = ${input.date}, "payMethod" = ${input.payMethod},
       "corporateCardId" = ${input.corporateCardId}, "personalCardId" = ${input.personalCardId}, "cardLabel" = ${input.cardLabel},
       "merchant" = ${input.merchant}, "attendees" = ${input.attendees}, "category" = ${input.category},
-      "description" = ${input.description}, "amount" = ${input.amount}, "activityId" = ${input.activityId},
+      "description" = ${input.description}, "amount" = ${input.amount}, "receiptUrl" = ${input.receiptUrl}, "activityId" = ${input.activityId},
       "status" = ${nextStatus}, "updatedAt" = CURRENT_TIMESTAMP
     WHERE "id" = ${id}`
 

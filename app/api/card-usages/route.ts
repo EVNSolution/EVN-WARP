@@ -45,9 +45,9 @@ export async function POST(req: NextRequest) {
   const userName = me.name ?? null
   await prisma.$executeRaw`
     INSERT INTO "CardUsage" ("id","date","payMethod","corporateCardId","personalCardId","cardLabel","merchant","attendees",
-      "category","description","amount","activityId","userId","userName","status")
+      "category","description","amount","receiptUrl","activityId","userId","userName","status")
     VALUES (${id}, ${input.date}, ${input.payMethod}, ${input.corporateCardId}, ${input.personalCardId}, ${input.cardLabel},
-      ${input.merchant}, ${input.attendees}, ${input.category}, ${input.description}, ${input.amount}, ${input.activityId},
+      ${input.merchant}, ${input.attendees}, ${input.category}, ${input.description}, ${input.amount}, ${input.receiptUrl}, ${input.activityId},
       ${me.id}, ${userName}, '신청')`
 
   const row = await prisma.cardUsage.findUnique({ where: { id } })

@@ -20,6 +20,7 @@ CREATE TABLE "CardUsage" (
     "category"        TEXT     NOT NULL,
     "description"     TEXT,
     "amount"          REAL     NOT NULL,
+    "receiptUrl"      TEXT,
     "activityId"      TEXT,
     "userId"          TEXT,
     "userName"        TEXT,

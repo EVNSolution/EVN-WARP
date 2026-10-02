@@ -1,8 +1,8 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-import { Plus, X } from 'lucide-react'
-import { CARD_USAGE_CATEGORIES, PAY_METHODS, type CardUsageDraft } from '@/lib/cardUsage'
+import { useEffect, useRef, useState } from 'react'
+import { Paperclip, Plus, X } from 'lucide-react'
+import { CARD_USAGE_CATEGORIES, PAY_METHODS, RECEIPT_PAY_METHODS, type CardUsageDraft } from '@/lib/cardUsage'
 
 export type CorporateCardOption = { id: string; holderName: string; cardNumberMasked: string; userId: string | null; userName: string | null }
 export type PersonalCardOption  = { id: string; alias: string; last4: string | null }
@@ -39,6 +39,27 @@ export default function CardUsageForm({
   const [newLast4,   setNewLast4]   = useState('')
   const [cardError,  setCardError]  = useState('')
   const [attendeePick, setAttendeePick] = useState('')
+  const [uploading,    setUploading]    = useState(false)
+  const [receiptError, setReceiptError] = useState('')
+  const receiptInputRef = useRef<HTMLInputElement>(null)
+  const receipts = draft.receiptUrl ? draft.receiptUrl.split('|').filter(Boolean) : []
+
+  // 영수증 업로드 — 금액이 비어 있으면 OCR 금액으로 채움
+  async function uploadReceipt(file: File) {
+    setUploading(true); setReceiptError('')
+    try {
+      const fd = new FormData()
+      fd.append('file', file)
+      const res  = await fetch('/api/card-usages/receipt', { method: 'POST', body: fd })
+      const data = await res.json()
+      if (!res.ok) { setReceiptError(data.error ?? '업로드 실패'); return }
+      onChange({
+        receiptUrl: [...receipts, data.url].join('|'),
+        ...(!draft.amount && data.amount ? { amount: String(Math.round(data.amount)) } : {}),
+      })
+    } catch { setReceiptError('업로드 실패') }
+    finally { setUploading(false) }
+  }
 
   // 법인카드 선택 시 본인 배정 카드를 기본값으로
   useEffect(() => {
@@ -193,6 +214,30 @@ export default function CardUsageForm({
         <input value={draft.description} onChange={e => onChange({ description: e.target.value })}
           placeholder="예: 고객사 미팅 후 식사" className={inputCls} />
       </div>
+
+      {/* 영수증 — 개인카드·현금만 */}
+      {RECEIPT_PAY_METHODS.has(draft.payMethod) && (
+        <div>
+          <label className="block text-[11px] font-semibold text-slate-500 mb-1">영수증</label>
+          <div className="flex flex-wrap items-center gap-1.5">
+            {receipts.map((url, i) => (
+              <span key={url} className="flex items-center gap-1 px-2 py-1 rounded-lg border border-slate-200 bg-white text-xs">
+                <a href={url} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">📄 영수증 {i + 1}</a>
+                <button type="button" onClick={() => onChange({ receiptUrl: receipts.filter(u => u !== url).join('|') })}
+                  className="text-slate-300 hover:text-red-500"><X size={10} /></button>
+              </span>
+            ))}
+            <button type="button" onClick={() => receiptInputRef.current?.click()} disabled={uploading}
+              className="flex items-center gap-1 px-3 py-1.5 rounded-lg border border-dashed border-slate-300 text-xs font-semibold text-slate-500 hover:border-amber-400 hover:text-amber-700 disabled:opacity-50">
+              <Paperclip size={12} /> {uploading ? '업로드 중…' : '영수증 첨부'}
+            </button>
+          </div>
+          <input ref={receiptInputRef} type="file" accept="image/*,application/pdf" hidden
+            onChange={e => { const f = e.target.files?.[0]; if (f) uploadReceipt(f); e.target.value = '' }} />
+          {receiptError && <p className="text-[11px] text-red-500 mt-1">{receiptError}</p>}
+          <p className="text-[10px] text-slate-400 mt-1">사진을 올리면 금액이 비어 있을 때 자동으로 채워집니다.</p>
+        </div>
+      )}
     </div>
   )
 }
@@ -205,6 +250,7 @@ export function draftToBody(d: CardUsageDraft, activityId?: string | null) {
     personalCardId:  d.payMethod === '개인카드' ? d.personalCardId  : null,
     merchant: d.merchant, attendees: d.attendees, category: d.category,
     description: d.description, amount: Number(d.amount),
+    receiptUrl: RECEIPT_PAY_METHODS.has(d.payMethod) ? d.receiptUrl : null,
     ...(activityId !== undefined ? { activityId } : {}),
   }
 }
