@@ -1,6 +1,5 @@
 import { auth } from '@/auth'
 import { AccountBoundaryError, buildForwardedAccountHeaders } from '@/lib/account-control/boundary'
-import { prisma } from '@/lib/db'
 import { NextResponse } from 'next/server'
 
 // 사외 계정은 영업 파이프라인 · 고객관리(CRM)만 접근 가능
@@ -14,7 +13,7 @@ const MOBILE_RE = /Android.*Mobile|webOS|iPhone|iPod|BlackBerry|IEMobile|Opera M
  * Tracking: EVNSolution/EVN-WARP#2
  * Security: protected account-bound actions must not bypass this boundary.
  */
-export default auth(async (req) => {
+export default auth((req) => {
   const isLoggedIn  = !!req.auth
   const pathname    = req.nextUrl.pathname
   const isLoginPage = pathname === '/login'
@@ -60,28 +59,6 @@ export default auth(async (req) => {
     }
     try {
       const forwarded = buildForwardedAccountHeaders(req.headers, subject)
-      let customerPathname = pathname
-      try { customerPathname = decodeURIComponent(pathname) } catch { /* Keep malformed paths unchanged. */ }
-      if ((customerPathname === '/api/customers' || customerPathname.startsWith('/api/customers/'))
-        && !['GET', 'HEAD', 'OPTIONS'].includes(req.method)) {
-        // Baseline-only guard: recheck metadata on every write, including after a live schema migration.
-        try {
-          const tables = await prisma.$queryRaw<unknown[]>`
-            SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'CustomerMerge' LIMIT 1
-          `
-          if (tables.length > 0) {
-            return NextResponse.json(
-              { error: '복구 버전에서는 고객 정보 수정이 중단됩니다. 최신 버전 복구 후 진행해 주세요.' },
-              { status: 409, headers: { 'Cache-Control': 'no-store' } },
-            )
-          }
-        } catch {
-          return NextResponse.json(
-            { error: '고객 정보 수정 가능 여부를 확인할 수 없습니다. 잠시 후 다시 시도해 주세요.' },
-            { status: 503, headers: { 'Cache-Control': 'no-store' } },
-          )
-        }
-      }
       const response = NextResponse.next({ request: { headers: forwarded.headers } })
       response.headers.set('X-Correlation-ID', forwarded.context.correlationId)
       return response
