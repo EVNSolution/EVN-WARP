@@ -82,12 +82,16 @@ type Customer = {
   shipperName: string | null; cargoType: string | null
   deliveryCity: string | null; deliveryDist: string | null; deliveryFreq: string | null
   workShift: string | null; monthlyIncome: string | null; cargoNote: string | null
-  collectedAt: string | null; createdAt: string
+  collectedAt: string | null; createdAt: string; updatedAt: string
   leads: Lead[]; activities: Activity[]
 }
 
-export default function CustomerDetailClient({ customer, returnTo, myName }: { customer: Customer; returnTo?: string; myName?: string }) {
+export default function CustomerDetailClient({ customer, returnTo, myName, backHref = '/customers' }: {
+  customer: Customer; returnTo?: string; myName?: string; backHref?: string
+}) {
   const router = useRouter()
+  // Keep the version that belongs to this form; a prop refresh must not bless an old draft.
+  const [expectedUpdatedAt, setExpectedUpdatedAt] = useState(customer.updatedAt)
 
   const [f, setF] = useState({
     /* 기본 */
@@ -175,14 +179,23 @@ export default function CustomerDetailClient({ customer, returnTo, myName }: { c
       fd.append('type', docType)
       const res = await fetch(`/api/customers/${customer.id}/documents`, { method: 'POST', body: fd })
       const data = await res.json()
-      setDocs(prev => [...prev.filter(d => d.type !== docType), data.doc])
+      if (!res.ok) { setMsg(data.error ?? '파일을 업로드하지 못했습니다.'); return }
+      setDocs(prev => Array.isArray(data.docs) ? data.docs : [...prev, data.doc])
+    } catch {
+      setMsg('파일 업로드 결과를 확인하지 못했습니다. 새로고침 후 확인해 주세요.')
     } finally { setUploading(null) }
   }
 
   const handleDocDelete = async (docType: string) => {
     if (!confirm(`"${docType}" 파일을 삭제할까요?`)) return
-    await fetch(`/api/customers/${customer.id}/documents?type=${encodeURIComponent(docType)}`, { method: 'DELETE' })
-    setDocs(prev => prev.filter(d => d.type !== docType))
+    try {
+      const res = await fetch(`/api/customers/${customer.id}/documents?type=${encodeURIComponent(docType)}`, { method: 'DELETE' })
+      const data = await res.json()
+      if (!res.ok) { setMsg(data.error ?? '파일을 삭제하지 못했습니다.'); return }
+      setDocs(prev => prev.filter(d => d.type !== docType))
+    } catch {
+      setMsg('파일 삭제 결과를 확인하지 못했습니다. 새로고침 후 확인해 주세요.')
+    }
   }
 
   /* B2B 보유차량 목록 */
@@ -210,13 +223,22 @@ export default function CustomerDetailClient({ customer, returnTo, myName }: { c
       fd.append('file', file)
       const res = await fetch(`/api/customers/${customer.id}/contact-card`, { method: 'POST', body: fd })
       const data = await res.json()
+      if (!res.ok) { setMsg(data.error ?? '명함을 업로드하지 못했습니다.'); return }
       setMainCardUrl(data.url)
+    } catch {
+      setMsg('명함 업로드 결과를 확인하지 못했습니다. 새로고침 후 확인해 주세요.')
     } finally { setMainCardUploading(false) }
   }
   const handleMainCardDelete = async () => {
     if (!confirm('명함 이미지를 삭제할까요?')) return
-    await fetch(`/api/customers/${customer.id}/contact-card`, { method: 'DELETE' })
-    setMainCardUrl(null)
+    try {
+      const res = await fetch(`/api/customers/${customer.id}/contact-card`, { method: 'DELETE' })
+      const data = await res.json()
+      if (!res.ok) { setMsg(data.error ?? '명함을 삭제하지 못했습니다.'); return }
+      setMainCardUrl(null)
+    } catch {
+      setMsg('명함 삭제 결과를 확인하지 못했습니다. 새로고침 후 확인해 주세요.')
+    }
   }
 
   /* B2B 관계자 목록 */
@@ -329,6 +351,7 @@ export default function CustomerDetailClient({ customer, returnTo, myName }: { c
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(Object.assign({}, f, {
+          expectedUpdatedAt,
           phone:            f.phone            || null,
           email:            f.email            || null,
           grade:            f.grade            || null,
@@ -356,7 +379,7 @@ export default function CustomerDetailClient({ customer, returnTo, myName }: { c
           companyAddress:   f.companyAddress   || null,
           companyPhone:     f.companyPhone     || null,
           employeeCount:    f.employeeCount ? parseInt(f.employeeCount.replace(/,/g, ''), 10) : null,
-          contactsJson:     f.customerSegment === 'B2B' ? JSON.stringify(contacts) : null,
+          contactsJson:     f.customerSegment === 'B2B' ? JSON.stringify(contacts) : customer.contactsJson,
           b2bRevenue1:      f.b2bRevenue1      || null,
           b2bRevenue2:      f.b2bRevenue2      || null,
           b2bRevenue3:      f.b2bRevenue3      || null,
@@ -365,7 +388,7 @@ export default function CustomerDetailClient({ customer, returnTo, myName }: { c
           totalMileage:   f.totalMileage  ? parseInt(f.totalMileage.replace(/,/g, ''), 10) : null,
           vehicleListJson: f.customerSegment === 'B2B'
             ? JSON.stringify(vehicleList.filter(r => r.name || r.count))
-            : null,
+            : customer.vehicleListJson,
           vehicleMaker: (makerChip  === '직접입력' ? makerCustom  : makerChip)  || null,
           vehicleName:  f.vehicleName   || null,
           vehiclePlateNo: f.vehiclePlateNo || null,
@@ -389,6 +412,8 @@ export default function CustomerDetailClient({ customer, returnTo, myName }: { c
         alert(err.error || '저장에 실패했습니다')
         return
       }
+      const updated = await res.json()
+      setExpectedUpdatedAt(updated.updatedAt)
       setSaved(true)
       setMsg('저장되었습니다')
       setTimeout(() => setMsg(''), 2500)
@@ -438,7 +463,7 @@ export default function CustomerDetailClient({ customer, returnTo, myName }: { c
         }),
       })
       const deal = await res.json()
-      router.push(`/funnel/${deal.id}`)
+      router.push(`${backHref.startsWith('/m/') ? '/m/pipeline' : '/funnel'}/${deal.id}`)
     } catch {
       setConverting(false)
     }
@@ -472,7 +497,7 @@ export default function CustomerDetailClient({ customer, returnTo, myName }: { c
   )
 
   return (
-    <div className="p-6 max-w-5xl mx-auto">
+    <div className="min-w-0 p-4 sm:p-6 max-w-5xl mx-auto max-sm:[&_button]:min-h-11 max-sm:[&_select]:min-h-11 max-sm:[&_input:not([type=checkbox]):not([type=radio])]:min-h-11">
       {msg && (
         <div className="mb-4 px-4 py-2.5 rounded-lg bg-green-50 border border-green-200 text-green-700 text-sm font-medium">
           ✓ {msg}
@@ -496,12 +521,12 @@ export default function CustomerDetailClient({ customer, returnTo, myName }: { c
       )}
 
       {/* 헤더 */}
-      <div className="flex items-center justify-between mb-6">
-        <div className="flex items-center gap-3">
-          <Link href="/customers" className="text-slate-400 hover:text-slate-600 text-sm transition">← 고객 목록</Link>
-          <div>
-            <h1 className="text-2xl font-bold text-slate-800">{f.name || '이름 미입력'}</h1>
-            <div className="flex items-center gap-2 mt-0.5">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-6">
+        <div className="flex min-w-0 flex-wrap items-center gap-3">
+          <Link href={backHref} className="inline-flex min-h-11 items-center text-slate-400 hover:text-slate-600 text-sm transition">← 고객 목록</Link>
+          <div className="min-w-0">
+            <h1 className="break-words text-xl sm:text-2xl font-bold text-slate-800">{f.name || '이름 미입력'}</h1>
+            <div className="flex flex-wrap items-center gap-2 mt-0.5">
               {customer.phone && <span className="text-sm text-slate-500">{customer.phone}</span>}
               <button type="button"
                 onClick={() => {
@@ -521,7 +546,7 @@ export default function CustomerDetailClient({ customer, returnTo, myName }: { c
             </div>
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2 [&>button]:min-h-11">
           <button onClick={handleConvertToLead} disabled={converting}
             className="px-3 py-2 text-sm font-bold rounded-xl border border-blue-200 text-blue-600 hover:bg-blue-50 transition disabled:opacity-50">
             {converting ? '전환 중...' : '+ 새 리드로 전환'}
@@ -529,8 +554,13 @@ export default function CustomerDetailClient({ customer, returnTo, myName }: { c
           <button
             onClick={async () => {
               if (!confirm(`"${f.name || '이름 미입력'}" 고객을 삭제할까요? 이 작업은 되돌릴 수 없습니다.`)) return
-              await fetch(`/api/customers/${customer.id}`, { method: 'DELETE' })
-              router.push('/customers')
+              const response = await fetch(`/api/customers/${customer.id}`, { method: 'DELETE' })
+              if (!response.ok) {
+                const data = await response.json().catch(() => ({}))
+                alert(data.error || '고객을 삭제하지 못했습니다.')
+                return
+              }
+              router.push(backHref)
             }}
             className="px-3 py-2 text-sm font-bold rounded-xl border border-red-200 text-red-400 hover:bg-red-50 hover:text-red-600 transition">
             삭제
@@ -1101,6 +1131,19 @@ export default function CustomerDetailClient({ customer, returnTo, myName }: { c
             </div>
           )}
 
+          {docs.length > 0 && (
+            <section className="bg-white rounded-xl border border-slate-200 overflow-hidden" aria-label="전체 첨부자료">
+              {sectionHead('slate', '전체 첨부자료')}
+              <div className="space-y-2 p-5">
+                <p className="text-xs text-slate-500">같은 종류의 파일도 각각 보관합니다. 아래에서 원본을 확인할 수 있습니다.</p>
+                {docs.map((doc, i) => <div key={`${doc.path}-${i}`} className="flex flex-wrap items-center gap-3 text-xs">
+                  <span className="text-slate-500">{doc.type}</span>
+                  <a href={doc.path} target="_blank" rel="noreferrer" className="text-blue-600 underline">{doc.name}</a>
+                  <span className="text-slate-400">{doc.uploadedAt?.slice(0, 10)}</span>
+                </div>)}
+              </div>
+            </section>
+          )}
           {/* 메모 (공통) */}
           <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
             {sectionHead('slate', '메모')}
@@ -1118,7 +1161,7 @@ export default function CustomerDetailClient({ customer, returnTo, myName }: { c
             <div className="p-5">
             <div className="space-y-2">
               {customer.leads.map(lead => (
-                <Link key={lead.id} href={`/funnel/${lead.id}`}
+                <Link key={lead.id} href={`${backHref.startsWith('/m/') ? '/m/pipeline' : '/funnel'}/${lead.id}`}
                   className="flex items-center justify-between p-2.5 rounded-lg bg-slate-50 hover:bg-slate-100 transition">
                   <div className="flex items-center gap-2">
                     <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded

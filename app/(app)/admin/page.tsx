@@ -6,6 +6,10 @@ import AdminClient from './AdminClient'
 export default async function AdminPage() {
   const session = await auth()
   const canManageUsersFlag = await canManageUsers((session?.user as any)?.id)
+  const actor = session?.user?.id ? await prisma.user.findUnique({
+    where: { id: session.user.id }, select: { role: true, employmentType: true },
+  }) : null
+  const canMergeCustomers = !!actor && ['admin', 'ceo'].includes(actor.role) && actor.employmentType !== '사외'
 
   const [
     totalCustomers, linkedDeals, unlinkedDeals, customersWithDetail,
@@ -57,6 +61,7 @@ export default async function AdminPage() {
       garages={garages}
       corporateCards={corporateCards.map(c => ({ ...c, createdAt: c.createdAt.toISOString() }))}
       canManageUsers={canManageUsersFlag}
+      canMergeCustomers={canMergeCustomers}
     />
   )
 }

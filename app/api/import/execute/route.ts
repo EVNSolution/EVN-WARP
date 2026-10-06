@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
+import { customerWrite, requireCurrentCustomerId, resolveCustomerId } from '@/lib/customer-alias'
 
 export interface ExecuteRow {
   action:          'update' | 'create' | 'link' | 'skip'
@@ -54,37 +55,41 @@ export async function POST(req: NextRequest) {
         })
         updated++
       } else {
-        let customerId: string
+        await customerWrite(prisma, async prisma => {
+          let customerId: string
 
-        if (row.action === 'create') {
-          const customer = await prisma.customer.create({
-            data: {
-              name:            row.name.trim(),
-              phone:           row.phone           || null,
-              customerSegment: row.customerSegment || null,
-              source:          row.source          || null,
-              companyName:     row.companyName     || null,
-              assignee:        row.assignee        || null,
-              status:          '잠재고객',
-              collectedAt:     row.collectedAt ? new Date(row.collectedAt) : new Date(),
-              regionCity:      row.regionCity      || null,
-              regionDist:      row.regionDist      || null,
-            },
+          if (row.action === 'create') {
+            const customer = await prisma.customer.create({
+              data: {
+                name:            row.name.trim(),
+                phone:           row.phone           || null,
+                customerSegment: row.customerSegment || null,
+                source:          row.source          || null,
+                companyName:     row.companyName     || null,
+                assignee:        row.assignee        || null,
+                status:          '잠재고객',
+                collectedAt:     row.collectedAt ? new Date(row.collectedAt) : new Date(),
+                regionCity:      row.regionCity      || null,
+                regionDist:      row.regionDist      || null,
+              },
+            })
+            customerId = customer.id
+
+          } else {
+            // link: 기존 고객에 새 딜 연결
+            customerId = await resolveCustomerId(prisma, row.linkCustomerId!)
+            await requireCurrentCustomerId(prisma, customerId)
+          }
+
+          await prisma.salesDeal.create({
+            data: { ...dealFields, customerId },
           })
-          customerId = customer.id
-          created++
-        } else {
-          // link: 기존 고객에 새 딜 연결
-          customerId = row.linkCustomerId!
-          linked++
-        }
-
-        await prisma.salesDeal.create({
-          data: { ...dealFields, customerId },
         })
+        if (row.action === 'create') created++
+        else linked++
       }
-    } catch (e) {
-      errors.push(`${row.name}: ${(e as Error).message}`)
+    } catch {
+      errors.push('고객 연결 또는 저장에 실패했습니다. 현재 고객 정보를 확인해 주세요.')
     }
   }
 

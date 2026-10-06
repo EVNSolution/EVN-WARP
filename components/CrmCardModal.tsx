@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import VehicleForm, { VehicleData } from './VehicleForm'
 import { formatPhone } from '@/lib/format'
 
@@ -161,7 +161,40 @@ function ToggleGroup({ options, value, onChange, colors }: {
   )
 }
 
-export default function CrmCardModal({ customerId, dealId, name, phone, stageCode, crm, onClose, onSaved }: Props) {
+type CurrentCustomer = Partial<CrmData> & { id: string; name: string; phone: string | null; updatedAt: string }
+
+export default function CrmCardModal(props: Props) {
+  const [loaded, setLoaded] = useState<{ requestedId: string; customer: CurrentCustomer } | null>(null)
+  const [failure, setFailure] = useState<{ requestedId: string; message: string } | null>(null)
+  useEffect(() => {
+    const requestedId = props.customerId
+    if (!requestedId) return
+    const controller = new AbortController()
+    fetch(`/api/customers/${encodeURIComponent(requestedId)}`, { cache: 'no-store', signal: controller.signal })
+      .then(async response => {
+        const customer = await response.json()
+        if (!response.ok) throw new Error(customer.error || '고객 정보를 불러오지 못했습니다.')
+        if (!controller.signal.aborted) setLoaded({ requestedId, customer })
+      })
+      .catch(error => { if (!controller.signal.aborted) setFailure({ requestedId, message: error instanceof Error ? error.message : '고객 정보를 불러오지 못했습니다.' }) })
+    return () => controller.abort()
+  }, [props.customerId])
+  const current = loaded?.requestedId === props.customerId ? loaded.customer : undefined
+  const error = failure?.requestedId === props.customerId ? failure.message : ''
+  if (props.customerId && !current) return <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" role="dialog" aria-label="고객 정보 불러오기">
+    <div className="space-y-4 rounded-xl bg-white p-6 text-sm">
+      <p role={error ? 'alert' : 'status'}>{error || '최신 고객 정보를 불러오는 중입니다…'}</p>
+      <button onClick={props.onClose} className="min-h-11 rounded-lg border px-4">닫기</button>
+    </div>
+  </div>
+  // Mount the editor with the same fresh snapshot as its version, never refresh just the token.
+  return <CrmCardEditor key={props.customerId ?? 'new'} {...props}
+    customerId={current?.id ?? props.customerId} name={current?.name ?? props.name}
+    phone={current ? current.phone : props.phone} crm={{ ...props.crm, ...current }} initialUpdatedAt={current?.updatedAt} />
+}
+
+function CrmCardEditor({ customerId, dealId, name, phone, stageCode, crm, onClose, onSaved, initialUpdatedAt }: Props & { initialUpdatedAt?: string }) {
+  const [record, setRecord] = useState({ id: customerId, updatedAt: initialUpdatedAt })
   const [saving, setSaving] = useState(false)
   const [saved,  setSaved]  = useState(false)
 
@@ -237,7 +270,7 @@ export default function CrmCardModal({ customerId, dealId, name, phone, stageCod
   const pct = Math.round(((baseScore + cargoScore) / 5) * 100)
 
   const handleSave = async () => {
-    if (!customerId && !dealId) return
+    if (!record.id && !dealId) return
     setSaving(true)
     const workShift = shiftChip === '직접입력' ? shiftCustom : shiftChip
     const payload = {
@@ -280,32 +313,31 @@ export default function CrmCardModal({ customerId, dealId, name, phone, stageCod
       monthlyIncome: monthlyIncome || null,
       cargoNote:     cargoNote     || null,
     }
-    if (customerId) {
-      // 기존 Customer에 저장
-      await fetch(`/api/customers/${customerId}`, {
-        method: 'PUT',
+    try {
+      const response = await fetch(record.id ? `/api/customers/${record.id}` : '/api/customers', {
+        method: record.id ? 'PUT' : 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
+        body: JSON.stringify(record.id ? { ...payload, expectedUpdatedAt: record.updatedAt } : { name, phone, ...payload }),
       })
-    } else {
-      // Customer 신규 생성 후 Deal에 연결
-      const createRes = await fetch('/api/customers', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, phone, ...payload }),
-      })
-      if (createRes.ok && dealId) {
-        const { id: newCustomerId } = await createRes.json()
-        await fetch(`/api/deals/${dealId}`, {
+      const updated = await response.json()
+      if (!response.ok) throw new Error(updated.error || '저장하지 못했습니다.')
+      setRecord({ id: updated.id, updatedAt: updated.updatedAt })
+      if (!customerId && dealId) {
+        const linked = await fetch(`/api/deals/${dealId}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ customerId: newCustomerId }),
+          body: JSON.stringify({ customerId: updated.id }),
         })
+        if (!linked.ok) throw new Error('고객은 저장됐지만 리드 연결에 실패했습니다. 다시 저장해 주세요.')
       }
+      setSaved(true)
+      onSaved(updated)
+    } catch (error) {
+      setSaved(false)
+      alert(error instanceof Error ? error.message : '저장 결과를 확인하지 못했습니다. 다시 열어 확인해 주세요.')
+    } finally {
+      setSaving(false)
     }
-    setSaving(false)
-    setSaved(true)
-    onSaved(payload)
   }
 
   const isB2B = segment === 'B2B'

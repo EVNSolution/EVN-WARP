@@ -126,6 +126,32 @@ class DeploymentOptimizationContractTest(unittest.TestCase):
             self.assertEqual(event['initialActor'], 'OziinG')
             self.assertEqual(event['actionsRunUrl'], environment['ACTIONS_RUN_URL'])
 
+    def test_status_reports_bounded_runtime_counts_without_log_contents(self):
+        remote = (ROOT / 'deploy/remote-deploy.sh').read_text(encoding='utf-8')
+        prefix = remote.split('echo "initialActor=', 1)[0]
+        with tempfile.TemporaryDirectory() as temporary:
+            environment = dict(os.environ, RUNTIME_DIR=temporary, ACTOR='SUMZ711', INITIAL_ACTOR='SUMZ711',
+                               ACTIONS_RUN_URL='https://github.com/EVNSolution/EVN-WARP/actions/runs/123/attempts/1')
+            fake_docker = r"""
+docker() {
+  case "$*" in
+    'container inspect '*) return 0 ;;
+    'inspect -f {{.State.Status}} '*) echo running ;;
+    'inspect -f {{.Config.Image}} '*) echo test-image ;;
+    'inspect -f restartCount='*) echo 'restartCount=0 oomKilled=false' ;;
+    'logs --since 30m --tail 5000 '*) printf '%s\n' 'PRIVATE_FIXTURE' 'SQLITE_BUSY private contents' ;;
+    *) return 1 ;;
+  esac
+}
+status
+"""
+            result = subprocess.run(['bash', '-c', prefix + fake_docker], env=environment, capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(result.stdout.count('recentSqliteBusy=1'), 2)
+            self.assertIn('restartCount=0 oomKilled=false', result.stdout)
+            self.assertNotIn('PRIVATE_FIXTURE', result.stdout)
+            self.assertNotIn('private contents', result.stdout)
+
     def test_only_the_governed_deployment_workflow_remains(self):
         workflows = {
             path.name

@@ -69,6 +69,7 @@ GitHub Actions의 **Deploy WARP Blue-Green via SSM**에서 `release`를 한 번 
    - Actions Job Summary에서 Revision, image digest, slot, SSM command와 결과를 확인한다.
 5. 최소 30분 관찰
    - HTTP 5xx, Docker restart, OOM, `SQLITE_BUSY`, upload 404를 확인한다.
+   - 공식 `status`는 slot별 restartCount, oomKilled와 최근 30분/최대 5,000줄 로그의 recentSqliteBusy 집계만 출력한다. 로그 원문·고객 정보·비밀값은 출력하지 않는다. 집계는 bounded sample이며 전체 로그의 0건 보장을 뜻하지 않는다.
 6. 최초 배포에서는 `rollback` 후 공개 `/login`을 확인하고, 같은 Revision을 다시 `prepare`·`switch`하여 복구 절차를 증명한다.
 
 `validate`는 SSM ENV 변경 직후의 traffic 비변경 preflight에 사용한다. `prepare`, `status`, `switch`는 실패 조사나 단계별 복구 확인에만 사용하고 일상 배포에서 수동으로 반복하지 않는다.
@@ -87,9 +88,9 @@ privacy preflight 차단은 제거 대상 데이터가 남았거나 query 계약
 
 ### 고객 통합 schema 적용 후 baseline으로 복구할 때
 
-공유 DB에 `CustomerMerge` 테이블이 만들어지면 이 baseline의 고객 쓰기 보호가 즉시 적용된다. candidate 준비·전환 실패로 기존 baseline에 머무르거나 `rollback`으로 돌아온 경우에도 동일하다. 고객 생성·수정·삭제와 문서·연락처·활동 변경 등 `/api/customers` 및 모든 하위 경로의 GET·HEAD·OPTIONS 이외 요청은 handler 실행 전에 409와 “복구 버전에서는 고객 정보 수정이 중단됩니다. 최신 버전 복구 후 진행해 주세요.”를 반환한다. 메타데이터 확인 자체가 실패하면 503으로 차단한다. 테이블이 아직 없으면 기존 고객 쓰기는 정상 동작한다.
+PR #59의 baseline `e85588a2f3298abab2fa2a134128646609cb2379`가 직전 slot으로 준비·검증돼 있어야 한다. 이 이미지의 legacy merge POST는 항상 409이며, CustomerMerge table 생성 이후 고객 생성·수정·삭제·문서·연락처·활동 쓰기는 handler 전에 409로 중단된다. 메타데이터 조회 실패는 503으로 차단한다. candidate 준비나 전환에 실패해 baseline에 머무르는 동안에도 같다.
 
-고객 조회와 다른 WARP 경로는 계속 사용할 수 있다. 409는 롤백 중 고객 데이터 손실을 막기 위한 임시 읽기 전용 상태다. 통합 alias와 버전 검증을 지원하는 검증된 최신 앱을 공식 `release`로 복구하고 공개 `/api/readyz`의 exact Revision·digest를 확인한 뒤 고객 수정을 재개한다. 쓰기를 재개하려고 guard를 우회하거나 테이블 삭제·DB restore를 수행하지 않는다. 최신 앱에서는 baseline 전용 guard를 제거하되, 안전한 직전 slot 이미지에는 이 보호를 유지한다.
+고객 조회와 다른 WARP 기능은 계속 사용할 수 있다. 이 임시 읽기 전용 보호는 구버전의 데이터 손실을 막기 위한 것으로, 최신 앱에는 baseline 전용 proxy guard를 넣지 않는다. 별칭과 버전 검증을 지원하는 최신 앱을 공식 release로 복구하고 공개 readyz의 exact Revision·digest를 확인한 뒤 수정을 재개한다. guard 우회·table 삭제·DB restore로 쓰기를 재개하지 않는다. 구 고객 ID 상세 이동과 최신 병합 화면은 최신 앱에서 지원한다.
 
 ## 4. ENV 변경
 

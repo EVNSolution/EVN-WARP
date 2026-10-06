@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
+import { customerWrite, customerErrorResponse, resolveCustomerId } from '@/lib/customer-alias'
 import {
   ExternalLookupConfigurationError,
   readLookupApiKey,
@@ -36,22 +37,26 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'bad_payload' }, { status: 400, headers: NO_STORE })
   }
 
-  const fields = {
-    type: payload.type,
-    buildupQuoteId: payload.quote.id,
-    quoteNo: payload.quote.quote_no,
-    customerName: payload.customer?.name ?? null,
-    warpCustomerId: payload.customer?.warp_customer_id ?? null,
-    payloadJson: JSON.stringify(payload),
-  }
-  const saved = await prisma.buildupEvent.upsert({
-    where: { eventKey: payload.event_key },
-    // 같은 키 재수신 = 내용이 바뀌었다는 뜻(buildup 은 액션당 1회만 보낸다).
-    // 이미 「확인 완료」였어도 **대기로 되돌려** 재확인을 요구한다 — 그래야
-    // 견적 수정·재계약이 조용히 묻히지 않는다.
-    update: { ...fields, status: 'pending', confirmedBy: null, confirmedAt: null },
-    create: { eventKey: payload.event_key, ...fields },
-  })
-  console.info(`[deal-events] ${payload.type} quote=${payload.quote.id} → ${saved.status}`)
-  return NextResponse.json({ ok: true }, { headers: NO_STORE })
+  try {
+    await customerWrite(prisma, async prisma => {
+      const fields = {
+        type: payload.type,
+        buildupQuoteId: payload.quote.id,
+        quoteNo: payload.quote.quote_no,
+        customerName: payload.customer?.name ?? null,
+        warpCustomerId: payload.customer?.warp_customer_id
+          ? await resolveCustomerId(prisma, payload.customer.warp_customer_id) : null,
+        payloadJson: JSON.stringify(payload),
+      }
+      await prisma.buildupEvent.upsert({
+        where: { eventKey: payload.event_key },
+        // 같은 키 재수신 = 내용이 바뀌었다는 뜻(buildup 은 액션당 1회만 보낸다).
+        // 이미 「확인 완료」였어도 **대기로 되돌려** 재확인을 요구한다 — 그래야
+        // 견적 수정·재계약이 조용히 묻히지 않는다.
+        update: { ...fields, status: 'pending', confirmedBy: null, confirmedAt: null },
+        create: { eventKey: payload.event_key, ...fields },
+      })
+    })
+    return NextResponse.json({ ok: true }, { headers: NO_STORE })
+  } catch (error) { return customerErrorResponse(error) }
 }

@@ -1,8 +1,9 @@
 {
-  "prismaSchemaSha256": "6c974ca06f215552665fd17549c49d51127312cfe9bfaa54df1483505e613f57",
+  "prismaSchemaSha256": "bf52d41ddd61fe88ce4b1a93279df4102e661500bdbf4f53402f4364e6ea8c83",
   "requiredTables": [
     "Announcement",
     "BuildupEvent",
+    "CustomerMerge",
     "CardUsage",
     "CompanyScheduleRule",
     "Garage",
@@ -15,9 +16,14 @@
   },
   "requiredIndexes": [
     "BuildupEvent_eventKey_key",
-    "BuildupEvent_status_idx"
+    "BuildupEvent_status_idx",
+    "CustomerMerge_targetId_idx"
   ],
   "requiredColumns": {
+    "CustomerMerge": [
+      "sourceId", "targetId", "actorId", "actorName", "previewToken",
+      "choicesJson", "snapshotJson", "createdAt"
+    ],
     "Announcement": [
       "id",
       "title",

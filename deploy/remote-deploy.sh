@@ -334,12 +334,14 @@ status() {
     return
   fi
   for slot in blue green; do
-    local name state image
+    local name state image metrics busy
     name="$(container_name "$slot")"
     if docker container inspect "$name" >/dev/null 2>&1; then
       state="$(docker inspect -f '{{.State.Status}}' "$name")"
       image="$(docker inspect -f '{{.Config.Image}}' "$name")"
-      echo "$slot state=$state image=$image"
+      metrics="$(docker inspect -f 'restartCount={{.RestartCount}} oomKilled={{.State.OOMKilled}}' "$name")"
+      busy="$(docker logs --since 30m --tail 5000 "$name" 2>&1 | awk '/SQLITE_BUSY|database is locked/ {count++} END{print count+0}')"
+      echo "$slot state=$state image=$image $metrics recentSqliteBusy=$busy"
     else
       echo "$slot state=absent"
     fi

@@ -10,11 +10,24 @@ on:
       - deploy/remote-deploy.sh
       - .github/workflows/deploy-ec2-ssm.yml
       - app/api/external/**
+      - app/api/customers/**
+      - app/api/migrate/find-duplicates/**
+      - app/(app)/customers/**
+      - app/(mobile)/m/customers/**
+      - app/(mobile)/m/layout.tsx
+      - proxy.ts
+      - components/CustomerMergePanel.tsx
+      - lib/customer-merge*.ts
+      - lib/customer-alias.ts
+      - lib/customer-mobile.ts
+      - prisma/schema.prisma
+      - deploy/schema-migrations/**
       - lib/buildup-import/**
       - lib/marketing-inquiries*.ts
       - docs/integrations/**
       - scripts/verify-direct-integration-contract.mjs
       - package.json
+      - package-lock.json
       - .github/workflows/verify-direct-integration.yml
 
 permissions:
@@ -40,4 +53,6 @@ jobs:
           npm run test:external-lookup
           npm run test:buildup-import
           npm run test:marketing-inquiries
+          python3 -m unittest discover -s deploy/tests -p 'test_*.py'
+          npm run test:customer-merge
           npm run test:integration-contract

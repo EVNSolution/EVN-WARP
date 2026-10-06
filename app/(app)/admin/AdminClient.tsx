@@ -2,10 +2,10 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import CustomerMergePanel from '@/components/CustomerMergePanel'
 import {
   RefreshCw,
   Users, Database, Link2, Unlink,
-  GitMerge, Search, Phone, ChevronDown, ChevronUp,
   Trash2, UserPlus, X, Pencil, FolderPlus, PackagePlus, Car, CreditCard, MapPin,
 } from 'lucide-react'
 
@@ -80,16 +80,6 @@ interface GarageRow {
   detail:  string | null
 }
 
-type CustInfo = { id: string; name: string; phone: string | null; status: string; leadCount: number; createdAt: string }
-type DupGroup = { phone: string | null; name: string; customers: CustInfo[] }
-
-interface DupResult {
-  total:      number
-  dupCount:   number
-  groupCount: number
-  groups:     DupGroup[]
-}
-
 interface ProductRow {
   id:        string
   name:      string
@@ -106,10 +96,10 @@ const PRODUCT_CATEGORIES = ['냉동', '상온', '특장', '기타']
 
 export default function AdminClient({
   stats, users: initialUsers, teams: initialTeams, products: initialProducts, vehicles: initialVehicles,
-  garages: initialGarages, corporateCards: initialCards, canManageUsers,
+  garages: initialGarages, corporateCards: initialCards, canManageUsers, canMergeCustomers,
 }: {
   stats: Stats; users: UserRow[]; teams: TeamRow[]; products: ProductRow[]; vehicles: VehicleRow[]
-  garages: GarageRow[]; corporateCards: CardRow[]; canManageUsers: boolean
+  garages: GarageRow[]; corporateCards: CardRow[]; canManageUsers: boolean; canMergeCustomers: boolean
 }) {
   const router = useRouter()
 
@@ -461,57 +451,6 @@ export default function AdminClient({
     } finally { setEditLoading(false) }
   }
 
-  /* 중복 진단 */
-  const [dupLoading, setDupLoading] = useState(false)
-  const [dupResult,  setDupResult]  = useState<DupResult | null>(null)
-  const [dupError,   setDupError]   = useState('')
-  const [expanded,   setExpanded]   = useState<Set<number>>(new Set())
-  const [merging,    setMerging]    = useState<string | null>(null) // removeId being merged
-  const [mergeMsg,   setMergeMsg]   = useState('')
-
-  /* ── 핸들러: 중복 고객 검색 ── */
-  const handleFindDups = async () => {
-    setDupLoading(true)
-    setDupError('')
-    setDupResult(null)
-    setMergeMsg('')
-    try {
-      const res  = await fetch('/api/migrate/find-duplicates')
-      const json = await res.json()
-      if (!res.ok) { setDupError(json.error ?? '오류'); return }
-      setDupResult(json)
-    } catch {
-      setDupError('네트워크 오류가 발생했습니다')
-    } finally {
-      setDupLoading(false)
-    }
-  }
-
-  /* ── 핸들러: 고객 통합 ── */
-  const handleMerge = async (keepId: string, removeId: string) => {
-    setMerging(removeId)
-    setMergeMsg('')
-    try {
-      const res  = await fetch('/api/migrate/merge-customers', {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ keepId, removeId }),
-      })
-      const json = await res.json()
-      if (!res.ok) { setMergeMsg(`오류: ${json.error}`); return }
-      setMergeMsg(json.message)
-      // 중복 목록 갱신
-      await handleFindDups()
-      router.refresh()
-    } catch {
-      setMergeMsg('네트워크 오류가 발생했습니다')
-    } finally {
-      setMerging(null)
-    }
-  }
-
-  const toggleGroup = (idx: number) =>
-    setExpanded(prev => { const s = new Set(prev); s.has(idx) ? s.delete(idx) : s.add(idx); return s })
 
   /* ── 렌더 ── */
   return (
@@ -1700,118 +1639,7 @@ export default function AdminClient({
         ))}
       </div>
 
-      {/* ══ 중복 고객 통합 ══ */}
-      <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden">
-        <div className="px-6 py-4 bg-indigo-900">
-          <div className="flex items-center justify-between">
-            <div>
-              <h2 className="text-white font-bold text-sm flex items-center gap-2">
-                <GitMerge size={15} /> 중복 고객 통합
-              </h2>
-              <p className="text-indigo-300 text-xs mt-0.5">동일 전화번호로 중복 등록된 고객을 찾아 하나로 합칩니다</p>
-            </div>
-            <button onClick={handleFindDups} disabled={dupLoading}
-              className="flex items-center gap-1.5 px-4 py-2 bg-white/10 hover:bg-white/20 text-white text-xs font-semibold rounded-lg transition disabled:opacity-50">
-              {dupLoading ? <RefreshCw size={12} className="animate-spin" /> : <Search size={12} />}
-              {dupLoading ? '검색 중...' : '중복 검색'}
-            </button>
-          </div>
-        </div>
-
-        <div className="p-6">
-          {dupError && <p className="text-sm text-red-600 mb-4">{dupError}</p>}
-          {mergeMsg && (
-            <div className="mb-4 px-4 py-2.5 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-700 font-medium">
-              ✓ {mergeMsg}
-            </div>
-          )}
-
-          {!dupResult && !dupLoading && (
-            <p className="text-sm text-slate-400 text-center py-6">
-              "중복 검색" 버튼을 누르면 전화번호가 동일한 고객을 찾아줍니다
-            </p>
-          )}
-
-          {dupResult && (
-            <>
-              {/* 요약 */}
-              <div className={`mb-5 px-4 py-3 rounded-xl border text-sm font-semibold ${
-                dupResult.dupCount > 0
-                  ? 'bg-red-50 border-red-200 text-red-700'
-                  : 'bg-emerald-50 border-emerald-200 text-emerald-700'
-              }`}>
-                {dupResult.dupCount > 0
-                  ? `전체 ${dupResult.total}명 중 중복 ${dupResult.groupCount}건 발견 — 제거 가능 레코드 ${dupResult.dupCount}개`
-                  : `전체 ${dupResult.total}명 검사 완료 — 중복 없음`}
-              </div>
-
-              {/* 중복 그룹 목록 */}
-              {dupResult.groups.length > 0 && (
-                <div className="space-y-3">
-                  {dupResult.groups.map((group, idx) => (
-                    <div key={idx} className="border border-slate-200 rounded-xl overflow-hidden">
-                      {/* 그룹 헤더 */}
-                      <button onClick={() => toggleGroup(idx)}
-                        className="w-full flex items-center justify-between px-4 py-3 bg-slate-50 hover:bg-slate-100 transition text-left">
-                        <div className="flex items-center gap-3">
-                          <Phone size={12} className="text-slate-400" />
-                          <span className="text-sm font-semibold text-slate-700">{group.name}</span>
-                          <span className="text-xs text-slate-400">{group.phone ?? '전화 없음'}</span>
-                          <span className="px-2 py-0.5 bg-red-100 text-red-600 text-[10px] font-bold rounded">
-                            {group.customers.length}개 중복
-                          </span>
-                        </div>
-                        {expanded.has(idx) ? <ChevronUp size={14} className="text-slate-400" /> : <ChevronDown size={14} className="text-slate-400" />}
-                      </button>
-
-                      {/* 펼친 상태: 통합 선택 */}
-                      {expanded.has(idx) && (
-                        <div className="divide-y divide-slate-100">
-                          <div className="px-4 py-2 bg-blue-50">
-                            <p className="text-[11px] text-blue-600 font-semibold">
-                              아래에서 "남길 고객"을 결정하고, 나머지의 "통합" 버튼을 누르세요.
-                              리드·활동이 모두 남긴 고객으로 이전됩니다.
-                            </p>
-                          </div>
-                          {group.customers.map((c, ci) => {
-                            const isFirst = ci === 0
-                            const otherIds = group.customers.filter(x => x.id !== c.id).map(x => x.id)
-                            const keepId   = isFirst ? c.id : group.customers[0].id
-                            return (
-                              <div key={c.id} className={`px-4 py-3 flex items-center justify-between ${isFirst ? 'bg-emerald-50/40' : ''}`}>
-                                <div className="flex items-center gap-3 text-xs">
-                                  {isFirst && <span className="px-1.5 py-0.5 bg-emerald-100 text-emerald-700 font-bold text-[9px] rounded">기준</span>}
-                                  <div>
-                                    <p className="font-semibold text-slate-700">{c.name}</p>
-                                    <p className="text-slate-400 mt-0.5">
-                                      {c.phone ?? '전화 없음'} · {c.status} ·
-                                      리드 {c.leadCount}건 · {c.createdAt.slice(0, 10)} 생성
-                                    </p>
-                                  </div>
-                                </div>
-                                {!isFirst && (
-                                  <button
-                                    onClick={() => handleMerge(keepId, c.id)}
-                                    disabled={merging === c.id}
-                                    className="shrink-0 ml-4 px-3 py-1.5 text-xs font-bold rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 transition disabled:opacity-50 flex items-center gap-1.5">
-                                    {merging === c.id
-                                      ? <><RefreshCw size={10} className="animate-spin" />통합 중</>
-                                      : <><GitMerge size={10} />기준으로 통합</>}
-                                  </button>
-                                )}
-                              </div>
-                            )
-                          })}
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </>
-          )}
-        </div>
-      </div>
+      {canMergeCustomers && <CustomerMergePanel />}
 
     </div>
   )

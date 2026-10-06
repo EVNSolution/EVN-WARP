@@ -1,6 +1,14 @@
-import { NextResponse } from 'next/server'
+import { auth } from '@/auth'
+import { prisma } from '@/lib/db'
+import { handleCustomerMergeRequest } from '@/lib/customer-merge-http'
+import { customerErrorResponse } from '@/lib/customer-alias'
 
-// Compatibility baseline: legacy merges must fail before any write, including after rollback.
-export async function POST() {
-  return NextResponse.json({ error: '기존 고객 통합 기능은 중단되었습니다. 새 중복 고객 확인 기능에서 미리보기 후 진행해 주세요.' }, { status: 409 })
+async function handle(req: Request) {
+  try {
+    const session = await auth()
+    return await handleCustomerMergeRequest(req, prisma, session?.user?.id)
+  } catch (error) { return customerErrorResponse(error) }
 }
+
+export const GET = handle
+export const POST = handle
