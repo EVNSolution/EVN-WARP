@@ -2,6 +2,8 @@ import contextlib
 import io
 import json
 import os
+import subprocess
+import tempfile
 import textwrap
 import unittest
 from pathlib import Path
@@ -38,6 +40,9 @@ class DeploymentOptimizationContractTest(unittest.TestCase):
         )[0]
         environment = {
             "DEPLOY_ACTION": "release",
+            "ACTOR": "SUMZ711",
+            "INITIAL_ACTOR": "OziinG",
+            "ACTIONS_RUN_URL": "https://github.com/EVNSolution/EVN-WARP/actions/runs/123/attempts/2",
             "SERVER_NAME": "warp.example.test",
             "SSM_APP_ENV_PARAM": "/evn-warp/app-env",
             "GITHUB_SHA": "a" * 40,
@@ -72,10 +77,54 @@ class DeploymentOptimizationContractTest(unittest.TestCase):
                 "DEPLOY_ACTION=status",
             ],
         )
+        for command in remote_commands:
+            self.assertIn('ACTOR=SUMZ711 ', command)
+            self.assertIn('INITIAL_ACTOR=OziinG ', command)
+            self.assertIn('ACTIONS_RUN_URL=https://github.com/EVNSolution/EVN-WARP/actions/runs/123/attempts/2 ', command)
+        for missing in ('ACTOR', 'INITIAL_ACTOR', 'ACTIONS_RUN_URL'):
+            invalid = dict(environment)
+            invalid.pop(missing)
+            with patch.dict(os.environ, invalid, clear=True), contextlib.redirect_stdout(io.StringIO()):
+                with self.assertRaises(SystemExit):
+                    exec(compile(textwrap.dedent(generator), 'deploy-ssm-generator', 'exec'), {})
         self.assertIn("/tmp/evn-apply-schema-migrations.py", workflow)
         self.assertTrue(
             any("/tmp/evn-schema-migrations" in command for command in payload["commands"])
         )
+
+    def test_actual_execution_identity_and_missing_actor_fail_closed(self):
+        remote_path = ROOT / 'deploy/remote-deploy.sh'
+        remote = remote_path.read_text(encoding='utf-8')
+        workflow = (ROOT / '.github/workflows/deploy-ec2-ssm.yml').read_text(encoding='utf-8')
+        self.assertIn('INITIAL_ACTOR: ${{ github.actor }}', workflow)
+        self.assertIn('ACTOR: ${{ github.triggering_actor }}', workflow)
+        self.assertIn('--comment "${ACTOR} WARP', workflow)
+        self.assertIn('| Initial actor |', workflow)
+        self.assertIn('| Executing actor |', workflow)
+        self.assertNotIn("'ACTOR': 'OziinG'", workflow)
+        self.assertNotIn('${ACTOR:-OziinG}', remote)
+        # An unsupported action must never be reached if identity is absent.
+        environment = dict(os.environ, DEPLOY_ACTION='identity-test', ACTOR='SUMZ711',
+                           INITIAL_ACTOR='OziinG', ACTIONS_RUN_URL='https://github.com/EVNSolution/EVN-WARP/actions/runs/123/attempts/2')
+        for missing in ('ACTOR', 'INITIAL_ACTOR', 'ACTIONS_RUN_URL'):
+            invalid = dict(environment)
+            invalid.pop(missing)
+            result = subprocess.run(['bash', str(remote_path)], env=invalid, capture_output=True, text=True)
+            self.assertEqual(result.returncode, 2)
+            self.assertIn('Missing', result.stderr)
+            self.assertNotIn('Unsupported', result.stderr)
+        # Exercise the real append function without invoking server actions.
+        prefix = remote.split('echo "initialActor=', 1)[0]
+        with tempfile.TemporaryDirectory() as temporary:
+            environment['RUNTIME_DIR'] = temporary
+            result = subprocess.run(['bash', '-c', prefix + '\nappend_evidence event=identity-test'],
+                                    env=environment, capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            event = json.loads((Path(temporary) / 'deploy-evidence.jsonl').read_text())
+            self.assertEqual(event['actor'], 'SUMZ711')
+            self.assertEqual(event['triggeringActor'], 'SUMZ711')
+            self.assertEqual(event['initialActor'], 'OziinG')
+            self.assertEqual(event['actionsRunUrl'], environment['ACTIONS_RUN_URL'])
 
     def test_only_the_governed_deployment_workflow_remains(self):
         workflows = {

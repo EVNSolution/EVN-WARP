@@ -1,6 +1,12 @@
 # EVN-WARP production deployment
 
-작업자: `OziinG`
+운영 책임자: `OziinG`. 실제 실행 계정은 Actions와 서버 증거에 별도로 기록한다.
+
+[2026-10-06 상시 위임](https://github.com/EVNSolution/EVN-WARP/pull/56#issuecomment-6009236448)에 따라 `SUMZ711`은 영업 파이프라인 및 직접 관련 고객관리 기능의 개발·검토·병합·공식 `release` 배포·직전 버전 `rollback`을 별도 사전 승인 없이 진행할 수 있다. PR #56의 PC·모바일 중복 고객 기능과 검토된 DB 구조 변경도 포함한다. 공유 인프라·IAM·공유 권한이나 다른 기능·서비스에 영향을 주는 변경은 별도 협의한다.
+
+최초 실행자는 `github.actor`, 재실행을 포함한 실제 실행자는 `github.triggering_actor`로 기록한다. 서버 evidence의 `actor`/`triggeringActor`는 실제 실행자이며 `initialActor`와 Actions run/attempt URL을 함께 보존한다. SSM comment와 Actions Summary도 두 계정을 구분한다. 계정 누락 시 운영 작업을 중단하며 책임자 이름으로 대체하지 않는다.
+
+각 배포는 관련 Issue/PR, 최종 SHA, Actions run, SSM command, SSM Parameter version, image digest, 공개 `/api/readyz`의 exact Revision·digest, 배포·롤백 결과를 기록한다. 고객 병합은 배포와 분리하여 미리보기·충돌값 선택·명시적 확인·감사 기록을 거친다. 비밀값과 고객 개인정보는 게시하지 않는다.
 
 WARP 운영 배포는 GitHub Actions, AWS OIDC, ECR immutable digest, SSM Run Command를 사용한다. 서버에서 소스를 build하거나 GitHub `APP_ENV`로 SSM을 덮어쓰지 않는다.
 
