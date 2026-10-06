@@ -41,6 +41,12 @@ GitHub Secrets는 `AWS_REGION`, `AWS_ROLE_ARN`, `EC2_INSTANCE_ID`만 사용한�
 - ECR `evn-warp-buildcache`는 실행·배포하지 않으며 EC2 instance role에 pull 권한을 부여하지 않는다.
 - 활성 운영 workflow는 `.github/workflows/deploy-ec2-ssm.yml` 하나다. 과거 EC2 시작, DB count, A3/KPI import workflow는 실행 경로로 복원하지 않는다.
 
+## 고객 통합 이전 baseline의 롤백 보호
+
+이 baseline은 인증된 고객 쓰기 요청마다 `sqlite_master`에서 `CustomerMerge` 테이블 존재 여부만 확인한다. 고객 행은 조회하지 않는다. 테이블이 없으면 기존 고객 쓰기를 허용하며, 테이블이 생기면 `/api/customers` 및 하위 경로의 GET·HEAD·OPTIONS 이외 요청을 handler 실행 전에 409로 차단한다. 고객 생성·수정·삭제, 문서·연락처·활동 변경이 모두 포함된다. 메타데이터 조회 실패 시에는 503으로 쓰기를 차단한다.
+
+따라서 새 schema가 공유 DB에 적용된 순간부터, traffic 전환 전이나 이 baseline으로 rollback한 동안에는 고객 기능이 임시 읽기 전용이다. 고객 조회와 다른 WARP 경로는 유지된다. 고객 수정은 통합 alias와 버전 검증을 지원하는 최신 앱을 복구한 뒤 재개한다. 이 제한은 baseline 이미지에 보존하며, 최신 앱 통합 시에는 baseline 전용 guard를 제거한다. 기존 `/api/migrate/merge-customers`는 schema와 무관하게 계속 409를 반환한다.
+
 ## Migration evidence contract
 
 WARP는 SQLite custom runner와 `_WarpSchemaMigration` ledger를 사용한다. BUILDUP-EV의 PostgreSQL Prisma Migrate 구현과 엔진은 다르지만 운영 증거는 다음 의미로 맞춘다.

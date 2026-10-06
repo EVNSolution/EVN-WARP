@@ -85,6 +85,12 @@ DB schema migration은 별도 Issue와 양 Revision 호환성 검증을 거쳐 `
 
 privacy preflight 차단은 제거 대상 데이터가 남았거나 query 계약이 잘못된 상태다. 운영 DB 행을 출력해 조사하지 말고 해당 migration Issue에서 승인된 read-only 집계 query와 데이터 정리 절차를 수정한 뒤 같은 revision을 다시 검증한다. 이미 적용된 migration의 audit는 재실행하지 않는다.
 
+### 고객 통합 schema 적용 후 baseline으로 복구할 때
+
+공유 DB에 `CustomerMerge` 테이블이 만들어지면 이 baseline의 고객 쓰기 보호가 즉시 적용된다. candidate 준비·전환 실패로 기존 baseline에 머무르거나 `rollback`으로 돌아온 경우에도 동일하다. 고객 생성·수정·삭제와 문서·연락처·활동 변경 등 `/api/customers` 및 모든 하위 경로의 GET·HEAD·OPTIONS 이외 요청은 handler 실행 전에 409와 “복구 버전에서는 고객 정보 수정이 중단됩니다. 최신 버전 복구 후 진행해 주세요.”를 반환한다. 메타데이터 확인 자체가 실패하면 503으로 차단한다. 테이블이 아직 없으면 기존 고객 쓰기는 정상 동작한다.
+
+고객 조회와 다른 WARP 경로는 계속 사용할 수 있다. 409는 롤백 중 고객 데이터 손실을 막기 위한 임시 읽기 전용 상태다. 통합 alias와 버전 검증을 지원하는 검증된 최신 앱을 공식 `release`로 복구하고 공개 `/api/readyz`의 exact Revision·digest를 확인한 뒤 고객 수정을 재개한다. 쓰기를 재개하려고 guard를 우회하거나 테이블 삭제·DB restore를 수행하지 않는다. 최신 앱에서는 baseline 전용 guard를 제거하되, 안전한 직전 slot 이미지에는 이 보호를 유지한다.
+
 ## 4. ENV 변경
 
 운영 ENV는 SSM `/evn-warp/app-env`만 수정한다. 변경 전후 Parameter version을 기록하고 값은 터미널·Issue·PR·Actions에 출력하지 않는다. 수정 후 `validate`를 먼저 실행한다.
