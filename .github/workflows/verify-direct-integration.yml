@@ -6,11 +6,22 @@ on:
     branches: [main]
     paths:
       - app/api/external/**
+      - app/api/customers/**
+      - app/api/migrate/find-duplicates/**
+      - app/api/migrate/merge-customers/**
+      - app/(app)/customers/**
+      - components/CustomerMergePanel.tsx
+      - lib/customer-merge*.ts
+      - lib/customer-alias.ts
+      - lib/customer-mobile.ts
+      - prisma/schema.prisma
+      - deploy/schema-migrations/**
       - lib/buildup-import/**
       - lib/marketing-inquiries*.ts
       - docs/integrations/**
       - scripts/verify-direct-integration-contract.mjs
       - package.json
+      - package-lock.json
       - .github/workflows/verify-direct-integration.yml
 
 permissions:
