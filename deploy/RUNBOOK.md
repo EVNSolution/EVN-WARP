@@ -69,6 +69,7 @@ GitHub Actions의 **Deploy WARP Blue-Green via SSM**에서 `release`를 한 번 
    - Actions Job Summary에서 Revision, image digest, slot, SSM command와 결과를 확인한다.
 5. 최소 30분 관찰
    - HTTP 5xx, Docker restart, OOM, `SQLITE_BUSY`, upload 404를 확인한다.
+   - 공식 `status`는 slot별 restartCount, oomKilled와 최근 30분/최대 5,000줄 로그의 recentSqliteBusy 집계만 출력한다. 로그 원문·고객 정보·비밀값은 출력하지 않는다. 집계는 bounded sample이며 전체 로그의 0건 보장을 뜻하지 않는다.
 6. 최초 배포에서는 `rollback` 후 공개 `/login`을 확인하고, 같은 Revision을 다시 `prepare`·`switch`하여 복구 절차를 증명한다.
 
 `validate`는 SSM ENV 변경 직후의 traffic 비변경 preflight에 사용한다. `prepare`, `status`, `switch`는 실패 조사나 단계별 복구 확인에만 사용하고 일상 배포에서 수동으로 반복하지 않는다.
