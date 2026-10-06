@@ -5,10 +5,13 @@ on:
   pull_request:
     branches: [main]
     paths:
+      - app/api/migrate/merge-customers/**
+      - deploy/tests/**
+      - deploy/remote-deploy.sh
+      - .github/workflows/deploy-ec2-ssm.yml
       - app/api/external/**
       - app/api/customers/**
       - app/api/migrate/find-duplicates/**
-      - app/api/migrate/merge-customers/**
       - app/(app)/customers/**
       - app/(mobile)/m/customers/**
       - app/(mobile)/m/layout.tsx
@@ -19,9 +22,6 @@ on:
       - lib/customer-mobile.ts
       - prisma/schema.prisma
       - deploy/schema-migrations/**
-      - deploy/tests/**
-      - deploy/remote-deploy.sh
-      - .github/workflows/deploy-ec2-ssm.yml
       - lib/buildup-import/**
       - lib/marketing-inquiries*.ts
       - docs/integrations/**
@@ -48,6 +48,7 @@ jobs:
       - name: Verify direct integration behavior and contract
         run: |
           npm ci
+          python3 -m unittest discover -s deploy/tests -p 'test_*.py'
           DATABASE_URL=file:/tmp/warp-ci.db npx prisma generate
           npm run test:external-lookup
           npm run test:buildup-import
