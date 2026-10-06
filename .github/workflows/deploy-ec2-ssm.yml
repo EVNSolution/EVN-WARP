@@ -35,6 +35,9 @@ env:
   ECR_CACHE_REPOSITORY: evn-warp-buildcache
   SERVER_NAME: warp.cleversystem.ai
   DEPLOY_ACTION: ${{ inputs.action }}
+  INITIAL_ACTOR: ${{ github.actor }}
+  ACTOR: ${{ github.triggering_actor }}
+  ACTIONS_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}/attempts/${{ github.run_attempt }}
 
 jobs:
   artifact:
@@ -249,6 +252,10 @@ jobs:
           python3 - <<'PY' > /tmp/evn-warp-ssm.json
           import json, os, shlex
 
+          for key in ('ACTOR', 'INITIAL_ACTOR', 'ACTIONS_RUN_URL'):
+              if not os.environ.get(key):
+                  raise SystemExit(f'Missing deployment identity: {key}')
+
           def remote_command(action):
               remote_env = {
                   'DEPLOY_ACTION': action,
@@ -257,7 +264,9 @@ jobs:
                   'SOURCE_REVISION': os.environ['GITHUB_SHA'],
                   'RELEASE_ID': os.environ['GITHUB_SHA'][:12],
                   'IMAGE_REF': os.environ.get('IMAGE_REF', ''),
-                  'ACTOR': 'OziinG',
+                  'ACTOR': os.environ['ACTOR'],
+                  'INITIAL_ACTOR': os.environ['INITIAL_ACTOR'],
+                  'ACTIONS_RUN_URL': os.environ['ACTIONS_RUN_URL'],
               }
               return ' '.join(f'{key}={shlex.quote(value)}' for key, value in remote_env.items()) + ' /tmp/evn-remote-deploy.sh'
 
@@ -281,7 +290,7 @@ jobs:
           command_id="$(aws ssm send-command \
             --instance-ids "$EC2_INSTANCE_ID" \
             --document-name AWS-RunShellScript \
-            --comment "OziinG WARP ${DEPLOY_ACTION} ${GITHUB_SHA}" \
+            --comment "${ACTOR} WARP ${DEPLOY_ACTION} ${GITHUB_SHA} initial=${INITIAL_ACTOR}" \
             --timeout-seconds 3600 \
             --parameters file:///tmp/evn-warp-ssm.json \
             --query Command.CommandId \
@@ -336,6 +345,9 @@ jobs:
             echo
             echo '| Field | Value |'
             echo '| --- | --- |'
+            echo "| Initial actor | \`$INITIAL_ACTOR\` |"
+            echo "| Executing actor | \`$ACTOR\` |"
+            echo "| Actions run | $ACTIONS_RUN_URL |"
             echo "| Revision | \`$GITHUB_SHA\` |"
             [ -z "$IMAGE_DIGEST" ] || echo "| Image digest | \`$IMAGE_DIGEST\` |"
             [ -z "$final_slots" ] || echo "| Slots | \`$final_slots\` |"

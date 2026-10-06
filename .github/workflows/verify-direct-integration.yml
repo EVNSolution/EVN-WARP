@@ -5,6 +5,10 @@ on:
   pull_request:
     branches: [main]
     paths:
+      - app/api/migrate/merge-customers/**
+      - deploy/tests/**
+      - deploy/remote-deploy.sh
+      - .github/workflows/deploy-ec2-ssm.yml
       - app/api/external/**
       - lib/buildup-import/**
       - lib/marketing-inquiries*.ts
@@ -31,6 +35,7 @@ jobs:
       - name: Verify direct integration behavior and contract
         run: |
           npm ci
+          python3 -m unittest discover -s deploy/tests -p 'test_*.py'
           DATABASE_URL=file:/tmp/warp-ci.db npx prisma generate
           npm run test:external-lookup
           npm run test:buildup-import
