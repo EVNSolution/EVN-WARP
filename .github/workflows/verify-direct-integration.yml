@@ -10,6 +10,9 @@ on:
       - app/api/migrate/find-duplicates/**
       - app/api/migrate/merge-customers/**
       - app/(app)/customers/**
+      - app/(mobile)/m/customers/**
+      - app/(mobile)/m/layout.tsx
+      - proxy.ts
       - components/CustomerMergePanel.tsx
       - lib/customer-merge*.ts
       - lib/customer-alias.ts

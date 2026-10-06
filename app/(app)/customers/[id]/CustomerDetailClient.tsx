@@ -86,7 +86,9 @@ type Customer = {
   leads: Lead[]; activities: Activity[]
 }
 
-export default function CustomerDetailClient({ customer, returnTo, myName }: { customer: Customer; returnTo?: string; myName?: string }) {
+export default function CustomerDetailClient({ customer, returnTo, myName, backHref = '/customers' }: {
+  customer: Customer; returnTo?: string; myName?: string; backHref?: string
+}) {
   const router = useRouter()
 
   const [f, setF] = useState({
@@ -456,7 +458,7 @@ export default function CustomerDetailClient({ customer, returnTo, myName }: { c
         }),
       })
       const deal = await res.json()
-      router.push(`/funnel/${deal.id}`)
+      router.push(`${backHref.startsWith('/m/') ? '/m/pipeline' : '/funnel'}/${deal.id}`)
     } catch {
       setConverting(false)
     }
@@ -490,7 +492,7 @@ export default function CustomerDetailClient({ customer, returnTo, myName }: { c
   )
 
   return (
-    <div className="p-6 max-w-5xl mx-auto">
+    <div className="min-w-0 p-4 sm:p-6 max-w-5xl mx-auto max-sm:[&_button]:min-h-11 max-sm:[&_select]:min-h-11 max-sm:[&_input:not([type=checkbox]):not([type=radio])]:min-h-11">
       {msg && (
         <div className="mb-4 px-4 py-2.5 rounded-lg bg-green-50 border border-green-200 text-green-700 text-sm font-medium">
           ✓ {msg}
@@ -514,12 +516,12 @@ export default function CustomerDetailClient({ customer, returnTo, myName }: { c
       )}
 
       {/* 헤더 */}
-      <div className="flex items-center justify-between mb-6">
-        <div className="flex items-center gap-3">
-          <Link href="/customers" className="text-slate-400 hover:text-slate-600 text-sm transition">← 고객 목록</Link>
-          <div>
-            <h1 className="text-2xl font-bold text-slate-800">{f.name || '이름 미입력'}</h1>
-            <div className="flex items-center gap-2 mt-0.5">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-6">
+        <div className="flex min-w-0 flex-wrap items-center gap-3">
+          <Link href={backHref} className="inline-flex min-h-11 items-center text-slate-400 hover:text-slate-600 text-sm transition">← 고객 목록</Link>
+          <div className="min-w-0">
+            <h1 className="break-words text-xl sm:text-2xl font-bold text-slate-800">{f.name || '이름 미입력'}</h1>
+            <div className="flex flex-wrap items-center gap-2 mt-0.5">
               {customer.phone && <span className="text-sm text-slate-500">{customer.phone}</span>}
               <button type="button"
                 onClick={() => {
@@ -539,7 +541,7 @@ export default function CustomerDetailClient({ customer, returnTo, myName }: { c
             </div>
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2 [&>button]:min-h-11">
           <button onClick={handleConvertToLead} disabled={converting}
             className="px-3 py-2 text-sm font-bold rounded-xl border border-blue-200 text-blue-600 hover:bg-blue-50 transition disabled:opacity-50">
             {converting ? '전환 중...' : '+ 새 리드로 전환'}
@@ -547,8 +549,13 @@ export default function CustomerDetailClient({ customer, returnTo, myName }: { c
           <button
             onClick={async () => {
               if (!confirm(`"${f.name || '이름 미입력'}" 고객을 삭제할까요? 이 작업은 되돌릴 수 없습니다.`)) return
-              await fetch(`/api/customers/${customer.id}`, { method: 'DELETE' })
-              router.push('/customers')
+              const response = await fetch(`/api/customers/${customer.id}`, { method: 'DELETE' })
+              if (!response.ok) {
+                const data = await response.json().catch(() => ({}))
+                alert(data.error || '고객을 삭제하지 못했습니다.')
+                return
+              }
+              router.push(backHref)
             }}
             className="px-3 py-2 text-sm font-bold rounded-xl border border-red-200 text-red-400 hover:bg-red-50 hover:text-red-600 transition">
             삭제
@@ -1149,7 +1156,7 @@ export default function CustomerDetailClient({ customer, returnTo, myName }: { c
             <div className="p-5">
             <div className="space-y-2">
               {customer.leads.map(lead => (
-                <Link key={lead.id} href={`/funnel/${lead.id}`}
+                <Link key={lead.id} href={`${backHref.startsWith('/m/') ? '/m/pipeline' : '/funnel'}/${lead.id}`}
                   className="flex items-center justify-between p-2.5 rounded-lg bg-slate-50 hover:bg-slate-100 transition">
                   <div className="flex items-center gap-2">
                     <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded

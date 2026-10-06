@@ -37,6 +37,11 @@ export default auth((req) => {
   }
   // 인증됨 + 모바일 기기 + PC 경로 → /m 으로 리다이렉트
   if (isLoggedIn && mobile && !isMobilePath && !pathname.startsWith('/api/')) {
+    if (pathname === '/customers' || pathname.startsWith('/customers/')) {
+      const destination = new URL(req.url)
+      destination.pathname = `/m${pathname}`
+      return NextResponse.redirect(destination)
+    }
     return NextResponse.redirect(new URL('/m', req.url))
   }
   // 사외 계정 접근 제한

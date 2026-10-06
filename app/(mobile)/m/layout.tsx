@@ -2,11 +2,12 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Home, Filter, PlusCircle, Car } from 'lucide-react'
+import { Home, Filter, PlusCircle, Car, Users } from 'lucide-react'
 
 const NAV = [
   { href: '/m/',         icon: Home,       label: '홈' },
   { href: '/m/pipeline', icon: Filter,     label: '파이프라인' },
+  { href: '/m/customers', icon: Users,     label: '고객관리' },
   { href: '/m/activity', icon: PlusCircle, label: '활동추가' },
   { href: '/m/vehicle',  icon: Car,        label: '차량신청' },
 ]
@@ -33,7 +34,7 @@ export default function MobileLayout({ children }: { children: React.ReactNode }
             window.location.href = '/funnel'
           }}
           style={{ fontSize: 10, color: 'rgba(255,255,255,0.35)', letterSpacing: '0.03em' }}
-          className="active:opacity-60"
+          className="min-h-11 px-2 active:opacity-60"
         >
           PC 버전
         </button>
@@ -45,7 +46,7 @@ export default function MobileLayout({ children }: { children: React.ReactNode }
       </main>
 
       {/* 하단 네비게이션 */}
-      <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 flex safe-area-bottom z-50">
+      <nav className="fixed bottom-0 left-0 right-0 grid grid-cols-5 bg-white border-t border-gray-200 safe-area-bottom z-50">
         {NAV.map(({ href, icon: Icon, label }) => {
           const active = href === '/m/'
             ? pathname === '/m' || pathname === '/m/'
@@ -54,7 +55,7 @@ export default function MobileLayout({ children }: { children: React.ReactNode }
             <Link
               key={href}
               href={href}
-              className={`flex-1 flex flex-col items-center justify-center gap-0.5 py-2 text-[10px] font-medium transition-colors
+              className={`flex min-h-14 min-w-0 flex-col items-center justify-center gap-0.5 px-0.5 py-1 text-[9px] font-medium transition-colors
                 ${active ? 'text-blue-600' : 'text-gray-400'}`}
             >
               <Icon size={22} strokeWidth={active ? 2.2 : 1.8} />
