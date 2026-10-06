@@ -84,7 +84,7 @@ test.after(async () => {
   rmSync(temporaryDirectory, { recursive: true, force: true })
 })
 
-test('creates named and nameless customers with exact source data', async () => {
+test('creates named and unknown customers while preserving source names in activities', async () => {
   const named = payload('00000000-0000-4000-8000-000000000001')
   const first = await send(named)
   const second = await send(payload('00000000-0000-4000-8000-000000000002', {
@@ -92,6 +92,9 @@ test('creates named and nameless customers with exact source data', async () => 
     phone: '010-9999-8888',
     inquiryDate: '2026-02-28',
     inquiryTime: '00:05',
+  }))
+  const third = await send(payload('00000000-0000-4000-8000-000000000012', {
+    name: '  ', phone: '010-7777-6666',
   }))
 
   assert.equal(first.response.status, 200)
@@ -105,13 +108,15 @@ test('creates named and nameless customers with exact source data', async () => 
     duplicate: false,
   })
   assert.equal(second.response.status, 200)
+  assert.equal(third.response.status, 200)
   const customers = await prisma.customer.findMany({
     orderBy: { phone: 'asc' },
     select: { name: true, phone: true, customerSegment: true, status: true, source: true, collectedAt: true },
   })
   assert.deepEqual(customers, [
     { name: '홍길동', phone: '010-1234-5678', customerSegment: 'B2C', status: '잠재고객', source: 'mleverage-admin', collectedAt: new Date('2026-09-15T00:07:00.000Z') },
-    { name: '', phone: '010-9999-8888', customerSegment: 'B2C', status: '잠재고객', source: 'mleverage-admin', collectedAt: new Date('2026-02-27T15:05:00.000Z') },
+    { name: '미상(📞 6666)', phone: '010-7777-6666', customerSegment: 'B2C', status: '잠재고객', source: 'mleverage-admin', collectedAt: new Date('2026-09-15T00:07:00.000Z') },
+    { name: '미상(📞 8888)', phone: '010-9999-8888', customerSegment: 'B2C', status: '잠재고객', source: 'mleverage-admin', collectedAt: new Date('2026-02-27T15:05:00.000Z') },
   ])
   const activity = await prisma.customerActivity.findUnique({
     where: { id: first.body.activityId },
@@ -130,6 +135,11 @@ test('creates named and nameless customers with exact source data', async () => 
       '원본 문의 ID: 00000000-0000-4000-8000-000000000001',
     ].join('\n'),
   })
+  const rawNames = await prisma.customerActivity.findMany({
+    where: { id: { in: [second.body.activityId, third.body.activityId] } },
+    orderBy: { id: 'asc' }, select: { content: true },
+  })
+  assert.deepEqual(rawNames.map(row => row.content?.split('\n').find(line => line.startsWith('성함:'))).sort(), ['성함: ', '성함:   '])
 })
 
 test('attaches an exact normalized primary-phone match without changing its profile', async () => {
@@ -147,7 +157,7 @@ test('attaches an exact normalized primary-phone match without changing its prof
     },
     select: { id: true },
   })
-  const result = await send(payload('00000000-0000-4000-8000-000000000003', { name: '새 이름' }))
+  const result = await send(payload('00000000-0000-4000-8000-000000000003', { name: '' }))
 
   assert.equal(result.body.customerId, 'existing-customer')
   assert.equal(await prisma.customer.count(), 2)
@@ -158,6 +168,7 @@ test('attaches an exact normalized primary-phone match without changing its prof
     name: '기존 이름', phone: '010 1234 5678', customerSegment: 'B2B', status: '활성',
     source: '소개', assignee: '담당자', memo: '기존 메모',
   })
+  assert.match((await prisma.customerActivity.findUniqueOrThrow({ where: { id: result.body.activityId }, select: { content: true } })).content ?? '', /성함: \n/)
 })
 
 test('creates distinct customers for the same name with different primary phones', async () => {
@@ -182,14 +193,15 @@ test('rejects multiple primary-phone matches with no writes', async () => {
   assert.equal(await prisma.customerActivity.count(), 0)
 })
 
-test('replays one source inquiry without adding another customer or activity', async () => {
-  const inquiry = payload('00000000-0000-4000-8000-000000000005')
+test('replays one blank-name source inquiry without adding another customer or activity', async () => {
+  const inquiry = payload('00000000-0000-4000-8000-000000000005', { name: '' })
   const first = await send(inquiry)
   const replay = await send(inquiry)
 
   assert.deepEqual(replay.body, { ...first.body, created: false, duplicate: true })
   assert.equal(await prisma.customer.count(), 1)
   assert.equal(await prisma.customerActivity.count(), 1)
+  assert.equal((await prisma.customer.findUniqueOrThrow({ where: { id: first.body.customerId }, select: { name: true } })).name, '미상(📞 5678)')
 })
 
 test('treats upper- and lowercase spellings of one source UUID as the same inquiry', async () => {
