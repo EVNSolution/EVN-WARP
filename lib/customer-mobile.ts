@@ -6,3 +6,16 @@ export function normalizeCustomerMobile(value: string | null | undefined): strin
   else if (phone.startsWith('0082')) phone = '0' + phone.slice(4).replace(/^0/, '')
   return /^(?:010\d{8}|01[16789]\d{7,8})$/.test(phone) ? phone : null
 }
+
+/** Count excess customer records: three customers with one mobile require two merges. */
+export function countDuplicateCustomers(customers: readonly { phone: string | null }[]): number {
+  const seen = new Set<string>()
+  let count = 0
+  for (const customer of customers) {
+    const phone = normalizeCustomerMobile(customer.phone)
+    if (!phone) continue
+    if (seen.has(phone)) count++
+    else seen.add(phone)
+  }
+  return count
+}

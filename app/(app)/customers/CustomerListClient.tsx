@@ -1,10 +1,11 @@
 'use client'
 
-import { useState, useMemo, useEffect, useRef } from 'react'
+import { useState, useMemo, useEffect, useRef, useCallback } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { Phone, Truck } from 'lucide-react'
 import { BuildupImportModal } from '@/components/BuildupImportModal'
+import { countDuplicateCustomers } from '@/lib/customer-mobile'
 
 /**
  * "미상(...)" 이름에 박아둔 이모지 아이콘(📞/🚚)을 전화/차량번호 바로 앞에
@@ -188,10 +189,19 @@ export default function CustomerListClient({ customers: initial, canMergeCustome
   const [importOpen,   setImportOpen]   = useState(false)
 
   /** buildup 가져오기 승인 후 목록 재조회 — props 초기값이라 router.refresh 로는 안 바뀐다 */
-  const reloadCustomers = async () => {
-    const res = await fetch('/api/customers')
-    if (res.ok) setCustomers(await res.json())
-  }
+  const reloadCustomers = useCallback(async () => {
+    try {
+      const res = await fetch('/api/customers', { cache: 'no-store' })
+      if (res.ok) setCustomers(await res.json())
+    } catch { /* Retain the last known list when offline. */ }
+  }, [])
+
+  useEffect(() => {
+    if (!canMergeCustomers) return
+    void reloadCustomers()
+    window.addEventListener('focus', reloadCustomers)
+    return () => window.removeEventListener('focus', reloadCustomers)
+  }, [canMergeCustomers, reloadCustomers])
 
   /* 모달 없이 바로 고객상세 페이지로 이동 — 이름은 비워둔 채 생성 후 상세페이지에서 채움 */
   const handleQuickAdd = async () => {
@@ -232,6 +242,7 @@ export default function CustomerListClient({ customers: initial, canMergeCustome
 
   const b2cCount = useMemo(() => customers.filter(c => (c.customerSegment ?? 'B2C') === 'B2C').length, [customers])
   const b2bCount = useMemo(() => customers.filter(c => c.customerSegment === 'B2B').length, [customers])
+  const duplicateCount = useMemo(() => countDuplicateCustomers(customers), [customers])
 
   const filtered = useMemo(() => {
     return customers.filter(c => {
@@ -327,8 +338,13 @@ export default function CustomerListClient({ customers: initial, canMergeCustome
         </button>
 
         {canMergeCustomers && <Link href="/customers/duplicates"
-          className="rounded-lg border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50">
+          title={`처리할 중복 고객 ${duplicateCount}건`}
+          className="relative rounded-lg border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50">
           중복 고객 확인
+          {duplicateCount > 0 && <span role="status" aria-label={`처리할 중복 고객 ${duplicateCount}건`}
+            className="absolute -right-2 -top-2 flex h-5 min-w-5 items-center justify-center rounded-full bg-red-600 px-1 text-[10px] font-bold leading-none text-white ring-2 ring-white tabular-nums">
+            {duplicateCount > 99 ? '99+' : duplicateCount}
+          </span>}
         </Link>}
         {/* 신규 고객 추가 */}
         <Link href="/import"

@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto'
 import type { Customer, PrismaClient } from '@/app/generated/prisma/client'
 import { CustomerMergeError, customerWrite, resolveCustomerId, type CustomerDb } from './customer-alias'
-import { normalizeCustomerMobile } from './customer-mobile'
+import { countDuplicateCustomers, normalizeCustomerMobile } from './customer-mobile'
 
 export { CustomerMergeError, customerErrorResponse } from './customer-alias'
 
@@ -249,7 +249,7 @@ export async function findCustomerDuplicates(db: PrismaClient, actorId: string |
       associationMismatch: rows.some(row => row.customerId && normalizeCustomerMobile(byId.get(row.customerId)?.phone) !== phone),
       leads: rows,
     }))
-    return { total: customers.length, dupCount: groups.reduce((sum, group) => sum + group.customers.length - 1, 0),
+    return { total: customers.length, dupCount: countDuplicateCustomers(customers),
       groupCount: groups.length, groups, leadTotal: leads.length, leadGroupCount: leadGroups.length,
       leadDupCount: leadGroups.reduce((sum, group) => sum + Math.max(0, group.leads.length - 1), 0), leadGroups }
   })

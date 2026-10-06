@@ -9,7 +9,7 @@ import { PrismaLibSql } from '@prisma/adapter-libsql'
 import { PrismaClient } from '@/app/generated/prisma/client'
 import { confirmCustomerMerge, customerMergeFields, findCustomerDuplicates, previewCustomerMerge, requireMergeActor } from './customer-merge'
 import { customerWrite, CustomerMergeError, requireCurrentCustomerId, resolveCustomerId } from './customer-alias'
-import { normalizeCustomerMobile } from './customer-mobile'
+import { countDuplicateCustomers, normalizeCustomerMobile } from './customer-mobile'
 import { handleCustomerMergeRequest } from './customer-merge-http'
 import { handleMarketingInquiryRequest } from './marketing-inquiries'
 
@@ -72,6 +72,12 @@ async function relations() {
 const include = { meetings: true, stageHistory: true, documents: true, shares: true }
 
 test('domestic mobile normalization includes legacy mobiles and excludes names, missing phones and landlines', async () => {
+  assert.equal(countDuplicateCustomers([]), 0)
+  assert.equal(countDuplicateCustomers([
+    { phone: '010-1234-5678' }, { phone: '+82 10 1234 5678' }, { phone: '0082 10 1234 5678' },
+    { phone: '01099998888' }, { phone: '010-9999-8888' },
+    { phone: null }, { phone: '' }, { phone: '02-1234-5678' }, { phone: '0212345678' },
+  ]), 3)
   for (const input of ['010-1234-5678', '010 1234 5678', '+82 10-1234-5678', '0082 01012345678', '+82 01012345678']) {
     assert.equal(normalizeCustomerMobile(input), '01012345678')
   }
@@ -145,7 +151,9 @@ test('merge preserves all related records, both original snapshots, conflicting 
   const event = await db.buildupEvent.findUniqueOrThrow({ where: { id: 'event' } })
   const p = await previewCustomerMerge(db, 'admin', 'keep', 'remove')
   assert.deepEqual(p.counts, { leads: 1, activities: 1, agents: 1, events: 1 })
+  assert.equal((await findCustomerDuplicates(db, 'admin')).dupCount, 1)
   assert.deepEqual(await confirmCustomerMerge(db, 'admin', await confirmation()), { ok: true, message: '고객 통합이 완료되었습니다.', customerId: 'keep' })
+  assert.equal((await findCustomerDuplicates(db, 'admin')).dupCount, 0)
   assert.equal(await db.customer.count(), 1)
   const kept = await db.customer.findUniqueOrThrow({ where: { id: 'keep' } })
   assert.match(kept.memo!, /원본 유지/); assert.match(kept.memo!, /원본 통합/)
