@@ -7,6 +7,10 @@ export default async function CustomersPage() {
   const session    = await auth()
   const me         = session?.user as any
   const isExternal = me?.employmentType === '사외'
+  const actor = me?.id ? await prisma.user.findUnique({
+    where: { id: me.id }, select: { role: true, employmentType: true },
+  }) : null
+  const canMergeCustomers = !!actor && ['admin', 'ceo'].includes(actor.role) && actor.employmentType !== '사외'
 
   const customers = await prisma.customer.findMany({
     where: isExternal ? { assignee: me?.name ?? '__none__' } : undefined,
@@ -30,7 +34,7 @@ export default async function CustomersPage() {
       {/* buildup 미처리 이벤트 배지 — 이 화면에 온 사람에게만 보인다 (#27) */}
       <BuildupEventNotice />
 
-      <CustomerListClient customers={customers as any} />
+      <CustomerListClient customers={customers as any} canMergeCustomers={canMergeCustomers} />
     </div>
   )
 }

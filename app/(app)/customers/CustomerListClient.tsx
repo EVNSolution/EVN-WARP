@@ -175,9 +175,9 @@ function fmtDate(iso: string | null) {
   return new Date(iso).toLocaleDateString('ko-KR', { month: '2-digit', day: '2-digit' }).replace('. ', '/').replace('.', '')
 }
 
-interface Props { customers: Customer[] }
+interface Props { customers: Customer[]; canMergeCustomers?: boolean }
 
-export default function CustomerListClient({ customers: initial }: Props) {
+export default function CustomerListClient({ customers: initial, canMergeCustomers = false }: Props) {
   const router = useRouter()
   const [customers, setCustomers] = useState<Customer[]>(initial)
   const [seg,          setSeg]          = useState<Seg>('all')
@@ -326,6 +326,10 @@ export default function CustomerListClient({ customers: initial }: Props) {
           buildup에서 불러오기
         </button>
 
+        {canMergeCustomers && <Link href="/customers/duplicates"
+          className="rounded-lg border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50">
+          중복 고객 확인
+        </Link>}
         {/* 신규 고객 추가 */}
         <Link href="/import"
           className="px-3 py-1.5 text-xs font-semibold rounded-lg border border-slate-300 text-slate-600 hover:bg-slate-50 transition">

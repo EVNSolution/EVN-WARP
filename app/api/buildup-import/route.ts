@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
+import { resolveCustomerId } from '@/lib/customer-alias'
 import {
   BuildupImportError,
   fetchBuildupCustomers,
@@ -37,6 +38,9 @@ export async function GET() {
       fetchBuildupCustomers(),
       prisma.customer.findMany({ select: WARP_MATCH_SELECT }) as Promise<WarpMatchTarget[]>,
     ])
+    for (const customer of buildupCustomers) {
+      if (customer.warp_customer_id) customer.warp_customer_id = await resolveCustomerId(prisma, customer.warp_customer_id)
+    }
     const items = buildupCustomers.map(b => ({ customer: b, classification: classifyCustomer(b, warpCustomers) }))
     const counts = {
       new: items.filter(i => i.classification.kind === 'new').length,
@@ -94,7 +98,8 @@ export async function POST(req: NextRequest) {
         links.push({ id: b.id, warp_customer_id: customer.id })
         created++
       } else {
-        const exists = await prisma.customer.findUnique({ where: { id: d.warpCustomerId! }, select: { id: true } })
+        const canonicalId = await resolveCustomerId(prisma, d.warpCustomerId!)
+        const exists = await prisma.customer.findUnique({ where: { id: canonicalId }, select: { id: true } })
         if (!exists) { skipped.push(d.buildupId); continue }
         links.push({ id: b.id, warp_customer_id: exists.id })
         linked++

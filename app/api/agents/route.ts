@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
+import { customerWrite, customerErrorResponse, requireCurrentCustomerId } from '@/lib/customer-alias'
 
 // GET /api/agents?q=검색어  —  Agent + 임직원 + isAgent 고객 통합 검색
 export async function GET(req: NextRequest) {
@@ -121,48 +122,50 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json()
     const { name, phone, email, company, type, memo, userId, customerId } = body
+    return await customerWrite(prisma, async prisma => {
+      if (customerId) await requireCurrentCustomerId(prisma, customerId)
 
-    if (!name?.trim()) {
-      return NextResponse.json({ error: '이름은 필수입니다.' }, { status: 400 })
-    }
-
-    // 이미 등록된 Agent 여부 확인 (raw SQL: libSQL 어댑터 호환)
-    if (userId) {
-      type ARow = { id: string; name: string; type: string }
-      const rows = await prisma.$queryRaw<ARow[]>`SELECT id, name, type FROM "Agent" WHERE userId = ${userId} LIMIT 1`
-      if (rows.length > 0) {
-        return NextResponse.json({ error: '이미 등록된 내부 소개자입니다.', agent: rows[0] }, { status: 409 })
+      if (!name?.trim()) {
+        return NextResponse.json({ error: '이름은 필수입니다.' }, { status: 400 })
       }
-    }
-    if (customerId) {
-      type ARow = { id: string; name: string; type: string }
-      const rows = await prisma.$queryRaw<ARow[]>`SELECT id, name, type FROM "Agent" WHERE customerId = ${customerId} LIMIT 1`
-      if (rows.length > 0) {
-        return NextResponse.json({ error: '이미 등록된 외부 소개자입니다.', agent: rows[0] }, { status: 409 })
+
+      // 이미 등록된 Agent 여부 확인 (raw SQL: libSQL 어댑터 호환)
+      if (userId) {
+        type ARow = { id: string; name: string; type: string }
+        const rows = await prisma.$queryRaw<ARow[]>`SELECT id, name, type FROM "Agent" WHERE userId = ${userId} LIMIT 1`
+        if (rows.length > 0) {
+          return NextResponse.json({ error: '이미 등록된 내부 소개자입니다.', agent: rows[0] }, { status: 409 })
+        }
       }
-    }
+      if (customerId) {
+        type ARow = { id: string; name: string; type: string }
+        const rows = await prisma.$queryRaw<ARow[]>`SELECT id, name, type FROM "Agent" WHERE customerId = ${customerId} LIMIT 1`
+        if (rows.length > 0) {
+          return NextResponse.json({ error: '이미 등록된 외부 소개자입니다.', agent: rows[0] }, { status: 409 })
+        }
+      }
 
-    // libSQL 어댑터 호환: ORM create 대신 raw SQL INSERT 사용
-    const id  = crypto.randomUUID()
-    const now = new Date().toISOString()
-    const agentType = type || '외부'
-    await prisma.$executeRaw`
-      INSERT INTO "Agent" (id, name, phone, email, company, type, memo, userId, customerId, createdAt, updatedAt)
-      VALUES (
-        ${id}, ${name.trim()}, ${phone || null}, ${email || null},
-        ${company || null}, ${agentType}, ${memo || null},
-        ${userId || null}, ${customerId || null}, ${now}, ${now}
-      )
-    `
+      // libSQL 어댑터 호환: ORM create 대신 raw SQL INSERT 사용
+      const id  = crypto.randomUUID()
+      const now = new Date().toISOString()
+      const agentType = type || '외부'
+      await prisma.$executeRaw`
+        INSERT INTO "Agent" (id, name, phone, email, company, type, memo, userId, customerId, createdAt, updatedAt)
+        VALUES (
+          ${id}, ${name.trim()}, ${phone || null}, ${email || null},
+          ${company || null}, ${agentType}, ${memo || null},
+          ${userId || null}, ${customerId || null}, ${now}, ${now}
+        )
+      `
 
-    // 외부 고객을 Agent로 등록한 경우 Customer.isAgent = 1 업데이트
-    if (customerId) {
-      await prisma.$executeRaw`UPDATE "Customer" SET "isAgent" = 1 WHERE id = ${customerId}`
-    }
+      // 외부 고객을 Agent로 등록한 경우 Customer.isAgent = 1 업데이트
+      if (customerId) {
+        await prisma.$executeRaw`UPDATE "Customer" SET "isAgent" = 1 WHERE id = ${customerId}`
+      }
 
-    return NextResponse.json({ id, name: name.trim(), type: agentType }, { status: 201 })
-  } catch (e: any) {
-    console.error('[agents POST] 에러:', e?.message)
-    return NextResponse.json({ error: e?.message ?? '등록 실패' }, { status: 500 })
+      return NextResponse.json({ id, name: name.trim(), type: agentType }, { status: 201 })
+    })
+  } catch (error) {
+    return customerErrorResponse(error)
   }
 }
