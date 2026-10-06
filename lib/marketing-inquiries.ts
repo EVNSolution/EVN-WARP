@@ -65,7 +65,9 @@ function authenticate(request: Request, env: Readonly<Record<string, string | un
 
 // Preserve legacy contact submissions while canonicalizing valid Korean mobiles like the CRM guard.
 function normalizeMarketingPhone(value: string | null | undefined): string | null {
-  const phone = normalizeCustomerMobile(value) ?? digitsOnly(value)
+  const digits = digitsOnly(value)
+  const mobile = digits.startsWith('0082') ? '+82' + digits.slice(4) : digits.startsWith('82') ? '+82' + digits.slice(2) : digits
+  const phone = normalizeCustomerMobile(value) ?? normalizeCustomerMobile(mobile) ?? digits
   return /^\d{9,15}$/.test(phone) ? phone : null
 }
 

@@ -490,6 +490,9 @@ test('guard rejects both same-name and different-name customers without any row 
 test('guard and lookup agree on country codes and legacy mobiles, ignoring invalid and secondary phones', async () => {
   const phones = [
     ['+82 10 1234 5678', '0082 010 1234 5678'],
+    ['010-1234-5679', '+82 (0)10-1234-5679'],
+    ['01012345680', '821012345680'],
+    ['+82 (0)10-1234-5681', '010.1234.5681'],
     ['011-123-4567', '+82 11 123 4567'],
     ['+82 16 1234 5678', '01612345678'],
     ['0171234567', '0082 17 123 4567'],
