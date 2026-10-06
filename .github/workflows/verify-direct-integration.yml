@@ -19,6 +19,9 @@ on:
       - lib/customer-mobile.ts
       - prisma/schema.prisma
       - deploy/schema-migrations/**
+      - deploy/tests/**
+      - deploy/remote-deploy.sh
+      - .github/workflows/deploy-ec2-ssm.yml
       - lib/buildup-import/**
       - lib/marketing-inquiries*.ts
       - docs/integrations/**
@@ -49,5 +52,6 @@ jobs:
           npm run test:external-lookup
           npm run test:buildup-import
           npm run test:marketing-inquiries
+          python3 -m unittest discover -s deploy/tests -p 'test_*.py'
           npm run test:customer-merge
           npm run test:integration-contract

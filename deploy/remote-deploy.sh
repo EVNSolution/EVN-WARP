@@ -12,7 +12,17 @@ UPSTREAM_CONF="${UPSTREAM_CONF:-/etc/nginx/conf.d/warp-active-upstream.conf}"
 IMAGE_REF="${IMAGE_REF:-}"
 SOURCE_REVISION="${SOURCE_REVISION:-}"
 RELEASE_ID="${RELEASE_ID:-}"
-ACTOR="${ACTOR:-OziinG}"
+ACTOR="${ACTOR:-}"
+INITIAL_ACTOR="${INITIAL_ACTOR:-}"
+ACTIONS_RUN_URL="${ACTIONS_RUN_URL:-}"
+# Fail before any server operation rather than attributing an unknown actor to the owner.
+for actor in "$ACTOR" "$INITIAL_ACTOR"; do
+  [[ "$actor" =~ ^[A-Za-z0-9][A-Za-z0-9-]*(\[bot\])?$ ]] || {
+    echo 'Missing or invalid deployment actor.' >&2
+    exit 2
+  }
+done
+[ -n "$ACTIONS_RUN_URL" ] || { echo 'Missing Actions run identity.' >&2; exit 2; }
 VALIDATOR="${VALIDATOR:-/tmp/evn-validate-env.py}"
 SCHEMA_MIGRATOR="${SCHEMA_MIGRATOR:-/tmp/evn-apply-schema-migrations.py}"
 SCHEMA_MIGRATIONS_DIR="${SCHEMA_MIGRATIONS_DIR:-/tmp/evn-schema-migrations}"
@@ -41,11 +51,14 @@ cleanup_file() {
 }
 
 append_evidence() {
-  python3 - "$EVIDENCE_FILE" "$ACTOR" "$@" <<'PY'
+  python3 - "$EVIDENCE_FILE" "$ACTOR" "$INITIAL_ACTOR" "$ACTIONS_RUN_URL" "$@" <<'PY'
 import datetime, json, os, sys
-path, actor, *pairs = sys.argv[1:]
+path, actor, initial_actor, actions_run_url, *pairs = sys.argv[1:]
 event = dict(pair.split('=', 1) for pair in pairs)
 event['actor'] = actor
+event['initialActor'] = initial_actor
+event['triggeringActor'] = actor
+event['actionsRunUrl'] = actions_run_url
 event['timestamp'] = datetime.datetime.now(datetime.timezone.utc).isoformat()
 os.makedirs(os.path.dirname(path), exist_ok=True)
 with open(path, 'a', encoding='utf-8') as target:
@@ -332,6 +345,8 @@ status() {
     fi
   done
 }
+
+echo "initialActor=$INITIAL_ACTOR triggeringActor=$ACTOR actionsRunUrl=$ACTIONS_RUN_URL"
 
 case "$ACTION" in
   validate)

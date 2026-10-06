@@ -10,7 +10,10 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 
 # WARP production deployment contract
 
-- Production deployment owner and evidence actor is `OziinG`.
+- Production deployment owner is `OziinG`; evidence must identify the actual executing account, never default to the owner.
+- [Delegation effective 2026-10-06](https://github.com/EVNSolution/EVN-WARP/pull/56#issuecomment-6009236448): `SUMZ711` may develop, review, merge, release and roll back sales-pipeline and directly related CRM changes without per-release owner approval. PR #56 and its reviewed forward schema migrations are included. Shared infrastructure/IAM/permissions and changes affecting other features or services require separate agreement.
+- Record `github.actor` as the initial actor and `github.triggering_actor` as the executing actor, including the Actions run/attempt URL. Missing actor identity must fail before server operations.
+- Deployment/schema migration must never automatically merge customers. Operational merges require preview, explicit conflict choices, confirmation and immutable audit evidence.
 - Application ENV is read-only from SSM `/evn-warp/app-env`. Never restore GitHub `APP_ENV` write-back or local `.env` fallback.
 - Never print `.env`, secret fragments, fingerprints, PM2 environment or decrypted SSM values.
 - Run routine production deployment with the single `release` pipeline. It performs `prepare → status → switch → status` under one immutable Revision. Use `validate`, `prepare`, `status` and `switch` separately only for preflight or recovery diagnosis. `rollback` restores the recorded previous slot. Never type an image digest by hand.
