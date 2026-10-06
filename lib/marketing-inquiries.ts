@@ -3,6 +3,8 @@ import { createHash } from 'node:crypto'
 import type { PrismaClient } from '@/app/generated/prisma/client'
 import { safeKeyEqual } from '@/lib/external-lookup/config'
 import { digitsOnly } from '@/lib/external-lookup/match'
+import { customerWrite, resolveCustomerId, type CustomerDb } from '@/lib/customer-alias'
+import { normalizeCustomerMobile } from '@/lib/customer-mobile'
 
 const MAX_BODY_BYTES = 16 * 1024
 const MIN_KEY_LENGTH = 32
@@ -24,6 +26,14 @@ export type MarketingInquiry = {
   sourceStatus: string
   name: string
   phone: string
+  rejectExistingCustomer?: true
+}
+
+type MarketingInquiryCheck = {
+  source: string
+  companyScopeId: string
+  homepageScopeId: string
+  items: Array<{ sourceId: string; phone: string }>
 }
 
 type Receipt = {
@@ -35,14 +45,30 @@ type Receipt = {
 }
 
 class AmbiguousPhoneError extends Error {}
+class PhoneExistsError extends Error {}
 
-function error(code: 'unauthorized' | 'not_configured' | 'bad_payload' | 'ambiguous_phone' | 'temporarily_unavailable', status: number) {
+function error(code: 'unauthorized' | 'not_configured' | 'bad_payload' | 'ambiguous_phone' | 'phone_exists' | 'temporarily_unavailable', status: number) {
   return Response.json({ error: code }, { status, headers: NO_STORE })
 }
 
 function readApiKey(env: Readonly<Record<string, string | undefined>>) {
   const key = env.WARP_MARKETING_API_KEY ?? ''
   return key.length >= MIN_KEY_LENGTH && !/\s/u.test(key) ? key : null
+}
+
+function authenticate(request: Request, env: Readonly<Record<string, string | undefined>>) {
+  const apiKey = readApiKey(env)
+  if (!apiKey) return error('not_configured', 503)
+  const provided = request.headers.get('x-api-key') ?? ''
+  return provided && safeKeyEqual(apiKey, provided) ? null : error('unauthorized', 401)
+}
+
+// Preserve legacy contact submissions while canonicalizing valid Korean mobiles like the CRM guard.
+function normalizeMarketingPhone(value: string | null | undefined): string | null {
+  const digits = digitsOnly(value)
+  const mobile = digits.startsWith('0082') ? '+82' + digits.slice(4) : digits.startsWith('82') ? '+82' + digits.slice(2) : digits
+  const phone = normalizeCustomerMobile(value) ?? normalizeCustomerMobile(mobile) ?? digits
+  return /^\d{9,15}$/.test(phone) ? phone : null
 }
 
 function parseDateTime(date: string, time: string): Date | null {
@@ -62,13 +88,17 @@ function parseDateTime(date: string, time: string): Date | null {
 function parsePayload(value: unknown): { payload: MarketingInquiry; occurredAt: Date } | null {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return null
   const record = value as Record<string, unknown>
-  const keys = Object.keys(record)
   const expected = ['source', 'companyScopeId', 'homepageScopeId', 'sourceId', 'inquiryDate', 'inquiryTime', 'sourceStatus', 'name', 'phone']
-  if (keys.length !== expected.length || expected.some(key => typeof record[key] !== 'string')) return null
+  const hasRejectFlag = Object.hasOwn(record, 'rejectExistingCustomer')
+  if (
+    Object.keys(record).length !== expected.length + Number(hasRejectFlag) ||
+    expected.some(key => typeof record[key] !== 'string') ||
+    (hasRejectFlag && record.rejectExistingCustomer !== true)
+  ) return null
 
   const payload = record as MarketingInquiry
   const occurredAt = parseDateTime(payload.inquiryDate, payload.inquiryTime)
-  const phoneDigits = digitsOnly(payload.phone)
+  const phoneDigits = normalizeMarketingPhone(payload.phone)
   if (
     payload.source !== SOURCE ||
     payload.companyScopeId !== COMPANY_SCOPE_ID ||
@@ -78,13 +108,45 @@ function parsePayload(value: unknown): { payload: MarketingInquiry; occurredAt: 
     payload.sourceStatus.length > 100 ||
     payload.name.length > 100 ||
     payload.phone.length > 40 ||
-    phoneDigits.length < 9 ||
-    phoneDigits.length > 15
+    !phoneDigits
   ) return null
   return { payload, occurredAt }
 }
 
-export function marketingInquiryActivityId(payload: MarketingInquiry) {
+function parseCheckPayload(value: unknown): MarketingInquiryCheck | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null
+  const record = value as Record<string, unknown>
+  const expected = ['source', 'companyScopeId', 'homepageScopeId', 'items']
+  if (Object.keys(record).length !== expected.length || expected.some(key => !(key in record))) return null
+  if (
+    record.source !== SOURCE ||
+    record.companyScopeId !== COMPANY_SCOPE_ID ||
+    record.homepageScopeId !== HOMEPAGE_SCOPE_ID ||
+    !Array.isArray(record.items) ||
+    record.items.length < 1 ||
+    record.items.length > 50
+  ) return null
+
+  const sourceIds = new Set<string>()
+  for (const item of record.items) {
+    if (!item || typeof item !== 'object' || Array.isArray(item)) return null
+    const row = item as Record<string, unknown>
+    if (
+      Object.keys(row).length !== 2 ||
+      typeof row.sourceId !== 'string' ||
+      typeof row.phone !== 'string' ||
+      row.phone.length > 40 ||
+      !UUID.test(row.sourceId)
+    ) return null
+    const sourceId = row.sourceId.toLowerCase()
+    const phoneDigits = normalizeMarketingPhone(row.phone)
+    if (sourceIds.has(sourceId) || !phoneDigits) return null
+    sourceIds.add(sourceId)
+  }
+  return record as MarketingInquiryCheck
+}
+
+export function marketingInquiryActivityId(payload: Pick<MarketingInquiry, 'source' | 'companyScopeId' | 'homepageScopeId' | 'sourceId'>) {
   return `mleverage_${createHash('sha256')
     .update([payload.source, payload.companyScopeId, payload.homepageScopeId, payload.sourceId.toLowerCase()].join(':'))
     .digest('hex')}`
@@ -105,12 +167,6 @@ function activityContent(payload: MarketingInquiry) {
 function databaseErrorCode(error: unknown) {
   const code = typeof error === 'object' && error !== null && 'code' in error ? String(error.code) : ''
   return /^P\d{4}$/.test(code) ? code : 'unknown'
-}
-
-function retryable(error: unknown) {
-  const code = databaseErrorCode(error)
-  const message = error instanceof Error ? error.message : ''
-  return code === 'P2002' || code === 'P2034' || code === 'P1008' || /SQLITE_BUSY|database is locked/i.test(message)
 }
 
 async function readBoundedBody(request: Request): Promise<Uint8Array | null> {
@@ -136,63 +192,60 @@ async function readBoundedBody(request: Request): Promise<Uint8Array | null> {
   return body.subarray(0, size)
 }
 
+async function replayReceipt(transaction: CustomerDb, activity: { id: string; customerId: string }): Promise<Receipt> {
+  const customerId = await resolveCustomerId(transaction, activity.customerId)
+  if (!await transaction.customer.findUnique({ where: { id: customerId }, select: { id: true } })) {
+    throw new Error('Receipt customer unavailable')
+  }
+  return { ok: true, customerId, activityId: activity.id, created: false, duplicate: true }
+}
+
 async function appendInquiry(prisma: PrismaClient, payload: MarketingInquiry, occurredAt: Date): Promise<Receipt> {
   const activityId = marketingInquiryActivityId(payload)
-  for (let attempt = 0; attempt < 4; attempt += 1) {
-    try {
-      return await prisma.$transaction(async transaction => {
-        // Reserve the SQLite writer before reading; deferred read-to-write upgrades can deadlock across clients.
-        // Retry asynchronously instead of blocking the Node event loop while another client holds the writer.
-        await transaction.$executeRaw`PRAGMA busy_timeout = 0`
-        await transaction.$executeRaw`UPDATE "CustomerActivity" SET "id" = "id" WHERE 0`
-        const duplicate = await transaction.customerActivity.findUnique({
-          where: { id: activityId },
-          select: { id: true, customerId: true },
-        })
-        if (duplicate) {
-          return { ok: true, customerId: duplicate.customerId, activityId: duplicate.id, created: false, duplicate: true }
-        }
+  // Share the merge writer reservation: never read a receipt or candidate before acquiring it.
+  return customerWrite(prisma, async transaction => {
+    const duplicate = await transaction.customerActivity.findUnique({
+      where: { id: activityId },
+      select: { id: true, customerId: true },
+    })
+    if (duplicate) return replayReceipt(transaction, duplicate)
 
-        const phoneDigits = digitsOnly(payload.phone)
-        // ponytail: scans primary phones because SQLite cannot apply the shared JS normalizer; add a normalized column if volume makes this slow.
-        const candidates = await transaction.customer.findMany({
-          where: { phone: { not: null } },
-          select: { id: true, phone: true },
-        })
-        const matches = candidates.filter(customer => digitsOnly(customer.phone) === phoneDigits)
-        if (matches.length > 1) throw new AmbiguousPhoneError()
+    const phone = normalizeMarketingPhone(payload.phone)
+    // ponytail: scans primary phones; add a normalized column/index if volume makes this slow.
+    // Merges delete the source Customer; archived aliases are not separate candidates.
+    const candidates = await transaction.customer.findMany({
+      where: { phone: { not: null } },
+      select: { id: true, phone: true },
+    })
+    const matches = candidates.filter(customer => normalizeMarketingPhone(customer.phone) === phone)
+    if (matches.length > 1) throw new AmbiguousPhoneError()
+    if (payload.rejectExistingCustomer && matches.length) throw new PhoneExistsError()
 
-        const customerId = matches[0]?.id ?? (await transaction.customer.create({
-          data: {
-            name: payload.name.trim(),
-            phone: payload.phone,
-            customerSegment: 'B2C',
-            status: '잠재고객',
-            source: SOURCE,
-            collectedAt: occurredAt,
-          },
-          select: { id: true },
-        })).id
+    const customerId = matches[0]?.id ?? (await transaction.customer.create({
+      data: {
+        name: payload.name.trim(),
+        phone: payload.phone,
+        customerSegment: 'B2C',
+        status: '잠재고객',
+        source: SOURCE,
+        collectedAt: occurredAt,
+      },
+      select: { id: true },
+    })).id
 
-        await transaction.customerActivity.create({
-          data: {
-            id: activityId,
-            customerId,
-            type: '이벤트',
-            date: occurredAt,
-            content: activityContent(payload),
-          },
-          select: { id: true },
-        })
-        return { ok: true, customerId, activityId, created: true, duplicate: false }
-      })
-    } catch (error) {
-      if (error instanceof AmbiguousPhoneError) throw error
-      if (!retryable(error) || attempt === 3) throw error
-      await new Promise(resolve => setTimeout(resolve, 10 * (attempt + 1)))
-    }
-  }
-  throw new Error('unreachable')
+    await transaction.customerActivity.create({
+      data: {
+        id: activityId,
+        customerId,
+        type: '이벤트',
+        date: occurredAt,
+        content: activityContent(payload),
+      },
+      select: { id: true },
+    })
+    // A new activity on an existing customer is neither a new customer nor a replay.
+    return { ok: true, customerId, activityId, created: matches.length === 0, duplicate: false }
+  })
 }
 
 export async function handleMarketingInquiryRequest(
@@ -200,10 +253,8 @@ export async function handleMarketingInquiryRequest(
   prisma: PrismaClient,
   env: Readonly<Record<string, string | undefined>> = process.env,
 ) {
-  const apiKey = readApiKey(env)
-  if (!apiKey) return error('not_configured', 503)
-  const provided = request.headers.get('x-api-key') ?? ''
-  if (!provided || !safeKeyEqual(apiKey, provided)) return error('unauthorized', 401)
+  const authenticationError = authenticate(request, env)
+  if (authenticationError) return authenticationError
 
   const bytes = await readBoundedBody(request)
   if (!bytes) return error('bad_payload', 400)
@@ -220,8 +271,63 @@ export async function handleMarketingInquiryRequest(
   try {
     return Response.json(await appendInquiry(prisma, validated.payload, validated.occurredAt), { headers: NO_STORE })
   } catch (caught) {
+    if (caught instanceof PhoneExistsError) return error('phone_exists', 409)
     if (caught instanceof AmbiguousPhoneError) return error('ambiguous_phone', 409)
-    console.error('marketing_inquiry_failed', { code: databaseErrorCode(caught), retryable: retryable(caught) })
+    console.error('marketing_inquiry_failed', { code: databaseErrorCode(caught) })
+    return error('temporarily_unavailable', 503)
+  }
+}
+
+export async function handleMarketingInquiryCheckRequest(
+  request: Request,
+  prisma: PrismaClient,
+  env: Readonly<Record<string, string | undefined>> = process.env,
+) {
+  const authenticationError = authenticate(request, env)
+  if (authenticationError) return authenticationError
+
+  const bytes = await readBoundedBody(request)
+  if (!bytes) return error('bad_payload', 400)
+
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes))
+  } catch {
+    return error('bad_payload', 400)
+  }
+  const payload = parseCheckPayload(parsed)
+  if (!payload) return error('bad_payload', 400)
+
+  try {
+    // One read-only snapshot keeps receipt IDs, alias resolution and phone matches coherent across merges.
+    const results = await prisma.$transaction(async transaction => {
+      const activityIds = payload.items.map(item => marketingInquiryActivityId({ ...payload, sourceId: item.sourceId }))
+      const activities = await transaction.customerActivity.findMany({
+        where: { id: { in: activityIds } },
+        select: { id: true, customerId: true },
+      })
+      const customers = await transaction.customer.findMany({
+        where: { phone: { not: null } },
+        select: { phone: true },
+      })
+      const activityById = new Map(activities.map(activity => [activity.id, activity]))
+      const phones = new Set(customers.map(customer => normalizeMarketingPhone(customer.phone)))
+      return Promise.all(payload.items.map(async item => {
+        const activityId = marketingInquiryActivityId({ ...payload, sourceId: item.sourceId })
+        const activity = activityById.get(activityId)
+        if (activity) {
+          return {
+            sourceId: item.sourceId.toLowerCase(),
+            exists: true,
+            receipt: await replayReceipt(transaction, activity),
+          }
+        }
+        return { sourceId: item.sourceId.toLowerCase(), exists: phones.has(normalizeMarketingPhone(item.phone)) }
+      }))
+    })
+    return Response.json({ ok: true, results }, { headers: NO_STORE })
+  } catch (caught) {
+    console.error('marketing_inquiry_check_failed', { code: databaseErrorCode(caught) })
     return error('temporarily_unavailable', 503)
   }
 }
