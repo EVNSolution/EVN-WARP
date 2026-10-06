@@ -4,6 +4,10 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import test from 'node:test'
+import { createRequire } from 'node:module'
+import { runInNewContext } from 'node:vm'
+import ts from 'typescript'
+import { NextRequest } from 'next/server'
 import { createClient } from '@libsql/client'
 import { PrismaLibSql } from '@prisma/adapter-libsql'
 import { PrismaClient } from '@/app/generated/prisma/client'
@@ -53,6 +57,79 @@ async function confirmation(keepId = 'keep', removeId = 'remove') {
 }
 async function rejectsStatus(work: Promise<unknown>, status: number) {
   await assert.rejects(work, (error: unknown) => error instanceof CustomerMergeError && error.status === status)
+}
+
+// Exercise the actual PUT handler while keeping auth and the checkout DB singleton out of the test.
+function customerRoutes() {
+  const filename = path.resolve('app/api/customers/[id]/route.ts')
+  const require = createRequire(filename)
+  const exports = {} as Pick<typeof import('@/app/api/customers/[id]/route'), 'GET' | 'PUT'>
+  const { outputText } = ts.transpileModule(readFileSync(filename, 'utf8'), {
+    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
+  })
+  runInNewContext(outputText, {
+    exports, Date,
+    require: (id: string) => id === '@/lib/db' ? { prisma: db }
+      : id === '@/auth' ? { auth: async () => ({ user: { id: 'admin', name: '테스트 관리자', employmentType: '사내' } }) }
+      : require(id),
+  }, { filename })
+  return exports
+}
+
+function customerPut() {
+  const routes = customerRoutes()
+  return (body: Record<string, unknown>, id = 'keep') => routes.PUT(new NextRequest(`https://warp.test/api/customers/${id}`, {
+    method: 'PUT', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body),
+  }), { params: Promise.resolve({ id }) })
+}
+
+// Render the real modal's hooks/JSX without a browser; its fetches still use the real routes and temp DB.
+function crmModal(fetch: typeof globalThis.fetch, alert: (message: string) => void) {
+  type Element = { type: string | Component; props: Record<string, unknown> }
+  type Component = (props: Record<string, unknown>) => Element
+  const states = new Map<Component, unknown[]>()
+  let slots: unknown[] = [], cursor = 0
+  const effects: (() => void)[] = []
+  const filename = path.resolve('components/CrmCardModal.tsx')
+  const require = createRequire(filename)
+  const jsx = (type: Element['type'], props: Element['props']) => ({ type, props })
+  const exports = {} as { default: Component }
+  runInNewContext(ts.transpileModule(readFileSync(filename, 'utf8'), {
+    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX },
+  }).outputText, {
+    exports, fetch, alert, AbortController,
+    require: (id: string) => id === 'react' ? {
+      useState: (initial: unknown) => {
+        const state = slots, index = cursor++
+        if (!(index in state)) state[index] = typeof initial === 'function' ? initial() : initial
+        return [state[index], (value: unknown) => { state[index] = typeof value === 'function' ? value(state[index]) : value }]
+      },
+      useEffect: (effect: () => void, deps: unknown[]) => {
+        const index = cursor++, before = slots[index] as unknown[] | undefined
+        if (!before || deps.some((value, i) => value !== before[i])) { slots[index] = deps; effects.push(effect) }
+      },
+    } : id === 'react/jsx-runtime' ? { jsx, jsxs: jsx, Fragment: 'fragment' }
+      : id === './VehicleForm' ? { default: () => null } : require(id),
+  }, { filename })
+  function render(component: Component, props: Record<string, unknown>): Element {
+    slots = states.get(component) ?? []
+    states.set(component, slots); cursor = 0
+    const element = component(props)
+    for (const effect of effects.splice(0)) effect()
+    return element
+  }
+  function saveButton(node: unknown): (() => Promise<void>) | undefined {
+    if (!node || typeof node !== 'object') return
+    const element = node as Element
+    if (element.type === 'button' && ['저장하기', '✓ 저장됨'].includes(element.props.children as string)) {
+      return element.props.onClick as () => Promise<void>
+    }
+    for (const child of [element.props?.children].flat()) {
+      const found = saveButton(child)
+      if (found) return found
+    }
+  }
+  return { modal: exports.default, render, saveButton }
 }
 
 async function relations() {
@@ -233,6 +310,125 @@ test('stale preview detects same-count edits and added dependencies including up
   }
   assert.equal(await db.customerMerge.count(), 0)
   assert.equal(await db.customer.count(), 2)
+})
+
+test('stale survivor PUT cannot erase merged arrays or memo; fresh and repeated versioned saves work', async () => {
+  await relations()
+  await db.customer.update({ where: { id: 'remove' }, data: {
+    contactsJson: '[{"id":"source-contact","name":"보존 관계자"}]',
+    vehicleListJson: '[{"name":"PV5","count":1}]',
+  } })
+  const stale = await db.customer.findUniqueOrThrow({ where: { id: 'keep' } })
+  await confirmCustomerMerge(db, 'admin', await confirmation())
+  const merged = await db.customer.findUniqueOrThrow({ where: { id: 'keep' } })
+  const put = customerPut()
+  const form = { phone: stale.phone, memo: stale.memo, contactsJson: stale.contactsJson, vehicleListJson: stale.vehicleListJson }
+  for (const expectedUpdatedAt of [undefined, null, '', 'invalid', {}, stale.updatedAt.toISOString()]) {
+    const response = await put({ ...form, expectedUpdatedAt })
+    assert.equal(response.status, 409)
+    assert.deepEqual(await db.customer.findUniqueOrThrow({ where: { id: 'keep' } }), merged)
+  }
+  const freshForm = { ...form, memo: `${merged.memo}\n새 메모`, contactsJson: merged.contactsJson, vehicleListJson: merged.vehicleListJson }
+  const fresh = await put({ ...freshForm, expectedUpdatedAt: merged.updatedAt.toISOString() })
+  assert.equal(fresh.status, 200)
+  const saved = await fresh.json()
+  assert.notEqual(saved.updatedAt, merged.updatedAt.toISOString())
+  assert.equal(saved.contactsJson, merged.contactsJson)
+  assert.equal(saved.vehicleListJson, merged.vehicleListJson)
+  assert.equal(saved.memo, freshForm.memo)
+  assert.equal((await put({ ...freshForm, expectedUpdatedAt: merged.updatedAt.toISOString() })).status, 409)
+  assert.equal((await put({ ...freshForm, memo: `${saved.memo}\n추가 메모`, expectedUpdatedAt: saved.updatedAt })).status, 200)
+  assert.equal((await put({ ...freshForm, expectedUpdatedAt: saved.updatedAt }, 'remove')).status, 409)
+  assert.equal(await db.customerMerge.count(), 1)
+})
+
+test('ordinary customer PUT callers can omit the version; supplied versions still reject stale edits', async () => {
+  const put = customerPut()
+  // The legacy CRM modal sends a partial payload without a version.
+  const legacy = await put({ companyName: '회사', regionCity: '서울', cargoNote: '기존 호출' })
+  assert.equal(legacy.status, 200)
+  const current = await legacy.json()
+  assert.equal(current.companyName, '회사')
+  assert.equal(current.memo, '원본 유지')
+  const next = await put({ memo: '상세 화면 저장', expectedUpdatedAt: current.updatedAt })
+  assert.equal(next.status, 200)
+  const saved = await next.json()
+  assert.equal((await put({ memo: '오래된 화면', expectedUpdatedAt: current.updatedAt })).status, 409)
+  assert.equal((await db.customer.findUniqueOrThrow({ where: { id: 'keep' } })).memo, saved.memo)
+  assert.equal((await put({ regionDist: '강남구' })).status, 200)
+})
+
+for (const ahead of [0, 86_400_000]) {
+  test(`merge advances the survivor version when its clock is ${ahead ? 'in the future' : 'in the same millisecond'}`, async t => {
+    const now = Date.UTC(2030, 0, 1)
+    t.mock.timers.enable({ apis: ['Date'], now })
+    const before = await db.customer.update({ where: { id: 'keep' }, data: { updatedAt: new Date(now + ahead) } })
+    const body = await confirmation()
+    await confirmCustomerMerge(db, 'admin', body)
+    const merged = await db.customer.findUniqueOrThrow({ where: { id: 'keep' } })
+    assert.equal(merged.updatedAt.getTime(), before.updatedAt.getTime() + 1)
+    const put = customerPut()
+    assert.equal((await put({ memo: before.memo, expectedUpdatedAt: before.updatedAt.toISOString() })).status, 409)
+    assert.equal((await put({ memo: merged.memo, expectedUpdatedAt: merged.updatedAt.toISOString() })).status, 200)
+    const saved = await db.customer.findUniqueOrThrow({ where: { id: 'keep' } })
+    assert.equal(saved.updatedAt.getTime(), merged.updatedAt.getTime() + 1)
+    await confirmCustomerMerge(db, 'admin', body)
+    assert.deepEqual(await db.customer.findUniqueOrThrow({ where: { id: 'keep' } }), saved)
+  })
+}
+
+test('CRM modal loads merged fields and version together, saves repeatedly, and keeps failed saves unsuccessful', async () => {
+  const stale = await db.customer.findUniqueOrThrow({ where: { id: 'keep' } })
+  await db.customer.update({ where: { id: 'remove' }, data: { companyName: '통합된 회사', cargoNote: '보존 화물 정보' } })
+  await confirmCustomerMerge(db, 'admin', await confirmation())
+  const merged = await db.customer.findUniqueOrThrow({ where: { id: 'keep' } })
+  const routes = customerRoutes()
+  const pending: Promise<unknown>[] = [], versions: unknown[] = [], notices: string[] = []
+  let successes = 0
+  const fetch: typeof globalThis.fetch = async (input, init) => {
+    const request = new NextRequest(new URL(String(input), 'https://warp.test'), { ...init, signal: init?.signal ?? undefined })
+    const id = new URL(request.url).pathname.split('/').pop()!
+    if (request.method === 'PUT') versions.push(JSON.parse(init?.body as string).expectedUpdatedAt)
+    const work = routes[request.method === 'PUT' ? 'PUT' : 'GET'](request, { params: Promise.resolve({ id }) })
+    pending.push(work)
+    return work
+  }
+  const ui = crmModal(fetch, message => notices.push(message))
+  const props = { customerId: 'remove', name: stale.name, phone: stale.phone, stageCode: '1-1', crm: stale,
+    onClose() {}, onSaved() { successes++ } }
+  assert.equal(ui.render(ui.modal, props).props.role, 'dialog')
+  await Promise.all(pending)
+  await new Promise(resolve => setImmediate(resolve))
+  const editor = ui.render(ui.modal, props)
+  assert.equal(typeof editor.type, 'function')
+  assert.equal(editor.props.customerId, 'keep')
+  assert.equal((editor.props.crm as { companyName: string }).companyName, merged.companyName)
+  assert.equal(editor.props.initialUpdatedAt, merged.updatedAt.toISOString())
+  const save = () => {
+    const button = ui.saveButton(ui.render(editor.type as (props: Record<string, unknown>) => typeof editor, editor.props))
+    assert.ok(button)
+    return button()
+  }
+  await save()
+  assert.equal(successes, 1)
+  let current = await db.customer.findUniqueOrThrow({ where: { id: 'keep' } })
+  assert.equal(current.companyName, merged.companyName)
+  assert.equal(current.cargoNote, merged.cargoNote)
+  assert.equal(versions[0], merged.updatedAt.toISOString())
+  const firstVersion = current.updatedAt.toISOString()
+  await save()
+  assert.equal(successes, 2)
+  assert.equal(versions[1], firstVersion)
+  current = await db.customer.findUniqueOrThrow({ where: { id: 'keep' } })
+  await db.customer.update({ where: { id: 'keep' }, data: {
+    cargoNote: '다른 화면에서 수정', updatedAt: new Date(current.updatedAt.getTime() + 1),
+  } })
+  await save()
+  await save()
+  assert.equal(successes, 2)
+  assert.equal(notices.length, 2)
+  assert.equal(versions[2], versions[3])
+  assert.equal((await db.customer.findUniqueOrThrow({ where: { id: 'keep' } })).cargoNote, '다른 화면에서 수정')
 })
 
 test('injected failure after archive and relinks rolls the entire merge back', async () => {

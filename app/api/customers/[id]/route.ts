@@ -28,6 +28,12 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
         const owner = await prisma.customer.findUnique({ where: { id }, select: { assignee: true } })
         if (owner?.assignee !== me?.name) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
       }
+      const current = await prisma.customer.findUniqueOrThrow({ where: { id }, select: { updatedAt: true } })
+      // Older callers may omit a version only while this customer has never received a merge.
+      const versionRequired = b.expectedUpdatedAt !== undefined || await prisma.customerMerge.count({ where: { targetId: id } }) > 0
+      if (versionRequired && b.expectedUpdatedAt !== current.updatedAt.toISOString()) {
+        throw new CustomerMergeError(409, '고객 정보가 변경되었습니다. 새로고침하여 최신 내용을 확인한 뒤 다시 저장해 주세요.')
+      }
       const n = (v: unknown) => (v === undefined ? undefined : v ?? null)
 
       // 동일 전화번호의 다른 고객이 이미 있으면 중복 생성 방지를 위해 저장 자체를 차단한다.
@@ -47,6 +53,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
       const customer = await prisma.customer.update({
         where: { id },
         data: {
+          updatedAt: new Date(Math.max(Date.now(), current.updatedAt.getTime() + 1)),
           /* ── 기본 정보 ── */
           ...(b.name             !== undefined && { name:             b.name }),
           ...(b.phone            !== undefined && { phone:            n(b.phone) }),

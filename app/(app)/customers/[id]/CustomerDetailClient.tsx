@@ -82,7 +82,7 @@ type Customer = {
   shipperName: string | null; cargoType: string | null
   deliveryCity: string | null; deliveryDist: string | null; deliveryFreq: string | null
   workShift: string | null; monthlyIncome: string | null; cargoNote: string | null
-  collectedAt: string | null; createdAt: string
+  collectedAt: string | null; createdAt: string; updatedAt: string
   leads: Lead[]; activities: Activity[]
 }
 
@@ -90,6 +90,8 @@ export default function CustomerDetailClient({ customer, returnTo, myName, backH
   customer: Customer; returnTo?: string; myName?: string; backHref?: string
 }) {
   const router = useRouter()
+  // Keep the version that belongs to this form; a prop refresh must not bless an old draft.
+  const [expectedUpdatedAt, setExpectedUpdatedAt] = useState(customer.updatedAt)
 
   const [f, setF] = useState({
     /* 기본 */
@@ -349,6 +351,7 @@ export default function CustomerDetailClient({ customer, returnTo, myName, backH
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(Object.assign({}, f, {
+          expectedUpdatedAt,
           phone:            f.phone            || null,
           email:            f.email            || null,
           grade:            f.grade            || null,
@@ -409,6 +412,8 @@ export default function CustomerDetailClient({ customer, returnTo, myName, backH
         alert(err.error || '저장에 실패했습니다')
         return
       }
+      const updated = await res.json()
+      setExpectedUpdatedAt(updated.updatedAt)
       setSaved(true)
       setMsg('저장되었습니다')
       setTimeout(() => setMsg(''), 2500)

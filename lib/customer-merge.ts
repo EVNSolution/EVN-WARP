@@ -208,7 +208,10 @@ export async function confirmCustomerMerge(db: PrismaClient, actorId: string | u
       sourceId: b.removeId, targetId: b.keepId, actorId: actor.id, actorName: actor.name,
       previewToken: b.previewToken, choicesJson: stable(b.choices), snapshotJson: stable(state),
     } })
-    await tx.customer.update({ where: { id: b.keepId }, data })
+    await tx.customer.update({ where: { id: b.keepId }, data: {
+      ...data,
+      updatedAt: new Date(Math.max(Date.now(), state.keep.updatedAt.getTime() + 1)),
+    } })
     // Raw FK-only updates intentionally preserve deal/agent updatedAt and every business field.
     await tx.$executeRaw`UPDATE "SalesDeal" SET "customerId" = ${b.keepId} WHERE "customerId" = ${b.removeId}`
     await tx.$executeRaw`UPDATE "CustomerActivity" SET "customerId" = ${b.keepId} WHERE "customerId" = ${b.removeId}`
