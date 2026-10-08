@@ -2,7 +2,8 @@
 FROM node:22.23.1-alpine3.23@sha256:8516dce0483394d5708d4b2ee6cacb79fb1d617ea4e2787c2120bcca92ce372e AS dependencies
 WORKDIR /app
 COPY package.json package-lock.json ./
-RUN apk add --no-cache libc6-compat openssl && npm ci
+# Alpine 3.23's zlib 1.3.2-r1 fixes CVE-2026-85091; the pinned base has r0.
+RUN apk add --no-cache libc6-compat openssl 'zlib>=1.3.2-r1' && npm ci
 
 FROM dependencies AS builder
 ARG WARP_RELEASE_ID=local
@@ -26,7 +27,7 @@ RUN test ! -e .next/standalone/dev.db && \
 FROM node:22.23.1-alpine3.23@sha256:8516dce0483394d5708d4b2ee6cacb79fb1d617ea4e2787c2120bcca92ce372e AS runtime
 ARG WARP_RELEASE_ID=local
 ARG WARP_SOURCE_REVISION=unknown
-RUN apk add --no-cache libc6-compat openssl && \
+RUN apk add --no-cache libc6-compat openssl 'zlib>=1.3.2-r1' && \
     addgroup --system --gid 1001 nodejs && adduser --system --uid 1001 --ingroup nodejs nextjs
 WORKDIR /app
 ENV NODE_ENV=production PORT=3000 HOSTNAME=0.0.0.0

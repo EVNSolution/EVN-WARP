@@ -5,6 +5,7 @@ on:
   pull_request:
     branches: [main]
     paths:
+      - Dockerfile
       - app/api/migrate/merge-customers/**
       - deploy/tests/**
       - deploy/remote-deploy.sh
