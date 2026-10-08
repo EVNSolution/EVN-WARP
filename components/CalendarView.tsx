@@ -660,9 +660,10 @@ export default function CalendarView({ weeks, activities, reservations, schedule
 
         const hours = Array.from({ length: END_HOUR - BASE_HOUR }, (_, i) => BASE_HOUR + i)
 
+        // UTC 기준으로 날짜만 계산 — 로컬 자정 + toISOString()은 KST(+9)에서 하루 밀림
         const navDay = (delta: number) => {
-          const d = new Date(dayViewDate + 'T00:00:00')
-          d.setDate(d.getDate() + delta)
+          const d = new Date(dayViewDate + 'T00:00:00Z')
+          d.setUTCDate(d.getUTCDate() + delta)
           setDayViewDate(d.toISOString().slice(0, 10))
         }
 
