@@ -55,6 +55,70 @@ function payload(sourceId: string, overrides: Partial<MarketingInquiry> = {}): M
   }
 }
 
+const LANDING_SCOPE = { source: 'evn-landing', companyScopeId: 'evnsolution', homepageScopeId: 'pv5' }
+function landingPayload(sourceId = 'abcdefab-cdef-4abc-8def-abcdefabcdef'): MarketingInquiry {
+  return payload(sourceId, { ...LANDING_SCOPE, inquiryTime: '09:07:23', rejectExistingCustomer: true,
+    landing: { kind: 'subsidy', region: '경기', consentVersion: '2026-10-07-v1', consentedAt: '2026-10-08T00:07:23.000Z' } })
+}
+
+test('landing creates a source-preserving customer and activity with seconds and consent; scoped replay stays isolated', async () => {
+  const input = landingPayload()
+  const first = await send(input)
+  assert.equal(first.response.status, 200)
+  assert.equal(first.body.created, true)
+  assert.equal(first.body.activityId, marketingInquiryActivityId(input))
+  assert.match(first.body.activityId, /^evn_landing_/)
+  const customer = await prisma.customer.findUniqueOrThrow({ where: { id: first.body.customerId } })
+  assert.equal(customer.source, 'evn-landing')
+  assert.equal(customer.collectedAt?.toISOString(), '2026-09-15T00:07:23.000Z')
+  const activity = await prisma.customerActivity.findUniqueOrThrow({ where: { id: first.body.activityId } })
+  for (const text of ['EV&Marketing 새 홈페이지 문의', '09:07:23', '보조금 상담', '지역: 경기', '2026-10-07-v1', '2026-10-08T00:07:23.000Z']) assert.ok(activity.content?.includes(text))
+  const replay = await send({ ...input, sourceId: input.sourceId.toUpperCase() })
+  assert.deepEqual(replay.body, { ...first.body, created: false, duplicate: true })
+  const checked = await check({ ...LANDING_SCOPE, items: [{ sourceId: input.sourceId, phone: input.phone }] })
+  assert.deepEqual(checked.body.results[0].receipt, replay.body)
+  const legacyCheck = await check({ ...SCOPE, items: [{ sourceId: input.sourceId, phone: input.phone }] })
+  assert.deepEqual(legacyCheck.body.results, [{ sourceId: input.sourceId, exists: true }])
+  const legacy = await send(payload(input.sourceId, { phone: '010-0000-0099', rejectExistingCustomer: true }))
+  assert.equal(legacy.body.created, true)
+  assert.notEqual(legacy.body.activityId, first.body.activityId)
+  assert.equal(await prisma.customer.count(), 2)
+  assert.equal(await prisma.customerActivity.count(), 2)
+})
+
+test('landing requires its exact scope, guard, seconds and bounded consultation metadata', async () => {
+  const input = landingPayload()
+  for (const invalid of [
+    { ...input, rejectExistingCustomer: undefined }, { ...input, landing: undefined },
+    { ...input, companyScopeId: SCOPE.companyScopeId }, { ...input, homepageScopeId: 'other' },
+    { ...input, inquiryTime: '09:07' }, { ...input, inquiryTime: '09:07:60' },
+    { ...input, landing: { ...input.landing, kind: 'other' } },
+    { ...input, landing: { ...input.landing, region: ['경기'] } },
+    { ...input, landing: { ...input.landing, kind: 'consultation', region: '경기' } },
+    { ...input, landing: { ...input.landing, consentVersion: '' } },
+    { ...input, landing: { ...input.landing, consentedAt: '2026-02-30T00:00:00.000Z' } },
+    { ...input, landing: { ...input.landing, extra: true } },
+    { ...payload(input.sourceId), landing: input.landing },
+    { ...payload(input.sourceId), inquiryTime: '09:07:23' },
+  ]) assert.equal((await send(invalid)).response.status, 400)
+  assert.equal(await prisma.customer.count(), 0)
+  assert.equal((await check({ ...LANDING_SCOPE, homepageScopeId: 'other', items: [{ sourceId: input.sourceId, phone: input.phone }] })).response.status, 400)
+})
+
+test('landing and collected inquiries competing for one normalized phone create only one customer', async () => {
+  const input = landingPayload()
+  const results = await Promise.all([
+    send(input),
+    send(payload('00000000-0000-4000-8000-000000000098', { phone: '+82 10-1234-5678', rejectExistingCustomer: true })),
+  ])
+  assert.deepEqual(results.map(result => result.response.status).sort(), [200, 409])
+  assert.equal(results.find(result => result.response.status === 409)?.body.error, 'phone_exists')
+  assert.equal(await prisma.customer.count(), 1)
+  assert.equal(await prisma.customerActivity.count(), 1)
+  const checkResult = await check({ ...LANDING_SCOPE, items: [{ sourceId: '00000000-0000-4000-8000-000000000097', phone: '0082 10 1234 5678' }] })
+  assert.deepEqual(checkResult.body.results, [{ sourceId: '00000000-0000-4000-8000-000000000097', exists: true }])
+})
+
 function checkRequest(body: unknown, key = KEY, raw = false) {
   return new Request('http://localhost/api/external/marketing-inquiries/check', {
     method: 'POST',
