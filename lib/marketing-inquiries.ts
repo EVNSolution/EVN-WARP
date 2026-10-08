@@ -11,9 +11,11 @@ const MIN_KEY_LENGTH = 32
 const SOURCE = 'mleverage-admin'
 const COMPANY_SCOPE_ID = '55f9a8bb-73f9-4316-bcd7-7dcdce0bdcc3'
 const HOMEPAGE_SCOPE_ID = '5c7a6115-a0a9-4e8d-bf65-efce52195fa4'
+const LANDING_SOURCE = 'evn-landing'
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 const DATE = /^(\d{4})-(\d{2})-(\d{2})$/
 const TIME = /^(\d{2}):(\d{2})$/
+const LANDING_TIME = /^(\d{2}):(\d{2}):(\d{2})$/
 const NO_STORE = { 'Cache-Control': 'no-store' }
 
 export type MarketingInquiry = {
@@ -27,6 +29,7 @@ export type MarketingInquiry = {
   name: string
   phone: string
   rejectExistingCustomer?: true
+  landing?: { kind: 'consultation' | 'subsidy'; region: string | null; consentVersion: string; consentedAt: string }
 }
 
 type MarketingInquiryCheck = {
@@ -71,14 +74,29 @@ function normalizeMarketingPhone(value: string | null | undefined): string | nul
   return /^\d{9,15}$/.test(phone) ? phone : null
 }
 
-function parseDateTime(date: string, time: string): Date | null {
+function allowedScope(value: Record<string, unknown>) {
+  return (value.source === SOURCE && value.companyScopeId === COMPANY_SCOPE_ID && value.homepageScopeId === HOMEPAGE_SCOPE_ID)
+    || (value.source === LANDING_SOURCE && value.companyScopeId === 'evnsolution' && value.homepageScopeId === 'pv5')
+}
+
+function validLanding(value: unknown): boolean {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false
+  const data = value as Record<string, unknown>
+  return Object.keys(data).sort().join(',') === 'consentVersion,consentedAt,kind,region'
+    && ((data.kind === 'consultation' && data.region === null) || (data.kind === 'subsidy' && typeof data.region === 'string' && ['서울', '경기', '인천'].includes(data.region)))
+    && typeof data.consentVersion === 'string' && /^[A-Za-z0-9._-]{1,80}$/.test(data.consentVersion)
+    && typeof data.consentedAt === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(data.consentedAt)
+    && Number.isFinite(Date.parse(data.consentedAt)) && new Date(data.consentedAt).toISOString() === data.consentedAt
+}
+
+function parseDateTime(date: string, time: string, landing: boolean): Date | null {
   const dateMatch = DATE.exec(date)
-  const timeMatch = TIME.exec(time)
+  const timeMatch = (landing ? LANDING_TIME : TIME).exec(time)
   if (!dateMatch || !timeMatch) return null
   const [, year, month, day] = dateMatch.map(Number)
-  const [, hour, minute] = timeMatch.map(Number)
-  if (hour > 23 || minute > 59) return null
-  const utc = new Date(Date.UTC(year, month - 1, day, hour - 9, minute, 0))
+  const [, hour, minute, second = 0] = timeMatch.map(Number)
+  if (hour > 23 || minute > 59 || second > 59) return null
+  const utc = new Date(Date.UTC(year, month - 1, day, hour - 9, minute, second))
   const seoul = new Date(utc.getTime() + 9 * 60 * 60 * 1000)
   return seoul.getUTCFullYear() === year && seoul.getUTCMonth() === month - 1 && seoul.getUTCDate() === day
     ? utc
@@ -90,19 +108,20 @@ function parsePayload(value: unknown): { payload: MarketingInquiry; occurredAt: 
   const record = value as Record<string, unknown>
   const expected = ['source', 'companyScopeId', 'homepageScopeId', 'sourceId', 'inquiryDate', 'inquiryTime', 'sourceStatus', 'name', 'phone']
   const hasRejectFlag = Object.hasOwn(record, 'rejectExistingCustomer')
+  const landing = record.source === LANDING_SOURCE
   if (
-    Object.keys(record).length !== expected.length + Number(hasRejectFlag) ||
+    Object.keys(record).length !== expected.length + Number(hasRejectFlag) + Number(landing) ||
     expected.some(key => typeof record[key] !== 'string') ||
-    (hasRejectFlag && record.rejectExistingCustomer !== true)
+    (hasRejectFlag && record.rejectExistingCustomer !== true) ||
+    (landing && (!hasRejectFlag || !validLanding(record.landing))) ||
+    (!landing && Object.hasOwn(record, 'landing'))
   ) return null
 
   const payload = record as MarketingInquiry
-  const occurredAt = parseDateTime(payload.inquiryDate, payload.inquiryTime)
+  const occurredAt = parseDateTime(payload.inquiryDate, payload.inquiryTime, landing)
   const phoneDigits = normalizeMarketingPhone(payload.phone)
   if (
-    payload.source !== SOURCE ||
-    payload.companyScopeId !== COMPANY_SCOPE_ID ||
-    payload.homepageScopeId !== HOMEPAGE_SCOPE_ID ||
+    !allowedScope(record) ||
     !UUID.test(payload.sourceId) ||
     !occurredAt ||
     payload.sourceStatus.length > 100 ||
@@ -119,9 +138,7 @@ function parseCheckPayload(value: unknown): MarketingInquiryCheck | null {
   const expected = ['source', 'companyScopeId', 'homepageScopeId', 'items']
   if (Object.keys(record).length !== expected.length || expected.some(key => !(key in record))) return null
   if (
-    record.source !== SOURCE ||
-    record.companyScopeId !== COMPANY_SCOPE_ID ||
-    record.homepageScopeId !== HOMEPAGE_SCOPE_ID ||
+    !allowedScope(record) ||
     !Array.isArray(record.items) ||
     record.items.length < 1 ||
     record.items.length > 50
@@ -147,20 +164,26 @@ function parseCheckPayload(value: unknown): MarketingInquiryCheck | null {
 }
 
 export function marketingInquiryActivityId(payload: Pick<MarketingInquiry, 'source' | 'companyScopeId' | 'homepageScopeId' | 'sourceId'>) {
-  return `mleverage_${createHash('sha256')
+  return `${payload.source === LANDING_SOURCE ? 'evn_landing' : 'mleverage'}_${createHash('sha256')
     .update([payload.source, payload.companyScopeId, payload.homepageScopeId, payload.sourceId.toLowerCase()].join(':'))
     .digest('hex')}`
 }
 
 function activityContent(payload: MarketingInquiry) {
   return [
-    'mleverage-admin 문의',
+    payload.source === LANDING_SOURCE ? 'EV&Marketing 새 홈페이지 문의' : 'mleverage-admin 문의',
     `문의일자: ${payload.inquiryDate}`,
     `문의시간: ${payload.inquiryTime}`,
     `상담상태: ${payload.sourceStatus}`,
     `성함: ${payload.name}`,
     `연락처: ${payload.phone}`,
     `원본 문의 ID: ${payload.sourceId}`,
+    ...(payload.landing ? [
+      `상담 종류: ${payload.landing.kind === 'subsidy' ? '보조금 상담' : '구매 상담'}`,
+      `지역: ${payload.landing.region ?? '미선택'}`,
+      `개인정보 동의 버전: ${payload.landing.consentVersion}`,
+      `개인정보 동의 시각: ${payload.landing.consentedAt}`,
+    ] : []),
   ].join('\n')
 }
 
@@ -227,7 +250,7 @@ async function appendInquiry(prisma: PrismaClient, payload: MarketingInquiry, oc
         phone: payload.phone,
         customerSegment: 'B2C',
         status: '잠재고객',
-        source: SOURCE,
+        source: payload.source,
         collectedAt: occurredAt,
       },
       select: { id: true },
