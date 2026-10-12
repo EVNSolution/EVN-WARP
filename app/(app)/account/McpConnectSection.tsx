@@ -85,8 +85,9 @@ export default function McpConnectSection() {
                 </div>
               </div>
               <div className="text-[11px] text-slate-500 leading-relaxed">
-                <b>Claude</b>: 설정 → 커넥터 → 커스텀 커넥터 추가 → 위 주소 붙여넣기<br />
-                <b>ChatGPT</b>: 설정 → 커넥터(개발자 모드) → 새 커넥터 → 위 주소 붙여넣기
+                <b>Claude</b>: 설정 → 커넥터 → 커스텀 커넥터 추가 → 위 주소 붙여넣기 →
+                인증 방식은 <b>「로그인 없음」</b> 선택 (주소에 내 토큰이 들어 있어 헤더 추가 불필요)<br />
+                <b>ChatGPT</b>: 설정 → 커넥터(개발자 모드) → 새 커넥터 → 위 주소 붙여넣기 → 인증 「없음」
               </div>
             </div>
           )}
@@ -155,7 +156,9 @@ function DongjakConnect() {
     <div className="border-t border-slate-100 pt-3 mt-1">
       <div className="text-xs font-semibold text-slate-700">회의실 예약 계정 연결 (선택)</div>
       <p className="text-[11px] text-slate-400 mt-0.5 mb-2">
-        연결하면 AI에게 &ldquo;내일 2시 회의실 잡아줘&rdquo;가 가능해집니다. 비밀번호는 저장되지 않습니다.
+        <b>동작창업센터 예약 사이트 계정</b>(센터 홈페이지에 로그인하는 ID/비밀번호)을 입력하세요 —
+        WARP 계정이 아닙니다. 연결하면 AI에게 &ldquo;내일 2시 회의실 잡아줘&rdquo;가 가능해집니다.
+        비밀번호는 저장되지 않습니다.
       </p>
       {loading ? <p className="text-[11px] text-slate-400">확인 중...</p> : connected ? (
         <div className="flex items-center gap-2 text-xs">
@@ -164,12 +167,17 @@ function DongjakConnect() {
         </div>
       ) : form ? (
         <div className="space-y-2 max-w-xs">
-          <input value={id} onChange={e => setId(e.target.value)} placeholder="회의실 예약 ID"
+          <input value={id} onChange={e => setId(e.target.value)} placeholder="동작창업센터 사이트 ID"
             className="w-full text-xs border border-slate-200 rounded px-2 py-1.5" />
           <input value={pw} onChange={e => setPw(e.target.value)} type="password" placeholder="비밀번호"
             className="w-full text-xs border border-slate-200 rounded px-2 py-1.5"
             onKeyDown={e => e.key === 'Enter' && login()} />
-          {error && <p className="text-[11px] text-red-500">{error}</p>}
+          {error && (
+            <p className="text-[11px] text-red-500">
+              {error}
+              {error.includes('올바르지 않') && ' — 동작창업센터 사이트에서 직접 로그인되는 계정인지 확인해 주세요.'}
+            </p>
+          )}
           <div className="flex gap-2">
             <button onClick={login} disabled={busy || !id || !pw}
               className="text-xs px-3 py-1.5 rounded bg-slate-800 text-white disabled:opacity-50">연결</button>
