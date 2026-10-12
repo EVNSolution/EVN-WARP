@@ -13,6 +13,7 @@ import {
 import CalendarView, { type CalActivity, type CalVehicleReservation, type CalScheduleItem } from '@/components/CalendarView'
 import FilterSelects from './FilterSelects'
 import PersonalScopeToggle from './PersonalScopeToggle'
+import MeetingRoomsTab from './MeetingRoomsTab'
 import { auth } from '@/auth'
 import { canViewAllCardUsage } from '@/lib/permissions'
 
@@ -108,7 +109,7 @@ function TripList({ items }: { items: any[] }) {
 
 export default async function NotesPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
   const { month: monthParam, tab, user: userParam, uid: uidParam, teamName: teamParam } = await searchParams
-  const activeTab  = tab === 'notes' ? 'notes' : 'calendar'
+  const activeTab  = tab === 'notes' ? 'notes' : tab === 'rooms' ? 'rooms' : 'calendar'
 
   const session  = await auth()
   const myName   = (session?.user as any)?.name as string | undefined
@@ -448,8 +449,8 @@ export default async function NotesPage({ searchParams }: { searchParams: Promis
 
       {/* ── 탭 ── */}
       <div className="flex gap-0 mb-4 border-b border-slate-200">
-        {(['캘린더', '업무노트'] as const).map(label => {
-          const val    = label === '캘린더' ? 'calendar' : 'notes'
+        {(['캘린더', '업무노트', '회의실'] as const).map(label => {
+          const val    = label === '캘린더' ? 'calendar' : label === '업무노트' ? 'notes' : 'rooms'
           const active = activeTab === val
           const tabHref = `${buildHref({ tab: val })}${userParam && uidParam ? `&uid=${encodeURIComponent(uidParam)}` : ''}`
           return (
@@ -473,6 +474,11 @@ export default async function NotesPage({ searchParams }: { searchParams: Promis
           myUserId={myUserId} canViewAllCardUsage={canViewAllCards} />
       )}
 
+
+      {/* ══════════════════════════════
+          회의실 탭 — 동작사무실 예약 현황 (조회 전용)
+      ══════════════════════════════ */}
+      {activeTab === 'rooms' && <MeetingRoomsTab />}
 
       {/* ══════════════════════════════
           업무노트 탭
