@@ -18,7 +18,7 @@ export default function TodayTodoButton({ dateLabel, assignees, todoByAssignee }
   return (
     <>
       <button onClick={() => setOpen(true)}
-        className="px-3.5 py-1.5 rounded-lg text-xs font-semibold text-black hover:opacity-90 transition flex items-center gap-1.5" style={{ backgroundColor: '#C5D42A' }}>
+        className="px-3.5 py-1.5 rounded-lg text-xs font-semibold bg-white/10 text-white border border-white/15 hover:bg-white/20 transition flex items-center gap-1.5">
         오늘 할 일
         {totalCount > 0 && (
           <span className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-amber-500 text-white text-[10px] font-bold">

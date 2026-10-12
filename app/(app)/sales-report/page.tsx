@@ -273,7 +273,7 @@ export default async function SalesReportPage({
             <div className="flex items-center gap-3">
               {isAdmin && (
                 <a href="/sales-report/kia-letter" target="_blank" rel="noopener noreferrer"
-                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-white text-blue-700 hover:bg-blue-50 transition-colors">
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-white/10 text-white border border-white/15 hover:bg-white/20 transition-colors">
                   📄 공문발송 (기아 대장동)
                 </a>
               )}
@@ -284,12 +284,9 @@ export default async function SalesReportPage({
               />
             </div>
           </div>
-          {/* 기간 선택기 — 라이트 톤 컨트롤이라 흰 카드에 담아 검은 헤더와 분리 (대시보드 패턴) */}
-          <div className="bg-white rounded-xl px-4 py-2.5">
-            <Suspense>
-              <PeriodSelector from={range.from} to={range.to} period={period} view={view} mode={mode} />
-            </Suspense>
-          </div>
+          <Suspense>
+            <PeriodSelector from={range.from} to={range.to} period={period} view={view} mode={mode} />
+          </Suspense>
         </div>
       </div>
 
