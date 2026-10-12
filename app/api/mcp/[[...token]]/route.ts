@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { resolveMcpUser } from '@/lib/mcp/auth'
+import { warmDongjak } from '@/lib/mcp/dongjak'
 import { callTool, MCP_INSTRUCTIONS, TOOL_DEFINITIONS, type McpUser } from '@/lib/mcp/tools'
 
 /**
@@ -36,6 +37,8 @@ async function handleMessage(user: McpUser, msg: JsonRpcMessage): Promise<object
 
   switch (method) {
     case 'initialize': {
+      // 대화 연결 시점에 잠든 회의실 예약 서버를 미리 깨워 둔다 — 이후 도구 호출이 빨라진다
+      warmDongjak(user.dongjakSessionId)
       const requested = typeof params?.protocolVersion === 'string' ? params.protocolVersion : ''
       return rpcResult(id, {
         protocolVersion: SUPPORTED_VERSIONS.includes(requested) ? requested : '2025-06-18',

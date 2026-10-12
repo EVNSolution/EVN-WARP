@@ -92,6 +92,15 @@ function invalidateDayCache(sessionId: string): void {
   for (const k of dayCache.keys()) if (k.startsWith(`${sessionId}:`)) dayCache.delete(k)
 }
 
+/**
+ * 예열 — AI 가 MCP 에 연결(initialize)되는 순간 잠든 예약 서버를 미리 깨우고
+ * 로그인 캐시를 채워 둔다. 결과는 기다리지도 쓰지도 않는다 (fire-and-forget).
+ */
+export function warmDongjak(sessionId: string | null | undefined): void {
+  if (!sessionId) return
+  void checkLogin(sessionId).catch(() => {})
+}
+
 /** 내 계정 화면 전용 — 새 세션 ID 를 로그인으로 바인딩한다. */
 export async function dongjakLogin(sessionId: string, id: string, password: string): Promise<{ userName: string }> {
   const r = await call(sessionId, '/login', { method: 'POST', body: JSON.stringify({ id, password }) })
