@@ -30,6 +30,7 @@ export default function MeetingRoomsTab() {
   const [rooms, setRooms] = useState<Room[]>([])
   const [reservations, setReservations] = useState<Reservation[]>([])
   const [error, setError] = useState('')
+  const [retry, setRetry] = useState(0)
 
   useEffect(() => {
     let alive = true
@@ -47,7 +48,7 @@ export default function MeetingRoomsTab() {
       .catch(() => alive && setError('조회에 실패했습니다.'))
       .finally(() => alive && setLoading(false))
     return () => { alive = false }
-  }, [date])
+  }, [date, retry])
 
   const weekday = ['일', '월', '화', '수', '목', '금', '토'][new Date(`${date}T00:00:00Z`).getUTCDay()]
 
@@ -78,7 +79,15 @@ export default function MeetingRoomsTab() {
           서울창업센터(동작) 계정을 연결하면 현황을 볼 수 있습니다.
         </div>
       ) : error ? (
-        <div className="text-sm text-red-500 border border-red-100 bg-red-50 rounded-xl p-5 text-center">{error}</div>
+        <div className="text-sm text-red-500 border border-red-100 bg-red-50 rounded-xl p-5 text-center">
+          {error}
+          <div className="mt-3">
+            <button onClick={() => setRetry(n => n + 1)}
+              className="px-3 py-1.5 rounded-lg border border-red-200 bg-white text-xs text-red-500 hover:bg-red-50">
+              다시 시도
+            </button>
+          </div>
+        </div>
       ) : (
         <div className="space-y-2">
           {rooms.map(room => {

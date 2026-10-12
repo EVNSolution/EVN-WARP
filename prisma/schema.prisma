@@ -42,6 +42,10 @@ model User {
   // 비밀번호가 아니라 로그인으로 바인딩된 세션 식별자만 저장한다.
   dongjakSessionId String?
 
+  // 회의실 예약 기본정보(회사명·사업자번호·연락처·이메일·호실) JSON — AI 가 최초 1회 물어 저장,
+  // 이후 예약에 자동 동봉한다. 사용자명(참석자)은 매번 다시 묻는다.
+  dongjakProfile String?
+
   // 사내 스킬(EVn_Skills) 개인 GitHub 토큰 — 필요한 사람만 내 계정에서 등록 (읽기 전용 PAT 권장)
   skillsGithubToken String?
 

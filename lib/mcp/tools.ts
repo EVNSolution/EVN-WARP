@@ -1,6 +1,6 @@
 import { prisma } from '@/lib/db'
 import { getWeekId } from '@/lib/week'
-import { cancelReservation, myReservations, reserveRoom, roomStatus } from './dongjak'
+import { cancelReservation, DongjakProfileError, myReservations, reserveRoom, roomStatus, type DongjakProfile } from './dongjak'
 import { listSkills, loadSkill } from './skills'
 
 /**
@@ -13,6 +13,8 @@ export interface McpUser {
   name: string
   teamId: string | null
   dongjakSessionId: string | null
+  /** 회의실 예약 기본정보(회사명·사업자번호·연락처·이메일·호실) JSON — 최초 1회 저장 후 자동 동봉 */
+  dongjakProfile: string | null
   /** "사내" | "사외" — 사내 스킬은 사내 구성원 전용 */
   employmentType: string
   /** 사내 스킬용 개인 GitHub 토큰 (없으면 서버 공용 env 폴백) */
@@ -44,9 +46,12 @@ EV& WARP 업무 기록 도우미. 사용자의 개인 AI 대화에서 한 업무
 ## 회의실 예약 (동작사무실)
 "내일 2시에 회의실 잡아줘", "오늘 회의실 비어 있어?" 같은 요청:
 1. meeting_room_status 로 그 날짜 현황을 확인해 비어 있는 방·시간을 읽기 쉽게 보여준다.
-2. 방·시간을 확정받은 뒤 reserve_meeting_room 으로 예약한다.
-3. 취소는 my_meeting_reservations 로 확인 후, 어떤 예약인지 확정받고 cancel_meeting_reservation.
-4. 로그인 안내 에러가 나오면 그 안내문을 그대로 전달한다.
+2. 방·시간과 함께 「누구 이름으로 예약할지」(user_name)를 반드시 물어본다 — 참석 인원이
+   회의마다 달라지므로 저장해 두지 말고 예약할 때마다 확인한다. 확정받은 뒤 reserve_meeting_room.
+3. 「예약 기본정보 등록 필요」 안내가 나오면 회사명·사업자등록번호·연락처·이메일·입주 호실을
+   물어서 save_meeting_profile 로 저장한다(최초 1회, 이후 자동 동봉). 저장 후 예약을 다시 진행한다.
+4. 취소는 my_meeting_reservations 로 확인 후, 어떤 예약인지 확정받고 cancel_meeting_reservation.
+5. 로그인 안내 에러가 나오면 그 안내문을 그대로 전달한다.
 예약이 확정되면 이어서 WARP 캘린더(create_task + 시간)에도 기록할지 제안한다.
 
 ## 사내 스킬 (문서작업·리서치)
@@ -154,8 +159,10 @@ export const TOOL_DEFINITIONS = [
   {
     name: 'reserve_meeting_room',
     description:
-      '동작사무실 회의실을 예약한다. meeting_room_status 로 빈 시간을 확인하고, 방 이름·날짜·시간을 '
-      + '사용자에게 보여주고 확정받은 뒤 호출한다. 시간은 정시 단위(14시~16시 → start_hour 14, end_hour 16).',
+      '동작사무실 회의실을 예약한다. meeting_room_status 로 빈 시간을 확인하고, 방 이름·날짜·시간과 '
+      + '「누구 이름으로 예약할지」(user_name)를 사용자에게 물어 확정받은 뒤 호출한다. '
+      + '시간은 정시 단위(14시~16시 → start_hour 14, end_hour 16). '
+      + '예약 기본정보 등록이 필요하다는 안내가 나오면 save_meeting_profile 로 먼저 저장한다.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -163,9 +170,31 @@ export const TOOL_DEFINITIONS = [
         date: { type: 'string', pattern: DATE_RE, description: '예약 날짜 YYYY-MM-DD' },
         start_hour: { type: 'integer', minimum: 0, maximum: 23, description: '시작 시각 (정시)' },
         end_hour: { type: 'integer', minimum: 1, maximum: 24, description: '종료 시각 — 시작보다 커야 함' },
+        user_name: {
+          type: 'string',
+          description: '이번 예약의 사용자(예약자) 이름 — 참석 인원이 회의마다 다르므로 매번 사용자에게 물어서 받는다 (예: "장원철", "장원철 외 3명")',
+        },
         title: { type: 'string', description: '회의 제목 — 생략하면 「회의」' },
       },
-      required: ['room_id', 'date', 'start_hour', 'end_hour'],
+      required: ['room_id', 'date', 'start_hour', 'end_hour', 'user_name'],
+    },
+  },
+  {
+    name: 'save_meeting_profile',
+    description:
+      '회의실 예약에 함께 제출되는 기본정보(회사명·사업자등록번호·연락처·이메일·입주 호실)를 저장한다. '
+      + '최초 1회만 사용자에게 다섯 항목을 물어서 저장하면 이후 모든 예약에 자동으로 들어간다. '
+      + '예약 시 「예약 기본정보 등록 필요」 안내가 나왔을 때 사용한다.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        company_name: { type: 'string', description: '회사명 (예: 이브이앤솔루션)' },
+        business_number: { type: 'string', description: '사업자등록번호 (예: 123-45-67890)' },
+        phone: { type: 'string', description: '연락처 (예: 010-1234-5678)' },
+        email: { type: 'string', description: '이메일' },
+        room_number: { type: 'string', description: '입주 호실 (예: 601호)' },
+      },
+      required: ['company_name', 'business_number', 'phone', 'email', 'room_number'],
     },
   },
   {
@@ -330,13 +359,53 @@ async function meetingRoomStatus(user: McpUser, a: Record<string, any>): Promise
   return { text: `${day.date} 회의실 현황 (로그인: ${day.userName})\n${byRoom.join('\n')}${extra}` }
 }
 
+/** 저장된 예약 기본정보 JSON 파싱 — 깨져 있으면 없는 것으로 본다. */
+function parseDongjakProfile(user: McpUser): DongjakProfile | null {
+  if (!user.dongjakProfile) return null
+  try { return JSON.parse(user.dongjakProfile) as DongjakProfile } catch { return null }
+}
+
+const PROFILE_SETUP_GUIDE =
+  '예약 기본정보 등록 필요 — 처음 한 번만 등록하면 됩니다. 사용자에게 ①회사명 ②사업자등록번호 '
+  + '③연락처 ④이메일 ⑤입주 호실을 물어본 뒤 save_meeting_profile 로 저장하고, 예약을 다시 진행해 주세요. '
+  + '(다음 예약부터는 자동으로 들어갑니다)'
+
 async function reserveMeetingRoom(user: McpUser, a: Record<string, any>): Promise<ToolResult> {
   if (!a.room_id || !a.date || a.start_hour == null || a.end_hour == null) return err('room_id/date/start_hour/end_hour 는 필수입니다.')
   if (Number(a.end_hour) <= Number(a.start_hour)) return err('종료 시각이 시작 시각보다 커야 합니다.')
-  const msg = await reserveRoom(user.dongjakSessionId, {
-    roomId: String(a.room_id), date: a.date, startHour: Number(a.start_hour), endHour: Number(a.end_hour), title: a.title,
-  })
-  return { text: `예약 완료 — ${a.date} ${a.start_hour}시~${a.end_hour}시\n${msg}` }
+  const userName = String(a.user_name ?? '').trim()
+  if (!userName) return err('user_name(이번 예약의 사용자 이름)은 필수입니다 — 참석자가 매번 다르므로 사용자에게 누구 이름으로 예약할지 물어본 뒤 다시 호출해 주세요.')
+  try {
+    const msg = await reserveRoom(user.dongjakSessionId, {
+      roomId: String(a.room_id), date: a.date, startHour: Number(a.start_hour), endHour: Number(a.end_hour),
+      title: a.title, userName,
+    }, parseDongjakProfile(user))
+    return { text: `예약 완료 — ${a.date} ${a.start_hour}시~${a.end_hour}시 (사용자: ${userName})\n${msg}` }
+  } catch (e) {
+    if (e instanceof DongjakProfileError) return err(PROFILE_SETUP_GUIDE)
+    throw e
+  }
+}
+
+async function saveMeetingProfile(user: McpUser, a: Record<string, any>): Promise<ToolResult> {
+  const profile: DongjakProfile = {
+    companyName: String(a.company_name ?? '').trim(),
+    businessNumber: String(a.business_number ?? '').trim(),
+    phone: String(a.phone ?? '').trim(),
+    email: String(a.email ?? '').trim(),
+    roomNumber: String(a.room_number ?? '').trim(),
+  }
+  const missing = Object.entries({
+    company_name: profile.companyName, business_number: profile.businessNumber,
+    phone: profile.phone, email: profile.email, room_number: profile.roomNumber,
+  }).filter(([, v]) => !v).map(([k]) => k)
+  if (missing.length) return err(`비어 있는 항목이 있습니다: ${missing.join(', ')} — 사용자에게 물어서 채운 뒤 다시 저장해 주세요.`)
+  await prisma.user.update({ where: { id: user.id }, data: { dongjakProfile: JSON.stringify(profile) } })
+  return {
+    text: '예약 기본정보가 저장되었습니다 — 이후 회의실 예약에 자동으로 들어갑니다.\n'
+      + `회사명: ${profile.companyName}\n사업자등록번호: ${profile.businessNumber}\n`
+      + `연락처: ${profile.phone}\n이메일: ${profile.email}\n입주 호실: ${profile.roomNumber}`,
+  }
 }
 
 async function myMeetingReservations(user: McpUser): Promise<ToolResult> {
@@ -396,6 +465,7 @@ export async function callTool(user: McpUser, name: string, args: Record<string,
       case 'update_task': return await updateTask(user, a)
       case 'meeting_room_status': return await meetingRoomStatus(user, a)
       case 'reserve_meeting_room': return await reserveMeetingRoom(user, a)
+      case 'save_meeting_profile': return await saveMeetingProfile(user, a)
       case 'my_meeting_reservations': return await myMeetingReservations(user)
       case 'cancel_meeting_reservation': return await cancelMeeting(user, a)
       case 'send_feedback': return await sendFeedback(user, a)
