@@ -17,8 +17,8 @@ export default async function CustomersPage() {
 
   return (
     <div className="flex flex-col h-[calc(100vh-0px)] overflow-hidden">
-      {/* 헤더 */}
-      <div className="px-6 py-3 shrink-0" style={{ background: '#111111' }}>
+      {/* 헤더 (공통 스타일: 검은 배경 + 둥근 모서리) */}
+      <div className="px-6 py-3 shrink-0 mx-4 mt-3 mb-1 rounded-xl" style={{ background: '#111111' }}>
         <h1 className="text-lg font-bold text-white leading-tight">고객 관리</h1>
         <p className="text-[11px] mt-0.5" style={{ color: '#C5D42A' }}>
           잠재고객 발굴 · 활동이력 · 리드 전환

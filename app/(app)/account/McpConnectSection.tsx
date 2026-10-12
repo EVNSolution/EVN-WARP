@@ -156,8 +156,9 @@ function DongjakConnect() {
     <div className="border-t border-slate-100 pt-3 mt-1">
       <div className="text-xs font-semibold text-slate-700">회의실 예약 계정 연결 (선택)</div>
       <p className="text-[11px] text-slate-400 mt-0.5 mb-2">
-        <b>동작창업센터 예약 사이트 계정</b>(센터 홈페이지에 로그인하는 ID/비밀번호)을 입력하세요 —
-        WARP 계정이 아닙니다. 연결하면 AI에게 &ldquo;내일 2시 회의실 잡아줘&rdquo;가 가능해집니다.
+        <b>서울창업센터(동작) 로그인 계정을 확인한 후 입력하세요.</b> 회사 메일/WARP 계정과
+        연동되지 않는 <b>센터 홈페이지의 별도 계정</b>입니다 (센터 사이트에서 직접 로그인이 되는지
+        먼저 확인해 보세요). 연결하면 AI에게 &ldquo;내일 2시 회의실 잡아줘&rdquo;가 가능해집니다.
         비밀번호는 저장되지 않습니다.
       </p>
       {loading ? <p className="text-[11px] text-slate-400">확인 중...</p> : connected ? (
@@ -167,7 +168,7 @@ function DongjakConnect() {
         </div>
       ) : form ? (
         <div className="space-y-2 max-w-xs">
-          <input value={id} onChange={e => setId(e.target.value)} placeholder="동작창업센터 사이트 ID"
+          <input value={id} onChange={e => setId(e.target.value)} placeholder="서울창업센터(동작) ID"
             className="w-full text-xs border border-slate-200 rounded px-2 py-1.5" />
           <input value={pw} onChange={e => setPw(e.target.value)} type="password" placeholder="비밀번호"
             className="w-full text-xs border border-slate-200 rounded px-2 py-1.5"
@@ -175,7 +176,7 @@ function DongjakConnect() {
           {error && (
             <p className="text-[11px] text-red-500">
               {error}
-              {error.includes('올바르지 않') && ' — 동작창업센터 사이트에서 직접 로그인되는 계정인지 확인해 주세요.'}
+              {error.includes('올바르지 않') && ' — 서울창업센터(동작) 홈페이지에서 직접 로그인되는 계정인지 확인해 주세요.'}
             </p>
           )}
           <div className="flex gap-2">

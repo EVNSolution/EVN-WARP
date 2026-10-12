@@ -41,11 +41,13 @@ export default async function AiLogPage() {
 
   return (
     <div className="p-6 max-w-4xl">
-      <h1 className="text-lg font-bold text-slate-800">AI 업무 기록</h1>
-      <p className="text-xs text-slate-400 mt-1 mb-5">
-        개인 AI(Claude·ChatGPT 등)와 대화하며 올린 최근 30일 업무 기록입니다.
-        연결은 <b>내 계정 → AI 연결</b>에서, 내용 수정·완료 처리는 <b>업무공간</b>에서 하세요.
-      </p>
+      {/* 헤더 (공통 스타일: 검은 배경 + 둥근 모서리) */}
+      <div className="px-6 py-4 mb-5 rounded-xl" style={{ backgroundColor: '#111111' }}>
+        <h1 className="text-xl font-bold text-white">AI 업무 기록</h1>
+        <p className="text-[11px] mt-0.5" style={{ color: '#C5D42A' }}>
+          개인 AI(Claude·ChatGPT 등)와 대화하며 올린 최근 30일 업무 기록 — 연결은 내 계정 → AI 연결, 수정·완료는 업무공간에서
+        </p>
+      </div>
 
       {rows.length === 0 ? (
         <div className="text-sm text-slate-400 border border-dashed border-slate-200 rounded-lg p-8 text-center">
