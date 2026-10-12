@@ -12,9 +12,13 @@ const BASE_NAV_ITEMS = [
   { href: '/a3',           label: '전략과제 A3',    icon: Target },
   { href: '/weekly',       label: '주간업무',       icon: Users },
   { href: '/notes',        label: '업무공간',       icon: BookOpen },
-  { href: '/ai-log',       label: 'AI 업무 기록',   icon: Bot },
   { href: '/funnel',       label: '영업 파이프라인', icon: Filter },
   { href: '/sales-report', label: '영업 리포트',    icon: BarChart2 },
+]
+
+// 메뉴 맨 아래 고정 항목
+const TAIL_NAV_ITEMS = [
+  { href: '/ai-log', label: 'AI 업무 기록', icon: Bot },
 ]
 
 // 경영관리 권한(경영관리팀·경영진·admin·CEO) 전용 메뉴
@@ -27,7 +31,7 @@ interface Props { userName: string; userEmail: string; isAdmin?: boolean; isExte
 
 export default function Sidebar({ userName, userEmail, isAdmin = false, isExternal = false, isManagement = false }: Props) {
   const pathname = usePathname()
-  const navItems = isManagement ? [...BASE_NAV_ITEMS, ...MANAGEMENT_NAV_ITEMS] : BASE_NAV_ITEMS
+  const navItems = [...(isManagement ? [...BASE_NAV_ITEMS, ...MANAGEMENT_NAV_ITEMS] : BASE_NAV_ITEMS), ...TAIL_NAV_ITEMS]
   const visibleNavItems = isExternal ? navItems.filter(n => n.href === '/funnel') : navItems
 
   return (

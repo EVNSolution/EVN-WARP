@@ -52,8 +52,8 @@ export default function McpConnectSection() {
   const connectorUrl = token ? `${window.location.origin}/api/mcp/${token}` : ''
 
   return (
-    <div className="bg-white rounded-xl border border-slate-200 p-6 mt-6">
-      <h2 className="text-sm font-bold text-slate-800">AI 연결 (Claude · ChatGPT)</h2>
+    <div className="bg-white rounded-xl border border-slate-200 px-6 py-6">
+      <h2 className="text-sm font-semibold text-slate-700">AI 연결 (Claude · ChatGPT)</h2>
       <p className="text-xs text-slate-400 mt-1">
         개인 AI 에서 &ldquo;오늘 한 일 WARP에 정리해줘&rdquo;, &ldquo;내일 2시 미팅 캘린더에 올려줘&rdquo;가 가능해집니다.
         토큰은 <b>내 계정 권한</b>으로 동작합니다.

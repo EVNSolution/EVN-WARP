@@ -10,9 +10,11 @@ interface Props {
   userEmail:     string
   teams:         Team[]
   currentTeamId: string | null
+  /** 카드 열 맨 아래에 끼워 넣을 추가 섹션 (예: AI 연결) */
+  children?:     React.ReactNode
 }
 
-export default function AccountClient({ userName, userEmail, teams, currentTeamId }: Props) {
+export default function AccountClient({ userName, userEmail, teams, currentTeamId, children }: Props) {
   const [current, setCurrent] = useState('')
   const [next, setNext]       = useState('')
   const [confirm, setConfirm] = useState('')
@@ -166,6 +168,8 @@ export default function AccountClient({ userName, userEmail, teams, currentTeamI
               </button>
             </form>
           </div>
+
+          {children}
         </div>
       </div>
     </div>
