@@ -48,17 +48,19 @@ export async function roomStatus(sessionId: string | null | undefined, date: str
   const { userName } = await requireLogin(sessionId)
   const r = await call(sessionId, `/reservations?date=${encodeURIComponent(date)}`)
   if (r.error) throw new Error(r.error)
-  // 서버 응답의 id/시각 타입이 숫자·문자 혼재 가능 — 문자열/숫자로 정규화해 돌려준다
+  // ⚠️ 이 엔드포인트의 예약 필드는 snake_case 다 (room_id/start_hour/end_hour/reserver_name)
+  //    — /my-reservations 의 camelCase 와 규약이 달라서, 양쪽 다 받도록 정규화한다.
   const rooms = ((r.rooms ?? []) as Array<{ id: unknown; name?: string }>).map(room => ({
     id: String(room.id), name: room.name ?? String(room.id),
   }))
   const reservations = ((r.reservations ?? []) as Array<Record<string, unknown>>).map(v => ({
     id: String(v.id ?? ''),
-    roomId: String(v.roomId ?? ''),
-    startHour: Number(v.startHour),
-    endHour: Number(v.endHour),
-    title: typeof v.title === 'string' ? v.title : undefined,
-    userName: typeof v.userName === 'string' ? v.userName : undefined,
+    roomId: String(v.room_id ?? v.roomId ?? ''),
+    startHour: Number(v.start_hour ?? v.startHour),
+    endHour: Number(v.end_hour ?? v.endHour),
+    title: typeof v.title === 'string' && v.title ? v.title : undefined,
+    userName: typeof v.reserver_name === 'string' && v.reserver_name ? v.reserver_name
+      : typeof v.userName === 'string' && v.userName ? v.userName : undefined,
   }))
   return { userName, date, rooms, reservations }
 }
