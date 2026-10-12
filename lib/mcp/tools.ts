@@ -1,5 +1,7 @@
 import { prisma } from '@/lib/db'
 import { getWeekId } from '@/lib/week'
+import { cancelReservation, myReservations, reserveRoom, roomStatus } from './dongjak'
+import { listSkills, loadSkill } from './skills'
 
 /**
  * 원격 MCP(/api/mcp)가 노출하는 도구들 — 로컬 warp-mcp(v0.4) 의 활동 도구를 서버로 포팅한 것.
@@ -10,6 +12,7 @@ export interface McpUser {
   id: string
   name: string
   teamId: string | null
+  dongjakSessionId: string | null
 }
 
 /** Claude/ChatGPT 가 대화 시작 시 로드하는 사용 지침 — 팀 공용 「하루 정리」 워크플로우. */
@@ -33,6 +36,19 @@ EV& WARP 업무 기록 도우미. 사용자의 개인 AI 대화에서 한 업무
 ## 일정 등록
 날짜·시각이 정해진 약속이 보이면 "WARP 캘린더에 등록할까요?" 제안. start_time/end_time 을 넣으면
 캘린더에 그 시간대로 표시된다. 종료 시각을 모르면 1시간으로 잡고 그렇게 말해준다.
+
+## 회의실 예약 (동작사무실)
+"내일 2시에 회의실 잡아줘", "오늘 회의실 비어 있어?" 같은 요청:
+1. meeting_room_status 로 그 날짜 현황을 확인해 비어 있는 방·시간을 읽기 쉽게 보여준다.
+2. 방·시간을 확정받은 뒤 reserve_meeting_room 으로 예약한다.
+3. 취소는 my_meeting_reservations 로 확인 후, 어떤 예약인지 확정받고 cancel_meeting_reservation.
+4. 로그인 안내 에러가 나오면 그 안내문을 그대로 전달한다.
+예약이 확정되면 이어서 WARP 캘린더(create_task + 시간)에도 기록할지 제안한다.
+
+## 사내 스킬 (문서작업·리서치)
+회사 표준 양식·절차가 필요한 작업 — 미팅 사전조사, 기술문서(사양서·매뉴얼), 한글(hwpx) 문서,
+법무 검토, R&D 과제 관리 등 — 은 list_evn_skills 로 해당 스킬을 찾고, 있으면 load_evn_skill 로
+지침을 읽어 그 양식과 절차를 따른다. 사내 업무 문서를 일반 지식만으로 만들지 말 것 — 스킬이 정본이다.
 
 ## 금지
 - 사용자 확정 없이 등록·수정하지 않는다.
@@ -113,6 +129,75 @@ export const TOOL_DEFINITIONS = [
         end_time: { type: 'string', pattern: TIME_RE },
       },
       required: ['id'],
+    },
+  },
+  {
+    name: 'meeting_room_status',
+    description:
+      '동작사무실 회의실의 특정 날짜 예약 현황을 조회한다. 회의실 예약을 원하거나 빈 회의실·빈 시간을 '
+      + '물을 때 먼저 호출한다. 결과를 바탕으로 비어 있는 방과 시간대를 사람이 읽기 쉽게 정리해 보여줘라.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        date: { type: 'string', pattern: DATE_RE, description: '조회 날짜 YYYY-MM-DD — 생략하면 오늘' },
+      },
+    },
+  },
+  {
+    name: 'reserve_meeting_room',
+    description:
+      '동작사무실 회의실을 예약한다. meeting_room_status 로 빈 시간을 확인하고, 방 이름·날짜·시간을 '
+      + '사용자에게 보여주고 확정받은 뒤 호출한다. 시간은 정시 단위(14시~16시 → start_hour 14, end_hour 16).',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        room_id: { type: 'string', description: '방 id — meeting_room_status 결과의 [대괄호] 값' },
+        date: { type: 'string', pattern: DATE_RE, description: '예약 날짜 YYYY-MM-DD' },
+        start_hour: { type: 'integer', minimum: 0, maximum: 23, description: '시작 시각 (정시)' },
+        end_hour: { type: 'integer', minimum: 1, maximum: 24, description: '종료 시각 — 시작보다 커야 함' },
+        title: { type: 'string', description: '회의 제목 — 생략하면 「회의」' },
+      },
+      required: ['room_id', 'date', 'start_hour', 'end_hour'],
+    },
+  },
+  {
+    name: 'my_meeting_reservations',
+    description: '내가 잡은 회의실 예약 목록을 조회한다. 예약 확인·취소 요청 시 먼저 호출한다.',
+    inputSchema: { type: 'object', properties: {} },
+  },
+  {
+    name: 'cancel_meeting_reservation',
+    description:
+      '회의실 예약을 취소한다. my_meeting_reservations 로 확인한 뒤, 어떤 예약인지(날짜·시간·제목) '
+      + '사용자에게 보여주고 확정받고 나서 호출한다. id 는 노출하지 않는다.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        reservation_id: { type: 'string', description: '예약 id — my_meeting_reservations 결과의 id' },
+        room_id: { type: 'string', description: '방 id — my_meeting_reservations 결과의 room' },
+      },
+      required: ['reservation_id', 'room_id'],
+    },
+  },
+  {
+    name: 'list_evn_skills',
+    description:
+      'EV&Solution 사내 Claude 스킬 목록을 조회한다. 회사 표준 양식·절차가 필요한 문서작업이나 '
+      + '리서치(미팅 사전조사, 기술문서, 한글 문서, 법무 검토, R&D 과제 등)를 시작하기 전에 호출해 '
+      + '해당 작업용 사내 스킬이 있는지 확인한다.',
+    inputSchema: { type: 'object', properties: {} },
+  },
+  {
+    name: 'load_evn_skill',
+    description:
+      '사내 스킬의 지침(SKILL.md)을 읽어온다. list_evn_skills 에서 작업에 맞는 스킬을 찾았으면 '
+      + '이 도구로 전체 지침을 받아 그대로 따른다.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        name: { type: 'string', description: '스킬 이름 — list_evn_skills 결과의 name (예: evn-tech-doc)' },
+      },
+      required: ['name'],
     },
   },
 ]
@@ -205,14 +290,73 @@ async function updateTask(user: McpUser, a: Record<string, any>): Promise<ToolRe
   }
 }
 
+async function meetingRoomStatus(user: McpUser, a: Record<string, any>): Promise<ToolResult> {
+  const day = await roomStatus(user.dongjakSessionId, a.date || todayKst())
+  const byRoom = day.rooms.map(room => {
+    const taken = day.reservations
+      .filter(r => r.roomId === room.id)
+      .sort((x, y) => x.startHour - y.startHour)
+      .map(r => `${r.startHour}시~${r.endHour}시(${r.title ?? '회의'}${r.userName ? ` · ${r.userName}` : ''})`)
+    return `- ${room.name} [${room.id}]: ${taken.length ? taken.join(', ') : '예약 없음'}`
+  })
+  return { text: `${day.date} 회의실 현황 (로그인: ${day.userName})\n${byRoom.join('\n')}` }
+}
+
+async function reserveMeetingRoom(user: McpUser, a: Record<string, any>): Promise<ToolResult> {
+  if (!a.room_id || !a.date || a.start_hour == null || a.end_hour == null) return err('room_id/date/start_hour/end_hour 는 필수입니다.')
+  if (Number(a.end_hour) <= Number(a.start_hour)) return err('종료 시각이 시작 시각보다 커야 합니다.')
+  const msg = await reserveRoom(user.dongjakSessionId, {
+    roomId: String(a.room_id), date: a.date, startHour: Number(a.start_hour), endHour: Number(a.end_hour), title: a.title,
+  })
+  return { text: `예약 완료 — ${a.date} ${a.start_hour}시~${a.end_hour}시\n${msg}` }
+}
+
+async function myMeetingReservations(user: McpUser): Promise<ToolResult> {
+  const list = await myReservations(user.dongjakSessionId)
+  if (list.length === 0) return { text: '예약된 회의실이 없습니다.' }
+  const lines = list.map(r =>
+    `- ${r.date} ${r.startHour}시~${r.endHour}시 ${r.roomName ?? r.roomId}: ${r.title ?? '회의'} (id: ${r.id}, room: ${r.roomId})`)
+  return { text: `내 회의실 예약 ${list.length}건:\n${lines.join('\n')}` }
+}
+
+async function cancelMeeting(user: McpUser, a: Record<string, any>): Promise<ToolResult> {
+  if (!a.reservation_id || !a.room_id) return err('reservation_id 와 room_id 는 필수입니다.')
+  return { text: await cancelReservation(user.dongjakSessionId, String(a.reservation_id), String(a.room_id)) }
+}
+
+async function listEvnSkills(): Promise<ToolResult> {
+  const skills = await listSkills()
+  return { text: `사내 스킬 ${skills.length}개:\n${skills.map(s => `- ${s.name}: ${s.description}`).join('\n')}` }
+}
+
+async function loadEvnSkill(a: Record<string, any>): Promise<ToolResult> {
+  if (!a.name) return err('name 은 필수입니다.')
+  const s = await loadSkill(String(a.name))
+  return { text: `[포함 파일] ${s.files.join(', ') || '(SKILL.md 만)'}\n\n${s.content}` }
+}
+
 export async function callTool(user: McpUser, name: string, args: Record<string, any>): Promise<ToolResult> {
   try {
-    if (name === 'create_task') return await createTask(user, args ?? {})
-    if (name === 'list_my_tasks') return await listMyTasks(user, args ?? {})
-    if (name === 'update_task') return await updateTask(user, args ?? {})
-    return err(`알 수 없는 도구: ${name}`)
+    const a = args ?? {}
+    switch (name) {
+      case 'create_task': return await createTask(user, a)
+      case 'list_my_tasks': return await listMyTasks(user, a)
+      case 'update_task': return await updateTask(user, a)
+      case 'meeting_room_status': return await meetingRoomStatus(user, a)
+      case 'reserve_meeting_room': return await reserveMeetingRoom(user, a)
+      case 'my_meeting_reservations': return await myMeetingReservations(user)
+      case 'cancel_meeting_reservation': return await cancelMeeting(user, a)
+      case 'list_evn_skills': return await listEvnSkills()
+      case 'load_evn_skill': return await loadEvnSkill(a)
+      default: return err(`알 수 없는 도구: ${name}`)
+    }
   } catch (e) {
-    console.error(`[mcp] tool ${name} 실패`, e)
+    console.error(`[mcp] tool ${name} 실패`, e instanceof Error ? e.message : e)
+    // 회의실·스킬 도구의 에러 메시지는 사용자 안내문으로 만들어져 있어 그대로 전달한다.
+    // DB 쪽(활동 도구) 오류는 내부 정보가 섞일 수 있어 일반 문구로 숨긴다.
+    const passthrough = name.startsWith('meeting_') || name.startsWith('reserve_') || name.startsWith('my_meeting')
+      || name.startsWith('cancel_meeting') || name.includes('evn_skill')
+    if (passthrough && e instanceof Error && e.message) return err(e.message)
     return err('처리 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.')
   }
 }

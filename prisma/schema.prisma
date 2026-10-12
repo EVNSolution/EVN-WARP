@@ -38,6 +38,10 @@ model User {
   employmentType String    @default("사내")  // "사내" | "사외"
   externalRole   String?   // "영업" | "AS" — employmentType이 "사외"일 때만 사용
 
+  // 회의실 예약(동작사무실) 연결 세션 — AI 연결(MCP)이 이 사용자의 이름으로 예약할 때 쓴다.
+  // 비밀번호가 아니라 로그인으로 바인딩된 세션 식별자만 저장한다.
+  dongjakSessionId String?
+
   mcpTokens      McpToken[]
 
   createdAt      DateTime       @default(now())

@@ -103,7 +103,83 @@ export default function McpConnectSection() {
               </button>
             )}
           </div>
+
+          <DongjakConnect />
         </div>
+      )}
+    </div>
+  )
+}
+
+/** 회의실 예약(동작사무실) 계정 연결 — AI가 내 이름으로 회의실을 잡을 수 있게 한다. */
+function DongjakConnect() {
+  const [loading, setLoading] = useState(true)
+  const [connected, setConnected] = useState(false)
+  const [userName, setUserName] = useState('')
+  const [form, setForm] = useState(false)
+  const [id, setId] = useState('')
+  const [pw, setPw] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+
+  const refresh = async () => {
+    try {
+      const r = await fetch('/api/account/dongjak').then(r => r.json())
+      setConnected(!!r.connected)
+      setUserName(r.userName ?? '')
+    } catch { /* 표시용 */ }
+    setLoading(false)
+  }
+  useEffect(() => { refresh() }, [])
+
+  const login = async () => {
+    setBusy(true); setError('')
+    const r = await fetch('/api/account/dongjak', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id, password: pw }),
+    }).then(r => r.json())
+    setBusy(false)
+    if (r.ok) { setForm(false); setId(''); setPw(''); refresh() }
+    else setError(r.error || '로그인 실패')
+  }
+
+  const disconnect = async () => {
+    if (!window.confirm('회의실 예약 연결을 해제할까요?')) return
+    setBusy(true)
+    await fetch('/api/account/dongjak', { method: 'DELETE' })
+    setBusy(false)
+    refresh()
+  }
+
+  return (
+    <div className="border-t border-slate-100 pt-3 mt-1">
+      <div className="text-xs font-semibold text-slate-700">회의실 예약 계정 연결 (선택)</div>
+      <p className="text-[11px] text-slate-400 mt-0.5 mb-2">
+        연결하면 AI에게 &ldquo;내일 2시 회의실 잡아줘&rdquo;가 가능해집니다. 비밀번호는 저장되지 않습니다.
+      </p>
+      {loading ? <p className="text-[11px] text-slate-400">확인 중...</p> : connected ? (
+        <div className="flex items-center gap-2 text-xs">
+          <span className="text-emerald-600 font-semibold">연결됨{userName ? ` · ${userName}` : ''}</span>
+          <button onClick={disconnect} disabled={busy} className="text-[11px] px-2 py-1 rounded border border-slate-300 text-slate-500">해제</button>
+        </div>
+      ) : form ? (
+        <div className="space-y-2 max-w-xs">
+          <input value={id} onChange={e => setId(e.target.value)} placeholder="회의실 예약 ID"
+            className="w-full text-xs border border-slate-200 rounded px-2 py-1.5" />
+          <input value={pw} onChange={e => setPw(e.target.value)} type="password" placeholder="비밀번호"
+            className="w-full text-xs border border-slate-200 rounded px-2 py-1.5"
+            onKeyDown={e => e.key === 'Enter' && login()} />
+          {error && <p className="text-[11px] text-red-500">{error}</p>}
+          <div className="flex gap-2">
+            <button onClick={login} disabled={busy || !id || !pw}
+              className="text-xs px-3 py-1.5 rounded bg-slate-800 text-white disabled:opacity-50">연결</button>
+            <button onClick={() => { setForm(false); setError('') }} className="text-xs px-3 py-1.5 rounded border border-slate-300 text-slate-500">취소</button>
+          </div>
+        </div>
+      ) : (
+        <button onClick={() => setForm(true)} className="text-xs px-3 py-1.5 rounded border border-slate-300 text-slate-600">
+          회의실 계정 연결
+        </button>
       )}
     </div>
   )

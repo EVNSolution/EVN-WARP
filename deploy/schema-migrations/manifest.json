@@ -1,5 +1,5 @@
 {
-  "prismaSchemaSha256": "12374722b80a460bc41b88b6811ba18fc67bc51d1acfe0a4ceddd2373f6b7dc6",
+  "prismaSchemaSha256": "43303a24fe5e4fb9044db6a34d2a91800585398657d5161b0b08ed31321bbb22",
   "requiredTables": [
     "Announcement",
     "BuildupEvent",
@@ -25,6 +25,9 @@
     ],
     "CompanyScheduleRule": [
       "month"
+    ],
+    "User": [
+      "dongjakSessionId"
     ]
   },
   "requiredIndexes": [

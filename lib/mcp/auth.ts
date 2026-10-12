@@ -20,12 +20,12 @@ export async function resolveMcpUser(token: string): Promise<McpUser | null> {
   if (!token || token.length < 20 || token.length > 200) return null
   const row = await prisma.mcpToken.findUnique({
     where: { tokenHash: hashToken(token) },
-    include: { user: { select: { id: true, name: true, teamId: true } } },
+    include: { user: { select: { id: true, name: true, teamId: true, dongjakSessionId: true } } },
   })
   if (!row || row.revokedAt) return null
   // lastUsedAt 은 분 단위로만 갱신 (매 호출 write 방지)
   if (!row.lastUsedAt || Date.now() - row.lastUsedAt.getTime() > 60_000) {
     prisma.mcpToken.update({ where: { id: row.id }, data: { lastUsedAt: new Date() } }).catch(() => {})
   }
-  return { id: row.user.id, name: row.user.name, teamId: row.user.teamId }
+  return { id: row.user.id, name: row.user.name, teamId: row.user.teamId, dongjakSessionId: row.user.dongjakSessionId }
 }
