@@ -13,6 +13,8 @@ export interface McpUser {
   name: string
   teamId: string | null
   dongjakSessionId: string | null
+  /** "사내" | "사외" — 사내 스킬은 사내 구성원 전용 */
+  employmentType: string
 }
 
 /** Claude/ChatGPT 가 대화 시작 시 로드하는 사용 지침 — 팀 공용 「하루 정리」 워크플로우. */
@@ -324,12 +326,18 @@ async function cancelMeeting(user: McpUser, a: Record<string, any>): Promise<Too
   return { text: await cancelReservation(user.dongjakSessionId, String(a.reservation_id), String(a.room_id)) }
 }
 
-async function listEvnSkills(): Promise<ToolResult> {
+// 사내 스킬은 GitHub org 멤버만 읽던 자료다 — WARP 를 경유한다고 경계가 넓어지면 안 되므로
+// 사내 구성원(employmentType '사내')으로 제한한다. 사외(영업/AS) 계정은 차단.
+const INTERNAL_ONLY_MSG = '사내 스킬은 사내 구성원 전용 기능입니다.'
+
+async function listEvnSkills(user: McpUser): Promise<ToolResult> {
+  if (user.employmentType !== '사내') return err(INTERNAL_ONLY_MSG)
   const skills = await listSkills()
   return { text: `사내 스킬 ${skills.length}개:\n${skills.map(s => `- ${s.name}: ${s.description}`).join('\n')}` }
 }
 
-async function loadEvnSkill(a: Record<string, any>): Promise<ToolResult> {
+async function loadEvnSkill(user: McpUser, a: Record<string, any>): Promise<ToolResult> {
+  if (user.employmentType !== '사내') return err(INTERNAL_ONLY_MSG)
   if (!a.name) return err('name 은 필수입니다.')
   const s = await loadSkill(String(a.name))
   return { text: `[포함 파일] ${s.files.join(', ') || '(SKILL.md 만)'}\n\n${s.content}` }
@@ -346,8 +354,8 @@ export async function callTool(user: McpUser, name: string, args: Record<string,
       case 'reserve_meeting_room': return await reserveMeetingRoom(user, a)
       case 'my_meeting_reservations': return await myMeetingReservations(user)
       case 'cancel_meeting_reservation': return await cancelMeeting(user, a)
-      case 'list_evn_skills': return await listEvnSkills()
-      case 'load_evn_skill': return await loadEvnSkill(a)
+      case 'list_evn_skills': return await listEvnSkills(user)
+      case 'load_evn_skill': return await loadEvnSkill(user, a)
       default: return err(`알 수 없는 도구: ${name}`)
     }
   } catch (e) {
