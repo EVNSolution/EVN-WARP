@@ -1,5 +1,5 @@
 {
-  "prismaSchemaSha256": "7237cd1154292dc5e373c7157516206cbdb05cc511a3d2664fb3940c16f7d3c2",
+  "prismaSchemaSha256": "43303a24fe5e4fb9044db6a34d2a91800585398657d5161b0b08ed31321bbb22",
   "requiredTables": [
     "Announcement",
     "BuildupEvent",
@@ -7,7 +7,8 @@
     "CardUsage",
     "CompanyScheduleRule",
     "Garage",
-    "PersonalCard"
+    "PersonalCard",
+    "McpToken"
   ],
   "requiredColumnAdditions": {
     "WorkActivity": [
@@ -24,12 +25,17 @@
     ],
     "CompanyScheduleRule": [
       "month"
+    ],
+    "User": [
+      "dongjakSessionId"
     ]
   },
   "requiredIndexes": [
     "BuildupEvent_eventKey_key",
     "BuildupEvent_status_idx",
-    "CustomerMerge_targetId_idx"
+    "CustomerMerge_targetId_idx",
+    "McpToken_tokenHash_key",
+    "McpToken_userId_idx"
   ],
   "requiredColumns": {
     "CustomerMerge": [

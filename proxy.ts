@@ -73,5 +73,6 @@ export default auth((req) => {
 
 export const config = {
   // api/external 은 공유키, healthz/readyz 는 배포 경계가 직접 인증·제한한다.
-  matcher: ['/((?!api/auth|api/external|api/healthz|api/readyz|_next/static|_next/image|favicon.ico).*)'],
+  // api/mcp 는 자체 Bearer 토큰 인증을 가진다 (AI 연결용 원격 MCP 엔드포인트)
+  matcher: ['/((?!api/auth|api/external|api/mcp|api/healthz|api/readyz|_next/static|_next/image|favicon.ico).*)'],
 }
