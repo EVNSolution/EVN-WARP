@@ -7,14 +7,19 @@ import LogoutButton from './LogoutButton'
 import NotificationBell from './NotificationBell'
 import SuggestionNavItem from './SuggestionNavItem'
 
+// 영업 파이프라인·영업 리포트는 「사내 시스템」 허브로 들어가므로 사내 메뉴에서는 숨긴다.
+// (주소 직접 접근·허브 바로가기는 그대로 동작)
 const BASE_NAV_ITEMS = [
   { href: '/dashboard',    label: '경영 대시보드',  icon: LayoutDashboard },
   { href: '/a3',           label: '전략과제 A3',    icon: Target },
   { href: '/weekly',       label: '주간업무',       icon: Users },
   { href: '/notes',        label: '업무공간',       icon: BookOpen },
-  { href: '/funnel',       label: '영업 파이프라인', icon: Filter },
-  { href: '/sales-report', label: '영업 리포트',    icon: BarChart2 },
   { href: '/systems',      label: '사내 시스템',    icon: Boxes },
+]
+
+// 사외(협력) 계정 전용 — 사이드바에 파이프라인만 노출하던 기존 동작 유지
+const EXTERNAL_NAV_ITEMS = [
+  { href: '/funnel', label: '영업 파이프라인', icon: Filter },
 ]
 
 // 메뉴 맨 아래 고정 항목
@@ -33,7 +38,7 @@ interface Props { userName: string; userEmail: string; isAdmin?: boolean; isExte
 export default function Sidebar({ userName, userEmail, isAdmin = false, isExternal = false, isManagement = false }: Props) {
   const pathname = usePathname()
   const navItems = [...(isManagement ? [...BASE_NAV_ITEMS, ...MANAGEMENT_NAV_ITEMS] : BASE_NAV_ITEMS), ...TAIL_NAV_ITEMS]
-  const visibleNavItems = isExternal ? navItems.filter(n => n.href === '/funnel') : navItems
+  const visibleNavItems = isExternal ? EXTERNAL_NAV_ITEMS : navItems
 
   return (
     <aside className="w-56 min-h-screen flex flex-col" style={{ backgroundColor: '#111111' }}>
