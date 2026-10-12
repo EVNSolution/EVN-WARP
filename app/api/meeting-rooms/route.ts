@@ -22,7 +22,16 @@ export async function GET(req: NextRequest) {
 
   try {
     const day = await roomStatus(row.dongjakSessionId, date)
-    return NextResponse.json({ connected: true, ...day })
+    // 예약 서버는 예약자 이름만 주므로, WARP 구성원 명단과 대조해 「우리 회사」 예약을 표시한다.
+    // "장원철 외 3명" 같은 표기도 잡히게 이름으로 시작하는지도 본다.
+    const members = (await prisma.user.findMany({ select: { name: true } }))
+      .map(m => m.name)
+      .filter(n => n && n.length >= 2)
+    const reservations = day.reservations.map(r => ({
+      ...r,
+      company: !r.mine && !!r.userName && members.some(n => r.userName === n || r.userName!.startsWith(n)),
+    }))
+    return NextResponse.json({ connected: true, ...day, reservations })
   } catch (e) {
     if (e instanceof DongjakAuthError) return NextResponse.json({ connected: false })
     return NextResponse.json({ error: e instanceof Error ? e.message : '조회 실패' }, { status: 502 })
