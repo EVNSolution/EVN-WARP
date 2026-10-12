@@ -83,6 +83,8 @@ export default function AccountClient({ userName, userEmail, teams, currentTeamI
 
       <div className="flex-1 flex items-start justify-center px-4 py-10">
         <div className="w-full max-w-md space-y-5">
+          {children}
+
           {/* 사용자 정보 카드 */}
           <div className="bg-white border border-slate-200 rounded-xl px-6 py-4 flex items-center gap-4">
             <div className="w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold text-black shrink-0"
@@ -168,8 +170,6 @@ export default function AccountClient({ userName, userEmail, teams, currentTeamI
               </button>
             </form>
           </div>
-
-          {children}
         </div>
       </div>
     </div>

@@ -23,7 +23,7 @@ const TYPE_ICON: Record<string, string> = {
   schedule:         '📅',
 }
 
-export default function NotificationBell() {
+export default function NotificationBell({ compact = false }: { compact?: boolean } = {}) {
   const [notifs, setNotifs] = useState<Notif[]>([])
   const [open, setOpen] = useState(false)
   const [toasts, setToasts] = useState<Notif[]>([])
@@ -156,20 +156,23 @@ export default function NotificationBell() {
         }
       `}</style>
 
-      {/* 사이드바 알림 벨 */}
+      {/* 사이드바 알림 벨 — compact 는 로고 아래 가로 아이콘 줄용 */}
       <div ref={ref} className="relative">
         <button
           onClick={() => setOpen(v => !v)}
-          className="relative flex items-center gap-2 w-full px-3 py-2 rounded-lg text-xs transition-all"
+          title="알림"
+          className={compact
+            ? 'relative flex items-center justify-center w-7 h-7 rounded-lg transition-all'
+            : 'relative flex items-center gap-2 w-full px-3 py-2 rounded-lg text-xs transition-all'}
           style={{ color: open ? '#ffffff' : '#888' }}
           onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = '#ccc' }}
           onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = open ? '#ffffff' : '#888' }}
         >
-          <Bell size={13} />
-          알림
+          <Bell size={compact ? 15 : 13} />
+          {!compact && '알림'}
           {unread > 0 && (
             <span
-              className="absolute top-1.5 left-5 min-w-[16px] h-4 rounded-full text-[9px] font-bold flex items-center justify-center px-0.5 text-black"
+              className={`absolute min-w-[16px] h-4 rounded-full text-[9px] font-bold flex items-center justify-center px-0.5 text-black ${compact ? '-top-1 -right-1' : 'top-1.5 left-5'}`}
               style={{ backgroundColor: '#C5D42A' }}
             >
               {unread > 9 ? '9+' : unread}
@@ -179,7 +182,7 @@ export default function NotificationBell() {
 
         {open && (
           <div
-            className="absolute bottom-10 left-0 w-72 rounded-xl shadow-2xl overflow-hidden z-50"
+            className={`absolute left-0 w-72 rounded-xl shadow-2xl overflow-hidden z-50 ${compact ? 'top-9' : 'bottom-10'}`}
             style={{ backgroundColor: '#1c1c1c', border: '1px solid rgba(255,255,255,0.1)' }}
           >
             <div
