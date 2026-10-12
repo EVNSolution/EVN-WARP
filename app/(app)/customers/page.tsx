@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/db'
 import { auth } from '@/auth'
+import { listCustomers } from '@/lib/customer-list'
 import CustomerListClient from './CustomerListClient'
 import BuildupEventNotice from '@/components/BuildupEventNotice'
 
@@ -12,14 +13,7 @@ export default async function CustomersPage() {
   }) : null
   const canMergeCustomers = !!actor && ['admin', 'ceo'].includes(actor.role) && actor.employmentType !== '사외'
 
-  const customers = await prisma.customer.findMany({
-    where: isExternal ? { assignee: me?.name ?? '__none__' } : undefined,
-    orderBy: { createdAt: 'desc' },
-    include: {
-      leads: { select: { id: true, stageCode: true, salesStatus: true } },
-      activities: { select: { id: true, date: true, type: true }, orderBy: { date: 'desc' }, take: 1 },
-    },
-  })
+  const customers = await listCustomers(prisma, isExternal ? { assignee: me?.name ?? '__none__' } : undefined)
 
   return (
     <div className="flex flex-col h-[calc(100vh-0px)] overflow-hidden">

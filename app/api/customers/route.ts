@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { auth } from '@/auth'
+import { listCustomers } from '@/lib/customer-list'
 
 export async function GET(req: NextRequest) {
   const url  = new URL(req.url)
@@ -10,8 +11,8 @@ export async function GET(req: NextRequest) {
   // 전화번호 검색 시 숫자만 추출해 비교 (하이픈 무관)
   const digitsOnly = q?.replace(/\D/g, '')
 
-  const customers = await prisma.customer.findMany({
-    where: q
+  const customers = await listCustomers(prisma,
+    q
       ? mode === 'phone'
         ? { OR: [
             { phone: { contains: q } },
@@ -38,12 +39,7 @@ export async function GET(req: NextRequest) {
                   { contactsJson: { contains: q } },
                 ] }
       : undefined,
-    orderBy: { createdAt: 'desc' },
-    include: {
-      leads: { select: { id: true, stageCode: true, salesStatus: true } },
-      activities: { select: { id: true, date: true, type: true }, orderBy: { date: 'desc' }, take: 1 },
-    },
-  })
+  )
   return NextResponse.json(customers)
 }
 
