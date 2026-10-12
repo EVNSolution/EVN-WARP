@@ -1,5 +1,5 @@
 {
-  "prismaSchemaSha256": "7237cd1154292dc5e373c7157516206cbdb05cc511a3d2664fb3940c16f7d3c2",
+  "prismaSchemaSha256": "12374722b80a460bc41b88b6811ba18fc67bc51d1acfe0a4ceddd2373f6b7dc6",
   "requiredTables": [
     "Announcement",
     "BuildupEvent",
@@ -7,7 +7,8 @@
     "CardUsage",
     "CompanyScheduleRule",
     "Garage",
-    "PersonalCard"
+    "PersonalCard",
+    "McpToken"
   ],
   "requiredColumnAdditions": {
     "WorkActivity": [
@@ -29,7 +30,9 @@
   "requiredIndexes": [
     "BuildupEvent_eventKey_key",
     "BuildupEvent_status_idx",
-    "CustomerMerge_targetId_idx"
+    "CustomerMerge_targetId_idx",
+    "McpToken_tokenHash_key",
+    "McpToken_userId_idx"
   ],
   "requiredColumns": {
     "CustomerMerge": [

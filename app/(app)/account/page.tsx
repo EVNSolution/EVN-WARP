@@ -1,6 +1,7 @@
 import { auth } from '@/auth'
 import { prisma } from '@/lib/db'
 import AccountClient from './AccountClient'
+import McpConnectSection from './McpConnectSection'
 
 export default async function AccountPage() {
   const session = await auth()
@@ -12,11 +13,16 @@ export default async function AccountPage() {
   ])
 
   return (
-    <AccountClient
-      userName={me?.name ?? ''}
-      userEmail={me?.email ?? ''}
-      teams={teams}
-      currentTeamId={dbUser?.teamId ?? null}
-    />
+    <>
+      <AccountClient
+        userName={me?.name ?? ''}
+        userEmail={me?.email ?? ''}
+        teams={teams}
+        currentTeamId={dbUser?.teamId ?? null}
+      />
+      <div className="px-6 pb-8 max-w-2xl">
+        <McpConnectSection />
+      </div>
+    </>
   )
 }

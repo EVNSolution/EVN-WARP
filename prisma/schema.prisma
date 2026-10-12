@@ -38,8 +38,24 @@ model User {
   employmentType String    @default("사내")  // "사내" | "사외"
   externalRole   String?   // "영업" | "AS" — employmentType이 "사외"일 때만 사용
 
+  mcpTokens      McpToken[]
+
   createdAt      DateTime       @default(now())
   updatedAt      DateTime       @updatedAt
+}
+
+// AI 연결 토큰 — 개인 Claude/ChatGPT 가 원격 MCP(/api/mcp)로 접속할 때 쓰는 개인 토큰.
+// 원문은 발급 순간 한 번만 보여주고 해시만 저장한다. 사용자당 활성 토큰 1개(재발급 시 기존 폐기).
+model McpToken {
+  id         String    @id @default(cuid())
+  tokenHash  String    @unique   // sha256(token) hex
+  userId     String
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt  DateTime  @default(now())
+  lastUsedAt DateTime?
+  revokedAt  DateTime?
+
+  @@index([userId])
 }
 
 model StrategyTask {

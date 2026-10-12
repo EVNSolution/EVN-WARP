@@ -1,0 +1,218 @@
+import { prisma } from '@/lib/db'
+import { getWeekId } from '@/lib/week'
+
+/**
+ * 원격 MCP(/api/mcp)가 노출하는 도구들 — 로컬 warp-mcp(v0.4) 의 활동 도구를 서버로 포팅한 것.
+ * 모든 동작은 토큰 주인(user) 권한·이름으로만 일어난다. 수정은 본인 활동만 허용한다.
+ */
+
+export interface McpUser {
+  id: string
+  name: string
+  teamId: string | null
+}
+
+/** Claude/ChatGPT 가 대화 시작 시 로드하는 사용 지침 — 팀 공용 「하루 정리」 워크플로우. */
+export const MCP_INSTRUCTIONS = `
+EV& WARP 업무 기록 도우미. 사용자의 개인 AI 대화에서 한 업무를 회사 업무시스템(WARP)에 기록한다.
+
+## 업무 마무리를 감지하면 먼저 제안하라
+다음 신호가 보이면 "이 내용을 WARP에 업무 기록으로 올릴까요?"라고 한 번 제안한다 (같은 대화에서 반복 제안 금지, 거절하면 다시 묻지 않는다):
+- 작업을 끝냈다는 표현 ("됐다", "완료", "마무리하자", "오늘은 여기까지")
+- 하나의 업무 단위가 끝난 흐름 (문서 완성, 분석 결론, 회의록 정리, 견적/보고서 마무리)
+- "오늘 한 일 정리해줘" 같은 직접 요청
+
+## WARP에 올릴 때의 표준 형식
+1. 실제로 수행한 업무만 추린다 — 잡담·미완의 시도·사적 내용 제외.
+2. 업무 1건 = 활동 1건. 제목은 「대상 + 한 일」 15자 내외.
+3. note(내용)는 2~3문장 요약. 대화 원문을 길게 붙이지 않는다.
+4. 끝난 일은 status=완료 로 등록한다.
+5. 등록·수정 전에 반드시 제목·유형·내용을 사람이 읽는 문장으로 보여주고 확정받는다. id 는 노출하지 않는다.
+6. list_my_tasks 로 중복 등록을 피한다.
+
+## 일정 등록
+날짜·시각이 정해진 약속이 보이면 "WARP 캘린더에 등록할까요?" 제안. start_time/end_time 을 넣으면
+캘린더에 그 시간대로 표시된다. 종료 시각을 모르면 1시간으로 잡고 그렇게 말해준다.
+
+## 금지
+- 사용자 확정 없이 등록·수정하지 않는다.
+- 대화에 없는 일을 지어내지 않는다. 불확실하면 묻는다.
+`.trim()
+
+/** 업무공간 활동추가 입력창과 같은 활동 유형 (근태·증명서는 HR 플로우라 제외). */
+const ACTIVITY_TYPES = [
+  '내부회의', '외부미팅', '이메일', '전화·통화',
+  '국내출장', '해외출장',
+  '발표/전시·행사',
+  '교육/연수', '세미나·컨퍼런스',
+  '문서·자료작성', '개발·구현', '도면·설계', '제품제작·조립', '콘텐츠·디자인',
+  'AS출동', '설치·시운전', '정기점검',
+  '고객미팅', '신규영업', '제안/견적', '고객행사',
+  '인재영입', '외부 네트워킹', '파트너십 타진',
+  'IR 발표', '투자자 미팅', '투자행사',
+  '견적서 발행', 'PO 발행', '수주 확정', '세금계산서 발행',
+  '대관·신청', '세무·회계', '신고·갱신', '법무·계약', '경영기획',
+]
+
+const DATE_RE = '^\\d{4}-\\d{2}-\\d{2}$'
+const TIME_RE = '^([01]\\d|2[0-3]):[0-5]\\d$'
+
+export const TOOL_DEFINITIONS = [
+  {
+    name: 'create_task',
+    description:
+      'WARP 업무공간에 새 활동(할 일·일정)을 등록한다. 사용자가 할 일·업무·미팅 일정을 WARP에 올려 달라고 할 때 사용한다. '
+      + '등록된 활동은 「계획」 상태로 시작하며, 이미 끝낸 일은 status=완료 로 등록한다. '
+      + '시각이 정해진 일정은 start_time/end_time 을 넣으면 WARP 캘린더에 그 시간대로 표시된다. '
+      + '호출 전에 반드시 등록할 내용(제목·날짜·시간·유형·내용)을 사람이 읽는 문장으로 보여주고 확정을 받아라.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        title: { type: 'string', description: '활동 제목 (필수)' },
+        date: { type: 'string', pattern: DATE_RE, description: '시작일 YYYY-MM-DD — 생략하면 오늘(한국 시간)' },
+        due: { type: 'string', pattern: DATE_RE, description: '종료일(기한) YYYY-MM-DD — 하루짜리 일이면 생략' },
+        type: { type: 'string', enum: ACTIVITY_TYPES, description: '활동 유형 — 업무공간 입력창의 유형 버튼과 동일' },
+        note: { type: 'string', description: '내용/메모' },
+        status: { type: 'string', enum: ['계획', '완료'], description: '이미 끝낸 일이면 「완료」 — 생략하면 「계획」' },
+        start_time: { type: 'string', pattern: TIME_RE, description: '일정 시작 시각 HH:MM — 생략하면 하루종일' },
+        end_time: { type: 'string', pattern: TIME_RE, description: '일정 종료 시각 HH:MM' },
+      },
+      required: ['title', 'type'],
+    },
+  },
+  {
+    name: 'list_my_tasks',
+    description:
+      '내 WARP 활동(할 일·일정) 목록을 조회한다 (최근 30일 ~ 앞으로 60일). '
+      + '자기 할 일·오늘 할 일·미완료 업무를 묻거나, 중복 등록을 확인할 때 사용한다. '
+      + '사용자에게 보여줄 때는 제목·기간·내용 위주로 정리하고 id 는 노출하지 마라.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        status: { type: 'string', enum: ['계획', '완료'], description: '「계획」= 미완료만, 「완료」= 끝난 것만, 생략 = 전부' },
+      },
+    },
+  },
+  {
+    name: 'update_task',
+    description:
+      '내 WARP 활동을 수정한다 — 상태(계획/완료)·제목·내용·날짜·시간·유형. '
+      + '어떤 활동인지 제목과 내용으로 사용자에게 보여주고 확정받은 뒤 호출한다. '
+      + 'id 는 list_my_tasks 결과의 내부 키로만 쓰고 사용자에게 노출하지 않는다.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        id: { type: 'string', description: '활동 id — list_my_tasks 결과의 내부 키' },
+        status: { type: 'string', enum: ['계획', '완료'] },
+        title: { type: 'string' },
+        note: { type: 'string', description: '빈 문자열이면 내용 삭제' },
+        date: { type: 'string', pattern: DATE_RE },
+        due: { type: 'string', pattern: DATE_RE },
+        type: { type: 'string', enum: ACTIVITY_TYPES },
+        start_time: { type: 'string', pattern: TIME_RE },
+        end_time: { type: 'string', pattern: TIME_RE },
+      },
+      required: ['id'],
+    },
+  },
+]
+
+function todayKst(): string {
+  return new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Seoul' }).format(new Date())
+}
+
+function shiftDays(base: string, days: number): string {
+  const d = new Date(`${base}T00:00:00Z`)
+  d.setUTCDate(d.getUTCDate() + days)
+  return d.toISOString().slice(0, 10)
+}
+
+type ToolResult = { text: string; isError?: boolean }
+const err = (text: string): ToolResult => ({ text, isError: true })
+
+async function createTask(user: McpUser, a: Record<string, any>): Promise<ToolResult> {
+  if (!a.title?.trim() || !a.type) return err('title 과 type 은 필수입니다.')
+  if (!ACTIVITY_TYPES.includes(a.type)) return err(`지원하지 않는 활동 유형: ${a.type}`)
+  if (!user.teamId) return err(`계정(${user.name})에 소속 팀이 없어 활동을 등록할 수 없습니다 — WARP 관리자에게 팀 배정을 요청하세요.`)
+  const date = a.date || todayKst()
+  const activity = await prisma.workActivity.create({
+    data: {
+      teamId: user.teamId,
+      date,
+      endDate: a.due || null,
+      week: getWeekId(new Date(date)),
+      type: a.type,
+      title: String(a.title).trim(),
+      content: a.note || null,
+      planStatus: a.status === '완료' ? '완료' : '계획',
+      startTime: a.start_time || null,
+      endTime: a.end_time || null,
+      source: 'mcp',
+      userId: user.id,
+      userName: user.name,
+    },
+  })
+  const time = activity.startTime ? ` ${activity.startTime}${activity.endTime ? `~${activity.endTime}` : ''}` : ''
+  return { text: `등록 완료 — id: ${activity.id}\n제목: ${activity.title}\n기간: ${activity.date}${activity.endDate ? ` ~ ${activity.endDate}` : ''}${time}\n유형: ${activity.type} · 상태: ${activity.planStatus}` }
+}
+
+async function listMyTasks(user: McpUser, a: Record<string, any>): Promise<ToolResult> {
+  const today = todayKst()
+  const tasks = await prisma.workActivity.findMany({
+    where: {
+      userId: user.id,
+      date: { gte: shiftDays(today, -30), lte: shiftDays(today, 60) },
+      ...(a.status === '계획' || a.status === '완료' ? { planStatus: a.status } : {}),
+    },
+    orderBy: [{ date: 'asc' }, { createdAt: 'asc' }],
+    take: 200,
+    select: { id: true, title: true, content: true, date: true, endDate: true, startTime: true, endTime: true, type: true, planStatus: true },
+  })
+  if (tasks.length === 0) return { text: '해당하는 활동이 없습니다.' }
+  const lines = tasks.map(t =>
+    `- [${t.planStatus}] ${t.title} (id: ${t.id}, ${t.date}${t.endDate ? `~${t.endDate}` : ''}${t.startTime ? ` ${t.startTime}${t.endTime ? `-${t.endTime}` : ''}` : ''}, ${t.type})${t.content ? ` — ${t.content}` : ''}`)
+  return { text: `내 활동 ${tasks.length}건:\n${lines.join('\n')}` }
+}
+
+async function updateTask(user: McpUser, a: Record<string, any>): Promise<ToolResult> {
+  if (!a.id) return err('id 는 필수입니다.')
+  const before = await prisma.workActivity.findUnique({ where: { id: String(a.id) } })
+  if (!before || before.userId !== user.id) return err('해당 활동을 찾을 수 없거나 본인 활동이 아닙니다.')
+  const data: Record<string, unknown> = {}
+  if (a.status !== undefined) data.planStatus = a.status === '완료' ? '완료' : '계획'
+  if (a.title !== undefined && String(a.title).trim()) data.title = String(a.title).trim()
+  if (a.note !== undefined) data.content = a.note || null
+  if (a.date !== undefined) { data.date = a.date; data.week = getWeekId(new Date(a.date)) }
+  if (a.due !== undefined) data.endDate = a.due || null
+  if (a.type !== undefined) {
+    if (!ACTIVITY_TYPES.includes(a.type)) return err(`지원하지 않는 활동 유형: ${a.type}`)
+    data.type = a.type
+  }
+  if (a.start_time !== undefined) data.startTime = a.start_time || null
+  if (a.end_time !== undefined) data.endTime = a.end_time || null
+  if (Object.keys(data).length === 0) return err('바꿀 내용이 없습니다 — status/title/note/date/due/type/start_time/end_time 중 하나 이상을 주세요.')
+  const updated = await prisma.workActivity.update({ where: { id: before.id }, data })
+  return {
+    text: `수정 완료 — 「${before.title}」\n`
+      + (data.title !== undefined ? `  제목: ${before.title} → ${updated.title}\n` : '')
+      + (data.planStatus !== undefined ? `  상태: ${before.planStatus} → ${updated.planStatus}\n` : '')
+      + (data.content !== undefined ? `  내용: ${before.content ?? '(없음)'} → ${updated.content ?? '(없음)'}\n` : '')
+      + (data.date !== undefined ? `  시작일: ${before.date} → ${updated.date}\n` : '')
+      + (data.endDate !== undefined ? `  종료일: ${before.endDate ?? '(없음)'} → ${updated.endDate ?? '(없음)'}\n` : '')
+      + (data.type !== undefined ? `  유형: ${before.type} → ${updated.type}\n` : '')
+      + (data.startTime !== undefined || data.endTime !== undefined
+        ? `  시간: ${before.startTime ?? '하루종일'} → ${updated.startTime ?? '하루종일'}${updated.endTime ? `~${updated.endTime}` : ''}\n` : ''),
+  }
+}
+
+export async function callTool(user: McpUser, name: string, args: Record<string, any>): Promise<ToolResult> {
+  try {
+    if (name === 'create_task') return await createTask(user, args ?? {})
+    if (name === 'list_my_tasks') return await listMyTasks(user, args ?? {})
+    if (name === 'update_task') return await updateTask(user, args ?? {})
+    return err(`알 수 없는 도구: ${name}`)
+  } catch (e) {
+    console.error(`[mcp] tool ${name} 실패`, e)
+    return err('처리 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.')
+  }
+}
