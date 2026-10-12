@@ -17,6 +17,8 @@ const CUSTOMER_SYSTEMS: Array<{ name: string; url: string | null }> = [
   { name: '화인로지스', url: null },
   { name: '천하운수', url: null },
   { name: 'SH로지스', url: null },
+  { name: 'Core Express', url: null },
+  { name: '바로고', url: null },
 ]
 
 function Badge({ external }: { external: boolean }) {
@@ -45,7 +47,8 @@ export default function SystemsPage() {
       </div>
 
       <div className="max-w-4xl space-y-6">
-      <h2 className="text-xs font-semibold text-slate-500 -mb-3">사내</h2>
+      <section>
+      <h2 className="text-xs font-semibold text-slate-500 mb-2">사내</h2>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
 
         {/* 1. 영업 — WARP 내부 화면들로 통합 진입 */}
@@ -88,6 +91,7 @@ export default function SystemsPage() {
         </a>
 
       </div>
+      </section>
 
       {/* 고객사 시스템 — 서브도메인으로 구분된 고객사별 화면 */}
       <section>
