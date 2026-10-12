@@ -11,8 +11,8 @@ export const dynamic = 'force-dynamic'
 
 // 고객사별 시스템 — url 이 비어 있으면 「주소 등록 예정」으로 표시된다
 const CUSTOMER_SYSTEMS: Array<{ name: string; url: string | null }> = [
-  { name: '토마토노', url: null },
-  { name: 'DSV', url: null },
+  { name: '토마토노', url: 'https://admin.shopify.com/store/7hrud1-xq/apps/clever-k-food-1/app/orders' },
+  { name: 'DSV', url: 'https://dsv.cleversystem.ai/control' },
   { name: '휴먼로지스', url: null },
   { name: '화인로지스', url: null },
   { name: '천하운수', url: null },
