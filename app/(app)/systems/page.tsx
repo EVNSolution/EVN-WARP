@@ -11,12 +11,14 @@ export const dynamic = 'force-dynamic'
 
 // 고객사별 시스템 — url 이 비어 있으면 「주소 등록 예정」으로 표시된다
 const CUSTOMER_SYSTEMS: Array<{ name: string; url: string | null }> = [
-  { name: '토마토노', url: null },
-  { name: 'DSV', url: null },
-  { name: '휴먼로지스', url: null },
-  { name: '화인로지스', url: null },
-  { name: '천하운수', url: null },
-  { name: 'SH로지스', url: null },
+  { name: '토마토노', url: 'https://admin.shopify.com/store/7hrud1-xq/apps/clever-k-food-1/app/orders' },
+  { name: 'DSV', url: 'https://dsv.cleversystem.ai/control' },
+  { name: '휴먼로지스', url: 'https://cleversystem.ai/company/hm/settlement?human_tab=dashboard' },
+  { name: '화인로지스', url: 'https://cleversystem.ai/company/hwain/settlement?one_tab=upload' },
+  { name: '천하운수', url: 'https://cleversystem.ai/company/cheonha/dashboard' },
+  { name: 'SH로지스', url: 'https://cleversystem.ai/company/sh/settlement?delirabbit_tab=dispatch' },
+  { name: 'Core Express', url: null },
+  { name: '바로고', url: null },
 ]
 
 function Badge({ external }: { external: boolean }) {
@@ -45,7 +47,8 @@ export default function SystemsPage() {
       </div>
 
       <div className="max-w-4xl space-y-6">
-      <h2 className="text-xs font-semibold text-slate-500 -mb-3">사내</h2>
+      <section>
+      <h2 className="text-xs font-semibold text-slate-500 mb-2">사내</h2>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
 
         {/* 1. 영업 — WARP 내부 화면들로 통합 진입 */}
@@ -88,6 +91,7 @@ export default function SystemsPage() {
         </a>
 
       </div>
+      </section>
 
       {/* 고객사 시스템 — 서브도메인으로 구분된 고객사별 화면 */}
       <section>
