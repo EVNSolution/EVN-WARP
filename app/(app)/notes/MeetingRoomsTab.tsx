@@ -13,7 +13,7 @@ import { ChevronLeft, ChevronRight, RefreshCw } from 'lucide-react'
 
 interface Reservation { id: string; roomId: string; startHour: number; endHour: number; title?: string; userName?: string; mine?: boolean; company?: boolean }
 interface Room { id: string; name: string }
-interface Day { date: string; rooms: Room[]; reservations: Reservation[]; asOf: number | null; stale: boolean }
+interface Day { date: string; userName?: string; rooms: Room[]; reservations: Reservation[]; asOf: number | null; stale: boolean }
 
 function todayKst(): string {
   return new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Seoul' }).format(new Date())
@@ -44,7 +44,15 @@ export function MeetingRoomsPrewarm() {
  * 가로 시간축 타임라인 — 방마다 한 줄, 몇 시부터 몇 시까지 차 있는지 블록으로 보인다.
  * 색: 내 예약 = 연두(라임), 우리 회사(WARP 구성원 이름 일치) = 옅은 파랑, 외부 = 회색.
  */
-function RoomTimeline({ rooms, reservations, dimmed }: { rooms: Room[]; reservations: Reservation[]; dimmed: boolean }) {
+function RoomTimeline({ rooms, reservations, dimmed, onSlotClick, onMineClick }: {
+  rooms: Room[]
+  reservations: Reservation[]
+  dimmed: boolean
+  /** 빈 시간 칸 클릭 → 그 방·시각으로 예약 창 열기 */
+  onSlotClick: (room: Room, hour: number) => void
+  /** 내 예약 블록 클릭 → 취소 */
+  onMineClick: (r: Reservation) => void
+}) {
   // 기본 8시~20시 축 — 범위 밖 예약이 있으면 축을 넓힌다
   const starts = reservations.map(r => r.startHour).filter(Number.isFinite)
   const ends = reservations.map(r => r.endHour).filter(Number.isFinite)
@@ -84,8 +92,10 @@ function RoomTimeline({ rooms, reservations, dimmed }: { rooms: Room[]; reservat
               </div>
               <div className="flex-1 h-8 rounded-lg overflow-hidden bg-slate-50" style={grid}>
                 {hours.map((h, i) => (
-                  <div key={h} style={{ gridColumn: `${i + 1}`, gridRow: 1 }}
-                    className={`h-full ${i < n - 1 ? 'border-r border-slate-100' : ''}`} />
+                  <button key={h} type="button" onClick={() => onSlotClick(room, h)}
+                    title={`${h}시에 ${room.name} 예약`}
+                    style={{ gridColumn: `${i + 1}`, gridRow: 1 }}
+                    className={`h-full cursor-pointer hover:bg-lime-50 ${i < n - 1 ? 'border-r border-slate-100' : ''}`} />
                 ))}
                 {taken.map(r => {
                   const s = Math.max(r.startHour, minH)
@@ -93,9 +103,10 @@ function RoomTimeline({ rooms, reservations, dimmed }: { rooms: Room[]; reservat
                   if (!(e > s)) return null
                   const label = `${r.startHour}–${r.endHour}시 · ${r.userName ?? '예약자 미상'}${r.title && r.title !== r.userName ? ` · ${r.title}` : ''}${r.mine ? ' (나)' : ''}`
                   return (
-                    <div key={r.id} title={label}
+                    <div key={r.id} title={r.mine ? `${label} — 클릭하면 취소` : label}
+                      onClick={r.mine ? () => onMineClick(r) : undefined}
                       style={{ gridColumn: `${s - minH + 1} / ${e - minH + 1}`, gridRow: 1 }}
-                      className={`z-10 self-stretch my-0.5 mx-px rounded-md border px-1.5 flex items-center overflow-hidden text-[10px] ${blockClass(r)}`}>
+                      className={`z-10 self-stretch my-0.5 mx-px rounded-md border px-1.5 flex items-center overflow-hidden text-[10px] ${blockClass(r)}${r.mine ? ' cursor-pointer hover:brightness-95' : ''}`}>
                       <span className="truncate">{r.userName ?? r.title ?? '예약'}{r.mine ? ' (나)' : ''}</span>
                     </div>
                   )
@@ -120,6 +131,56 @@ export default function MeetingRoomsTab() {
   // 이전 결과(stale)를 받은 경우 서버가 뒤에서 갱신 중 — 잠시 뒤 자동으로 최신본을 다시 가져온다 (최대 2회)
   const autoRefresh = useRef(0)
 
+  // 빈 시간 클릭 → 예약 창
+  const [draft, setDraft] = useState<{ roomId: string; roomName: string; startHour: number; endHour: number } | null>(null)
+  const [resName, setResName] = useState('')
+  const [resTitle, setResTitle] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [modalError, setModalError] = useState('')
+
+  const openDraft = (room: Room, hour: number) => {
+    setResName(day?.userName ?? '')
+    setResTitle('')
+    setModalError('')
+    setDraft({ roomId: room.id, roomName: room.name, startHour: hour, endHour: Math.min(hour + 1, 24) })
+  }
+
+  const submitDraft = async () => {
+    if (!draft) return
+    if (!resName.trim()) { setModalError('예약자 이름을 입력해 주세요.'); return }
+    setSaving(true)
+    setModalError('')
+    try {
+      const res = await fetch('/api/meeting-rooms', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          roomId: draft.roomId, date, startHour: draft.startHour, endHour: draft.endHour,
+          userName: resName.trim(), title: resTitle.trim() || undefined,
+        }),
+      })
+      const j = await res.json().catch(() => ({}))
+      if (!res.ok || j.error) { setModalError(j.error || '예약에 실패했습니다.'); return }
+      setDraft(null)
+      autoRefresh.current = 0
+      setRetry(n => n + 1)
+    } catch {
+      setModalError('예약 요청에 실패했습니다 — 잠시 후 다시 시도해 주세요.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const cancelMine = async (r: Reservation) => {
+    const what = `${r.startHour}–${r.endHour}시 「${r.title ?? '회의'}」`
+    if (!window.confirm(`${date} ${what} 예약을 취소할까요?`)) return
+    const res = await fetch(`/api/meeting-rooms?id=${encodeURIComponent(r.id)}&roomId=${encodeURIComponent(r.roomId)}`, { method: 'DELETE' })
+    const j = await res.json().catch(() => ({}))
+    if (!res.ok || j.error) { window.alert(j.error || '취소에 실패했습니다.'); return }
+    autoRefresh.current = 0
+    setRetry(n => n + 1)
+  }
+
   useEffect(() => {
     let alive = true
     setLoading(true)
@@ -133,7 +194,7 @@ export default function MeetingRoomsTab() {
         if (r.error) { setError(r.error); return }
         setConnected(r.connected !== false)
         if (r.connected !== false) {
-          setDay({ date, rooms: r.rooms ?? [], reservations: r.reservations ?? [], asOf: r.asOf ?? null, stale: !!r.stale })
+          setDay({ date, userName: r.userName, rooms: r.rooms ?? [], reservations: r.reservations ?? [], asOf: r.asOf ?? null, stale: !!r.stale })
           if (r.stale && autoRefresh.current < 2) {
             autoRefresh.current += 1
             setTimeout(() => { if (alive) setRetry(n => n + 1) }, 7_000)
@@ -156,9 +217,11 @@ export default function MeetingRoomsTab() {
       <div className="flex items-center gap-2 mb-4">
         <button onClick={() => setDate(d => shiftDate(d, -1))}
           className="p-1.5 rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50"><ChevronLeft size={15} /></button>
-        <input type="date" value={date} onChange={e => e.target.value && setDate(e.target.value)}
-          className="border border-slate-200 rounded-lg px-2 py-1.5 text-sm text-slate-700" />
-        <span className="text-sm text-slate-500">({weekday})</span>
+        <span className="flex items-center gap-1">
+          <input type="date" value={date} onChange={e => e.target.value && setDate(e.target.value)}
+            className="border border-slate-200 rounded-lg px-2 py-1.5 text-sm text-slate-700" />
+          <span className="text-sm text-slate-600">({weekday})</span>
+        </span>
         <button onClick={() => setDate(d => shiftDate(d, 1))}
           className="p-1.5 rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50"><ChevronRight size={15} /></button>
         <button onClick={() => setDate(todayKst())}
@@ -191,7 +254,8 @@ export default function MeetingRoomsTab() {
               <button onClick={() => setRetry(n => n + 1)} className="shrink-0 underline hover:no-underline">새로고침</button>
             </div>
           )}
-          <RoomTimeline rooms={view.rooms} reservations={view.reservations} dimmed={loading} />
+          <RoomTimeline rooms={view.rooms} reservations={view.reservations} dimmed={loading}
+            onSlotClick={openDraft} onMineClick={cancelMine} />
         </>
       ) : loading ? (
         <div className="text-sm text-slate-400 py-8 text-center">
@@ -214,9 +278,56 @@ export default function MeetingRoomsTab() {
         </div>
       ) : null}
 
-      <p className="text-[11px] text-slate-400 mt-4">
-        예약·취소는 AI(&ldquo;내일 2시 회의실 잡아줘&rdquo;) 또는 예약 사이트에서 — 이 화면은 조회 전용입니다.
-      </p>
+      {connected && (
+        <p className="text-[11px] text-slate-400 mt-4">
+          빈 시간을 클릭하면 바로 예약할 수 있고, 내 예약(연두)을 클릭하면 취소됩니다.
+        </p>
+      )}
+
+      {/* 예약 창 */}
+      {draft && (
+        <div className="fixed inset-0 z-50 bg-black/30 flex items-center justify-center p-4"
+          onClick={() => !saving && setDraft(null)}>
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-5" onClick={e => e.stopPropagation()}>
+            <div className="text-sm font-bold text-slate-800">회의실 예약</div>
+            <div className="text-xs text-slate-500 mt-1 mb-4">{draft.roomName} · {date} ({weekday})</div>
+
+            <div className="flex items-center gap-2 mb-3">
+              <select value={draft.startHour}
+                onChange={e => setDraft(d => d && { ...d, startHour: Number(e.target.value), endHour: Math.max(d.endHour, Number(e.target.value) + 1) })}
+                className="flex-1 border border-slate-200 rounded-lg px-2 py-1.5 text-sm text-slate-700">
+                {Array.from({ length: 15 }, (_, i) => 7 + i).map(h => <option key={h} value={h}>{h}시</option>)}
+              </select>
+              <span className="text-slate-400 text-sm">~</span>
+              <select value={draft.endHour}
+                onChange={e => setDraft(d => d && { ...d, endHour: Number(e.target.value) })}
+                className="flex-1 border border-slate-200 rounded-lg px-2 py-1.5 text-sm text-slate-700">
+                {Array.from({ length: 15 }, (_, i) => 8 + i).filter(h => h > draft.startHour).map(h => <option key={h} value={h}>{h}시</option>)}
+              </select>
+            </div>
+
+            <input value={resName} onChange={e => setResName(e.target.value)}
+              placeholder="예약자 이름 (예: 장원철, 장원철 외 3명)"
+              className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm mb-2" />
+            <input value={resTitle} onChange={e => setResTitle(e.target.value)}
+              placeholder="회의 제목 (선택 — 비우면 「회의」)"
+              className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm" />
+
+            {modalError && <p className="text-xs text-red-500 mt-2">{modalError}</p>}
+
+            <div className="flex justify-end gap-2 mt-4">
+              <button onClick={() => setDraft(null)} disabled={saving}
+                className="px-3.5 py-2 rounded-lg border border-slate-200 text-sm text-slate-500 hover:bg-slate-50 disabled:opacity-40">
+                닫기
+              </button>
+              <button onClick={submitDraft} disabled={saving}
+                className="px-4 py-2 rounded-lg bg-slate-900 text-white text-sm font-semibold hover:bg-slate-700 disabled:opacity-40">
+                {saving ? '예약 중...' : '예약하기'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
