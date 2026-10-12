@@ -65,6 +65,7 @@ export async function roomStatus(sessionId: string | null | undefined, date: str
     title: typeof v.title === 'string' && v.title ? v.title : undefined,
     userName: typeof v.reserver_name === 'string' && v.reserver_name ? v.reserver_name
       : typeof v.userName === 'string' && v.userName ? v.userName : undefined,
+    mine: !!(v.is_mine ?? v.isMine),
   }))
   return { userName, date, rooms, reservations }
 }
