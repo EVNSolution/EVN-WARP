@@ -1,5 +1,5 @@
 {
-  "prismaSchemaSha256": "43303a24fe5e4fb9044db6a34d2a91800585398657d5161b0b08ed31321bbb22",
+  "prismaSchemaSha256": "d61d272f83b11289859f4b8e52f7b554359a5cee840ab359b20584421e9abc47",
   "requiredTables": [
     "Announcement",
     "BuildupEvent",
@@ -27,7 +27,8 @@
       "month"
     ],
     "User": [
-      "dongjakSessionId"
+      "dongjakSessionId",
+      "skillsGithubToken"
     ]
   },
   "requiredIndexes": [

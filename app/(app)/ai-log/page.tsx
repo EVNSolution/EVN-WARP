@@ -1,10 +1,11 @@
+import { auth } from '@/auth'
 import { prisma } from '@/lib/db'
 
 /**
- * AI 업무 기록 대시보드.
- * 팀원들이 개인 Claude(warp-mcp)를 통해 올린 활동(source='mcp')을 한눈에 본다 —
- * 누가 얼마나 AI로 업무를 기록하고 있는지 추적하는 단순 현황판.
- * 활동 자체의 수정·완료 처리는 업무공간에서 한다.
+ * AI 업무 기록 대시보드 — 전사 공용 화면.
+ * 팀원들이 개인 AI(원격 MCP)로 등록·수정한 활동(source='mcp')을 사람별 사용량과 함께 보여주고,
+ * AI 연결 피드백(제안함의 [AI 피드백])을 게시판으로 모아 보여준다.
+ * 활동 공개여부(비공개/제목만 공개)는 업무공간과 동일하게 존중한다.
  */
 export const dynamic = 'force-dynamic'
 
@@ -15,17 +16,37 @@ function daysAgoKst(days: number): string {
 }
 
 export default async function AiLogPage() {
+  const session = await auth()
+  const me = session?.user as any
+  const myUserId: string | null = me?.id ?? null
+  const isPrivileged = me?.role === 'admin' || me?.role === 'ceo'
+
   const from = daysAgoKst(30)
-  const rows = await prisma.workActivity.findMany({
-    where: { source: 'mcp', date: { gte: from } },
-    orderBy: [{ createdAt: 'desc' }],
-    take: 300,
-    select: {
-      id: true, title: true, content: true, date: true, type: true,
-      planStatus: true, userName: true, createdAt: true,
-      team: { select: { name: true } },
-    },
-  })
+  const [rawRows, feedbacks] = await Promise.all([
+    prisma.workActivity.findMany({
+      where: { source: 'mcp', date: { gte: from } },
+      orderBy: [{ createdAt: 'desc' }],
+      take: 300,
+      select: {
+        id: true, title: true, content: true, date: true, type: true,
+        planStatus: true, userId: true, userName: true, createdAt: true, visibility: true,
+        team: { select: { name: true } },
+      },
+    }),
+    prisma.suggestion.findMany({
+      where: { title: { startsWith: '[AI 피드백]' } },
+      orderBy: { createdAt: 'desc' },
+      take: 20,
+      select: { id: true, userName: true, content: true, status: true, replyContent: true, repliedByName: true, createdAt: true },
+    }),
+  ])
+
+  // 공개여부 반영 — 업무공간(GET /api/activities)과 같은 규칙
+  const rows = rawRows
+    .filter(r => isPrivileged || (r.visibility ?? '공개') !== '전체 비공개' || r.userId === myUserId)
+    .map(r => (!isPrivileged && (r.visibility ?? '공개') === '제목만 공개' && r.userId !== myUserId)
+      ? { ...r, content: null }
+      : r)
 
   // 사람별 집계 — 등록 수·완료 수·마지막 기록일
   const byUser = new Map<string, { count: number; done: number; last: string; team: string }>()
@@ -45,7 +66,7 @@ export default async function AiLogPage() {
       <div className="px-6 py-4 mb-5 rounded-xl" style={{ backgroundColor: '#111111' }}>
         <h1 className="text-xl font-bold text-white">AI 업무 기록</h1>
         <p className="text-[11px] mt-0.5" style={{ color: '#C5D42A' }}>
-          개인 AI(Claude·ChatGPT 등)와 대화하며 올린 최근 30일 업무 기록 — 연결은 내 계정 → AI 연결, 수정·완료는 업무공간에서
+          개인 AI(Claude·ChatGPT 등)로 등록·수정한 최근 30일 전사 기록 — 연결은 내 계정 → AI 연결에서
         </p>
       </div>
 
@@ -106,6 +127,39 @@ export default async function AiLogPage() {
           </table>
         </>
       )}
+
+      {/* AI 연결 피드백 게시판 — 대화 중 send_feedback 으로 남긴 개선 의견 */}
+      <div className="mt-8">
+        <h2 className="text-sm font-bold text-slate-800 mb-1">AI 연결 피드백</h2>
+        <p className="text-[11px] text-slate-400 mb-3">
+          AI와 대화하다 &ldquo;이 의견 피드백으로 남겨줘&rdquo;라고 하면 여기에 쌓입니다. 답변은 제안함에서 관리자가 답니다.
+        </p>
+        {feedbacks.length === 0 ? (
+          <div className="text-xs text-slate-400 border border-dashed border-slate-200 rounded-lg p-5 text-center">
+            아직 피드백이 없습니다.
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {feedbacks.map(f => (
+              <div key={f.id} className="bg-white border border-slate-200 rounded-lg px-4 py-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-semibold text-slate-700">{f.userName}</span>
+                  <span className="text-[11px] text-slate-400">
+                    {f.createdAt.toISOString().slice(5, 10).replace('-', '/')}
+                    {f.status === '답변완료' && <span className="ml-2 px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-600">답변완료</span>}
+                  </span>
+                </div>
+                <p className="text-xs text-slate-600 mt-1 whitespace-pre-wrap">{f.content}</p>
+                {f.replyContent && (
+                  <div className="mt-2 border-l-2 border-slate-200 pl-3 text-[11px] text-slate-500 whitespace-pre-wrap">
+                    <b>{f.repliedByName ?? '관리자'}</b> — {f.replyContent}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
       </div>
     </div>
   )

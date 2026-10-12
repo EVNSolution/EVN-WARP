@@ -14,7 +14,8 @@ const BASE_NAV_ITEMS = [
   { href: '/a3',           label: '전략과제 A3',    icon: Target },
   { href: '/weekly',       label: '주간업무',       icon: Users },
   { href: '/notes',        label: '업무공간',       icon: BookOpen },
-  { href: '/systems',      label: '사내 시스템',    icon: Boxes },
+  { href: '/ai-log',       label: 'AI 업무 기록',   icon: Bot },
+  { href: '/systems',      label: '연동 시스템',    icon: Boxes },
 ]
 
 // 사외(협력) 계정 전용 — 사이드바에 파이프라인만 노출하던 기존 동작 유지
@@ -22,10 +23,6 @@ const EXTERNAL_NAV_ITEMS = [
   { href: '/funnel', label: '영업 파이프라인', icon: Filter },
 ]
 
-// 메뉴 맨 아래 고정 항목
-const TAIL_NAV_ITEMS = [
-  { href: '/ai-log', label: 'AI 업무 기록', icon: Bot },
-]
 
 // 경영관리 권한(경영관리팀·경영진·admin·CEO) 전용 메뉴
 const MANAGEMENT_NAV_ITEMS = [
@@ -37,7 +34,7 @@ interface Props { userName: string; userEmail: string; isAdmin?: boolean; isExte
 
 export default function Sidebar({ userName, userEmail, isAdmin = false, isExternal = false, isManagement = false }: Props) {
   const pathname = usePathname()
-  const navItems = [...(isManagement ? [...BASE_NAV_ITEMS, ...MANAGEMENT_NAV_ITEMS] : BASE_NAV_ITEMS), ...TAIL_NAV_ITEMS]
+  const navItems = isManagement ? [...BASE_NAV_ITEMS, ...MANAGEMENT_NAV_ITEMS] : BASE_NAV_ITEMS
   const visibleNavItems = isExternal ? EXTERNAL_NAV_ITEMS : navItems
 
   return (
@@ -116,16 +113,7 @@ export default function Sidebar({ userName, userEmail, isAdmin = false, isExtern
 
       {/* 보조 메뉴 */}
       <div className="px-3 pb-2 space-y-0.5">
-        <Link
-          href="/customers"
-          className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs transition-all"
-          style={{ color: pathname.startsWith('/customers') ? '#C5D42A' : '#555' }}
-          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = '#999' }}
-          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = pathname.startsWith('/customers') ? '#C5D42A' : '#555' }}
-        >
-          <UserRound size={13} />
-          고객 관리 (CRM)
-        </Link>
+        {/* 고객 관리(CRM) 직접 링크 제거 — 사내는 「사내 시스템」 허브, 사외는 파이프라인만 사용 */}
         {!isExternal && (
           <>
             <Link

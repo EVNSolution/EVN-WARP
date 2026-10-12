@@ -15,6 +15,8 @@ export interface McpUser {
   dongjakSessionId: string | null
   /** "사내" | "사외" — 사내 스킬은 사내 구성원 전용 */
   employmentType: string
+  /** 사내 스킬용 개인 GitHub 토큰 (없으면 서버 공용 env 폴백) */
+  skillsGithubToken: string | null
 }
 
 /** Claude/ChatGPT 가 대화 시작 시 로드하는 사용 지침 — 팀 공용 「하루 정리」 워크플로우. */
@@ -51,6 +53,10 @@ EV& WARP 업무 기록 도우미. 사용자의 개인 AI 대화에서 한 업무
 회사 표준 양식·절차가 필요한 작업 — 미팅 사전조사, 기술문서(사양서·매뉴얼), 한글(hwpx) 문서,
 법무 검토, R&D 과제 관리 등 — 은 list_evn_skills 로 해당 스킬을 찾고, 있으면 load_evn_skill 로
 지침을 읽어 그 양식과 절차를 따른다. 사내 업무 문서를 일반 지식만으로 만들지 말 것 — 스킬이 정본이다.
+
+## 피드백
+사용자가 이 AI 연결 자체에 대한 불편·개선 아이디어를 말하면 "피드백으로 남겨둘까요?"라고
+제안하고, 확정받은 내용을 send_feedback 으로 등록한다 (AI 업무 기록 화면의 게시판에 쌓인다).
 
 ## 금지
 - 사용자 확정 없이 등록·수정하지 않는다.
@@ -182,6 +188,20 @@ export const TOOL_DEFINITIONS = [
     },
   },
   {
+    name: 'send_feedback',
+    description:
+      'AI 연결(WARP 도우미) 사용 중 느낀 개선 의견·불편·요청을 회사에 남긴다. '
+      + '사용자가 "이거 불편하다", "이런 기능 있으면 좋겠다"처럼 AI 연결 자체에 대한 의견을 말하면 '
+      + '"피드백으로 남겨둘까요?"라고 제안하고, 확정받은 내용을 이 도구로 등록한다.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        message: { type: 'string', description: '피드백 내용 (2000자 이내) — 사용자가 확정한 문장' },
+      },
+      required: ['message'],
+    },
+  },
+  {
     name: 'list_evn_skills',
     description:
       'EV&Solution 사내 Claude 스킬 목록을 조회한다. 회사 표준 양식·절차가 필요한 문서작업이나 '
@@ -278,6 +298,7 @@ async function updateTask(user: McpUser, a: Record<string, any>): Promise<ToolRe
   if (a.start_time !== undefined) data.startTime = a.start_time || null
   if (a.end_time !== undefined) data.endTime = a.end_time || null
   if (Object.keys(data).length === 0) return err('바꿀 내용이 없습니다 — status/title/note/date/due/type/start_time/end_time 중 하나 이상을 주세요.')
+  data.source = 'mcp' // AI가 손댄 활동도 AI 업무 기록에 잡히게 표시
   const updated = await prisma.workActivity.update({ where: { id: before.id }, data })
   return {
     text: `수정 완료 — 「${before.title}」\n`
@@ -294,14 +315,19 @@ async function updateTask(user: McpUser, a: Record<string, any>): Promise<ToolRe
 
 async function meetingRoomStatus(user: McpUser, a: Record<string, any>): Promise<ToolResult> {
   const day = await roomStatus(user.dongjakSessionId, a.date || todayKst())
+  // 방 id 가 숫자/문자로 섞여 올 수 있어 문자열로 맞춰 비교한다 (337 vs "337" 불일치로 전부 "예약 없음" 나오던 버그)
   const byRoom = day.rooms.map(room => {
     const taken = day.reservations
-      .filter(r => r.roomId === room.id)
-      .sort((x, y) => x.startHour - y.startHour)
+      .filter(r => String(r.roomId) === String(room.id))
+      .sort((x, y) => Number(x.startHour) - Number(y.startHour))
       .map(r => `${r.startHour}시~${r.endHour}시(${r.title ?? '회의'}${r.userName ? ` · ${r.userName}` : ''})`)
     return `- ${room.name} [${room.id}]: ${taken.length ? taken.join(', ') : '예약 없음'}`
   })
-  return { text: `${day.date} 회의실 현황 (로그인: ${day.userName})\n${byRoom.join('\n')}` }
+  const orphans = day.reservations.filter(r => !day.rooms.some(room => String(room.id) === String(r.roomId)))
+  const extra = orphans.length
+    ? `\n(방 목록에 없는 예약 ${orphans.length}건: ${orphans.map(r => `${r.roomId} ${r.startHour}~${r.endHour}시`).join(', ')})`
+    : ''
+  return { text: `${day.date} 회의실 현황 (로그인: ${day.userName})\n${byRoom.join('\n')}${extra}` }
 }
 
 async function reserveMeetingRoom(user: McpUser, a: Record<string, any>): Promise<ToolResult> {
@@ -332,15 +358,33 @@ const INTERNAL_ONLY_MSG = '사내 스킬은 사내 구성원 전용 기능입니
 
 async function listEvnSkills(user: McpUser): Promise<ToolResult> {
   if (user.employmentType !== '사내') return err(INTERNAL_ONLY_MSG)
-  const skills = await listSkills()
+  const skills = await listSkills(user.skillsGithubToken)
   return { text: `사내 스킬 ${skills.length}개:\n${skills.map(s => `- ${s.name}: ${s.description}`).join('\n')}` }
 }
 
 async function loadEvnSkill(user: McpUser, a: Record<string, any>): Promise<ToolResult> {
   if (user.employmentType !== '사내') return err(INTERNAL_ONLY_MSG)
   if (!a.name) return err('name 은 필수입니다.')
-  const s = await loadSkill(String(a.name))
+  const s = await loadSkill(String(a.name), user.skillsGithubToken)
   return { text: `[포함 파일] ${s.files.join(', ') || '(SKILL.md 만)'}\n\n${s.content}` }
+}
+
+/** AI 연결 사용 중 남기는 개선 의견 — 제안함(Suggestion)에 [AI 피드백] 으로 쌓이고 AI 업무 기록 화면에도 보인다. */
+async function sendFeedback(user: McpUser, a: Record<string, any>): Promise<ToolResult> {
+  const message = String(a.message ?? '').trim()
+  if (!message) return err('message 는 필수입니다.')
+  if (message.length > 2000) return err('피드백은 2000자 이내로 적어 주세요.')
+  const firstLine = message.split('\n')[0]
+  await prisma.suggestion.create({
+    data: {
+      userId: user.id,
+      userName: user.name,
+      type: '제안',
+      title: `[AI 피드백] ${firstLine.slice(0, 40)}${firstLine.length > 40 ? '…' : ''}`,
+      content: message,
+    },
+  })
+  return { text: '피드백이 등록되었습니다 — AI 업무 기록 화면과 제안함에서 볼 수 있고, 관리자가 답변을 남길 수 있습니다. 의견 감사합니다!' }
 }
 
 export async function callTool(user: McpUser, name: string, args: Record<string, any>): Promise<ToolResult> {
@@ -354,6 +398,7 @@ export async function callTool(user: McpUser, name: string, args: Record<string,
       case 'reserve_meeting_room': return await reserveMeetingRoom(user, a)
       case 'my_meeting_reservations': return await myMeetingReservations(user)
       case 'cancel_meeting_reservation': return await cancelMeeting(user, a)
+      case 'send_feedback': return await sendFeedback(user, a)
       case 'list_evn_skills': return await listEvnSkills(user)
       case 'load_evn_skill': return await loadEvnSkill(user, a)
       default: return err(`알 수 없는 도구: ${name}`)

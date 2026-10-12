@@ -1,12 +1,23 @@
 import Link from 'next/link'
-import { ArrowUpRight, Filter, ReceiptText, Truck } from 'lucide-react'
+import { ArrowUpRight, Building2, Filter, ReceiptText, Truck } from 'lucide-react'
 
 /**
- * 사내 시스템 허브 — 회사에서 운영 중인 시스템 3개의 입구.
- * 영업은 WARP 안의 화면으로 이동(도메인 이동 없음), 나머지는 별도 시스템을 새 창으로 연다.
- * 새 시스템이 생기면 카드 하나만 추가하면 된다.
+ * 연동 시스템 허브 — 회사·고객사 시스템들의 입구.
+ * 「사내」 영업은 WARP 안의 화면으로 이동(도메인 이동 없음), 나머지는 각자 로그인을 가진
+ * 별도 시스템을 새 창으로 연다 (링크가 보여도 해당 시스템 계정이 없으면 로그인에서 막힌다).
+ * 새 시스템이 생기면 목록에 한 줄만 추가하면 된다.
  */
 export const dynamic = 'force-dynamic'
+
+// 고객사별 시스템 — url 이 비어 있으면 「주소 등록 예정」으로 표시된다
+const CUSTOMER_SYSTEMS: Array<{ name: string; url: string | null }> = [
+  { name: '토마토노', url: null },
+  { name: 'DSV', url: null },
+  { name: '휴먼로지스', url: null },
+  { name: '화인로지스', url: null },
+  { name: '천하운수', url: null },
+  { name: 'SH로지스', url: null },
+]
 
 function Badge({ external }: { external: boolean }) {
   return (
@@ -29,11 +40,13 @@ export default function SystemsPage() {
     <div className="p-6">
       {/* 헤더 (공통 스타일) */}
       <div className="px-6 py-4 mb-4 rounded-xl" style={{ backgroundColor: '#111111' }}>
-        <h1 className="text-xl font-bold text-white">사내 시스템</h1>
-        <p className="text-[11px] mt-0.5" style={{ color: '#C5D42A' }}>회사에서 운영 중인 시스템 모음</p>
+        <h1 className="text-xl font-bold text-white">연동 시스템</h1>
+        <p className="text-[11px] mt-0.5" style={{ color: '#C5D42A' }}>회사·고객사 시스템 모음 — 외부 시스템은 각자의 로그인 권한으로 접속됩니다</p>
       </div>
 
-      <div className="max-w-4xl grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+      <div className="max-w-4xl space-y-6">
+      <h2 className="text-xs font-semibold text-slate-500 -mb-3">사내</h2>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
 
         {/* 1. 영업 — WARP 내부 화면들로 통합 진입 */}
         <div className="bg-white border border-slate-200 rounded-xl px-5 py-4 hover:border-slate-400 hover:shadow-sm transition-all">
@@ -74,6 +87,29 @@ export default function SystemsPage() {
           </div>
         </a>
 
+      </div>
+
+      {/* 고객사 시스템 — 서브도메인으로 구분된 고객사별 화면 */}
+      <section>
+        <h2 className="text-xs font-semibold text-slate-500 mb-2">고객사 시스템</h2>
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
+          {CUSTOMER_SYSTEMS.map(c => c.url ? (
+            <a key={c.name} href={c.url} target="_blank" rel="noopener noreferrer">
+              <div className="bg-white border border-slate-200 rounded-xl px-3 py-3 h-full text-center hover:border-slate-400 hover:shadow-sm transition-all">
+                <Building2 size={15} className="mx-auto text-slate-400" />
+                <div className="mt-1.5 text-xs font-semibold text-slate-700">{c.name}</div>
+                <div className="mt-0.5 text-[10px] text-slate-400 flex items-center justify-center gap-0.5">열기 <ArrowUpRight size={9} /></div>
+              </div>
+            </a>
+          ) : (
+            <div key={c.name} className="bg-slate-50 border border-dashed border-slate-200 rounded-xl px-3 py-3 text-center">
+              <Building2 size={15} className="mx-auto text-slate-300" />
+              <div className="mt-1.5 text-xs font-semibold text-slate-400">{c.name}</div>
+              <div className="mt-0.5 text-[10px] text-slate-300">주소 등록 예정</div>
+            </div>
+          ))}
+        </div>
+      </section>
       </div>
     </div>
   )

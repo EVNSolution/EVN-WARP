@@ -42,6 +42,9 @@ model User {
   // 비밀번호가 아니라 로그인으로 바인딩된 세션 식별자만 저장한다.
   dongjakSessionId String?
 
+  // 사내 스킬(EVn_Skills) 개인 GitHub 토큰 — 필요한 사람만 내 계정에서 등록 (읽기 전용 PAT 권장)
+  skillsGithubToken String?
+
   mcpTokens      McpToken[]
 
   createdAt      DateTime       @default(now())
