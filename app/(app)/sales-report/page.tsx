@@ -260,13 +260,13 @@ export default async function SalesReportPage({
 
   return (
     <div className="flex-1 overflow-y-auto bg-slate-50 min-h-screen">
-      {/* 헤더 */}
-      <div className="bg-white border-b border-slate-200 px-8 py-5">
+      {/* 헤더 (공통 스타일: 검은 배경 + 둥근 모서리) */}
+      <div className="px-6 py-4 mx-4 mt-3 mb-1 rounded-xl" style={{ backgroundColor: '#111111' }}>
         <div className="flex flex-col gap-3">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-xl font-bold text-slate-800">영업 리포트</h1>
-              <p className="text-xs text-slate-400 mt-0.5">
+              <h1 className="text-xl font-bold text-white">영업 리포트</h1>
+              <p className="text-[11px] mt-0.5" style={{ color: '#C5D42A' }}>
                 {fmtFull(range.from)} ~ {fmtFull(range.to)}
               </p>
             </div>
