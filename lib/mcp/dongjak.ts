@@ -11,19 +11,45 @@ export const DONGJAK_LOGIN_GUIDE =
 
 export class DongjakAuthError extends Error {}
 
+/** 예약 기본정보(프로필)가 없어 예약을 진행할 수 없을 때 — 호출측이 등록 안내로 바꿔 전달한다. */
+export class DongjakProfileError extends Error {}
+
+/** WARP 에 저장해 두는 예약 기본정보 — 최초 1회 AI 가 물어서 저장하고 이후 예약에 자동 동봉한다. */
+export interface DongjakProfile {
+  companyName?: string
+  businessNumber?: string
+  phone?: string
+  email?: string
+  roomNumber?: string
+}
+
 async function call(sessionId: string | null | undefined, path: string, init?: RequestInit): Promise<any> {
   if (!sessionId) throw new DongjakAuthError(DONGJAK_LOGIN_GUIDE)
-  const res = await fetch(`${DONGJAK_BASE}/api${path}`, {
-    ...init,
-    headers: { 'Content-Type': 'application/json', 'X-Session-Id': sessionId, ...init?.headers },
-    signal: AbortSignal.timeout(20_000),
-  })
-  if (!res.ok) {
-    // 서버가 주는 오류 본문(message/error)을 그대로 전달 — "400" 만으로는 원인을 알 수 없다
-    const detail = await res.json().then(b => b?.message || b?.error || '').catch(() => '')
-    throw new Error(detail ? `${detail} (회의실 서버 HTTP ${res.status})` : `회의실 예약 서버 오류 (${res.status})`)
+  // 예약 서버(Cloud Run)는 한동안 호출이 없으면 잠들어 있어 첫 응답이 20초를 넘길 수 있다.
+  // 조회(GET)는 타임아웃 시 1회 재시도하고, 쓰기는 중복 예약 위험이 있어 재시도하지 않는다.
+  const retriable = !init?.method || init.method === 'GET'
+  for (let attempt = 0; ; attempt++) {
+    let res: Response
+    try {
+      res = await fetch(`${DONGJAK_BASE}/api${path}`, {
+        ...init,
+        headers: { 'Content-Type': 'application/json', 'X-Session-Id': sessionId, ...init?.headers },
+        signal: AbortSignal.timeout(20_000),
+      })
+    } catch (e) {
+      if (retriable && attempt === 0) continue
+      const timedOut = e instanceof Error && (e.name === 'TimeoutError' || e.name === 'AbortError')
+      throw new Error(timedOut
+        ? '회의실 예약 서버가 응답하지 않습니다(시간 초과). 잠시 후 다시 시도해 주세요.'
+        : '회의실 예약 서버에 연결할 수 없습니다. 잠시 후 다시 시도해 주세요.')
+    }
+    if (!res.ok) {
+      // 서버가 주는 오류 본문(message/error)을 그대로 전달 — "400" 만으로는 원인을 알 수 없다
+      const detail = await res.json().then(b => b?.message || b?.error || '').catch(() => '')
+      throw new Error(detail ? `${detail} (회의실 서버 HTTP ${res.status})` : `회의실 예약 서버 오류 (${res.status})`)
+    }
+    return res.json()
   }
-  return res.json()
 }
 
 /** 내 계정 화면 전용 — 새 세션 ID 를 로그인으로 바인딩한다. */
@@ -49,8 +75,13 @@ async function requireLogin(sessionId: string | null | undefined): Promise<{ use
 }
 
 export async function roomStatus(sessionId: string | null | undefined, date: string) {
-  const { userName } = await requireLogin(sessionId)
-  const r = await call(sessionId, `/reservations?date=${encodeURIComponent(date)}`)
+  // 로그인 확인과 현황 조회를 병렬로 — 순차 2회 왕복이 콜드스타트와 겹치면 타임아웃이 났다
+  const [s, r] = await Promise.all([
+    call(sessionId, '/status'),
+    call(sessionId, `/reservations?date=${encodeURIComponent(date)}`),
+  ])
+  if (!s.loggedIn) throw new DongjakAuthError(DONGJAK_LOGIN_GUIDE)
+  const userName: string = s.userName ?? ''
   if (r.error) throw new Error(r.error)
   // ⚠️ 이 엔드포인트의 예약 필드는 snake_case 다 (room_id/start_hour/end_hour/reserver_name)
   //    — /my-reservations 의 camelCase 와 규약이 달라서, 양쪽 다 받도록 정규화한다.
@@ -72,30 +103,35 @@ export async function roomStatus(sessionId: string | null | undefined, date: str
 
 export async function reserveRoom(sessionId: string | null | undefined, input: {
   roomId: string; date: string; startHour: number; endHour: number; title?: string
-}): Promise<string> {
-  const { userName } = await requireLogin(sessionId)
-  // 실제 예약 사이트는 프로필 6종(회사명·사업자번호·이름·연락처·이메일·호실)을 함께 보낸다 —
-  // 누락하면 400. 사이트에 저장된 프로필을 읽어 동일하게 동봉한다.
-  const p = await call(sessionId, '/profile').catch(() => ({}))
+  /** 이번 예약의 사용자(예약자) 이름 — 참석자가 매번 달라 호출 때마다 받는다 */
+  userName?: string
+}, stored?: DongjakProfile | null): Promise<string> {
+  // 실제 예약 사이트는 프로필 6종(회사명·사업자번호·이름·연락처·이메일·호실)을 함께 보낸다 — 누락하면 400.
+  // WARP 에 저장된 기본정보(stored)를 우선 쓰고, 없으면 예약 사이트에 저장된 프로필로 채운다.
+  const [s, p] = await Promise.all([
+    call(sessionId, '/status'),
+    call(sessionId, '/profile').catch(() => ({})),
+  ])
+  if (!s.loggedIn) throw new DongjakAuthError(DONGJAK_LOGIN_GUIDE)
   const profile = p?.profile ?? {}
   const defaults = p?.defaults ?? {}
   const extra = {
-    companyName: profile.company_name ?? defaults.companyName ?? '',
-    businessNumber: profile.business_number ?? defaults.businessNumber ?? '',
-    userName: profile.user_name ?? userName,
-    phone: profile.phone ?? '',
-    email: profile.email ?? '',
-    roomNumber: profile.room_number ?? defaults.roomNumber ?? '',
+    companyName: stored?.companyName || profile.company_name || defaults.companyName || '',
+    businessNumber: stored?.businessNumber || profile.business_number || defaults.businessNumber || '',
+    userName: input.userName || profile.user_name || s.userName || '',
+    phone: stored?.phone || profile.phone || '',
+    email: stored?.email || profile.email || '',
+    roomNumber: stored?.roomNumber || profile.room_number || defaults.roomNumber || '',
   }
   if (!extra.companyName || !extra.phone) {
-    throw new Error(
-      '예약 사이트 프로필(회사명·연락처 등)이 비어 있어 예약할 수 없습니다 — '
-      + '회의실 예약 사이트에 로그인해 프로필을 한 번 저장한 뒤 다시 시도해 주세요.',
-    )
+    throw new DongjakProfileError('예약 기본정보(회사명·연락처 등)가 등록되어 있지 않아 예약할 수 없습니다.')
   }
   const r = await call(sessionId, '/reservations', {
     method: 'POST',
-    body: JSON.stringify({ ...input, title: input.title || '회의', ...extra }),
+    body: JSON.stringify({
+      roomId: input.roomId, date: input.date, startHour: input.startHour, endHour: input.endHour,
+      title: input.title || '회의', ...extra,
+    }),
   })
   if (!r.success) throw new Error(r.message || '예약에 실패했습니다.')
   return r.message || '예약되었습니다.'
