@@ -1,0 +1,1 @@
+ALTER TABLE "WorkActivity" ADD COLUMN "source" TEXT NOT NULL DEFAULT 'web';

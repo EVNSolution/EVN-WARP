@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { LayoutDashboard, Target, Users, BookOpen, Filter, BarChart2, UserRound, Settings2, CircleUserRound, UserCog, Wallet, Megaphone } from 'lucide-react'
+import { LayoutDashboard, Target, Users, BookOpen, Filter, BarChart2, UserRound, Settings2, CircleUserRound, UserCog, Wallet, Megaphone, Bot } from 'lucide-react'
 import LogoutButton from './LogoutButton'
 import NotificationBell from './NotificationBell'
 import SuggestionNavItem from './SuggestionNavItem'
@@ -12,6 +12,7 @@ const BASE_NAV_ITEMS = [
   { href: '/a3',           label: '전략과제 A3',    icon: Target },
   { href: '/weekly',       label: '주간업무',       icon: Users },
   { href: '/notes',        label: '업무공간',       icon: BookOpen },
+  { href: '/ai-log',       label: 'AI 업무 기록',   icon: Bot },
   { href: '/funnel',       label: '영업 파이프라인', icon: Filter },
   { href: '/sales-report', label: '영업 리포트',    icon: BarChart2 },
 ]

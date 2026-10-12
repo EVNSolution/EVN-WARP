@@ -1,5 +1,5 @@
 {
-  "prismaSchemaSha256": "bf52d41ddd61fe88ce4b1a93279df4102e661500bdbf4f53402f4364e6ea8c83",
+  "prismaSchemaSha256": "7237cd1154292dc5e373c7157516206cbdb05cc511a3d2664fb3940c16f7d3c2",
   "requiredTables": [
     "Announcement",
     "BuildupEvent",
@@ -10,9 +10,21 @@
     "PersonalCard"
   ],
   "requiredColumnAdditions": {
-    "WorkActivity": ["companions", "startTime", "endTime", "imageUrl", "visibility"],
-    "Suggestion": ["filesJson", "replyFilesJson"],
-    "CompanyScheduleRule": ["month"]
+    "WorkActivity": [
+      "companions",
+      "startTime",
+      "endTime",
+      "imageUrl",
+      "visibility",
+      "source"
+    ],
+    "Suggestion": [
+      "filesJson",
+      "replyFilesJson"
+    ],
+    "CompanyScheduleRule": [
+      "month"
+    ]
   },
   "requiredIndexes": [
     "BuildupEvent_eventKey_key",
@@ -21,8 +33,14 @@
   ],
   "requiredColumns": {
     "CustomerMerge": [
-      "sourceId", "targetId", "actorId", "actorName", "previewToken",
-      "choicesJson", "snapshotJson", "createdAt"
+      "sourceId",
+      "targetId",
+      "actorId",
+      "actorName",
+      "previewToken",
+      "choicesJson",
+      "snapshotJson",
+      "createdAt"
     ],
     "Announcement": [
       "id",
@@ -57,15 +75,49 @@
       "createdAt"
     ],
     "TripReport": [
-      "id", "type", "title", "userId", "userName", "teamName", "destination", "purpose",
-      "visitTarget", "companions", "startDate", "endDate", "transport", "accommodation",
-      "budgetTransport", "budgetAccomm", "budgetMeal", "budgetOther",
-      "actualTransport", "actualAccomm", "actualMeal", "actualOther",
-      "schedule", "result", "nextAction",
-      "preApprovalStatus", "preApprovalComment", "preApprovedAt", "preApprovalRequestedAt",
-      "preApproverId", "preApproverName",
-      "status", "approverId", "approverName", "approvalComment", "approvedAt", "submittedAt",
-      "approversJson", "createdAt", "updatedAt", "travelersJson", "fxCurrency", "fxRate"
+      "id",
+      "type",
+      "title",
+      "userId",
+      "userName",
+      "teamName",
+      "destination",
+      "purpose",
+      "visitTarget",
+      "companions",
+      "startDate",
+      "endDate",
+      "transport",
+      "accommodation",
+      "budgetTransport",
+      "budgetAccomm",
+      "budgetMeal",
+      "budgetOther",
+      "actualTransport",
+      "actualAccomm",
+      "actualMeal",
+      "actualOther",
+      "schedule",
+      "result",
+      "nextAction",
+      "preApprovalStatus",
+      "preApprovalComment",
+      "preApprovedAt",
+      "preApprovalRequestedAt",
+      "preApproverId",
+      "preApproverName",
+      "status",
+      "approverId",
+      "approverName",
+      "approvalComment",
+      "approvedAt",
+      "submittedAt",
+      "approversJson",
+      "createdAt",
+      "updatedAt",
+      "travelersJson",
+      "fxCurrency",
+      "fxRate"
     ]
   },
   "privacyPreflights": []
