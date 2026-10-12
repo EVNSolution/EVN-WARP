@@ -137,7 +137,35 @@ export function warmDongjak(sessionId: string | null | undefined): void {
 export async function dongjakLogin(sessionId: string, id: string, password: string): Promise<{ userName: string }> {
   const r = await call(sessionId, '/login', { method: 'POST', body: JSON.stringify({ id, password }) })
   if (!r.success) throw new Error(r.error || '로그인 실패')
-  return { userName: r.userName ?? id }
+  const userName = r.userName ?? id
+  loginCache.set(sessionId, { at: Date.now(), userName }) // 방금 로그인했으니 확인 캐시를 바로 채운다
+  return { userName }
+}
+
+/**
+ * 세션 자동 유지(keep-alive) — 창업센터 업스트림 세션은 한동안 쓰지 않으면 만료되고,
+ * 만료된 세션으로 호출하면 예약 앱이 응답 없이 매달린다. 연결된 모든 세션을 주기적으로
+ * 실제 사용(/my-reservations)해 만료를 막는다. instrumentation.ts 가 서버 기동 시 시작한다.
+ */
+export function startDongjakKeepAlive(listSessions: () => Promise<string[]>): void {
+  const g = globalThis as { __dongjakKeepAlive?: boolean }
+  if (g.__dongjakKeepAlive) return
+  g.__dongjakKeepAlive = true
+  const tick = async () => {
+    try {
+      for (const sid of await listSessions()) {
+        // 실제 사용자 요청과 섞이지 않게 직렬화 큐를 타고, 죽은 세션에 오래 매달리지 않게 8초로 끊는다
+        await serialize(sid, () =>
+          fetch(`${DONGJAK_BASE}/api/my-reservations`, {
+            headers: { 'X-Session-Id': sid },
+            signal: AbortSignal.timeout(8_000),
+          }),
+        ).catch(() => {})
+      }
+    } catch { /* DB 조회 실패 등 — 다음 주기에 다시 */ }
+  }
+  // 블루/그린 두 컨테이너가 같은 순간에 치지 않도록 시작 시점에 지터를 둔다
+  setTimeout(() => { void tick(); setInterval(() => { void tick() }, 15 * 60_000) }, Math.random() * 60_000)
 }
 
 export async function dongjakStatus(sessionId: string | null | undefined): Promise<{ loggedIn: boolean; userName?: string }> {
