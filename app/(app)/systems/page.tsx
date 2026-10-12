@@ -14,7 +14,7 @@ const CUSTOMER_SYSTEMS: Array<{ name: string; url: string | null }> = [
   { name: '토마토노', url: 'https://admin.shopify.com/store/7hrud1-xq/apps/clever-k-food-1/app/orders' },
   { name: 'DSV', url: 'https://dsv.cleversystem.ai/control' },
   { name: '휴먼로지스', url: null },
-  { name: '화인로지스', url: null },
+  { name: '화인로지스', url: 'https://cleversystem.ai/company/hwain/settlement?one_tab=upload' },
   { name: '천하운수', url: null },
   { name: 'SH로지스', url: null },
   { name: 'Core Express', url: null },
