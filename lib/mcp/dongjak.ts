@@ -23,10 +23,38 @@ export interface DongjakProfile {
   roomNumber?: string
 }
 
+// ⚠️ 같은 세션 ID 의 요청은 한 번에 하나씩만 보낸다.
+// 예약 앱 자체는 0.1~0.2초에 응답하는데(무세션 측정), WARP 에서만 시간 초과가 났다 —
+// WARP 는 예열·현황·로그인확인을 같은 세션으로 동시에 쏘는 유일한 클라이언트였고,
+// 이 앱이 같은 세션의 동시 요청에서 매달리는 것으로 보인다 (브라우저는 순차 요청이라 빠름).
+const sessionQueue = new Map<string, Promise<unknown>>()
+
+function serialize<T>(sessionId: string, fn: () => Promise<T>): Promise<T> {
+  const prev = sessionQueue.get(sessionId) ?? Promise.resolve()
+  const next = prev.then(fn, fn) // 앞 요청의 성공/실패와 무관하게 순서만 보장한다
+  const tail = next.then(() => undefined, () => undefined)
+  sessionQueue.set(sessionId, tail)
+  tail.then(() => { if (sessionQueue.get(sessionId) === tail) sessionQueue.delete(sessionId) })
+  return next
+}
+
+/** 세션 없이 서버 생존만 확인 — 시간 초과의 원인(서버 vs 세션)을 가려내는 데 쓴다. */
+async function probeServerAlive(): Promise<boolean> {
+  try {
+    const r = await fetch(`${DONGJAK_BASE}/api/status`, { signal: AbortSignal.timeout(5_000) })
+    return r.ok
+  } catch {
+    return false
+  }
+}
+
 async function call(sessionId: string | null | undefined, path: string, init?: RequestInit): Promise<any> {
   if (!sessionId) throw new DongjakAuthError(DONGJAK_LOGIN_GUIDE)
-  // 예약 서버(Cloud Run)는 한동안 호출이 없으면 잠들어 있어 첫 응답이 수십 초 걸릴 수 있다.
-  // 조회(GET)는 짧게 끊고 1회 더 길게 재시도하고, 쓰기는 중복 예약 위험이 있어 재시도하지 않는다.
+  return serialize(sessionId, () => doCall(sessionId, path, init))
+}
+
+async function doCall(sessionId: string, path: string, init?: RequestInit): Promise<any> {
+  // 조회(GET)는 타임아웃 시 1회 더 길게 재시도하고, 쓰기는 중복 예약 위험이 있어 재시도하지 않는다.
   const retriable = !init?.method || init.method === 'GET'
   for (let attempt = 0; ; attempt++) {
     let res: Response
@@ -39,9 +67,13 @@ async function call(sessionId: string | null | undefined, path: string, init?: R
     } catch (e) {
       if (retriable && attempt === 0) continue
       const timedOut = e instanceof Error && (e.name === 'TimeoutError' || e.name === 'AbortError')
-      throw new Error(timedOut
-        ? '회의실 예약 서버가 응답하지 않습니다(시간 초과). 잠시 후 다시 시도해 주세요.'
-        : '회의실 예약 서버에 연결할 수 없습니다. 잠시 후 다시 시도해 주세요.')
+      if (!timedOut) throw new Error('회의실 예약 서버에 연결할 수 없습니다. 잠시 후 다시 시도해 주세요.')
+      // 서버 자체가 죽은 건지, 이 세션의 처리만 매달리는 건지 가려서 알려준다
+      const alive = await probeServerAlive()
+      throw new Error(alive
+        ? '예약 서버는 정상인데 연결된 회의실 계정 세션의 응답만 지연되고 있습니다 — '
+          + 'WARP 내 계정 → AI 연결에서 회의실 예약 계정을 다시 로그인(재연결)한 뒤 시도해 주세요.'
+        : '회의실 예약 서버가 응답하지 않습니다(시간 초과). 잠시 후 다시 시도해 주세요.')
     }
     if (!res.ok) {
       // 서버가 주는 오류 본문(message/error)을 그대로 전달 — "400" 만으로는 원인을 알 수 없다
