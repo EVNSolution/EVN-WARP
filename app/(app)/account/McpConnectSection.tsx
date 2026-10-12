@@ -157,8 +157,8 @@ function DongjakConnect() {
       <div className="text-xs font-semibold text-slate-700">회의실 예약 계정 연결 (선택)</div>
       <p className="text-[11px] text-slate-400 mt-0.5 mb-2">
         <b>서울창업센터(동작) 로그인 계정을 확인한 후 입력하세요.</b> 회사 메일/WARP 계정과
-        연동되지 않는 <b>센터 홈페이지의 별도 계정</b>입니다 (센터 사이트에서 직접 로그인이 되는지
-        먼저 확인해 보세요). 연결하면 AI에게 &ldquo;내일 2시 회의실 잡아줘&rdquo;가 가능해집니다.
+        연동되지 않는 <b>센터 홈페이지의 별도 계정</b>입니다.
+        연결하면 AI에게 &ldquo;내일 2시 회의실 잡아줘&rdquo;가 가능해집니다.
         비밀번호는 저장되지 않습니다.
       </p>
       {loading ? <p className="text-[11px] text-slate-400">확인 중...</p> : connected ? (
