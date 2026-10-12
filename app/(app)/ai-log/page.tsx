@@ -40,7 +40,7 @@ export default async function AiLogPage() {
   const users = [...byUser.entries()].sort((a, b) => b[1].count - a[1].count)
 
   return (
-    <div className="p-6 max-w-4xl">
+    <div className="p-6">
       {/* 헤더 (공통 스타일: 검은 배경 + 둥근 모서리) */}
       <div className="px-6 py-4 mb-5 rounded-xl" style={{ backgroundColor: '#111111' }}>
         <h1 className="text-xl font-bold text-white">AI 업무 기록</h1>
@@ -49,6 +49,7 @@ export default async function AiLogPage() {
         </p>
       </div>
 
+      <div className="max-w-4xl">
       {rows.length === 0 ? (
         <div className="text-sm text-slate-400 border border-dashed border-slate-200 rounded-lg p-8 text-center">
           아직 AI로 기록된 활동이 없습니다.<br />
@@ -105,6 +106,7 @@ export default async function AiLogPage() {
           </table>
         </>
       )}
+      </div>
     </div>
   )
 }

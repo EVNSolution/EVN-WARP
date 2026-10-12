@@ -454,13 +454,15 @@ export default function AdminClient({
 
   /* ── 렌더 ── */
   return (
-    <div className="p-8 max-w-7xl mx-auto space-y-8">
+    <div className="p-6">
 
-      {/* 헤더 */}
-      <div>
-        <h1 className="text-2xl font-bold text-slate-800">관리자</h1>
-        <p className="text-sm text-slate-500 mt-1">사용자 계정 및 데이터 관리</p>
+      {/* 헤더 (공통 스타일: 검은 배경 + 둥근 모서리, 콘텐츠 전폭) */}
+      <div className="px-6 py-4 mb-4 rounded-xl" style={{ backgroundColor: '#111111' }}>
+        <h1 className="text-xl font-bold text-white">관리자</h1>
+        <p className="text-[11px] mt-0.5" style={{ color: '#C5D42A' }}>사용자 계정 및 데이터 관리</p>
       </div>
+
+      <div className="max-w-7xl mx-auto space-y-8">
 
       {/* ══ 등록 항목 (제품/팀/사용자/차량) — 동일 크기 박스 + 스크롤 ══ */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -1641,6 +1643,7 @@ export default function AdminClient({
 
       {canMergeCustomers && <CustomerMergePanel />}
 
+      </div>
     </div>
   )
 }

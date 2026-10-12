@@ -261,7 +261,7 @@ export default async function SalesReportPage({
   return (
     <div className="flex-1 overflow-y-auto bg-slate-50 min-h-screen">
       {/* 헤더 (공통 스타일: 검은 배경 + 둥근 모서리) */}
-      <div className="px-6 py-4 mx-4 mt-3 mb-1 rounded-xl" style={{ backgroundColor: '#111111' }}>
+      <div className="px-6 py-4 mx-6 mt-6 mb-4 rounded-xl" style={{ backgroundColor: '#111111' }}>
         <div className="flex flex-col gap-3">
           <div className="flex items-center justify-between">
             <div>
@@ -273,7 +273,7 @@ export default async function SalesReportPage({
             <div className="flex items-center gap-3">
               {isAdmin && (
                 <a href="/sales-report/kia-letter" target="_blank" rel="noopener noreferrer"
-                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg border border-blue-200 text-blue-700 bg-blue-50 hover:bg-blue-100 transition-colors">
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-white text-blue-700 hover:bg-blue-50 transition-colors">
                   📄 공문발송 (기아 대장동)
                 </a>
               )}
@@ -284,9 +284,12 @@ export default async function SalesReportPage({
               />
             </div>
           </div>
-          <Suspense>
-            <PeriodSelector from={range.from} to={range.to} period={period} view={view} mode={mode} />
-          </Suspense>
+          {/* 기간 선택기 — 라이트 톤 컨트롤이라 흰 카드에 담아 검은 헤더와 분리 (대시보드 패턴) */}
+          <div className="bg-white rounded-xl px-4 py-2.5">
+            <Suspense>
+              <PeriodSelector from={range.from} to={range.to} period={period} view={view} mode={mode} />
+            </Suspense>
+          </div>
         </div>
       </div>
 

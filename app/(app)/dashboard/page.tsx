@@ -73,7 +73,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
   const ganttHref = `/weekly?week=${weekId}&tab=gantt&view=company`
 
   return (
-    <div className="p-5 bg-slate-100 h-[calc(100vh-64px)] flex flex-col overflow-hidden">
+    <div className="p-6 bg-slate-100 h-[calc(100vh-64px)] flex flex-col overflow-hidden">
 
       {/* ── 헤더 ── */}
       <div className="flex items-center justify-between px-6 py-4 mb-4 rounded-xl shrink-0" style={{ backgroundColor: '#111111' }}>
