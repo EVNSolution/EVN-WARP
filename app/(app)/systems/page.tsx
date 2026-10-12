@@ -15,8 +15,8 @@ const CUSTOMER_SYSTEMS: Array<{ name: string; url: string | null }> = [
   { name: 'DSV', url: 'https://dsv.cleversystem.ai/control' },
   { name: '휴먼로지스', url: 'https://cleversystem.ai/company/hm/settlement?human_tab=dashboard' },
   { name: '화인로지스', url: 'https://cleversystem.ai/company/hwain/settlement?one_tab=upload' },
-  { name: '천하운수', url: null },
-  { name: 'SH로지스', url: null },
+  { name: '천하운수', url: 'https://cleversystem.ai/company/cheonha/dashboard' },
+  { name: 'SH로지스', url: 'https://cleversystem.ai/company/sh/settlement?delirabbit_tab=dispatch' },
   { name: 'Core Express', url: null },
   { name: '바로고', url: null },
 ]
