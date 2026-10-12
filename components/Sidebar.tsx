@@ -78,7 +78,7 @@ export default function Sidebar({ userName, userEmail, isAdmin = false, isExtern
             <Link
               key={href}
               href={href}
-              className="relative flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-all"
+              className="relative flex items-center gap-3 px-3 py-2 rounded-lg text-[13px] transition-all"
               style={{
                 fontWeight: active ? 600 : 400,
                 color: active ? '#ffffff' : '#c0c0c0',
@@ -101,7 +101,7 @@ export default function Sidebar({ userName, userEmail, isAdmin = false, isExtern
                 <div className="absolute left-0 top-1/2 -translate-y-1/2 rounded-r-full"
                   style={{ width: 3, height: '54%', backgroundColor: '#C5D42A' }} />
               )}
-              <Icon size={17} style={{ color: active ? '#C5D42A' : '#888', flexShrink: 0 }} />
+              <Icon size={16} style={{ color: active ? '#C5D42A' : '#888', flexShrink: 0 }} />
               {label}
             </Link>
           )

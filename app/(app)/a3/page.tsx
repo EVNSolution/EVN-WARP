@@ -26,8 +26,8 @@ export default async function A3ListPage() {
 
   return (
     <A3ExpandProvider>
-      <div className="p-8">
-        <div className="flex items-center justify-between px-6 py-4 mb-6 rounded-xl" style={{ backgroundColor: '#111111' }}>
+      <div className="p-6">
+        <div className="flex items-center justify-between px-6 py-4 mb-4 rounded-xl" style={{ backgroundColor: '#111111' }}>
           <div>
             <h1 className="text-xl font-bold text-white">전략과제 A3</h1>
             <p className="text-xs mt-0.5" style={{ color: '#C5D42A' }}>전략과제별 A3 등록 및 실행 현황</p>

@@ -76,7 +76,7 @@ export default function AccountClient({ userName, userEmail, teams, currentTeamI
 
   return (
     <div className="flex flex-col h-full min-h-screen bg-slate-50">
-      <div className="px-6 py-4 shrink-0 mx-4 mt-3 rounded-xl" style={{ background: '#111111' }}>
+      <div className="px-6 py-4 shrink-0 mx-6 mt-6 rounded-xl" style={{ background: '#111111' }}>
         <h1 className="text-lg font-bold text-white leading-tight">내 계정</h1>
         <p className="text-[11px] mt-0.5" style={{ color: '#C5D42A' }}>프로필 · AI 연결 · 비밀번호 변경</p>
       </div>
