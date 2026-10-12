@@ -13,7 +13,7 @@ import {
 import CalendarView, { type CalActivity, type CalVehicleReservation, type CalScheduleItem } from '@/components/CalendarView'
 import FilterSelects from './FilterSelects'
 import PersonalScopeToggle from './PersonalScopeToggle'
-import MeetingRoomsTab from './MeetingRoomsTab'
+import MeetingRoomsTab, { MeetingRoomsPrewarm } from './MeetingRoomsTab'
 import { auth } from '@/auth'
 import { canViewAllCardUsage } from '@/lib/permissions'
 
@@ -446,6 +446,9 @@ export default async function NotesPage({ searchParams }: { searchParams: Promis
           </Link>
         </div>
       </div>
+
+      {/* 업무공간에 들어오면 회의실 예약 서버를 미리 깨워 둔다 — 회의실 탭이 즉시 뜨게 */}
+      <MeetingRoomsPrewarm />
 
       {/* ── 탭 ── */}
       <div className="flex gap-0 mb-4 border-b border-slate-200">

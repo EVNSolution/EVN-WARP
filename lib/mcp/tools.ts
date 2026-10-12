@@ -356,7 +356,10 @@ async function meetingRoomStatus(user: McpUser, a: Record<string, any>): Promise
   const extra = orphans.length
     ? `\n(방 목록에 없는 예약 ${orphans.length}건: ${orphans.map(r => `${r.roomId} ${r.startHour}~${r.endHour}시`).join(', ')})`
     : ''
-  return { text: `${day.date} 회의실 현황 (로그인: ${day.userName})\n${byRoom.join('\n')}${extra}` }
+  const staleNote = day.stale
+    ? `\n※ 예약 서버 응답이 느려 ${new Intl.DateTimeFormat('ko-KR', { timeZone: 'Asia/Seoul', hour: '2-digit', minute: '2-digit' }).format(new Date(day.asOf))} 기준 결과입니다 — 방금 바뀐 예약은 빠져 있을 수 있습니다.`
+    : ''
+  return { text: `${day.date} 회의실 현황 (로그인: ${day.userName})\n${byRoom.join('\n')}${extra}${staleNote}` }
 }
 
 /** 저장된 예약 기본정보 JSON 파싱 — 깨져 있으면 없는 것으로 본다. */
@@ -366,15 +369,21 @@ function parseDongjakProfile(user: McpUser): DongjakProfile | null {
 }
 
 const PROFILE_SETUP_GUIDE =
-  '예약 기본정보 등록 필요 — 처음 한 번만 등록하면 됩니다. 사용자에게 ①회사명 ②사업자등록번호 '
-  + '③연락처 ④이메일 ⑤입주 호실을 물어본 뒤 save_meeting_profile 로 저장하고, 예약을 다시 진행해 주세요. '
-  + '(다음 예약부터는 자동으로 들어갑니다)'
+  '예약 기본정보 등록이 필요합니다 (처음 한 번만). 사용자에게 「회의실 예약에 들어갈 기본정보를 알려주세요 — '
+  + '①회사명 ②사업자등록번호 ③연락처 ④이메일 ⑤입주 호실」이라고 물어보고, 다섯 항목을 받으면 '
+  + 'save_meeting_profile 로 저장한 뒤 예약을 다시 진행해 주세요. 다음 예약부터는 자동으로 들어갑니다. '
+  + '(도구 정의에 save_meeting_profile 이 보이지 않으면 인자를 그대로 전달해도 처리됩니다)'
 
 async function reserveMeetingRoom(user: McpUser, a: Record<string, any>): Promise<ToolResult> {
   if (!a.room_id || !a.date || a.start_hour == null || a.end_hour == null) return err('room_id/date/start_hour/end_hour 는 필수입니다.')
   if (Number(a.end_hour) <= Number(a.start_hour)) return err('종료 시각이 시작 시각보다 커야 합니다.')
   const userName = String(a.user_name ?? '').trim()
-  if (!userName) return err('user_name(이번 예약의 사용자 이름)은 필수입니다 — 참석자가 매번 다르므로 사용자에게 누구 이름으로 예약할지 물어본 뒤 다시 호출해 주세요.')
+  if (!userName) {
+    return err(
+      '예약자 이름이 필요합니다. 사용자에게 「이번 예약은 누구 이름으로 할까요? (예: 장원철, 장원철 외 3명)」라고 물어보고, '
+      + '답을 받은 뒤 reserve_meeting_room 을 user_name 인자에 그 이름을 넣어 다시 호출해 주세요. '
+      + '현재 도구 정의에 user_name 항목이 보이지 않더라도 인자로 전달하면 정상 처리됩니다.')
+  }
   try {
     const msg = await reserveRoom(user.dongjakSessionId, {
       roomId: String(a.room_id), date: a.date, startHour: Number(a.start_hour), endHour: Number(a.end_hour),
