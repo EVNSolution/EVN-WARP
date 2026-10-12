@@ -160,29 +160,45 @@ export default function NotificationBell({ compact = false }: { compact?: boolea
       <div ref={ref} className="relative">
         <button
           onClick={() => setOpen(v => !v)}
-          title="알림"
           className={compact
-            ? 'relative flex items-center justify-center w-7 h-7 rounded-lg transition-all'
+            ? 'relative flex flex-col items-center gap-1 w-full py-1.5 rounded-lg transition-all'
             : 'relative flex items-center gap-2 w-full px-3 py-2 rounded-lg text-xs transition-all'}
           style={{ color: open ? '#ffffff' : '#888' }}
           onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = '#ccc' }}
           onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = open ? '#ffffff' : '#888' }}
         >
-          <Bell size={compact ? 15 : 13} />
-          {!compact && '알림'}
-          {unread > 0 && (
-            <span
-              className={`absolute min-w-[16px] h-4 rounded-full text-[9px] font-bold flex items-center justify-center px-0.5 text-black ${compact ? '-top-1 -right-1' : 'top-1.5 left-5'}`}
-              style={{ backgroundColor: '#C5D42A' }}
-            >
-              {unread > 9 ? '9+' : unread}
-            </span>
+          {compact ? (
+            <>
+              <span className="relative">
+                <Bell size={15} />
+                {unread > 0 && (
+                  <span className="absolute -top-1.5 -right-2.5 min-w-[15px] h-[15px] rounded-full text-[9px] font-bold flex items-center justify-center px-0.5 text-black"
+                    style={{ backgroundColor: '#C5D42A' }}>
+                    {unread > 9 ? '9+' : unread}
+                  </span>
+                )}
+              </span>
+              <span className="text-[10px] leading-none">알림</span>
+            </>
+          ) : (
+            <>
+              <Bell size={13} />
+              알림
+              {unread > 0 && (
+                <span
+                  className="absolute top-1.5 left-5 min-w-[16px] h-4 rounded-full text-[9px] font-bold flex items-center justify-center px-0.5 text-black"
+                  style={{ backgroundColor: '#C5D42A' }}
+                >
+                  {unread > 9 ? '9+' : unread}
+                </span>
+              )}
+            </>
           )}
         </button>
 
         {open && (
           <div
-            className={`absolute left-0 w-72 rounded-xl shadow-2xl overflow-hidden z-50 ${compact ? 'top-9' : 'bottom-10'}`}
+            className={`absolute left-0 w-72 rounded-xl shadow-2xl overflow-hidden z-50 ${compact ? 'top-11' : 'bottom-10'}`}
             style={{ backgroundColor: '#1c1c1c', border: '1px solid rgba(255,255,255,0.1)' }}
           >
             <div
