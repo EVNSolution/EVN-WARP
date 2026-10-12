@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { getWeekId } from '@/lib/week'
 import { auth } from '@/auth'
+import { expandRepeatDates, isRepeatFreq } from '@/lib/recurrence'
 
 export async function GET(req: NextRequest) {
   const [{ searchParams }, session] = await Promise.all([
@@ -54,7 +55,7 @@ export async function POST(req: NextRequest) {
     const { taskId, teamId, date, endDate, type, title, content, mentions, companions, startTime, endTime, kpiItemId, kpiWeek, actualNum, countermeasureId, userId, userName, planStatus, referenceUrl,
       expenseTransport, expenseAccomm, expenseMeal, expenseOther, expensePaymentMethod, expenseCardId, expenseNote,
       expenseTransportReceipt, expenseAccommReceipt, expenseMealReceipt, expenseOtherReceipt,
-      documentUrl, imageUrl, visibility } = body
+      documentUrl, imageUrl, visibility, repeat } = body
 
     if (!teamId || !date || !type || !title?.trim()) {
       return NextResponse.json({ error: '필수 항목을 입력해주세요.' }, { status: 400 })
@@ -77,42 +78,57 @@ export async function POST(req: NextRequest) {
       .some((v: unknown) => v != null && Number(v) > 0)
 
     const week = getWeekId(new Date(date))
-    const activity = await prisma.workActivity.create({
-      data: {
-        taskId:           taskId           || null,
-        teamId,
-        date, endDate: endDate || null, week, type,
-        title:            title.trim(),
-        content:          content          || null,
-        mentions:         mentions         || null,
-        companions:       companions       || null,
-        startTime:        startTime        || null,
-        endTime:          endTime          || null,
-        planStatus:       planStatus === '완료' ? '완료' : '계획',
-        referenceUrl:     referenceUrl || null,
-        kpiItemId:        kpiItemId        || null,
-        kpiWeek:          kpiWeek          || null,
-        countermeasureId: countermeasureId || null,
-        userId:   resolvedUserId,
-        userName: resolvedUserName,
-        expenseTransport:        expenseTransport        ?? null,
-        expenseAccomm:           expenseAccomm           ?? null,
-        expenseMeal:             expenseMeal             ?? null,
-        expenseOther:            expenseOther            ?? null,
-        expensePaymentMethod:    expensePaymentMethod    || null,
-        expenseCardId:           expenseCardId           || null,
-        expenseStatus:           hasExpenseAmount ? '신청' : null,
-        expenseNote:             expenseNote             || null,
-        expenseTransportReceipt: expenseTransportReceipt || null,
-        expenseAccommReceipt:    expenseAccommReceipt    || null,
-        expenseMealReceipt:      expenseMealReceipt      || null,
-        expenseOtherReceipt:     expenseOtherReceipt     || null,
-        documentUrl:             documentUrl             || null,
-        imageUrl:                imageUrl                || null,
-        visibility:              visibility              || '공개',
-      },
-    })
-    return NextResponse.json(activity, { status: 201 })
+    const data = {
+      taskId:           taskId           || null,
+      teamId,
+      date, endDate: endDate || null, week, type,
+      title:            title.trim(),
+      content:          content          || null,
+      mentions:         mentions         || null,
+      companions:       companions       || null,
+      startTime:        startTime        || null,
+      endTime:          endTime          || null,
+      planStatus:       planStatus === '완료' ? '완료' : '계획',
+      referenceUrl:     referenceUrl || null,
+      kpiItemId:        kpiItemId        || null,
+      kpiWeek:          kpiWeek          || null,
+      countermeasureId: countermeasureId || null,
+      userId:   resolvedUserId,
+      userName: resolvedUserName,
+      expenseTransport:        expenseTransport        ?? null,
+      expenseAccomm:           expenseAccomm           ?? null,
+      expenseMeal:             expenseMeal             ?? null,
+      expenseOther:            expenseOther            ?? null,
+      expensePaymentMethod:    expensePaymentMethod    || null,
+      expenseCardId:           expenseCardId           || null,
+      expenseStatus:           hasExpenseAmount ? '신청' : null,
+      expenseNote:             expenseNote             || null,
+      expenseTransportReceipt: expenseTransportReceipt || null,
+      expenseAccommReceipt:    expenseAccommReceipt    || null,
+      expenseMealReceipt:      expenseMealReceipt      || null,
+      expenseOtherReceipt:     expenseOtherReceipt     || null,
+      documentUrl:             documentUrl             || null,
+      imageUrl:                imageUrl                || null,
+      visibility:              visibility              || '공개',
+    }
+    const activity = await prisma.workActivity.create({ data })
+
+    // 반복 등록 (매일·평일·매주) — 기간·KPI 활동은 제외, 비용·첨부는 첫 활동에만
+    let repeatCount = 0
+    if (repeat && isRepeatFreq(repeat.freq) && !endDate && !kpiItemId) {
+      const dates = expandRepeatDates(date, repeat.freq, String(repeat.until ?? '')).slice(1)
+      for (const d of dates) {
+        await prisma.workActivity.create({ data: {
+          ...data, date: d, week: getWeekId(new Date(d)),
+          expenseTransport: null, expenseAccomm: null, expenseMeal: null, expenseOther: null,
+          expensePaymentMethod: null, expenseCardId: null, expenseStatus: null, expenseNote: null,
+          expenseTransportReceipt: null, expenseAccommReceipt: null, expenseMealReceipt: null, expenseOtherReceipt: null,
+          documentUrl: null, imageUrl: null,
+        } })
+        repeatCount++
+      }
+    }
+    return NextResponse.json({ ...activity, repeatCount }, { status: 201 })
   } catch (err: any) {
     console.error('[POST /api/activities]', err)
     return NextResponse.json({ error: err?.message ?? '저장 중 오류가 발생했습니다.' }, { status: 500 })

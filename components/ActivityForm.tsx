@@ -19,6 +19,7 @@ import { draftToBody } from '@/components/CardUsageForm'
 import type { CardUsageDraft } from '@/lib/cardUsage'
 import { teamOrderIndex } from '@/lib/teamOrder'
 import { stratColor } from '@/lib/a3'
+import { REPEAT_OPTIONS, expandRepeatDates, MAX_REPEAT, type RepeatFreq } from '@/lib/recurrence'
 
 /* ── 활동 유형 분류 가이드 (매뉴얼 기준) ── */
 const TYPE_GUIDE = [
@@ -391,6 +392,9 @@ export default function ActivityForm({ teams, tasks, users = [], vehicles = [], 
   const [allDay,       setAllDay]       = useState(mode === 'edit' ? !initial?.startTime : false)
   const [startTime,    setStartTime]    = useState(initial?.startTime ?? '09:00')
   const [endTime,      setEndTime]      = useState(initial?.endTime   ?? '18:00')
+  // 반복 등록 (신규 작성 시에만)
+  const [repeatFreq,   setRepeatFreq]   = useState<'none' | RepeatFreq>('none')
+  const [repeatUntil,  setRepeatUntil]  = useState('')
   const [type,         setType]         = useState<string>(initial?.type ?? '내부회의')
   const [title,        setTitle]        = useState(initial?.title     ?? '')
   const [content,      setContent]      = useState(initial?.content   ?? '')
@@ -512,6 +516,8 @@ export default function ActivityForm({ teams, tasks, users = [], vehicles = [], 
 
   const meta = TYPE_META[type] ?? TYPE_META['문서·자료작성']
   const IS_KPI_TYPE = type === '실적추가' || type === '세금계산서 발행'
+  const canRepeat   = mode === 'new' && !TRIP_TYPES.has(type) && !LEAVE_TYPES.has(type) && !CERT_TYPES.has(type) && !IS_KPI_TYPE
+  const repeatCount = canRepeat && repeatFreq !== 'none' && repeatUntil ? expandRepeatDates(date, repeatFreq, repeatUntil).length : 0
 
   function handleParentSelect(pid: string) {
     setParentTaskId(pid)
@@ -582,6 +588,7 @@ export default function ActivityForm({ teams, tasks, users = [], vehicles = [], 
       countermeasureId: countermeasureId || null,
       endDate: (isTrip || LEAVE_TYPES.has(type)) && endDate && endDate > date ? endDate : null,
       ...(IS_KPI_TYPE && { kpiItemId, kpiWeek, actualNum }),
+      ...(canRepeat && repeatFreq !== 'none' && repeatUntil ? { repeat: { freq: repeatFreq, until: repeatUntil } } : {}),
       documentUrl: documentUrl || null,
       imageUrl:    imageUrl    || null,
     }
@@ -1000,6 +1007,36 @@ export default function ActivityForm({ teams, tasks, users = [], vehicles = [], 
                     className="w-4 h-4 rounded border-slate-300 text-indigo-500 cursor-pointer" />
                   <span className="text-sm text-slate-600">하루 종일</span>
                 </label>
+              </div>
+            )}
+            {/* 반복 — 판매리드회의처럼 매일·매주 반복되는 활동을 한 번에 등록 */}
+            {canRepeat && (
+              <div className="flex items-center gap-2 flex-wrap mt-2">
+                <span className="text-xs font-semibold text-slate-500">반복</span>
+                <select value={repeatFreq}
+                  onChange={e => {
+                    const v = e.target.value as 'none' | RepeatFreq
+                    setRepeatFreq(v)
+                    if (v !== 'none' && !repeatUntil) {
+                      const d = new Date(date + 'T00:00:00Z'); d.setUTCDate(d.getUTCDate() + 27)
+                      setRepeatUntil(d.toISOString().slice(0, 10))
+                    }
+                  }}
+                  className="border border-slate-200 rounded-lg px-2 py-1.5 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-400">
+                  {REPEAT_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                </select>
+                {repeatFreq !== 'none' && (
+                  <>
+                    <span className="text-xs text-slate-500">종료일</span>
+                    <input type="date" value={repeatUntil} min={date} onChange={e => setRepeatUntil(e.target.value)}
+                      className="border border-slate-200 rounded-lg px-3 py-1.5 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-400" />
+                    {repeatCount > 0 && (
+                      <span className={`text-xs font-semibold ${repeatCount >= MAX_REPEAT ? 'text-amber-600' : 'text-indigo-600'}`}>
+                        총 {repeatCount}회 등록{repeatCount >= MAX_REPEAT ? ` (최대 ${MAX_REPEAT}회)` : ''}
+                      </span>
+                    )}
+                  </>
+                )}
               </div>
             )}
           </div>

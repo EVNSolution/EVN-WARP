@@ -99,13 +99,21 @@ export function collectReportItems(report: WeeklyReport, entries: readonly TeamE
   const buckets = new Map<string, ReportItem[]>()
   for (const [, { teamName, tasks: tt }] of entries) {
     for (const task of tt) {
-      // 세부전략과제가 없는 팀과제는 아직 실행 단위로 쪼개지지 않은 것이므로 주간관리에 표시하지 않는다
-      for (const s of task.subTasks) {
-        const leaf: LeafItem = { id: s.id, title: s.title, startDate: s.startDate, endDate: s.endDate }
+      // 세부과제가 없는 팀과제(예: AI 과제)는 팀과제 자체를 한 항목으로,
+      // 세부과제가 있어도 팀과제에 직접 기록된 활동·보고는 '팀과제 공통' 항목으로 표시한다
+      const hasSubs = task.subTasks.length > 0
+      const leaves: (LeafItem & { self?: boolean })[] = [
+        ...task.subTasks.map(s => ({ id: s.id, title: s.title, startDate: s.startDate, endDate: s.endDate })),
+        { id: task.id, title: hasSubs ? '팀과제 공통' : '팀과제 전체 (세부과제 미등록)', startDate: task.startDate, endDate: task.endDate, self: true },
+      ]
+      for (const leaf of leaves) {
         const update   = report.updateByTaskId.get(leaf.id)
         const taskActs = actMap.get(leaf.id) ?? []
         const text     = kind === 'this' ? update?.completed : update?.planned
-        const isActive = isDateRangeActive(leaf.startDate, leaf.endDate, range.startMs, range.endMs)
+        // 기간이 없는 과제는 진행 중으로 간주 (단, 세부과제가 있는 팀과제 공통 항목은 기록이 있을 때만)
+        const isActive = leaf.self && hasSubs ? false
+          : leaf.startDate && leaf.endDate ? isDateRangeActive(leaf.startDate, leaf.endDate, range.startMs, range.endMs)
+          : true
         if (taskActs.length === 0 && !isActive && !text?.trim()) continue
         const key = ((task.strategy || (task.parent as any)?.strategy || '') as string) || '기타'
         if (!buckets.has(key)) buckets.set(key, [])
