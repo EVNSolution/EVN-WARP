@@ -48,6 +48,24 @@ export default function Sidebar({ userName, userEmail, isAdmin = false, isExtern
         <div style={{ fontSize: 10, marginTop: 5, color: '#C5D42A', fontStyle: 'italic', letterSpacing: '0.04em' }}>
           green &amp; reliable
         </div>
+
+        {/* 알림 · 제안함 · 공지 — 가로 아이콘 줄 (세로 메뉴 공간 절약) */}
+        {!isExternal && (
+          <div className="flex items-center gap-1 mt-3">
+            <NotificationBell compact />
+            <SuggestionNavItem isAdmin={isAdmin} compact />
+            <Link
+              href="/notices"
+              title="공지사항"
+              className="relative flex items-center justify-center w-7 h-7 rounded-lg transition-all"
+              style={{ color: pathname.startsWith('/notices') ? '#C5D42A' : '#888' }}
+              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = pathname.startsWith('/notices') ? '#C5D42A' : '#ccc' }}
+              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = pathname.startsWith('/notices') ? '#C5D42A' : '#888' }}
+            >
+              <Megaphone size={15} />
+            </Link>
+          </div>
+        )}
       </div>
 
       {/* 내비게이션 */}
@@ -87,34 +105,6 @@ export default function Sidebar({ userName, userEmail, isAdmin = false, isExtern
           )
         })}
       </nav>
-
-      {!isExternal && (
-        <>
-          {/* 알림 */}
-          <div className="px-3 pb-0.5">
-            <NotificationBell />
-          </div>
-
-          {/* 제안함 */}
-          <div className="px-3 pb-1">
-            <SuggestionNavItem isAdmin={isAdmin} />
-          </div>
-
-          {/* 공지사항 */}
-          <div className="px-3 pb-1">
-            <Link
-              href="/notices"
-              className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs transition-all"
-              style={{ color: pathname.startsWith('/notices') ? '#C5D42A' : '#555' }}
-              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = pathname.startsWith('/notices') ? '#C5D42A' : '#999' }}
-              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = pathname.startsWith('/notices') ? '#C5D42A' : '#555' }}
-            >
-              <Megaphone size={13} />
-              공지사항
-            </Link>
-          </div>
-        </>
-      )}
 
       {/* 보조 메뉴 */}
       <div className="px-3 pb-2 space-y-0.5">

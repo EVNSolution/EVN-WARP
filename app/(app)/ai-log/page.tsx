@@ -43,14 +43,15 @@ export default async function AiLogPage() {
     <div className="p-6 max-w-4xl">
       <h1 className="text-lg font-bold text-slate-800">AI 업무 기록</h1>
       <p className="text-xs text-slate-400 mt-1 mb-5">
-        개인 Claude(업무 기록 도우미)를 통해 올라온 최근 30일 활동입니다.
-        내용 수정·완료 처리는 <b>업무공간</b>에서 하세요.
+        개인 AI(Claude·ChatGPT 등)와 대화하며 올린 최근 30일 업무 기록입니다.
+        연결은 <b>내 계정 → AI 연결</b>에서, 내용 수정·완료 처리는 <b>업무공간</b>에서 하세요.
       </p>
 
       {rows.length === 0 ? (
         <div className="text-sm text-slate-400 border border-dashed border-slate-200 rounded-lg p-8 text-center">
           아직 AI로 기록된 활동이 없습니다.<br />
-          Claude Desktop에 warp-mcp를 연결하고 &ldquo;오늘 한 일 WARP에 정리해줘&rdquo;라고 해보세요.
+          <b>내 계정 → AI 연결</b>에서 토큰을 발급해 Claude나 ChatGPT에 등록한 뒤,
+          &ldquo;오늘 한 일 WARP에 정리해줘&rdquo;라고 해보세요.
         </div>
       ) : (
         <>
