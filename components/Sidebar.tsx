@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { LayoutDashboard, Target, Users, BookOpen, Filter, BarChart2, UserRound, Settings2, CircleUserRound, UserCog, Wallet, Megaphone, Bot } from 'lucide-react'
+import { LayoutDashboard, Target, Users, BookOpen, Filter, BarChart2, UserRound, Settings2, CircleUserRound, UserCog, Wallet, Megaphone, Bot, Boxes } from 'lucide-react'
 import LogoutButton from './LogoutButton'
 import NotificationBell from './NotificationBell'
 import SuggestionNavItem from './SuggestionNavItem'
@@ -14,6 +14,7 @@ const BASE_NAV_ITEMS = [
   { href: '/notes',        label: '업무공간',       icon: BookOpen },
   { href: '/funnel',       label: '영업 파이프라인', icon: Filter },
   { href: '/sales-report', label: '영업 리포트',    icon: BarChart2 },
+  { href: '/systems',      label: '사내 시스템',    icon: Boxes },
 ]
 
 // 메뉴 맨 아래 고정 항목
