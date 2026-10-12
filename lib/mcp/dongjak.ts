@@ -48,12 +48,19 @@ export async function roomStatus(sessionId: string | null | undefined, date: str
   const { userName } = await requireLogin(sessionId)
   const r = await call(sessionId, `/reservations?date=${encodeURIComponent(date)}`)
   if (r.error) throw new Error(r.error)
-  return {
-    userName,
-    date,
-    rooms: (r.rooms ?? []) as Array<{ id: string; name: string }>,
-    reservations: (r.reservations ?? []) as Array<{ id: string; roomId: string; startHour: number; endHour: number; title?: string; userName?: string }>,
-  }
+  // 서버 응답의 id/시각 타입이 숫자·문자 혼재 가능 — 문자열/숫자로 정규화해 돌려준다
+  const rooms = ((r.rooms ?? []) as Array<{ id: unknown; name?: string }>).map(room => ({
+    id: String(room.id), name: room.name ?? String(room.id),
+  }))
+  const reservations = ((r.reservations ?? []) as Array<Record<string, unknown>>).map(v => ({
+    id: String(v.id ?? ''),
+    roomId: String(v.roomId ?? ''),
+    startHour: Number(v.startHour),
+    endHour: Number(v.endHour),
+    title: typeof v.title === 'string' ? v.title : undefined,
+    userName: typeof v.userName === 'string' ? v.userName : undefined,
+  }))
+  return { userName, date, rooms, reservations }
 }
 
 export async function reserveRoom(sessionId: string | null | undefined, input: {

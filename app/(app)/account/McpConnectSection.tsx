@@ -106,7 +106,79 @@ export default function McpConnectSection() {
           </div>
 
           <DongjakConnect />
+          <SkillsTokenConnect />
         </div>
+      )}
+    </div>
+  )
+}
+
+/** 사내 스킬(EVn_Skills) 개인 토큰 — 필요한 사람만 등록해서 AI가 사내 스킬을 쓰게 한다. */
+function SkillsTokenConnect() {
+  const [loading, setLoading] = useState(true)
+  const [registered, setRegistered] = useState(false)
+  const [form, setForm] = useState(false)
+  const [token, setToken] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+
+  const refresh = async () => {
+    try {
+      const r = await fetch('/api/account/skills-token').then(r => r.json())
+      setRegistered(!!r.registered)
+    } catch { /* 표시용 */ }
+    setLoading(false)
+  }
+  useEffect(() => { refresh() }, [])
+
+  const save = async () => {
+    setBusy(true); setError('')
+    const r = await fetch('/api/account/skills-token', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token }),
+    }).then(r => r.json())
+    setBusy(false)
+    if (r.ok) { setForm(false); setToken(''); refresh() }
+    else setError(r.error || '등록 실패')
+  }
+
+  const remove = async () => {
+    if (!window.confirm('사내 스킬 토큰을 삭제할까요? AI가 더 이상 사내 스킬을 읽을 수 없게 됩니다.')) return
+    setBusy(true)
+    await fetch('/api/account/skills-token', { method: 'DELETE' })
+    setBusy(false)
+    refresh()
+  }
+
+  return (
+    <div className="border-t border-slate-100 pt-3 mt-1">
+      <div className="text-xs font-semibold text-slate-700">사내 스킬 토큰 (선택)</div>
+      <p className="text-[11px] text-slate-400 mt-0.5 mb-2">
+        AI가 회사 표준 스킬(미팅 사전조사·기술문서 양식 등)을 쓰려면 사내 스킬 저장소(EVn_Skills)
+        접근 토큰이 필요합니다. <b>관리자에게 토큰 발급을 요청</b>해 받은 값을 등록하세요.
+        저장 전에 실제 접근 가능 여부를 확인하며, 등록한 토큰은 다시 표시되지 않습니다.
+      </p>
+      {loading ? <p className="text-[11px] text-slate-400">확인 중...</p> : registered ? (
+        <div className="flex items-center gap-2 text-xs">
+          <span className="text-emerald-600 font-semibold">등록됨</span>
+          <button onClick={remove} disabled={busy} className="text-[11px] px-2 py-1 rounded border border-slate-300 text-slate-500">삭제</button>
+        </div>
+      ) : form ? (
+        <div className="space-y-2 max-w-xs">
+          <input value={token} onChange={e => setToken(e.target.value)} type="password" placeholder="github_pat_... 토큰 붙여넣기"
+            className="w-full text-xs border border-slate-200 rounded px-2 py-1.5"
+            onKeyDown={e => e.key === 'Enter' && save()} />
+          {error && <p className="text-[11px] text-red-500">{error}</p>}
+          <div className="flex gap-2">
+            <button onClick={save} disabled={busy || !token.trim()}
+              className="text-xs px-3 py-1.5 rounded bg-slate-800 text-white disabled:opacity-50">{busy ? '확인 중...' : '등록'}</button>
+            <button onClick={() => { setForm(false); setError('') }} className="text-xs px-3 py-1.5 rounded border border-slate-300 text-slate-500">취소</button>
+          </div>
+        </div>
+      ) : (
+        <button onClick={() => setForm(true)} className="text-xs px-3 py-1.5 rounded border border-slate-300 text-slate-600">
+          토큰 등록
+        </button>
       )}
     </div>
   )

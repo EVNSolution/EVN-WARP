@@ -4,7 +4,7 @@ import { prisma } from '@/lib/db'
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const body = await req.json()
-  const { type, title, content, mentions, companions, startTime, endTime, date, endDate, kpiItemId, kpiWeek, actualNum, countermeasureId, planStatus, referenceUrl,
+  const { type, title, content, mentions, companions, startTime, endTime, date, endDate, kpiItemId, kpiWeek, actualNum, countermeasureId, planStatus, referenceUrl, source,
     taskId, teamId, userId, userName,
     expenseTransport, expenseAccomm, expenseMeal, expenseOther, expensePaymentMethod, expenseCardId, expenseNote,
     expenseTransportReceipt, expenseAccommReceipt, expenseMealReceipt, expenseOtherReceipt,
@@ -41,6 +41,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
       ...(kpiWeek          !== undefined && { kpiWeek:          kpiWeek          || null }),
       ...(countermeasureId !== undefined && { countermeasureId: countermeasureId || null }),
       ...(planStatus        !== undefined && { planStatus: planStatus === '완료' ? '완료' : '계획' }),
+      ...(source === 'mcp' && { source: 'mcp' }), // AI(개인 Claude) 경유 수정 표시 — 그 외 값은 무시
       ...(referenceUrl      !== undefined && { referenceUrl:      referenceUrl      || null }),
       ...(expenseTransport        !== undefined && { expenseTransport:        expenseTransport        ?? null }),
       ...(expenseAccomm           !== undefined && { expenseAccomm:           expenseAccomm           ?? null }),
