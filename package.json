@@ -17,7 +17,8 @@
     "security:audit": "python3 deploy/audit_production_dependencies.py",
     "account-evidence:dispatch": "tsx scripts/dispatch-account-evidence.ts",
     "account-control:hq-probe": "tsx scripts/hq-local-integration-probe.ts",
-    "test:customer-merge": "tsx --test lib/customer-merge.test.ts"
+    "test:customer-merge": "tsx --test lib/customer-merge.test.ts",
+    "test:customer-list": "tsx --test lib/customer-list.test.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.105.0",

@@ -21,6 +21,7 @@ on:
       - lib/customer-merge*.ts
       - lib/customer-alias.ts
       - lib/customer-mobile.ts
+      - lib/customer-list*.ts
       - prisma/schema.prisma
       - deploy/schema-migrations/**
       - lib/buildup-import/**
@@ -56,4 +57,5 @@ jobs:
           npm run test:marketing-inquiries
           python3 -m unittest discover -s deploy/tests -p 'test_*.py'
           npm run test:customer-merge
+          npm run test:customer-list
           npm run test:integration-contract
