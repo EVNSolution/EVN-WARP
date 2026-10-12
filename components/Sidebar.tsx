@@ -37,32 +37,34 @@ export default function Sidebar({ userName, userEmail, isAdmin = false, isExtern
   return (
     <aside className="w-56 min-h-screen flex flex-col" style={{ backgroundColor: '#111111' }}>
 
-      {/* 로고 */}
-      <div className="px-5 py-5" style={{ borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
-        <div style={{ fontSize: 11, color: '#bbb', fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 6 }}>
-          EV<span style={{ color: '#C5D42A' }}>&</span>Solution
-        </div>
-        <div style={{ fontSize: 22, fontWeight: 900, color: '#ffffff', letterSpacing: '-0.04em', lineHeight: 1 }}>
-          WARP
-        </div>
-        <div style={{ fontSize: 10, marginTop: 5, color: '#C5D42A', fontStyle: 'italic', letterSpacing: '0.04em' }}>
-          green &amp; reliable
+      {/* 로고 — 가운데 정렬 */}
+      <div className="px-3 py-5" style={{ borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
+        <div className="text-center">
+          <div style={{ fontSize: 11, color: '#bbb', fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 6 }}>
+            EV<span style={{ color: '#C5D42A' }}>&</span>Solution
+          </div>
+          <div style={{ fontSize: 22, fontWeight: 900, color: '#ffffff', letterSpacing: '-0.04em', lineHeight: 1 }}>
+            WARP
+          </div>
+          <div style={{ fontSize: 10, marginTop: 5, color: '#C5D42A', fontStyle: 'italic', letterSpacing: '0.04em' }}>
+            green &amp; reliable
+          </div>
         </div>
 
-        {/* 알림 · 제안함 · 공지 — 가로 아이콘 줄 (세로 메뉴 공간 절약) */}
+        {/* 알림 · 제안함 · 공지 — 1/3씩 가로 배치 (아이콘+이름) */}
         {!isExternal && (
-          <div className="flex items-center gap-1 mt-3">
+          <div className="grid grid-cols-3 gap-1 mt-4">
             <NotificationBell compact />
             <SuggestionNavItem isAdmin={isAdmin} compact />
             <Link
               href="/notices"
-              title="공지사항"
-              className="relative flex items-center justify-center w-7 h-7 rounded-lg transition-all"
+              className="relative flex flex-col items-center gap-1 py-1.5 rounded-lg transition-all"
               style={{ color: pathname.startsWith('/notices') ? '#C5D42A' : '#888' }}
               onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = pathname.startsWith('/notices') ? '#C5D42A' : '#ccc' }}
               onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = pathname.startsWith('/notices') ? '#C5D42A' : '#888' }}
             >
               <Megaphone size={15} />
+              <span className="text-[10px] leading-none">공지</span>
             </Link>
           </div>
         )}
