@@ -7,6 +7,7 @@ import { stratColor } from '@/lib/a3'
 import ActivityCardUsagePanel from '@/components/ActivityCardUsagePanel'
 import { draftToBody } from '@/components/CardUsageForm'
 import type { CardUsageDraft } from '@/lib/cardUsage'
+import { REPEAT_OPTIONS, expandRepeatDates, MAX_REPEAT, type RepeatFreq } from '@/lib/recurrence'
 
 const CATEGORIES = [
   { label: '커뮤니케이션', types: ['내부회의', '외부미팅', '이메일', '전화·통화'] },
@@ -69,6 +70,9 @@ export default function MobileActivityForm({ teams, tasks, vehicles = [], initia
   const [type,    setType]    = useState('내부회의')
   const [allDay,     setAllDay]     = useState(true)
   const [startTime,  setStartTime]  = useState('09:00')
+  // 반복 등록 (매일·평일·매주)
+  const [repeatFreq,  setRepeatFreq]  = useState<'none' | RepeatFreq>('none')
+  const [repeatUntil, setRepeatUntil] = useState('')
   const [endTime,    setEndTime]    = useState('18:00')
   const [title,   setTitle]   = useState(initial?.dealName ? `[${initial.dealName}] ` : '')
   const [content, setContent] = useState('')
@@ -134,6 +138,7 @@ export default function MobileActivityForm({ teams, tasks, vehicles = [], initia
           startTime: !allDay ? startTime : null,
           endTime:   !allDay ? endTime   : null,
           mentions: mentions.length > 0 ? mentions.join(', ') : null,
+          ...(canRepeat && repeatFreq !== 'none' && repeatUntil ? { repeat: { freq: repeatFreq, until: repeatUntil } } : {}),
         }),
       })
       const d = await res.json()
@@ -170,6 +175,9 @@ export default function MobileActivityForm({ teams, tasks, vehicles = [], initia
 
   const currentCat = CATEGORIES[catIdx]
   const isLeave = LEAVE_TYPES.has(type)
+  // 반복은 연차·증명서·출장 유형 제외
+  const canRepeat   = !isLeave && type !== '국내출장' && type !== '해외출장'
+  const repeatCount = canRepeat && repeatFreq !== 'none' && repeatUntil ? expandRepeatDates(date, repeatFreq, repeatUntil).length : 0
 
   return (
     <div className="flex flex-col h-full">
@@ -314,6 +322,38 @@ export default function MobileActivityForm({ teams, tasks, vehicles = [], initia
                     return <option key={val} value={val} disabled={val <= startTime}>{val}</option>
                   })}
                 </select>
+              </div>
+            )}
+            {/* 반복 — 판매리드회의처럼 매일·매주 반복되는 활동을 한 번에 등록 */}
+            {canRepeat && (
+              <div className="pt-2 border-t border-gray-100 space-y-2">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-semibold text-gray-500 shrink-0">반복</span>
+                  <select value={repeatFreq}
+                    onChange={e => {
+                      const v = e.target.value as 'none' | RepeatFreq
+                      setRepeatFreq(v)
+                      if (v !== 'none' && !repeatUntil) {
+                        const d = new Date(date + 'T00:00:00Z'); d.setUTCDate(d.getUTCDate() + 27)
+                        setRepeatUntil(d.toISOString().slice(0, 10))
+                      }
+                    }}
+                    className="flex-1 rounded-lg border border-gray-200 bg-gray-50 px-2 py-2 text-sm text-gray-800 outline-none focus:border-blue-400">
+                    {REPEAT_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                  </select>
+                </div>
+                {repeatFreq !== 'none' && (
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-semibold text-gray-500 shrink-0">종료일</span>
+                    <input type="date" value={repeatUntil} min={date} onChange={e => setRepeatUntil(e.target.value)}
+                      className="flex-1 rounded-lg border border-gray-200 bg-gray-50 px-2 py-2 text-sm text-gray-800 outline-none focus:border-blue-400" />
+                  </div>
+                )}
+                {repeatCount > 0 && (
+                  <p className={`text-xs font-semibold ${repeatCount >= MAX_REPEAT ? 'text-amber-600' : 'text-blue-600'}`}>
+                    총 {repeatCount}회 등록{repeatCount >= MAX_REPEAT ? ` (최대 ${MAX_REPEAT}회)` : ''}
+                  </p>
+                )}
               </div>
             )}
           </div>
