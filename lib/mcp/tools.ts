@@ -1,6 +1,6 @@
 import { prisma } from '@/lib/db'
 import { getWeekId } from '@/lib/week'
-import { notifyCompanions } from '@/lib/notify-companions'
+import { notifyCompanions, type CompanionNotifyResult } from '@/lib/notify-companions'
 import { cancelReservation, DongjakProfileError, myReservations, reserveRoom, roomStatus, type DongjakProfile } from './dongjak'
 import { listSkills, loadSkill } from './skills'
 
@@ -38,18 +38,24 @@ export const MCP_INSTRUCTIONS = `
 1. 실제로 수행한 업무만 추린다 — 잡담·미완의 시도·사적 내용 제외.
 2. 업무 1건 = 활동 1건. 제목은 「대상 + 한 일」 15자 내외.
 3. note(내용)는 2~3문장 요약. 대화 원문을 길게 붙이지 않는다.
-4. 함께한 팀원이 대화에 보이면 companions 에 쉼표로 넣는다 — 그 팀원들에게 WARP 알림이 간다.
+4. 등록 전에 「함께 참여한(하는) 분이 있나요?」를 한 번 묻는다. 있다고 하면 find_coworker 로
+   구성원을 찾아 「김철수 (kim@evnsolution.com)님이 맞나요?」처럼 실명·이메일로 확인받은 뒤
+   companions 에 쉼표로 넣는다 — 그 팀원들에게 WARP 알림이 간다. 동명이인이 있으면 반드시
+   이메일로 구분해 확정받는다.
 5. 등록·수정 전에 반드시 제목·유형·내용을 사람이 읽는 문장으로 보여주고 확정받는다. id 는 노출하지 않는다.
 6. list_my_tasks 로 중복 등록을 피한다.
 
 ## 일정 등록
 날짜·시각이 정해진 약속이 보이면 "WARP 캘린더에 등록할까요?" 제안. start_time/end_time 을 넣으면
 캘린더에 그 시간대로 표시된다. 종료 시각을 모르면 1시간으로 잡고 그렇게 말해준다.
+함께 참여하는 분이 있는지도 물어서, 있으면 find_coworker 로 확인 후 companions 에 넣는다.
 
 ## 회의실 예약 (동작사무실)
 - 방·시간이 정해진 예약 요청("내일 2시에 6층 잡아줘"): meeting_room_status 로 그 날짜 현황을
   확인해 해당 시간대가 비어 있는지(차 있으면 비어 있는 대안)를 보여주면서, **같은 메시지에서**
-  「이번 예약은 누구 이름으로 할까요? (예: 장원철, 장원철 외 3명)」 **한 가지만** 물어본다.
+  「이번 예약은 누구 이름으로 할까요? 함께 참여하는 분이 있다면 같이 알려주세요」를 물어본다.
+  참여 인원이 있으면 user_name 은 「장원철 외 2명」 형태로 하고, 예약 후 WARP 캘린더 기록을
+  제안할 때 참여자들을 find_coworker 로 확인해 companions 로 넣는다 (참여자들에게 알림이 간다).
   회의 제목·선호하는 방 등 다른 것은 묻지 않는다 — 제목은 사용자가 먼저 말한 경우에만 넣고
   아니면 자동으로 「회의」가 된다. 이름을 받으면 즉시 reserve_meeting_room 을 호출한다.
   현황 조회가 실패하거나 느리면 기다리지 말고 이름만 물어 바로 예약을 진행한다 —
@@ -149,6 +155,20 @@ export const TOOL_DEFINITIONS = [
         end_time: { type: 'string', pattern: TIME_RE },
       },
       required: ['id'],
+    },
+  },
+  {
+    name: 'find_coworker',
+    description:
+      'WARP 구성원을 이름으로 찾는다 (부분 일치). 동반자(companions)를 등록하기 전에 호출해 '
+      + '결과의 이름·이메일을 사용자에게 보여주고 「이분이 맞나요?」로 확정받아라. '
+      + '동명이인이 여럿이면 이메일로 구분해 고르게 한다.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        name: { type: 'string', description: '찾을 이름 (일부만 입력해도 됨, 예: "김철")' },
+      },
+      required: ['name'],
     },
   },
   {
@@ -297,12 +317,12 @@ async function createTask(user: McpUser, a: Record<string, any>): Promise<ToolRe
       userName: user.name,
     },
   })
-  void notifyCompanions({
+  const noti = await notifyCompanions({
     companions: activity.companions, actorId: user.id, actorName: user.name,
     title: activity.title, date: activity.date, action: '등록',
   })
   const time = activity.startTime ? ` ${activity.startTime}${activity.endTime ? `~${activity.endTime}` : ''}` : ''
-  const comp = activity.companions ? `\n동반자: ${activity.companions} (알림 발송)` : ''
+  const comp = companionSummary(noti)
   return { text: `등록 완료 — id: ${activity.id}\n제목: ${activity.title}\n기간: ${activity.date}${activity.endDate ? ` ~ ${activity.endDate}` : ''}${time}\n유형: ${activity.type}${comp}` }
 }
 
@@ -342,7 +362,7 @@ async function updateTask(user: McpUser, a: Record<string, any>): Promise<ToolRe
   if (Object.keys(data).length === 0) return err('바꿀 내용이 없습니다 — title/note/date/due/type/start_time/end_time 중 하나 이상을 주세요.')
   data.source = 'mcp' // AI가 손댄 활동도 AI 업무 기록에 잡히게 표시
   const updated = await prisma.workActivity.update({ where: { id: before.id }, data })
-  void notifyCompanions({
+  const noti = await notifyCompanions({
     companions: updated.companions, actorId: user.id, actorName: user.name,
     title: updated.title, date: updated.date, action: '변경',
   })
@@ -354,8 +374,32 @@ async function updateTask(user: McpUser, a: Record<string, any>): Promise<ToolRe
       + (data.endDate !== undefined ? `  종료일: ${before.endDate ?? '(없음)'} → ${updated.endDate ?? '(없음)'}\n` : '')
       + (data.type !== undefined ? `  유형: ${before.type} → ${updated.type}\n` : '')
       + (data.startTime !== undefined || data.endTime !== undefined
-        ? `  시간: ${before.startTime ?? '하루종일'} → ${updated.startTime ?? '하루종일'}${updated.endTime ? `~${updated.endTime}` : ''}\n` : ''),
+        ? `  시간: ${before.startTime ?? '하루종일'} → ${updated.startTime ?? '하루종일'}${updated.endTime ? `~${updated.endTime}` : ''}\n` : '')
+      + companionSummary(noti),
   }
+}
+
+/** 동반자 알림 결과를 사람이 읽는 한 줄로 — 이메일까지 보여줘 올바른 사람인지 확인하게 한다. */
+function companionSummary(noti: CompanionNotifyResult): string {
+  const parts: string[] = []
+  if (noti.notified.length) parts.push(`동반자 알림 발송: ${noti.notified.map(u => `${u.name} (${u.email})`).join(', ')}`)
+  if (noti.missing.length) parts.push(`⚠️ WARP 에서 찾지 못한 이름(알림 미발송): ${noti.missing.join(', ')} — find_coworker 로 정확한 이름을 확인해 주세요`)
+  return parts.length ? `\n${parts.join('\n')}` : ''
+}
+
+/** WARP 구성원 이름 검색 — 동반자 등록 전에 실명·이메일로 본인 확인용. */
+async function findCoworker(a: Record<string, any>): Promise<ToolResult> {
+  const q = String(a.name ?? '').trim()
+  if (!q) return err('name 은 필수입니다.')
+  const users = await prisma.user.findMany({
+    where: { name: { contains: q } },
+    select: { name: true, email: true, team: { select: { name: true } } },
+    take: 10,
+    orderBy: { name: 'asc' },
+  })
+  if (users.length === 0) return { text: `「${q}」와 일치하는 WARP 구성원이 없습니다 — 이름을 다시 확인해 주세요.` }
+  const lines = users.map(u => `- ${u.name} (${u.email}${u.team?.name ? `, ${u.team.name}` : ''})`)
+  return { text: `일치하는 구성원 ${users.length}명:\n${lines.join('\n')}\n이 중 맞는 분인지 사용자에게 이름·이메일로 확인받은 뒤 companions 에 넣으세요.` }
 }
 
 async function meetingRoomStatus(user: McpUser, a: Record<string, any>): Promise<ToolResult> {
@@ -483,7 +527,7 @@ async function sendFeedback(user: McpUser, a: Record<string, any>): Promise<Tool
 
 /** AI 사용 집계(AI 업무 기록 대시보드)용 도구 분류. */
 const TOOL_CATEGORY: Record<string, string> = {
-  create_task: '업무기록', list_my_tasks: '업무기록', update_task: '업무기록',
+  create_task: '업무기록', list_my_tasks: '업무기록', update_task: '업무기록', find_coworker: '업무기록',
   meeting_room_status: '회의실', reserve_meeting_room: '회의실', save_meeting_profile: '회의실',
   my_meeting_reservations: '회의실', cancel_meeting_reservation: '회의실',
   send_feedback: '피드백',
@@ -517,6 +561,7 @@ async function dispatchTool(user: McpUser, name: string, args: Record<string, an
       case 'create_task': return await createTask(user, a)
       case 'list_my_tasks': return await listMyTasks(user, a)
       case 'update_task': return await updateTask(user, a)
+      case 'find_coworker': return await findCoworker(a)
       case 'meeting_room_status': return await meetingRoomStatus(user, a)
       case 'reserve_meeting_room': return await reserveMeetingRoom(user, a)
       case 'save_meeting_profile': return await saveMeetingProfile(user, a)
