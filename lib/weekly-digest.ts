@@ -53,7 +53,7 @@ type Row = {
   userName: string | null; visibility: string | null
   startTime: string | null
   team: { name: string } | null
-  task: { title: string } | null
+  task: { title: string; parentId: string | null; team: { name: string } | null } | null
 }
 
 async function fetchRows(since: Date): Promise<Row[]> {
@@ -65,18 +65,26 @@ async function fetchRows(since: Date): Promise<Row[]> {
       title: true, content: true, type: true, date: true, userName: true, visibility: true,
       startTime: true,
       team: { select: { name: true } },
-      task: { select: { title: true } },
+      task: { select: { title: true, parentId: true, team: { select: { name: true } } } },
     },
   })
 }
 
+// 팀 구분은 사람의 소속이 아니라 「연계 과제의 팀」 기준 — 경영진 등 소속 그룹이 팀으로 뜨지 않게.
+// 독립활동·전사 전략과제 직접 연계처럼 팀 단위가 애매한 것은 「공통」으로 묶는다.
 function groupByTeam(rows: Row[]): Map<string, Row[]> {
   const byTeam = new Map<string, Row[]>()
   for (const r of rows) {
-    const t = r.team?.name ?? '기타'
+    const t = r.task && r.task.parentId ? (r.task.team?.name ?? '공통') : '공통'
     const arr = byTeam.get(t) ?? []
     arr.push(r)
     byTeam.set(t, arr)
+  }
+  // 「공통」은 항상 마지막 탭으로
+  if (byTeam.has('공통')) {
+    const common = byTeam.get('공통')!
+    byTeam.delete('공통')
+    byTeam.set('공통', common)
   }
   return byTeam
 }
