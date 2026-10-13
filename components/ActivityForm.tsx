@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import {
   Save, Users, Building2, MapPin, Globe, Paperclip, AtSign,
   BarChart2, BookOpen, Star, TrendingUp, Link2, Unlink,
-  Mail, Phone, FileText, UserPlus, Coffee, GraduationCap,
+  Mail, Phone, Video, FileText, UserPlus, Coffee, GraduationCap,
   Briefcase, Target, FileCheck, CalendarDays, HelpCircle, X,
   Code2, PenTool, Package, Wrench, Settings, ClipboardCheck,
   PieChart, Landmark, Award, ChevronDown, ChevronRight, Mic,
@@ -32,7 +32,8 @@ const TYPE_GUIDE = [
       { name: '내부회의',   desc: '팀 내부 또는 전사 정기·비정기 미팅' },
       { name: '외부미팅',   desc: '교통비·숙박비 없이 당일 이동 가능한 외부 관계자와의 미팅 (고객·영업 제외)' },
       { name: '이메일',     desc: '주요 이메일 발송·수신 (아웃룩 링크 첨부 가능)' },
-      { name: '전화·통화', desc: '전화 통화, 화상 통화, 온라인 미팅' },
+      { name: '전화·통화', desc: '전화 통화' },
+      { name: '화상회의',   desc: 'Teams·Zoom 등 화상·온라인 회의' },
     ],
   },
   {
@@ -163,7 +164,7 @@ const TYPE_GUIDE = [
 
 /* ── 활동 유형 8개 카테고리 ── */
 const ACTIVITY_CATEGORIES = [
-  { label: '커뮤니케이션',   types: ['내부회의', '외부미팅', '이메일', '전화·통화'] },
+  { label: '커뮤니케이션',   types: ['내부회의', '외부미팅', '이메일', '전화·통화', '화상회의'] },
   { label: '현장·이동',      types: ['국내출장', '해외출장'] },
   { label: '발표·행사',      types: ['발표/전시·행사'] },
   { label: '학습',           types: ['교육/연수', '세미나·컨퍼런스'] },
@@ -188,6 +189,7 @@ const TYPE_META: Record<string, { icon: React.ReactNode; color: string; activeCo
   '외부미팅':       { icon: <Building2 size={13} />,      color: 'border-purple-200 text-purple-600 bg-purple-50',    activeColor: 'bg-purple-600 text-white border-purple-600',  placeholder: '미팅 내용, 상대방 정보, 후속 조치 등을 기록하세요' },
   '이메일':         { icon: <Mail size={13} />,           color: 'border-sky-200    text-sky-600    bg-sky-50',       activeColor: 'bg-sky-600    text-white border-sky-600',     placeholder: '이메일 제목, 상대방, 주요 내용 등을 기록하세요' },
   '전화·통화':      { icon: <Phone size={13} />,          color: 'border-cyan-200   text-cyan-700   bg-cyan-50',      activeColor: 'bg-cyan-700   text-white border-cyan-700',    placeholder: '통화 상대방, 주요 내용, 결과 등을 기록하세요' },
+  '화상회의':       { icon: <Video size={13} />,          color: 'border-indigo-200 text-indigo-700 bg-indigo-50',    activeColor: 'bg-indigo-600 text-white border-indigo-600',  placeholder: '참석자, 회의 안건, 결정 사항 등을 기록하세요' },
   '국내출장':       { icon: <MapPin size={13} />,         color: 'border-orange-200 text-orange-600 bg-orange-50',    activeColor: 'bg-orange-500 text-white border-orange-500',  placeholder: '출장 목적, 방문처, 결과 등을 기록하세요' },
   '해외출장':       { icon: <Globe size={13} />,          color: 'border-red-200    text-red-600    bg-red-50',       activeColor: 'bg-red-500    text-white border-red-500',     placeholder: '출장 목적, 방문 국가/도시, 결과 등을 기록하세요' },
   '발표/전시·행사': { icon: <Star size={13} />,           color: 'border-rose-200   text-rose-600   bg-rose-50',      activeColor: 'bg-rose-500   text-white border-rose-500',    placeholder: '발표 주제/행사명, 참가 목적, 주요 성과 등을 기록하세요' },

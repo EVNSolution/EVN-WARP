@@ -2,7 +2,7 @@ import { prisma } from '@/lib/db'
 import Link from 'next/link'
 import {
   ChevronLeft, ChevronRight, Plus,
-  Users, Building2, MapPin, Globe, Mail, Phone,
+  Users, Building2, MapPin, Globe, Mail, Phone, Video,
   FileText, BarChart2, BookOpen, Star, Briefcase, TrendingUp,
   UserPlus, Coffee, Link2, GraduationCap,
   Target, FileCheck, CalendarDays, Code2, PenTool,
@@ -24,6 +24,7 @@ const TYPE_META: Record<string, { icon: React.ReactNode; bg: string; text: strin
   '외부미팅':        { icon: <Building2 size={9} />,      bg: 'bg-purple-100',  text: 'text-purple-700' },
   '이메일':          { icon: <Mail size={9} />,           bg: 'bg-sky-100',     text: 'text-sky-700' },
   '전화·통화':       { icon: <Phone size={9} />,          bg: 'bg-cyan-100',    text: 'text-cyan-700' },
+  '화상회의':        { icon: <Video size={9} />,          bg: 'bg-indigo-100',  text: 'text-indigo-700' },
   '국내출장':        { icon: <MapPin size={9} />,         bg: 'bg-orange-100',  text: 'text-orange-700' },
   '해외출장':        { icon: <Globe size={9} />,          bg: 'bg-red-100',     text: 'text-red-700' },
   '발표/전시·행사':  { icon: <Star size={9} />,           bg: 'bg-rose-100',    text: 'text-rose-700' },

@@ -57,6 +57,7 @@ const TYPE_COLORS: Record<string, { bg: string; text: string }> = {
   '외부미팅':        { bg: 'bg-purple-100',  text: 'text-purple-700' },
   '이메일':          { bg: 'bg-sky-100',     text: 'text-sky-700' },
   '전화·통화':       { bg: 'bg-cyan-100',    text: 'text-cyan-700' },
+  '화상회의':        { bg: 'bg-indigo-100',  text: 'text-indigo-700' },
   '국내출장':        { bg: 'bg-orange-100',  text: 'text-orange-700' },
   '해외출장':        { bg: 'bg-red-100',     text: 'text-red-700' },
   '발표/전시·행사':  { bg: 'bg-rose-100',    text: 'text-rose-700' },

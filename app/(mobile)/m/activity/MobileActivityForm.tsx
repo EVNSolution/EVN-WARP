@@ -10,7 +10,7 @@ import type { CardUsageDraft } from '@/lib/cardUsage'
 import { REPEAT_OPTIONS, expandRepeatDates, MAX_REPEAT, type RepeatFreq } from '@/lib/recurrence'
 
 const CATEGORIES = [
-  { label: '커뮤니케이션', types: ['내부회의', '외부미팅', '이메일', '전화·통화'] },
+  { label: '커뮤니케이션', types: ['내부회의', '외부미팅', '이메일', '전화·통화', '화상회의'] },
   { label: '현장·이동',    types: ['국내출장', '해외출장'] },
   { label: '발표·행사',    types: ['발표/전시·행사'] },
   { label: '학습',         types: ['교육/연수', '세미나·컨퍼런스'] },
