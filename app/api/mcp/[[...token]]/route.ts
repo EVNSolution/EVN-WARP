@@ -17,7 +17,7 @@ import { callTool, MCP_INSTRUCTIONS, TOOL_DEFINITIONS, type McpUser } from '@/li
 export const dynamic = 'force-dynamic'
 
 const SUPPORTED_VERSIONS = ['2024-11-05', '2025-03-26', '2025-06-18']
-const SERVER_INFO = { name: 'warp', title: 'EV& WARP 업무 기록', version: '1.0.0' }
+const SERVER_INFO = { name: 'clever', title: 'CLEVER — EV& 업무 연결', version: '1.1.0' }
 
 type JsonRpcMessage = { jsonrpc?: string; id?: unknown; method?: string; params?: any }
 
