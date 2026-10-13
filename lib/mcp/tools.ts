@@ -41,19 +41,24 @@ export const MCP_INSTRUCTIONS = `
 
 ## 업무 등록 절차 (이 순서를 지킨다)
 0. 실제로 수행한 업무만 추린다 — 잡담·미완의 시도·사적 내용 제외. 업무 1건 = 활동 1건.
-1. **업무명과 내용부터 묻는다**: 대화를 바탕으로 제목(「대상 + 한 일」 15자 내외)과
-   내용(2~3문장 요약, 대화 원문을 길게 붙이지 않음) 초안을 만들어
-   「업무명은 '○○○', 내용은 '...' 이렇게 정리할까요?」라고 먼저 물어본다.
+1. **업무명과 세부내용부터 묻는다**: 대화를 바탕으로 제목(「대상 + 한 일」 15자 내외)과
+   세부내용(2~3문장 요약, 대화 원문을 길게 붙이지 않음) 초안을 만들어
+   「업무명은 '○○○', 세부내용은 '...' 이렇게 정리할까요?」라고 먼저 물어본다.
    사용자의 답(수정 포함)을 받기 전에는 다음 단계로 가지 않는다.
+   **세부내용(note)은 필수** — 없이 호출하면 서버가 등록을 거부한다.
 2. 「함께 참여한(하는) 분이 있나요?」를 묻는다. 있다고 하면 find_coworker 로 구성원을 찾아
    「김철수 (kim@evnsolution.com)님이 맞나요?」처럼 실명·이메일로 확인받은 뒤 companions 에
    쉼표로 넣는다 — 그 팀원들에게 WARP 알림이 간다. 동명이인은 반드시 이메일로 구분한다.
    ⚠️ 동반자 이름을 note(내용)에 "동행: ○○" 처럼 적지 마라 — companions 인자에 넣어야만
    WARP 화면의 동반 인원으로 표시되고 알림이 발송된다.
-3. 과제 연계(필수 확인): 「이 업무를 어떤 과제와 연계할까요?」를 반드시 묻는다 —
-   list_strategy_tasks 로 과제 목록을 보여주고 선택받아 task_id 로 넣는다 (가장 하위 과제 권장).
-   해당 없다고 하면 task_id 를 빈 문자열("")로 등록한다. task_id 없이 호출하면 서버가 등록을
-   거부하고 과제 목록을 돌려준다. 공개 여부를 언급하면 visibility 로 설정한다 — 기본은 공개.
+3. 과제 연계(필수 확인) — list_strategy_tasks 로 과제 트리를 받아 **한 단계씩** 묻는다:
+   ① 「어떤 전략과제에 해당하나요?」 — 전사 전략과제들을 번호 선택지로 제시하되, 마지막에
+      반드시 「N. 독립활동 (과제 연계 없음)」 선택지를 포함한다. 독립활동이면 task_id: "" 로 등록.
+   ② 전략과제를 고르면 그 아래 팀과제들을 번호 선택지로 제시해 고르게 한다.
+   ③ 고른 팀과제에 세부과제가 있으면 세부과제들을 제시한다 (「이 팀과제로 바로 연계」 선택지 포함).
+   한 메시지에 전체 트리를 쏟아붓지 말고 단계별로 좁혀 간다. 최종 선택된 가장 하위 항목의
+   id 를 task_id 로 넣는다. task_id 없이 호출하면 서버가 등록을 거부하고 목록을 돌려준다.
+   공개 여부를 언급하면 visibility 로 설정한다 — 기본은 공개.
 4. **최종 승인**: 등록될 내용 전체(제목·내용·날짜·시간·유형·동반자·연계 과제)를 한 번에 보여주고
    「이대로 등록할까요?」 승인을 받는다. 승인 후에만 create_task 를 호출한다. id 는 노출하지 않는다.
 5. list_my_tasks 로 중복 등록을 피한다.
@@ -133,14 +138,14 @@ export const TOOL_DEFINITIONS = [
         date: { type: 'string', pattern: DATE_RE, description: '시작일 YYYY-MM-DD — 생략하면 오늘(한국 시간)' },
         due: { type: 'string', pattern: DATE_RE, description: '종료일(기한) YYYY-MM-DD — 하루짜리 일이면 생략' },
         type: { type: 'string', enum: ACTIVITY_TYPES, description: '활동 유형 — 업무공간 입력창의 유형 버튼과 동일' },
-        note: { type: 'string', description: '내용/메모' },
+        note: { type: 'string', description: '세부내용 (필수) — 사용자에게 확인받은 2~3문장 요약. 없이 호출하면 등록이 거부된다' },
         companions: { type: 'string', description: '동반자 — 함께한 WARP 팀원 이름들, 쉼표 구분 (예: "홍길동, 김철수"). 반드시 이 인자로 넣을 것 — note 에 텍스트로 적으면 동반 인원 표시·알림이 되지 않는다' },
-        task_id: { type: 'string', description: '연계할 과제 id — 반드시 사용자에게 물어본 뒤, list_strategy_tasks 에서 선택한 과제 id. 해당 없으면 빈 문자열("")' },
+        task_id: { type: 'string', description: '연계할 과제 id — 전략과제→팀과제→세부과제 순으로 사용자에게 물어 고른 과제의 id. 독립활동이면 빈 문자열("")' },
         visibility: { type: 'string', enum: ['공개', '제목만 공개', '전체 비공개'], description: '공개 여부 — 생략하면 「공개」' },
         start_time: { type: 'string', pattern: TIME_RE, description: '일정 시작 시각 HH:MM — 생략하면 하루종일' },
         end_time: { type: 'string', pattern: TIME_RE, description: '일정 종료 시각 HH:MM' },
       },
-      required: ['title', 'type', 'task_id'],
+      required: ['title', 'type', 'note', 'task_id'],
     },
   },
   {
@@ -335,16 +340,24 @@ async function createTask(user: McpUser, a: Record<string, any>): Promise<ToolRe
   if (!a.title?.trim() || !a.type) return err('title 과 type 은 필수입니다.')
   if (!ACTIVITY_TYPES.includes(a.type)) return err(`지원하지 않는 활동 유형: ${a.type}`)
   if (!user.teamId) return err(`계정(${user.name})에 소속 팀이 없어 활동을 등록할 수 없습니다 — WARP 관리자에게 팀 배정을 요청하세요.`)
+  // 세부내용은 필수 — 없이 오면 등록하지 않고 질문을 지시한다 (구버전 정의 대화도 배우게)
+  if (!String(a.note ?? '').trim()) {
+    return err(
+      '아직 등록되지 않았습니다 — 세부내용이 필요합니다. 사용자에게 「세부 내용은 어떻게 '
+      + '기록할까요?」라고 물어보고(2~3문장 요약 초안을 제시해도 좋음), 받은 내용을 note 인자에 '
+      + '넣어 다시 호출해 주세요. (note 항목이 도구 정의에 보이지 않아도 인자로 전달하면 처리됩니다)')
+  }
   // 과제 연계는 서버가 강제로 확인한다 — task_id 없이 오면 등록하지 않고 과제 목록과 함께 되돌린다.
   // (구버전 도구 정의를 캐시한 대화도 이 응답으로 인자 이름과 선택지를 배운다)
   if (a.task_id === undefined) {
     const lines = await buildTaskTreeLines(user)
     return err(
-      '아직 등록되지 않았습니다 — 과제 연계 확인이 필요합니다. 사용자에게 「이 업무를 어떤 과제와 '
-      + '연계할까요? 해당 없으면 \'없음\'이라고 해주세요」라고 물어봐 주세요.\n'
-      + (lines.length ? `과제 목록 (★가 우리 팀):\n${lines.join('\n')}\n` : '(현재 등록된 과제가 없습니다)\n')
-      + '선택한 과제의 id 를 task_id 인자에 넣어 다시 호출하고, 해당 없으면 task_id: "" 로 호출하면 '
-      + '등록됩니다. (task_id 항목이 도구 정의에 보이지 않아도 인자로 전달하면 처리됩니다)')
+      '아직 등록되지 않았습니다 — 과제 연계 확인이 필요합니다. 아래 과제 트리를 가지고 사용자에게 '
+      + '**한 단계씩** 물어봐 주세요: ① 전략과제 선택(마지막 선택지로 「독립활동(연계 없음)」 포함) '
+      + '② 그 아래 팀과제 선택 ③ 세부과제가 있으면 세부과제 선택. 각 단계는 번호 선택지로 제시합니다.\n'
+      + (lines.length ? `과제 트리 (★가 우리 팀):\n${lines.join('\n')}\n` : '(현재 등록된 과제가 없습니다 — 독립활동으로 진행하세요)\n')
+      + '최종 선택한 과제의 id 를 task_id 인자에 넣어 다시 호출하고, 독립활동이면 task_id: "" 로 '
+      + '호출하면 등록됩니다. (task_id 항목이 도구 정의에 보이지 않아도 인자로 전달하면 처리됩니다)')
   }
   let linkedTask: { id: string; code: string; title: string } | null = null
   const tid = String(a.task_id ?? '').trim()
