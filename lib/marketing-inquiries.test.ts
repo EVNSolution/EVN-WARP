@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict'
 import { createHash } from 'node:crypto'
 import { execFileSync } from 'node:child_process'
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
+import { rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import test from 'node:test'
@@ -16,6 +17,9 @@ import {
   handleMarketingInquiryCheckRequest,
   handleMarketingInquiryRequest,
   marketingInquiryActivityId,
+  marketingInquiryLeadId,
+  marketingRegistrationMemo,
+  MARKETING_LEAD_POLICY,
   type MarketingInquiry,
 } from './marketing-inquiries'
 
@@ -60,6 +64,135 @@ function landingPayload(sourceId = 'abcdefab-cdef-4abc-8def-abcdefabcdef'): Mark
   return payload(sourceId, { ...LANDING_SCOPE, inquiryTime: '09:07:23', rejectExistingCustomer: true,
     landing: { kind: 'subsidy', region: '경기', consentVersion: '2026-10-07-v1', consentedAt: '2026-10-08T00:07:23.000Z' } })
 }
+
+async function leadMapping() {
+  await prisma.user.create({ data: { name: '최도준', email: 'sales@example.invalid', password: 'synthetic-unused' } })
+  return prisma.product.create({ data: { code: 'STEGO K1', name: 'PV5 오픈배드냉탑 (구변)', active: true } })
+}
+const withLead = (input: MarketingInquiry): MarketingInquiry => ({ ...input, rejectExistingCustomer: true, registrationPolicy: MARKETING_LEAD_POLICY })
+
+test('opt-in registration atomically creates online customer, mapped potential lead and both stage records for each source', async () => {
+  const product = await leadMapping()
+  for (const input of [withLead(landingPayload()), withLead(payload('00000000-0000-4000-8000-000000000090', { phone: '01011112222' }))]) {
+    const first = await send(input)
+    assert.equal(first.response.status, 200)
+    assert.equal(first.body.registration.state, 'complete')
+    const lead = await prisma.salesDeal.findUniqueOrThrow({ where: { id: marketingInquiryLeadId(first.body.activityId) } })
+    const customer = await prisma.customer.findUniqueOrThrow({ where: { id: lead.customerId! } })
+    assert.equal(customer.id, first.body.customerId)
+    assert.equal(customer.source, '온라인')
+    assert.equal(lead.source, '온라인'); assert.equal(lead.assignee, '최도준'); assert.equal(lead.productId, product.id)
+    assert.equal(lead.stageCode, '1-2'); assert.equal(lead.stage, '리드'); assert.equal(lead.salesStatus, '진행중')
+    assert.deepEqual(JSON.parse(lead.checklistJson!), { '1-1-0': true })
+    assert.equal(lead.memo, marketingRegistrationMemo(new Date(first.body.registration.registeredAt)))
+    const stages = await prisma.stageHistory.findMany({ where: { dealId: lead.id }, orderBy: { toStageCode: 'asc' } })
+    assert.deepEqual(stages.map(row => [row.fromStageCode, row.toStageCode, row.changedBy]), [[null, '1-1', 'EV&Marketing'], ['1-1', '1-2', 'EV&Marketing']])
+    const again = await send({ ...input, sourceId: input.sourceId.toUpperCase() })
+    assert.deepEqual(again.body, { ...first.body, created: false, duplicate: true })
+    const lookup = await check({ source: input.source, companyScopeId: input.companyScopeId, homepageScopeId: input.homepageScopeId,
+      registrationPolicy: MARKETING_LEAD_POLICY, items: [{ sourceId: input.sourceId, phone: input.phone }] })
+    assert.deepEqual(lookup.body.results[0].receipt, again.body)
+  }
+  assert.equal(await prisma.customer.count(), 2); assert.equal(await prisma.salesDeal.count(), 2); assert.equal(await prisma.stageHistory.count(), 4)
+})
+
+test('registration memo uses the first success KST date and replay preserves later sales edits', async () => {
+  assert.equal(marketingRegistrationMemo(new Date('2026-10-12T14:59:59Z')), '2026-10-12 SNS 유입')
+  assert.equal(marketingRegistrationMemo(new Date('2026-10-12T15:00:00Z')), '2026-10-13 SNS 유입')
+  const product = await leadMapping(), input = withLead(landingPayload())
+  const first = await send(input), leadId = first.body.registration.leadId
+  await prisma.salesDeal.update({ where: { id: leadId }, data: { stageCode: '1-3', assignee: '다른 담당자', memo: '사용자 후속 메모', source: '소개' } })
+  await prisma.customer.update({ where: { id: first.body.customerId }, data: { source: '소개', memo: '보존할 고객 메모' } })
+  await prisma.product.update({ where: { id: product.id }, data: { active: false } })
+  const before = [await prisma.customer.findMany(), await prisma.salesDeal.findMany(), await prisma.stageHistory.findMany()]
+  const replay = await send(input)
+  assert.deepEqual(replay.body.registration, first.body.registration)
+  assert.deepEqual([await prisma.customer.findMany(), await prisma.salesDeal.findMany(), await prisma.stageHistory.findMany()], before)
+})
+
+test('legacy and deleted-lead receipts never backfill a lead or claim complete', async () => {
+  await leadMapping()
+  const legacyInput = landingPayload(), legacy = await send(legacyInput)
+  const customerBefore = await prisma.customer.findMany()
+  const replay = await send(withLead(legacyInput))
+  assert.equal(replay.body.customerId, legacy.body.customerId)
+  assert.equal(replay.body.registration.state, 'customer_only'); assert.equal(replay.body.registration.leadId, null)
+  assert.equal(await prisma.salesDeal.count(), 0)
+  assert.deepEqual(await prisma.customer.findMany(), customerBefore)
+  const input = withLead(payload('00000000-0000-4000-8000-000000000091', { phone: '01022223333' }))
+  const first = await send(input)
+  await prisma.salesDeal.delete({ where: { id: first.body.registration.leadId } })
+  const repeated = await send(input)
+  assert.equal(repeated.body.registration.state, 'customer_only')
+  assert.equal(await prisma.salesDeal.count(), 0)
+})
+
+test('missing, inactive and ambiguous operational mapping hold before any customer or lead write', async () => {
+  const input = withLead(landingPayload())
+  assert.equal((await send(input)).body.error, 'lead_mapping_unavailable')
+  const product = await leadMapping()
+  await prisma.product.update({ where: { id: product.id }, data: { active: false } })
+  assert.equal((await send(input)).body.error, 'lead_mapping_unavailable')
+  await prisma.product.update({ where: { id: product.id }, data: { active: true } })
+  const duplicate = await prisma.product.create({ data: { code: product.code, name: product.name } })
+  assert.equal((await send(input)).body.error, 'lead_mapping_unavailable')
+  await prisma.product.delete({ where: { id: duplicate.id } })
+  const ambiguousUser = await prisma.user.create({ data: { name: '최도준', email: 'same-name@example.invalid', password: 'unused' } })
+  assert.equal((await send(input)).body.error, 'lead_mapping_unavailable')
+  assert.equal(await prisma.customer.count(), 0); assert.equal(await prisma.customerActivity.count(), 0); assert.equal(await prisma.salesDeal.count(), 0)
+  await prisma.user.delete({ where: { id: ambiguousUser.id } })
+  assert.equal((await send(input)).body.registration.state, 'complete', 'retry succeeds once mapping is resolved')
+})
+
+test('a failure after customer and lead creation rolls back all stages and permits one safe retry', async () => {
+  await leadMapping()
+  const input = withLead(landingPayload()), logger = test.mock.method(console, 'error', () => {})
+  await prisma.$executeRawUnsafe(`CREATE TRIGGER reject_potential_stage BEFORE INSERT ON StageHistory
+    WHEN NEW.toStageCode = '1-2' BEGIN SELECT RAISE(ABORT, 'synthetic-private-stage-error'); END`)
+  try {
+    assert.equal((await send(input)).response.status, 503)
+    assert.equal(await prisma.customer.count(), 0); assert.equal(await prisma.customerActivity.count(), 0)
+    assert.equal(await prisma.salesDeal.count(), 0); assert.equal(await prisma.stageHistory.count(), 0)
+    assert.doesNotMatch(JSON.stringify(logger.mock.calls.map(call => call.arguments)), /synthetic-private-stage-error|010-1234-5678/)
+  } finally { logger.mock.restore(); await prisma.$executeRawUnsafe('DROP TRIGGER reject_potential_stage') }
+  assert.equal((await send(input)).body.registration.state, 'complete')
+  assert.equal((await send(input)).body.duplicate, true)
+  assert.equal(await prisma.customer.count(), 1); assert.equal(await prisma.salesDeal.count(), 1); assert.equal(await prisma.stageHistory.count(), 2)
+})
+
+test('independent retry and cross-source phone races create one customer and one lead', async () => {
+  await leadMapping()
+  const input = withLead(landingPayload()), other = createPrisma(databaseUrl)
+  try {
+    const repeated = await Promise.all([send(input), handleMarketingInquiryRequest(request(input), other, ENV)])
+    assert.equal(repeated[0].response.status, 200); assert.equal(repeated[1].status, 200)
+    const rival = withLead(payload('00000000-0000-4000-8000-000000000092', { phone: '+82 10 1234 5678' }))
+    assert.equal((await send(rival)).body.error, 'phone_exists')
+    assert.equal(await prisma.customer.count(), 1); assert.equal(await prisma.salesDeal.count(), 1); assert.equal(await prisma.stageHistory.count(), 2)
+    const before = await prisma.customer.findMany()
+    assert.equal((await send({ ...input, sourceId: rival.sourceId, registrationPolicy: 'other-policy' })).response.status, 400)
+    assert.equal((await send({ ...input, rejectExistingCustomer: undefined })).response.status, 400)
+    assert.deepEqual(await prisma.customer.findMany(), before)
+    const landingRace = { ...withLead(landingPayload('00000000-0000-4000-8000-000000000093')), phone: '01011119999' }
+    const collectedRace = withLead(payload('00000000-0000-4000-8000-000000000094', { phone: '+82 10 1111 9999' }))
+    const raced = await Promise.all([handleMarketingInquiryRequest(request(landingRace), prisma, ENV), handleMarketingInquiryRequest(request(collectedRace), other, ENV)])
+    assert.deepEqual(raced.map(response => response.status).sort(), [200, 409])
+    assert.equal(await prisma.customer.count(), 2); assert.equal(await prisma.salesDeal.count(), 2)
+  } finally { await other.$disconnect() }
+})
+
+test('an existing normalized-phone lead without a Customer link blocks lookup and atomic registration', async () => {
+  await leadMapping()
+  const orphan = await prisma.salesDeal.create({ data: { name: '기존 연결 없는 합성 리드', phone: '+82 10 1234 5678', customerId: null,
+    assignee: '보존 담당자', source: '소개', stageCode: '1-1', memo: '보존 메모' } })
+  const input = withLead(landingPayload())
+  const lookup = await check({ ...LANDING_SCOPE, registrationPolicy: MARKETING_LEAD_POLICY, items: [{ sourceId: input.sourceId, phone: input.phone }] })
+  assert.deepEqual(lookup.body.results, [{ sourceId: input.sourceId, exists: true }])
+  const result = await send(input)
+  assert.equal(result.response.status, 409); assert.equal(result.body.error, 'phone_exists')
+  assert.equal(await prisma.customer.count(), 0); assert.equal(await prisma.customerActivity.count(), 0)
+  assert.deepEqual(await prisma.salesDeal.findMany(), [orphan]); assert.equal(await prisma.stageHistory.count(), 0)
+})
 
 test('landing creates a source-preserving customer and activity with seconds and consent; scoped replay stays isolated', async () => {
   const input = landingPayload()
@@ -155,7 +288,15 @@ test.beforeEach(async () => {
 })
 
 test.afterEach(async () => { await prisma.$disconnect() })
-test.after(() => { rmSync(temporaryDirectory, { recursive: true, force: true }) })
+test.after(async () => {
+  // libSQL can retain Windows handles until process exit after contention tests.
+  // Keep these isolated synthetic fixtures; no business assertion is skipped.
+  if (process.platform === 'win32') return
+  const target = path.resolve(temporaryDirectory)
+  assert.equal(path.dirname(target), path.resolve(tmpdir()))
+  assert.ok(path.basename(target).startsWith('warp-marketing-inquiries-'))
+  await rm(target, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 })
+})
 
 async function confirmation(keepId: string, removeId: string) {
   const preview = await previewCustomerMerge(prisma, 'admin', keepId, removeId)

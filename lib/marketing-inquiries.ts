@@ -5,6 +5,13 @@ import { safeKeyEqual } from '@/lib/external-lookup/config'
 import { digitsOnly } from '@/lib/external-lookup/match'
 import { customerWrite, resolveCustomerId, type CustomerDb } from '@/lib/customer-alias'
 import { normalizeCustomerMobile } from '@/lib/customer-mobile'
+import pipelineChecklists from '@/data/pipeline-checklists.json'
+
+export const MARKETING_LEAD_POLICY = 'customer-lead-v1'
+const REGISTRATION_MARKER = `marketing:${MARKETING_LEAD_POLICY}`
+const ASSIGNEE = '최도준'
+// Confirmed against the production product manager; resolve its current active ID, never guess by substring.
+const PRODUCT = { code: 'STEGO K1', name: 'PV5 오픈배드냉탑 (구변)', active: true }
 
 const MAX_BODY_BYTES = 16 * 1024
 const MIN_KEY_LENGTH = 32
@@ -29,6 +36,7 @@ export type MarketingInquiry = {
   name: string
   phone: string
   rejectExistingCustomer?: true
+  registrationPolicy?: typeof MARKETING_LEAD_POLICY
   landing?: { kind: 'consultation' | 'subsidy'; region: string | null; consentVersion: string; consentedAt: string }
 }
 
@@ -37,6 +45,7 @@ type MarketingInquiryCheck = {
   companyScopeId: string
   homepageScopeId: string
   items: Array<{ sourceId: string; phone: string }>
+  registrationPolicy?: typeof MARKETING_LEAD_POLICY
 }
 
 type Receipt = {
@@ -45,12 +54,14 @@ type Receipt = {
   activityId: string
   created: boolean
   duplicate: boolean
+  registration?: { policy: typeof MARKETING_LEAD_POLICY; state: 'complete' | 'customer_only'; leadId: string | null; registeredAt: string }
 }
 
 class AmbiguousPhoneError extends Error {}
 class PhoneExistsError extends Error {}
+class LeadMappingError extends Error {}
 
-function error(code: 'unauthorized' | 'not_configured' | 'bad_payload' | 'ambiguous_phone' | 'phone_exists' | 'temporarily_unavailable', status: number) {
+function error(code: 'unauthorized' | 'not_configured' | 'bad_payload' | 'ambiguous_phone' | 'phone_exists' | 'temporarily_unavailable' | 'lead_mapping_unavailable', status: number) {
   return Response.json({ error: code }, { status, headers: NO_STORE })
 }
 
@@ -108,11 +119,13 @@ function parsePayload(value: unknown): { payload: MarketingInquiry; occurredAt: 
   const record = value as Record<string, unknown>
   const expected = ['source', 'companyScopeId', 'homepageScopeId', 'sourceId', 'inquiryDate', 'inquiryTime', 'sourceStatus', 'name', 'phone']
   const hasRejectFlag = Object.hasOwn(record, 'rejectExistingCustomer')
+  const hasPolicy = Object.hasOwn(record, 'registrationPolicy')
   const landing = record.source === LANDING_SOURCE
   if (
-    Object.keys(record).length !== expected.length + Number(hasRejectFlag) + Number(landing) ||
+    Object.keys(record).length !== expected.length + Number(hasRejectFlag) + Number(landing) + Number(hasPolicy) ||
     expected.some(key => typeof record[key] !== 'string') ||
     (hasRejectFlag && record.rejectExistingCustomer !== true) ||
+    (hasPolicy && (record.registrationPolicy !== MARKETING_LEAD_POLICY || !hasRejectFlag)) ||
     (landing && (!hasRejectFlag || !validLanding(record.landing))) ||
     (!landing && Object.hasOwn(record, 'landing'))
   ) return null
@@ -136,7 +149,9 @@ function parseCheckPayload(value: unknown): MarketingInquiryCheck | null {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return null
   const record = value as Record<string, unknown>
   const expected = ['source', 'companyScopeId', 'homepageScopeId', 'items']
-  if (Object.keys(record).length !== expected.length || expected.some(key => !(key in record))) return null
+  const hasPolicy = Object.hasOwn(record, 'registrationPolicy')
+  if (Object.keys(record).length !== expected.length + Number(hasPolicy) || expected.some(key => !(key in record))
+    || (hasPolicy && record.registrationPolicy !== MARKETING_LEAD_POLICY)) return null
   if (
     !allowedScope(record) ||
     !Array.isArray(record.items) ||
@@ -167,6 +182,12 @@ export function marketingInquiryActivityId(payload: Pick<MarketingInquiry, 'sour
   return `${payload.source === LANDING_SOURCE ? 'evn_landing' : 'mleverage'}_${createHash('sha256')
     .update([payload.source, payload.companyScopeId, payload.homepageScopeId, payload.sourceId.toLowerCase()].join(':'))
     .digest('hex')}`
+}
+
+export function marketingInquiryLeadId(activityId: string) { return `lead_${activityId}` }
+
+export function marketingRegistrationMemo(at: Date) {
+  return `${new Date(at.getTime() + 9 * 60 * 60_000).toISOString().slice(0, 10)} SNS 유입`
 }
 
 function activityContent(payload: MarketingInquiry) {
@@ -215,12 +236,22 @@ async function readBoundedBody(request: Request): Promise<Uint8Array | null> {
   return body.subarray(0, size)
 }
 
-async function replayReceipt(transaction: CustomerDb, activity: { id: string; customerId: string }): Promise<Receipt> {
+async function replayReceipt(transaction: CustomerDb, activity: { id: string; customerId: string; result: string | null; createdAt: Date }, policy?: typeof MARKETING_LEAD_POLICY): Promise<Receipt> {
   const customerId = await resolveCustomerId(transaction, activity.customerId)
   if (!await transaction.customer.findUnique({ where: { id: customerId }, select: { id: true } })) {
     throw new Error('Receipt customer unavailable')
   }
-  return { ok: true, customerId, activityId: activity.id, created: false, duplicate: true }
+  const receipt: Receipt = { ok: true, customerId, activityId: activity.id, created: false, duplicate: true }
+  if (policy) {
+    const lead = activity.result === REGISTRATION_MARKER ? await transaction.salesDeal.findUnique({
+      where: { id: marketingInquiryLeadId(activity.id) }, select: { id: true, customerId: true },
+    }) : null
+    // Retained legacy receipts and deleted/unlinked leads require review, never retroactive creation.
+    const complete = lead?.customerId === customerId
+    receipt.registration = { policy, state: complete ? 'complete' : 'customer_only', leadId: complete ? lead!.id : null,
+      registeredAt: activity.createdAt.toISOString() }
+  }
+  return receipt
 }
 
 async function appendInquiry(prisma: PrismaClient, payload: MarketingInquiry, occurredAt: Date): Promise<Receipt> {
@@ -229,9 +260,9 @@ async function appendInquiry(prisma: PrismaClient, payload: MarketingInquiry, oc
   return customerWrite(prisma, async transaction => {
     const duplicate = await transaction.customerActivity.findUnique({
       where: { id: activityId },
-      select: { id: true, customerId: true },
+      select: { id: true, customerId: true, result: true, createdAt: true },
     })
-    if (duplicate) return replayReceipt(transaction, duplicate)
+    if (duplicate) return replayReceipt(transaction, duplicate, payload.registrationPolicy)
 
     const phone = normalizeMarketingPhone(payload.phone)
     // ponytail: scans primary phones; add a normalized column/index if volume makes this slow.
@@ -243,6 +274,20 @@ async function appendInquiry(prisma: PrismaClient, payload: MarketingInquiry, oc
     const matches = candidates.filter(customer => normalizeMarketingPhone(customer.phone) === phone)
     if (matches.length > 1) throw new AmbiguousPhoneError()
     if (payload.rejectExistingCustomer && matches.length) throw new PhoneExistsError()
+    if (payload.registrationPolicy) {
+      const leads = await transaction.salesDeal.findMany({ where: { phone: { not: null } }, select: { phone: true } })
+      if (leads.some(lead => normalizeMarketingPhone(lead.phone) === phone)) throw new PhoneExistsError()
+    }
+
+    let productId: string | undefined
+    if (payload.registrationPolicy) {
+      const products = await transaction.product.findMany({ where: PRODUCT, select: { id: true } })
+      const assignees = await transaction.user.findMany({ where: { name: ASSIGNEE }, select: { id: true } })
+      if (products.length !== 1 || assignees.length !== 1 || !pipelineChecklists['1-1'].length) throw new LeadMappingError()
+      productId = products[0].id
+    }
+    // Created only in the successful writer transaction; retries read this retained time.
+    const registeredAt = new Date()
 
     const customerId = matches[0]?.id ?? (await transaction.customer.create({
       data: {
@@ -250,7 +295,7 @@ async function appendInquiry(prisma: PrismaClient, payload: MarketingInquiry, oc
         phone: payload.phone,
         customerSegment: 'B2C',
         status: '잠재고객',
-        source: payload.source,
+        source: payload.registrationPolicy ? '온라인' : payload.source,
         collectedAt: occurredAt,
       },
       select: { id: true },
@@ -263,9 +308,27 @@ async function appendInquiry(prisma: PrismaClient, payload: MarketingInquiry, oc
         type: '이벤트',
         date: occurredAt,
         content: activityContent(payload),
+        ...(payload.registrationPolicy ? { result: REGISTRATION_MARKER, createdAt: registeredAt } : {}),
       },
       select: { id: true },
     })
+    if (payload.registrationPolicy) {
+      const leadId = marketingInquiryLeadId(activityId)
+      await transaction.salesDeal.create({ data: {
+        id: leadId, customerId, productId, name: payload.name.trim(), phone: payload.phone,
+        customerSegment: 'B2C', source: '온라인', assignee: ASSIGNEE,
+        collectedAt: occurredAt, memo: marketingRegistrationMemo(registeredAt),
+        stage: '리드', stageCode: '1-1', salesStatus: '진행중', createdAt: registeredAt,
+        checklistJson: JSON.stringify(Object.fromEntries(pipelineChecklists['1-1'].map(item => [item.key, true]))),
+      } })
+      // The existing UI uses productId for the selected model and stageCode for the pipeline.
+      // Keep both stage transitions in the same transaction; logging failure must roll back everything.
+      await transaction.stageHistory.create({ data: { dealId: leadId, fromStageCode: null, toStageCode: '1-1', changedBy: 'EV&Marketing', changedAt: registeredAt } })
+      await transaction.salesDeal.update({ where: { id: leadId }, data: { stageCode: '1-2', stageChangedAt: registeredAt } })
+      await transaction.stageHistory.create({ data: { dealId: leadId, fromStageCode: '1-1', toStageCode: '1-2', changedBy: 'EV&Marketing', changedAt: registeredAt } })
+      return { ok: true, customerId, activityId, created: true, duplicate: false,
+        registration: { policy: MARKETING_LEAD_POLICY, state: 'complete', leadId, registeredAt: registeredAt.toISOString() } }
+    }
     // A new activity on an existing customer is neither a new customer nor a replay.
     return { ok: true, customerId, activityId, created: matches.length === 0, duplicate: false }
   })
@@ -296,6 +359,7 @@ export async function handleMarketingInquiryRequest(
   } catch (caught) {
     if (caught instanceof PhoneExistsError) return error('phone_exists', 409)
     if (caught instanceof AmbiguousPhoneError) return error('ambiguous_phone', 409)
+    if (caught instanceof LeadMappingError) return error('lead_mapping_unavailable', 503)
     console.error('marketing_inquiry_failed', { code: databaseErrorCode(caught) })
     return error('temporarily_unavailable', 503)
   }
@@ -327,7 +391,7 @@ export async function handleMarketingInquiryCheckRequest(
       const activityIds = payload.items.map(item => marketingInquiryActivityId({ ...payload, sourceId: item.sourceId }))
       const activities = await transaction.customerActivity.findMany({
         where: { id: { in: activityIds } },
-        select: { id: true, customerId: true },
+        select: { id: true, customerId: true, result: true, createdAt: true },
       })
       const customers = await transaction.customer.findMany({
         where: { phone: { not: null } },
@@ -335,6 +399,11 @@ export async function handleMarketingInquiryCheckRequest(
       })
       const activityById = new Map(activities.map(activity => [activity.id, activity]))
       const phones = new Set(customers.map(customer => normalizeMarketingPhone(customer.phone)))
+      if (payload.registrationPolicy) {
+        // A legacy lead can have no Customer link; it still blocks another registration.
+        const leads = await transaction.salesDeal.findMany({ where: { phone: { not: null } }, select: { phone: true } })
+        for (const lead of leads) phones.add(normalizeMarketingPhone(lead.phone))
+      }
       return Promise.all(payload.items.map(async item => {
         const activityId = marketingInquiryActivityId({ ...payload, sourceId: item.sourceId })
         const activity = activityById.get(activityId)
@@ -342,7 +411,7 @@ export async function handleMarketingInquiryCheckRequest(
           return {
             sourceId: item.sourceId.toLowerCase(),
             exists: true,
-            receipt: await replayReceipt(transaction, activity),
+            receipt: await replayReceipt(transaction, activity, payload.registrationPolicy),
           }
         }
         return { sourceId: item.sourceId.toLowerCase(), exists: phones.has(normalizeMarketingPhone(item.phone)) }
