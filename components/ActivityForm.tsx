@@ -459,6 +459,45 @@ export default function ActivityForm({ teams, tasks, users = [], vehicles = [], 
   const [usageTotal,    setUsageTotal]    = useState(0)
   const expenseTotal = legacyTotal + usageTotal
 
+  // 드래그앤드랍 첨부 — 세부내용 카드에 파일을 끌어다 놓으면 이미지는 이미지 첨부로,
+  // 그 외 문서는 파일 첨부로 올라간다 (수정 모드는 즉시 업로드, 신규 모드는 저장 시 업로드)
+  const [dragOver, setDragOver] = useState(false)
+  async function addDroppedFiles(files: File[]) {
+    if (!files.length) return
+    const images = files.filter(f => f.type.startsWith('image/'))
+    const docs   = files.filter(f => !f.type.startsWith('image/'))
+    if (images.length) {
+      if (initial?.id) {
+        setUploadingImg(true)
+        try {
+          for (const f of images) {
+            const fd = new FormData(); fd.append('file', f)
+            const res = await fetch(`/api/activities/${initial.id}/images`, { method: 'POST', body: fd })
+            const data = await res.json()
+            if (res.ok) setImageUrl(data.imageUrl ?? data.url)
+          }
+        } finally { setUploadingImg(false) }
+      } else {
+        setPendingImgFiles(prev => [...prev, ...images])
+      }
+    }
+    if (docs.length) {
+      if (initial?.id) {
+        setUploadingFile(true)
+        try {
+          for (const f of docs) {
+            const fd = new FormData(); fd.append('file', f)
+            const res = await fetch(`/api/activities/${initial.id}/documents`, { method: 'POST', body: fd })
+            const data = await res.json()
+            if (res.ok) setDocumentUrl(data.documentUrl ?? data.url)
+          }
+        } finally { setUploadingFile(false) }
+      } else {
+        setPendingFileItems(prev => [...prev, ...docs])
+      }
+    }
+  }
+
   async function uploadDocument(file: File) {
     if (!initial?.id) { setPendingDocFile(file); return }
     setUploadingDoc(true)
@@ -1240,8 +1279,27 @@ export default function ActivityForm({ teams, tasks, users = [], vehicles = [], 
           </div>
         )}
 
-        {/* ⑥ 제목 + 내용 */}
-        <div className="bg-white border border-slate-200 rounded-xl p-5 space-y-4">
+        {/* ⑥ 제목 + 내용 — 파일을 끌어다 놓으면 바로 첨부된다 */}
+        <div
+          className={`relative bg-white border rounded-xl p-5 space-y-4 transition-colors ${
+            dragOver ? 'border-indigo-400 ring-2 ring-indigo-200' : 'border-slate-200'
+          }`}
+          onDragOver={e => {
+            if (Array.from(e.dataTransfer.types).includes('Files')) { e.preventDefault(); setDragOver(true) }
+          }}
+          onDragLeave={e => {
+            if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragOver(false)
+          }}
+          onDrop={e => {
+            e.preventDefault()
+            setDragOver(false)
+            void addDroppedFiles(Array.from(e.dataTransfer.files))
+          }}>
+          {dragOver && (
+            <div className="absolute inset-0 z-10 rounded-xl bg-indigo-50/85 border-2 border-dashed border-indigo-300 flex items-center justify-center pointer-events-none">
+              <span className="text-sm font-semibold text-indigo-500">여기에 놓으면 첨부됩니다 (이미지·문서)</span>
+            </div>
+          )}
           <div>
             <label className="block text-sm font-semibold text-slate-700 mb-1.5">
               제목
@@ -1322,6 +1380,7 @@ export default function ActivityForm({ teams, tasks, users = [], vehicles = [], 
                   </span>
                 )}
               </button>
+              <span className="self-center text-[10px] text-slate-300">파일을 이 카드에 끌어다 놓아도 첨부됩니다</span>
             </div>
             {/* 업로드된 파일 목록 */}
             {(documentUrl || pendingFileItems.length > 0) && (
