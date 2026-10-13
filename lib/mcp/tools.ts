@@ -43,6 +43,8 @@ export const MCP_INSTRUCTIONS = `
 2. 「함께 참여한(하는) 분이 있나요?」를 묻는다. 있다고 하면 find_coworker 로 구성원을 찾아
    「김철수 (kim@evnsolution.com)님이 맞나요?」처럼 실명·이메일로 확인받은 뒤 companions 에
    쉼표로 넣는다 — 그 팀원들에게 WARP 알림이 간다. 동명이인은 반드시 이메일로 구분한다.
+   ⚠️ 동반자 이름을 note(내용)에 "동행: ○○" 처럼 적지 마라 — companions 인자에 넣어야만
+   WARP 화면의 동반 인원으로 표시되고 알림이 발송된다.
 3. **최종 승인**: 등록될 내용 전체(제목·내용·날짜·시간·유형·동반자)를 한 번에 보여주고
    「이대로 등록할까요?」 승인을 받는다. 승인 후에만 create_task 를 호출한다. id 는 노출하지 않는다.
 4. list_my_tasks 로 중복 등록을 피한다.
@@ -123,7 +125,7 @@ export const TOOL_DEFINITIONS = [
         due: { type: 'string', pattern: DATE_RE, description: '종료일(기한) YYYY-MM-DD — 하루짜리 일이면 생략' },
         type: { type: 'string', enum: ACTIVITY_TYPES, description: '활동 유형 — 업무공간 입력창의 유형 버튼과 동일' },
         note: { type: 'string', description: '내용/메모' },
-        companions: { type: 'string', description: '동반자 — 함께한 WARP 팀원 이름들, 쉼표 구분 (예: "홍길동, 김철수") — 해당 팀원에게 알림이 간다' },
+        companions: { type: 'string', description: '동반자 — 함께한 WARP 팀원 이름들, 쉼표 구분 (예: "홍길동, 김철수"). 반드시 이 인자로 넣을 것 — note 에 텍스트로 적으면 동반 인원 표시·알림이 되지 않는다' },
         start_time: { type: 'string', pattern: TIME_RE, description: '일정 시작 시각 HH:MM — 생략하면 하루종일' },
         end_time: { type: 'string', pattern: TIME_RE, description: '일정 종료 시각 HH:MM' },
       },
