@@ -45,7 +45,7 @@ export default function AiFeedbackList({ feedbacks, isAdmin }: { feedbacks: AiFe
   }
 
   return (
-    <div className="border border-slate-200 rounded-xl bg-white max-h-96 overflow-y-auto divide-y divide-slate-100">
+    <div className="border border-slate-200 rounded-xl bg-white h-96 overflow-y-auto divide-y divide-slate-100">
       {items.map(f => {
         const title = f.title.replace(/^\[AI 피드백\]\s*/, '')
         return (
