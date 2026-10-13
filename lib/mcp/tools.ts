@@ -328,7 +328,11 @@ async function createTask(user: McpUser, a: Record<string, any>): Promise<ToolRe
   })
   const time = activity.startTime ? ` ${activity.startTime}${activity.endTime ? `~${activity.endTime}` : ''}` : ''
   const comp = companionSummary(noti)
-  return { text: `등록 완료 — id: ${activity.id}\n제목: ${activity.title}\n기간: ${activity.date}${activity.endDate ? ` ~ ${activity.endDate}` : ''}${time}\n유형: ${activity.type}${comp}` }
+  // 구버전 도구 정의를 캐시한 대화도 인자 이름을 배울 수 있게 — 동반자 없이 등록되면 한 줄 안내
+  const hint = activity.companions ? '' :
+    '\n(동반 참여자가 있다면 companions 인자에 "김철수, 박영희" 형태의 WARP 실명을 넣어 주세요 — '
+    + '도구 정의에 이 항목이 보이지 않아도 인자로 보내면 처리되며, update_task 로 추가할 수도 있습니다)'
+  return { text: `등록 완료 — id: ${activity.id}\n제목: ${activity.title}\n기간: ${activity.date}${activity.endDate ? ` ~ ${activity.endDate}` : ''}${time}\n유형: ${activity.type}${comp}${hint}` }
 }
 
 async function listMyTasks(user: McpUser, _a: Record<string, any>): Promise<ToolResult> {
