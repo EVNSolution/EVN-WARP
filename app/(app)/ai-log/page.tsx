@@ -66,7 +66,7 @@ export default async function AiLogPage() {
   const since28 = new Date(Date.now() - 28 * 86400_000)
   const since7 = new Date(Date.now() - 7 * 86400_000)
 
-  const [rawRows, feedbacks, logByCat, log28, logUsers, aiActivityCount, firstLog, digest, aiByTask] = await Promise.all([
+  const [rawRows, feedbacks, logByCat, log28, logUsers, aiActivityCount, firstLog, digest] = await Promise.all([
     prisma.workActivity.findMany({
       where: { source: 'mcp', date: { gte: from30 } },
       orderBy: [{ createdAt: 'desc' }],
@@ -92,40 +92,8 @@ export default async function AiLogPage() {
     prisma.workActivity.count({ where: { source: 'mcp' } }),
     prisma.mcpLog.findFirst({ orderBy: { createdAt: 'asc' }, select: { createdAt: true } }),
     weeklyDigest(),
-    prisma.workActivity.groupBy({
-      by: ['taskId'],
-      where: { source: 'mcp', taskId: { not: null } },
-      _count: { _all: true },
-    }),
   ])
 
-  // ── 과제 × AI 히트맵: AI 경유 활동을 팀과제 단위로 올려 집계 ──
-  const heatTaskIds = aiByTask.map(g => g.taskId).filter((v): v is string => !!v)
-  const heatTasks = heatTaskIds.length
-    ? await prisma.strategyTask.findMany({
-        where: { id: { in: heatTaskIds } },
-        select: {
-          id: true, title: true, parentId: true,
-          parent: { select: { id: true, title: true, parentId: true, parent: { select: { id: true, title: true } } } },
-        },
-      })
-    : []
-  const heatMap = new Map<string, { strategy: string; title: string; count: number }>()
-  for (const g of aiByTask) {
-    const t = heatTasks.find(x => x.id === g.taskId)
-    if (!t) continue
-    // 팀과제 노드로 올린다: 세부과제(depth2)→부모, 팀과제(depth1)→자신, 전략과제(depth0)→자신
-    const node = t.parent && t.parent.parentId ? t.parent                     // 세부과제 → 팀과제
-      : t.parentId ? { id: t.id, title: t.title, parent: t.parent }          // 팀과제
-        : { id: t.id, title: t.title, parent: null }                          // 전략과제 직접 연계
-    const strategy = (node as any).parent?.parent?.title ?? (node as any).parent?.title ?? (t.parentId ? '' : t.title)
-    const key = (node as any).id
-    const cur = heatMap.get(key) ?? { strategy: strategy || '전략과제', title: (node as any).title, count: 0 }
-    cur.count += g._count._all
-    heatMap.set(key, cur)
-  }
-  const heatRows = [...heatMap.values()].sort((a, b) => b.count - a.count).slice(0, 8)
-  const heatMax = Math.max(1, ...heatRows.map(r => r.count))
 
   // 호출 로그(McpLog)가 생기기 전의 AI 기록(어제 10/12 시작)도 집계에 소급 포함한다 —
   // 로그 시작 시각 이전에 만들어진 source='mcp' 활동을 「업무기록」 호출 1건씩으로 센다.
@@ -226,7 +194,7 @@ export default async function AiLogPage() {
 
 
         {/* ③·④ 온톨로지 + 사용 추이 */}
-        {/* ② 3열: 주간회의 브리핑 · 과제 × AI · AI 사용 추이 */}
+        {/* ② 주간회의 브리핑(넓게) + AI 사용 추이 */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 items-stretch">
 
         {/* 주간회의 브리핑 — 월/목 10시 회의용 */}
@@ -238,36 +206,6 @@ export default async function AiLogPage() {
           source={digest.source}
           text={digest.text}
         />
-          <section className="border border-slate-200 rounded-2xl bg-white p-5">
-            <h2 className="text-sm font-bold text-slate-800">과제 × AI</h2>
-            <p className="text-[11px] text-slate-400 mb-4">
-              회사 과제 중 AI(CLEVER)로 기록이 쌓이는 곳 — 팀과제 단위 누적 활동 수
-            </p>
-            {heatRows.length === 0 ? (
-              <div className="text-xs text-slate-400 py-6 text-center">
-                아직 과제에 연계된 AI 기록이 없습니다 — 등록 시 과제를 연결하면 여기에 쌓입니다.
-              </div>
-            ) : (
-              <div className="space-y-2.5">
-                {heatRows.map(r => (
-                  <div key={`${r.strategy}-${r.title}`}>
-                    <div className="flex items-baseline justify-between gap-2">
-                      <span className="text-xs text-slate-700 truncate">
-                        <span className="text-slate-400">{r.strategy} › </span>{r.title}
-                      </span>
-                      <span className="text-[11px] font-bold text-slate-500 shrink-0">{r.count}</span>
-                    </div>
-                    <div className="mt-1 h-2 rounded-full bg-slate-100 overflow-hidden">
-                      <div className="h-full rounded-full" style={{
-                        width: `${Math.max((r.count / heatMax) * 100, 6)}%`,
-                        backgroundColor: '#C5D42A',
-                      }} />
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </section>
 
           <section className="border border-slate-200 rounded-2xl bg-white p-5 flex flex-col">
             <h2 className="text-sm font-bold text-slate-800">AI 사용 추이</h2>
@@ -320,7 +258,7 @@ export default async function AiLogPage() {
             AI 와 대화하다 &ldquo;이 의견 피드백으로 남겨줘&rdquo;라고 하면 여기에 쌓입니다. 답변은 관리자가 이 화면에서 답니다.
           </p>
           {feedbacks.length === 0 ? (
-            <div className="text-xs text-slate-400 border border-dashed border-slate-200 rounded-lg p-5 text-center">
+            <div className="h-96 flex items-center justify-center text-xs text-slate-400 border border-dashed border-slate-200 rounded-xl">
               아직 피드백이 없습니다.
             </div>
           ) : (
@@ -335,15 +273,18 @@ export default async function AiLogPage() {
         </section>
         {/* 최근 AI 업무 기록 */}
         <section>
-          <h2 className="text-sm font-bold text-slate-800 mb-3">최근 AI 업무 기록 <span className="text-[11px] font-normal text-slate-400">(30일)</span></h2>
+          <h2 className="text-sm font-bold text-slate-800 mb-1">최근 AI 업무 기록</h2>
+          <p className="text-[11px] text-slate-400 mb-3">
+            개인 AI(CLEVER)로 등록·수정된 최근 30일 활동 — 수행일 기준 표시, 최근 기록 순 정렬.
+          </p>
           {rows.length === 0 ? (
-            <div className="text-sm text-slate-400 border border-dashed border-slate-200 rounded-lg p-8 text-center">
+            <div className="h-96 flex flex-col items-center justify-center text-sm text-slate-400 border border-dashed border-slate-200 rounded-xl text-center">
               아직 AI로 기록된 활동이 없습니다.<br />
               <b>내 계정 → AI 연결</b>에서 토큰을 발급해 Claude나 ChatGPT에 등록한 뒤,
               &ldquo;오늘 한 일 WARP에 정리해줘&rdquo;라고 해보세요.
             </div>
           ) : (
-            <div className="border border-slate-200 rounded-xl bg-white max-h-[28rem] overflow-y-auto px-4">
+            <div className="border border-slate-200 rounded-xl bg-white h-96 overflow-y-auto px-4">
             <table className="w-full text-sm border-collapse">
               <thead className="sticky top-0 z-10 bg-white">
                 <tr className="text-left text-[11px] text-slate-400 border-b border-slate-200">

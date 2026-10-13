@@ -40,7 +40,7 @@ export default function WeeklyBriefing({ windowLabel, generatedAt, activityCount
   const current = teams[Math.min(active, Math.max(teams.length - 1, 0))]
 
   return (
-    <section className="border border-slate-200 rounded-2xl bg-white overflow-hidden">
+    <section className="border border-slate-200 rounded-2xl bg-white overflow-hidden lg:col-span-2">
       <div className="px-6 py-4 flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-slate-100 bg-slate-50/60">
         <div>
           <h2 className="text-sm font-bold text-slate-800">
