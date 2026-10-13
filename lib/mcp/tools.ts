@@ -56,13 +56,14 @@ export const MCP_INSTRUCTIONS = `
    ③-1 「이 업무는 과제 연계인가요, 독립활동인가요?」 (1. 과제 연계  2. 독립활동)
         — 독립활동이면 task_id: "" 로 하고 ④로 간다.
    ③-2 「어떤 전략과제인가요?」 — 전략과제 **이름만** 번호로 (예: 1. 확장과 성장  2. AI 기반 조직운영)
-   ③-3 「어느 팀의 과제인가요?」 — 그 전략과제 아래 팀과제가 있는 팀 이름들을 번호로 (사용자 소속 팀을 1번에)
-   ③-4 「팀과제 중 어떤 것인가요?」 — 해당 전략과제·팀의 팀과제 **풀네임만** 번호로.
-        코드(마케팅팀.01 같은 것)·id·상태 등 부가정보는 절대 보여주지 않는다 — 이름만.
-   ③-5 고른 팀과제에 세부과제가 있으면 「세부과제까지 지정할까요?」 — 세부과제 이름들과
-        마지막에 「N. 이 팀과제에 바로 연계」 선택지를 준다. 팀과제·세부과제 어느 쪽이든
-        직접 연계할 수 있다 (전사 전략과제에는 직접 연계 불가 — 서버가 거부한다).
-   최종 선택된 가장 하위 항목의 id 를 task_id 로 넣는다 (id 는 내부용 — 사용자에게 노출 금지).
+   ③-3 「이 전략과제에 바로 연계할까요, 팀과제까지 지정할까요?」
+        (1. 전략과제에 바로 연계  2. 팀과제 지정) — 바로 연계면 그 전략과제 id 로 끝.
+   ③-4 팀과제 지정이면 「어느 팀인가요?」(사용자 소속 팀을 1번에) → 「팀과제 중 어떤 것인가요?」
+        — 팀과제 **풀네임만** 번호로. 코드(마케팅팀.01 같은 것)·id·상태 등 부가정보는 절대 보여주지 않는다.
+   ③-5 고른 팀과제에 세부과제가 있으면 「이 팀과제에 바로 연계할까요, 세부과제를 지정할까요?」
+        — 세부과제 이름들 + 「이 팀과제에 바로 연계」. 없으면 그 팀과제로 확정.
+   웹 과제연계와 동일하게 전략과제·팀과제·세부과제 어느 단계든 연계할 수 있다.
+   최종 선택된 항목의 id 를 task_id 로 넣는다 (id 는 내부용 — 사용자에게 노출 금지).
    task_id 없이 호출하면 서버가 등록을 거부하고 트리를 돌려준다.
 4. 공개 여부 질문: 「공개 여부는 어떻게 할까요? 1. 공개  2. 제목만 공개  3. 전체 비공개」
    — 답을 visibility 로 넣는다 (바쁘다고 하면 기본 공개).
@@ -378,33 +379,17 @@ const err = (text: string): ToolResult => ({ text, isError: true })
 const VISIBILITIES = ['공개', '제목만 공개', '전체 비공개']
 
 /**
- * task_id 검증 — 팀과제·세부과제에는 직접 연계할 수 있다 (세부과제가 있어도 팀과제에 바로 연계 가능).
- * 단 전사 전략과제(최상위 우산, 예: 확장과 성장)에는 직접 연계할 수 없다 — 그 아래 팀과제 목록을
- * 담아 돌려줘 AI 가 이어서 물어보게 한다.
+ * task_id 검증 — 웹 과제연계 UI 와 동일하게 전략과제·팀과제·세부과제 **어느 단계든** 직접 연계할 수
+ * 있다 (각 단계에서 「여기에 바로 연계 / 더 내려가기」를 사용자가 고른다). 존재만 확인한다.
  */
 async function resolveLeafTask(taskId: string):
   Promise<{ ok: true; task: { id: string; code: string; title: string } } | { ok: false; msg: string }> {
   const t = await prisma.strategyTask.findUnique({
     where: { id: taskId },
-    select: { id: true, code: true, title: true, parentId: true },
+    select: { id: true, code: true, title: true },
   })
   if (!t) return { ok: false, msg: 'task_id 에 해당하는 과제가 없습니다 — list_strategy_tasks 로 과제 id 를 다시 확인해 주세요.' }
-  if (t.parentId === null) {
-    const kids = await prisma.strategyTask.findMany({
-      where: { parentId: t.id, suspended: false },
-      select: { id: true, title: true },
-      orderBy: [{ teamSeq: 'asc' }, { subSeq: 'asc' }],
-    })
-    if (kids.length > 0) {
-      return {
-        ok: false,
-        msg: `「${t.title}」는 전사 전략과제라 직접 연계할 수 없습니다 — 그 아래 팀과제(또는 세부과제)를 `
-          + `골라야 합니다. 사용자에게 다음 중 하나를 번호로 고르게 한 뒤 그 id 로 다시 호출해 주세요 (이름만 보여줄 것):\n`
-          + kids.map((k, i) => `${i + 1}. ${k.title} (id: ${k.id})`).join('\n'),
-      }
-    }
-  }
-  return { ok: true, task: { id: t.id, code: t.code, title: t.title } }
+  return { ok: true, task: t }
 }
 
 async function createTask(user: McpUser, a: Record<string, any>): Promise<ToolResult> {
@@ -424,8 +409,9 @@ async function createTask(user: McpUser, a: Record<string, any>): Promise<ToolRe
     const lines = await buildTaskTreeLines(user)
     return err(
       '아직 등록되지 않았습니다 — 과제 연계 확인이 필요합니다. 아래 트리를 가지고 **레벨별로 하나씩** '
-      + '물어봐 주세요: ①「과제 연계인가요, 독립활동인가요?」 ②전략과제 선택 ③팀 선택 ④팀과제 선택 '
-      + '⑤세부과제 선택(있을 때). 각 단계는 번호 선택지로, 사용자에게는 과제 이름만 보여주세요(id·부가정보 금지).\n'
+      + '물어봐 주세요: ①「과제 연계인가요, 독립활동인가요?」 ②전략과제 선택 ③「전략과제에 바로 연계 / '
+      + '팀과제 지정」 ④팀 선택 → 팀과제 선택 ⑤세부과제가 있으면 「팀과제에 바로 연계 / 세부과제 지정」. '
+      + '어느 단계든 바로 연계할 수 있습니다. 각 단계는 번호 선택지로, 사용자에게는 과제 이름만 보여주세요(id·부가정보 금지).\n'
       + (lines.length ? `과제 트리 (★가 우리 팀):\n${lines.join('\n')}\n` : '(현재 등록된 과제가 없습니다 — 독립활동으로 진행하세요)\n')
       + '최종 선택한 과제의 id 를 task_id 인자에 넣어 다시 호출하고, 독립활동이면 task_id: "" 로 '
       + '호출하면 등록됩니다. 이어서 공개 여부(공개/제목만 공개/전체 비공개)도 물어 visibility 로 넣어 주세요. '
