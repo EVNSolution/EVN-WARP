@@ -204,6 +204,7 @@ export default async function AiLogPage() {
           activityCount={digest.activityCount}
           peopleCount={digest.peopleCount}
           source={digest.source}
+          aiError={digest.aiError}
           headline={digest.headline}
           teams={digest.teams}
         />

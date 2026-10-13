@@ -28,6 +28,8 @@ export interface WeeklyDigest {
   teamCount: number
   peopleCount: number
   source: 'ai' | 'rule'
+  /** AI 요약 실패 시 원인 (키 오류·크레딧 부족 진단용 — 비밀값 없음) */
+  aiError?: string
 }
 
 const TTL = 30 * 60_000
@@ -175,8 +177,16 @@ async function build(): Promise<WeeklyDigest> {
   const byTeam = groupByTeam(rows)
 
   let ai: Awaited<ReturnType<typeof aiSections>> = null
+  let aiError: string | undefined
   if (rows.length > 0) {
-    try { ai = await aiSections(byTeam, slotLabel(since)) } catch { ai = null }
+    try {
+      ai = await aiSections(byTeam, slotLabel(since))
+      if (!ai) aiError = process.env.ANTHROPIC_API_KEY?.trim() ? '응답 형식 불일치' : 'ANTHROPIC_API_KEY 미설정'
+    } catch (e) {
+      ai = null
+      aiError = e instanceof Error ? e.message.slice(0, 160) : String(e).slice(0, 160)
+      console.error('[weekly-digest] AI 요약 실패:', aiError)
+    }
   }
 
   const teams: DigestTeam[] = [...byTeam.entries()].map(([name, teamRows]) => ({
@@ -195,6 +205,7 @@ async function build(): Promise<WeeklyDigest> {
     teamCount: byTeam.size,
     peopleCount: new Set(rows.map(r => r.userName).filter(Boolean)).size,
     source: ai ? 'ai' : 'rule',
+    aiError: ai ? undefined : aiError,
   }
 }
 
