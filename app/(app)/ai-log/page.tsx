@@ -285,7 +285,7 @@ export default async function AiLogPage() {
             </div>
           ) : (
             <div className="border border-slate-200 rounded-xl bg-white h-96 overflow-y-auto px-4">
-            <table className="w-full text-sm border-collapse">
+            <table className="w-full text-xs border-collapse table-fixed">
               <thead className="sticky top-0 z-10 bg-white">
                 <tr className="text-left text-[11px] text-slate-400 border-b border-slate-200">
                   <th className="py-2.5 pr-3 font-medium w-20">수행일</th>
@@ -299,9 +299,9 @@ export default async function AiLogPage() {
                   <tr key={r.id} className="border-b border-slate-100 align-top">
                     <td className="py-2 pr-3 text-slate-500 whitespace-nowrap">{r.date.slice(5)}</td>
                     <td className="py-2 pr-3 text-slate-600 whitespace-nowrap">{r.userName ?? '-'}</td>
-                    <td className="py-2 pr-3">
-                      <div className="text-slate-800">{r.title}</div>
-                      {r.content && <div className="text-[11px] text-slate-400 mt-0.5 line-clamp-2">{r.content}</div>}
+                    <td className="py-2 pr-3 overflow-hidden">
+                      <div className="text-slate-800 truncate">{r.title}</div>
+                      {r.content && <div className="text-[11px] text-slate-400 mt-0.5 truncate">{r.content}</div>}
                     </td>
                     <td className="py-2 text-slate-500 whitespace-nowrap">{r.type}</td>
                   </tr>

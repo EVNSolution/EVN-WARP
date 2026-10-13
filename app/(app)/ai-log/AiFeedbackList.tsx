@@ -46,6 +46,14 @@ export default function AiFeedbackList({ feedbacks, isAdmin }: { feedbacks: AiFe
 
   return (
     <div className="border border-slate-200 rounded-xl bg-white h-96 overflow-y-auto divide-y divide-slate-100">
+      {/* 컬럼 헤더 */}
+      <div className="sticky top-0 z-10 flex items-center gap-3 px-4 py-2 bg-slate-50 text-[11px] text-slate-400 font-medium">
+        <span className="w-11 shrink-0">날짜</span>
+        <span className="w-14 shrink-0">작성자</span>
+        <span className="flex-1">제목</span>
+        <span className="shrink-0">상태</span>
+        <span className="shrink-0 w-[10px]" />
+      </div>
       {items.map(f => {
         const title = f.title.replace(/^\[AI 피드백\]\s*/, '')
         return (
