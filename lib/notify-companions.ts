@@ -19,7 +19,7 @@ export async function notifyCompanions(opts: {
   actorName: string
   title: string
   date: string
-  action: '등록' | '변경'
+  action: '등록' | '변경' | '삭제'
   /** 알림 클릭 시 이동할 활동 id — 있으면 그 활동 상세(수정) 화면으로 간다 */
   activityId?: string
 }): Promise<CompanionNotifyResult> {
@@ -33,7 +33,9 @@ export async function notifyCompanions(opts: {
     const found = new Set(users.map(u => u.name))
     const missing = names.filter(n => !found.has(n))
     const targets = users.filter(u => u.id !== opts.actorId)
-    const verb = opts.action === '등록' ? '함께하는 활동으로 등록했습니다' : '함께하는 활동을 변경했습니다'
+    const verb = opts.action === '등록' ? '함께하는 활동으로 등록했습니다'
+      : opts.action === '변경' ? '함께하는 활동을 변경했습니다'
+        : '함께하던 활동을 삭제했습니다'
     await Promise.all(
       targets.map(u =>
         createNotification({
