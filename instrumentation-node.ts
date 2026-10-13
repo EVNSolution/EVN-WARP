@@ -4,7 +4,7 @@
  */
 import { startDongjakKeepAlive } from './lib/mcp/dongjak'
 import { prisma } from './lib/db'
-import { workKeywords } from './lib/work-keywords'
+import { weeklyDigest } from './lib/weekly-digest'
 
 // 회의실 예약(동작) 세션 keep-alive — 연결된 세션을 15분마다 사용해
 // 창업센터 업스트림 세션 만료(→ 예약 앱 무응답)를 막는다.
@@ -16,5 +16,5 @@ startDongjakKeepAlive(async () => {
   return rows.map(r => r.dongjakSessionId).filter((s): s is string => !!s)
 })
 
-// 업무 키워드(온톨로지) 예열 — 첫 방문자가 AI 선별을 기다리지 않게 미리 채워 둔다
-void workKeywords().catch(() => {})
+// 주간회의 브리핑 예열 — 첫 방문자가 AI 요약 생성을 기다리지 않게 미리 채워 둔다
+void weeklyDigest().catch(() => {})

@@ -1,7 +1,8 @@
 import { auth } from '@/auth'
 import { prisma } from '@/lib/db'
-import { workKeywords } from '@/lib/work-keywords'
+import { weeklyDigest } from '@/lib/weekly-digest'
 import AiFeedbackList from './AiFeedbackList'
+import WeeklyBriefing from './WeeklyBriefing'
 
 /**
  * AI 업무 기록 대시보드 — 전사 공용 화면. 4개 뷰로 구성:
@@ -65,7 +66,7 @@ export default async function AiLogPage() {
   const since28 = new Date(Date.now() - 28 * 86400_000)
   const since7 = new Date(Date.now() - 7 * 86400_000)
 
-  const [rawRows, feedbacks, logByCat, log28, logUsers, aiActivityCount, firstLog, kw] = await Promise.all([
+  const [rawRows, feedbacks, logByCat, log28, logUsers, aiActivityCount, firstLog, digest, aiByTask] = await Promise.all([
     prisma.workActivity.findMany({
       where: { source: 'mcp', date: { gte: from30 } },
       orderBy: [{ createdAt: 'desc' }],
@@ -90,8 +91,41 @@ export default async function AiLogPage() {
     prisma.mcpLog.groupBy({ by: ['userId'] }),
     prisma.workActivity.count({ where: { source: 'mcp' } }),
     prisma.mcpLog.findFirst({ orderBy: { createdAt: 'asc' }, select: { createdAt: true } }),
-    workKeywords(),
+    weeklyDigest(),
+    prisma.workActivity.groupBy({
+      by: ['taskId'],
+      where: { source: 'mcp', taskId: { not: null } },
+      _count: { _all: true },
+    }),
   ])
+
+  // ── 과제 × AI 히트맵: AI 경유 활동을 팀과제 단위로 올려 집계 ──
+  const heatTaskIds = aiByTask.map(g => g.taskId).filter((v): v is string => !!v)
+  const heatTasks = heatTaskIds.length
+    ? await prisma.strategyTask.findMany({
+        where: { id: { in: heatTaskIds } },
+        select: {
+          id: true, title: true, parentId: true,
+          parent: { select: { id: true, title: true, parentId: true, parent: { select: { id: true, title: true } } } },
+        },
+      })
+    : []
+  const heatMap = new Map<string, { strategy: string; title: string; count: number }>()
+  for (const g of aiByTask) {
+    const t = heatTasks.find(x => x.id === g.taskId)
+    if (!t) continue
+    // 팀과제 노드로 올린다: 세부과제(depth2)→부모, 팀과제(depth1)→자신, 전략과제(depth0)→자신
+    const node = t.parent && t.parent.parentId ? t.parent                     // 세부과제 → 팀과제
+      : t.parentId ? { id: t.id, title: t.title, parent: t.parent }          // 팀과제
+        : { id: t.id, title: t.title, parent: null }                          // 전략과제 직접 연계
+    const strategy = (node as any).parent?.parent?.title ?? (node as any).parent?.title ?? (t.parentId ? '' : t.title)
+    const key = (node as any).id
+    const cur = heatMap.get(key) ?? { strategy: strategy || '전략과제', title: (node as any).title, count: 0 }
+    cur.count += g._count._all
+    heatMap.set(key, cur)
+  }
+  const heatRows = [...heatMap.values()].sort((a, b) => b.count - a.count).slice(0, 8)
+  const heatMax = Math.max(1, ...heatRows.map(r => r.count))
 
   // 호출 로그(McpLog)가 생기기 전의 AI 기록(어제 10/12 시작)도 집계에 소급 포함한다 —
   // 로그 시작 시각 이전에 만들어진 source='mcp' 활동을 「업무기록」 호출 1건씩으로 센다.
@@ -189,7 +223,17 @@ export default async function AiLogPage() {
           </p>
         </section>
 
-        {/* ② 피드백 로그 */}
+        {/* ② 주간회의 브리핑 — 월/목 10시 회의에서 팀 탭 넘기며 읽는다 */}
+        <WeeklyBriefing
+          windowLabel={digest.windowLabel}
+          generatedAt={new Intl.DateTimeFormat('ko-KR', { timeZone: 'Asia/Seoul', hour: '2-digit', minute: '2-digit', hour12: false }).format(new Date(digest.generatedAt))}
+          activityCount={digest.activityCount}
+          peopleCount={digest.peopleCount}
+          source={digest.source}
+          text={digest.text}
+        />
+
+        {/* ③ 피드백 로그 */}
         <section>
           <h2 className="text-sm font-bold text-slate-800 mb-1">AI 연결 피드백</h2>
           <p className="text-[11px] text-slate-400 mb-3">
@@ -213,39 +257,34 @@ export default async function AiLogPage() {
         {/* ③·④ 온톨로지 + 사용 추이 */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
           <section className="border border-slate-200 rounded-2xl bg-white p-5">
-            <h2 className="text-sm font-bold text-slate-800">
-              업무 온톨로지
-              {kw.source === 'ai' && (
-                <span className="ml-2 align-middle text-[10px] px-1.5 py-0.5 rounded-md bg-[#C5D42A]/20 text-[#7a9200] font-semibold">AI 분석</span>
-              )}
-            </h2>
+            <h2 className="text-sm font-bold text-slate-800">과제 × AI</h2>
             <p className="text-[11px] text-slate-400 mb-4">
-              최근 90일 공개 업무 {kw.total.toLocaleString()}건에서 뽑은 실제 업무 주제 — 글자가 클수록 비중이 큽니다.
+              회사 과제 중 AI(CLEVER)로 기록이 쌓이는 곳 — 팀과제 단위 누적 활동 수
             </p>
-            {kw.keywords.length === 0 ? (
-              <div className="text-xs text-slate-400 py-6 text-center">아직 집계할 공개 업무 기록이 부족합니다.</div>
-            ) : (() => {
-              const sorted = [...kw.keywords].sort((a, b) => b.weight - a.weight)
-              const maxW = sorted[0].weight || 1
-              return (
-                <div className="flex flex-wrap items-baseline justify-center gap-x-3 gap-y-2 py-2">
-                  {sorted.map((t, i) => {
-                    const size = 12 + Math.round(18 * Math.pow(t.weight / maxW, 0.8))
-                    const cls = i < 3
-                      ? 'text-[#7a9200] font-extrabold'
-                      : i < 9
-                        ? 'text-slate-700 font-semibold'
-                        : 'text-slate-400'
-                    return (
-                      <span key={t.word} title={`${t.word} — 비중 ${t.weight}/100`}
-                        className={`${cls} leading-tight`} style={{ fontSize: `${size}px` }}>
-                        {t.word}
+            {heatRows.length === 0 ? (
+              <div className="text-xs text-slate-400 py-6 text-center">
+                아직 과제에 연계된 AI 기록이 없습니다 — 등록 시 과제를 연결하면 여기에 쌓입니다.
+              </div>
+            ) : (
+              <div className="space-y-2.5">
+                {heatRows.map(r => (
+                  <div key={`${r.strategy}-${r.title}`}>
+                    <div className="flex items-baseline justify-between gap-2">
+                      <span className="text-xs text-slate-700 truncate">
+                        <span className="text-slate-400">{r.strategy} › </span>{r.title}
                       </span>
-                    )
-                  })}
-                </div>
-              )
-            })()}
+                      <span className="text-[11px] font-bold text-slate-500 shrink-0">{r.count}</span>
+                    </div>
+                    <div className="mt-1 h-2 rounded-full bg-slate-100 overflow-hidden">
+                      <div className="h-full rounded-full" style={{
+                        width: `${Math.max((r.count / heatMax) * 100, 6)}%`,
+                        backgroundColor: '#C5D42A',
+                      }} />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </section>
 
           <section className="border border-slate-200 rounded-2xl bg-white p-5 flex flex-col">
