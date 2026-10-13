@@ -159,7 +159,9 @@ export const TOOL_DEFINITIONS = [
   {
     name: 'update_task',
     description:
-      '내 WARP 활동을 수정한다 — 제목·내용·날짜·시간·유형. '
+      '내 WARP 활동을 수정한다 — 제목·내용·날짜·시간·유형·동반자·연계 과제(task_id)·공개 여부. '
+      + '기존 활동의 과제 연계를 바꾸거나 해제(task_id: "")할 때도 쓴다 — 과제 선택은 '
+      + 'list_strategy_tasks 로 전략과제→팀과제→세부과제 순으로 물어본다. '
       + '어떤 활동인지 제목과 내용으로 사용자에게 보여주고 확정받은 뒤 호출한다. '
       + 'id 는 list_my_tasks 결과의 내부 키로만 쓰고 사용자에게 노출하지 않는다.',
     inputSchema: {
