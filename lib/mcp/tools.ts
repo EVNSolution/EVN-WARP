@@ -63,6 +63,11 @@ export const MCP_INSTRUCTIONS = `
    「이대로 등록할까요?」 승인을 받는다. 승인 후에만 create_task 를 호출한다. id 는 노출하지 않는다.
 5. list_my_tasks 로 중복 등록을 피한다.
 
+## 업무 삭제
+사용자가 등록된 업무를 지워 달라고 하면 list_my_tasks 로 찾아 제목·날짜·내용을 보여주고
+「정말 삭제할까요? (복구 불가)」 확정을 받은 뒤 delete_task 로 삭제한다. 여러 건을 지워
+달라고 해도 반드시 건별로 각각 보여주고 확정받아 하나씩 — 일괄 삭제는 하지 않는다.
+
 ## 일정 등록
 날짜·시각이 정해진 약속이 보이면 "WARP 캘린더에 등록할까요?" 제안. start_time/end_time 을 넣으면
 캘린더에 그 시간대로 표시된다. 종료 시각을 모르면 1시간으로 잡고 그렇게 말해준다.
@@ -181,6 +186,21 @@ export const TOOL_DEFINITIONS = [
         type: { type: 'string', enum: ACTIVITY_TYPES },
         start_time: { type: 'string', pattern: TIME_RE },
         end_time: { type: 'string', pattern: TIME_RE },
+      },
+      required: ['id'],
+    },
+  },
+  {
+    name: 'delete_task',
+    description:
+      '내 WARP 활동 1건을 삭제한다 (복구 불가). 반드시 list_my_tasks 로 찾은 뒤, 어떤 활동인지 '
+      + '제목·날짜·내용으로 사용자에게 보여주고 「정말 삭제할까요?」 확정을 받고 나서 호출한다. '
+      + '한 번에 한 건만 — 여러 건을 지워 달라고 해도 건별로 보여주고 확정받아 하나씩 삭제한다. '
+      + '일괄 삭제는 지원하지 않는다.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        id: { type: 'string', description: '삭제할 활동 id — list_my_tasks 결과의 내부 키' },
       },
       required: ['id'],
     },
@@ -524,6 +544,20 @@ async function buildTaskTreeLines(user: McpUser): Promise<string[]> {
   return lines
 }
 
+/** 내 활동 1건 삭제 — 본인 것만, 건별 확정 후. 동반자에게는 삭제 알림이 간다. */
+async function deleteTask(user: McpUser, a: Record<string, any>): Promise<ToolResult> {
+  if (!a.id) return err('id 는 필수입니다 — list_my_tasks 로 삭제할 활동을 먼저 찾아 주세요.')
+  const before = await prisma.workActivity.findUnique({ where: { id: String(a.id) } })
+  if (!before || before.userId !== user.id) return err('해당 활동을 찾을 수 없거나 본인 활동이 아닙니다.')
+  await prisma.workActivity.delete({ where: { id: before.id } })
+  const noti = await notifyCompanions({
+    companions: before.companions, actorId: user.id, actorName: user.name,
+    title: before.title, date: before.date, action: '삭제',
+  })
+  const time = before.startTime ? ` ${before.startTime}${before.endTime ? `~${before.endTime}` : ''}` : ''
+  return { text: `삭제 완료 — 「${before.title}」 (${before.date}${time}, ${before.type})${companionSummary(noti)}` }
+}
+
 /** 과제 체계 조회 — 전사 전략과제와 그 아래 팀과제·세부과제를 id 와 함께 보여준다 (★우리 팀 우선). */
 async function listStrategyTasks(user: McpUser): Promise<ToolResult> {
   const lines = await buildTaskTreeLines(user)
@@ -674,8 +708,8 @@ async function sendFeedback(user: McpUser, a: Record<string, any>): Promise<Tool
 
 /** AI 사용 집계(AI 업무 기록 대시보드)용 도구 분류. */
 const TOOL_CATEGORY: Record<string, string> = {
-  create_task: '업무기록', list_my_tasks: '업무기록', update_task: '업무기록', find_coworker: '업무기록',
-  list_strategy_tasks: '업무기록',
+  create_task: '업무기록', list_my_tasks: '업무기록', update_task: '업무기록', delete_task: '업무기록',
+  find_coworker: '업무기록', list_strategy_tasks: '업무기록',
   meeting_room_status: '회의실', reserve_meeting_room: '회의실', save_meeting_profile: '회의실',
   my_meeting_reservations: '회의실', cancel_meeting_reservation: '회의실',
   send_feedback: '피드백',
@@ -709,6 +743,7 @@ async function dispatchTool(user: McpUser, name: string, args: Record<string, an
       case 'create_task': return await createTask(user, a)
       case 'list_my_tasks': return await listMyTasks(user, a)
       case 'update_task': return await updateTask(user, a)
+      case 'delete_task': return await deleteTask(user, a)
       case 'find_coworker': return await findCoworker(a)
       case 'list_strategy_tasks': return await listStrategyTasks(user)
       case 'meeting_room_status': return await meetingRoomStatus(user, a)
