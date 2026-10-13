@@ -304,7 +304,7 @@ export default async function AiLogPage() {
             <table className="w-full text-sm border-collapse">
               <thead className="sticky top-0 z-10 bg-white">
                 <tr className="text-left text-[11px] text-slate-400 border-b border-slate-200">
-                  <th className="py-2.5 pr-3 font-medium w-20">날짜</th>
+                  <th className="py-2.5 pr-3 font-medium w-20">수행일</th>
                   <th className="py-2.5 pr-3 font-medium w-20">담당</th>
                   <th className="py-2.5 pr-3 font-medium">활동</th>
                   <th className="py-2.5 font-medium w-24">유형</th>
