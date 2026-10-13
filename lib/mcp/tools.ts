@@ -388,7 +388,7 @@ async function createTask(user: McpUser, a: Record<string, any>): Promise<ToolRe
   })
   const noti = await notifyCompanions({
     companions: activity.companions, actorId: user.id, actorName: user.name,
-    title: activity.title, date: activity.date, action: '등록',
+    title: activity.title, date: activity.date, action: '등록', activityId: activity.id,
   })
   const time = activity.startTime ? ` ${activity.startTime}${activity.endTime ? `~${activity.endTime}` : ''}` : ''
   const linked = linkedTask ? `\n연계 과제: [${linkedTask.code}] ${linkedTask.title} ✓ 저장 확인` : ''
@@ -453,7 +453,7 @@ async function updateTask(user: McpUser, a: Record<string, any>): Promise<ToolRe
   const updated = await prisma.workActivity.update({ where: { id: before.id }, data })
   const noti = await notifyCompanions({
     companions: updated.companions, actorId: user.id, actorName: user.name,
-    title: updated.title, date: updated.date, action: '변경',
+    title: updated.title, date: updated.date, action: '변경', activityId: updated.id,
   })
   return {
     text: `수정 완료 — 「${before.title}」\n`

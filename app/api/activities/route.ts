@@ -118,7 +118,7 @@ export async function POST(req: NextRequest) {
     // 동반자로 적힌 팀원들에게 알림 (실패해도 등록은 유지)
     void notifyCompanions({
       companions, actorId: resolvedUserId, actorName: resolvedUserName ?? '동료',
-      title: activity.title, date: activity.date, action: '등록',
+      title: activity.title, date: activity.date, action: '등록', activityId: activity.id,
     })
 
     // 반복 등록 (매일·평일·매주) — 기간·KPI 활동은 제외, 비용·첨부는 첫 활동에만

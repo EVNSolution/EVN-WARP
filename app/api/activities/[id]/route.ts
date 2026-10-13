@@ -64,7 +64,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   // 동반자로 적힌 팀원들에게 변경 알림 (실패해도 수정은 유지)
   void notifyCompanions({
     companions: activity.companions, actorId: activity.userId, actorName: activity.userName ?? '동료',
-    title: activity.title, date: activity.date, action: '변경',
+    title: activity.title, date: activity.date, action: '변경', activityId: activity.id,
   })
 
   return NextResponse.json(activity)
