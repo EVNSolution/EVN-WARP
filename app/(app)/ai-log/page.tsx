@@ -204,10 +204,11 @@ export default async function AiLogPage() {
           activityCount={digest.activityCount}
           peopleCount={digest.peopleCount}
           source={digest.source}
-          text={digest.text}
+          headline={digest.headline}
+          teams={digest.teams}
         />
 
-          <section className="border border-slate-200 rounded-2xl bg-white p-5 flex flex-col">
+          <section className="border border-slate-200 rounded-2xl bg-white p-5 flex flex-col h-[22rem]">
             <h2 className="text-sm font-bold text-slate-800">AI 사용 추이</h2>
             <p className="text-[11px] text-slate-400 mb-4">최근 4주 · 일별 도구 호출 (유형별 색)</p>
             {/* 플롯이 카드 남은 높이를 전부 쓴다 — 가로축(굵은 선)이 박스 바닥까지 내려온다 */}
@@ -284,30 +285,29 @@ export default async function AiLogPage() {
               &ldquo;오늘 한 일 WARP에 정리해줘&rdquo;라고 해보세요.
             </div>
           ) : (
-            <div className="border border-slate-200 rounded-xl bg-white h-96 overflow-y-auto px-4">
-            <table className="w-full text-xs border-collapse table-fixed">
-              <thead className="sticky top-0 z-10 bg-white">
-                <tr className="text-left text-[11px] text-slate-400 border-b border-slate-200">
-                  <th className="py-2.5 pr-3 font-medium w-20">수행일</th>
-                  <th className="py-2.5 pr-3 font-medium w-20">담당</th>
-                  <th className="py-2.5 pr-3 font-medium">활동</th>
-                  <th className="py-2.5 font-medium w-24">유형</th>
-                </tr>
-              </thead>
-              <tbody>
-                {rows.slice(0, 100).map(r => (
-                  <tr key={r.id} className="border-b border-slate-100 align-top">
-                    <td className="py-2 pr-3 text-slate-500 whitespace-nowrap">{r.date.slice(5)}</td>
-                    <td className="py-2 pr-3 text-slate-600 whitespace-nowrap">{r.userName ?? '-'}</td>
-                    <td className="py-2 pr-3 overflow-hidden">
-                      <div className="text-slate-800 truncate">{r.title}</div>
-                      {r.content && <div className="text-[11px] text-slate-400 mt-0.5 truncate">{r.content}</div>}
-                    </td>
-                    <td className="py-2 text-slate-500 whitespace-nowrap">{r.type}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            <div className="border border-slate-200 rounded-xl bg-white h-96 overflow-y-auto divide-y divide-slate-100">
+              {/* 컬럼 헤더 — 피드백 목록과 동일한 형식 */}
+              <div className="sticky top-0 z-10 flex items-center gap-3 px-4 py-2 bg-slate-50 text-[11px] text-slate-400 font-medium">
+                <span className="w-11 shrink-0">수행일</span>
+                <span className="w-14 shrink-0">담당</span>
+                <span className="flex-1">활동</span>
+                <span className="shrink-0">유형</span>
+                <span className="shrink-0 w-[10px]" />
+              </div>
+              {rows.slice(0, 100).map(r => (
+                <details key={r.id} className="group">
+                  <summary className="flex items-center gap-3 px-4 py-2.5 cursor-pointer select-none list-none hover:bg-slate-50 [&::-webkit-details-marker]:hidden">
+                    <span className="text-[11px] text-slate-400 w-11 shrink-0">{r.date.slice(5)}</span>
+                    <span className="text-xs font-semibold text-slate-600 w-14 shrink-0 truncate">{r.userName ?? '-'}</span>
+                    <span className="text-xs text-slate-700 truncate flex-1">{r.title}</span>
+                    <span className="shrink-0 text-[10px] px-1.5 py-0.5 rounded bg-slate-100 text-slate-500">{r.type}</span>
+                    <span className="shrink-0 text-slate-300 text-[10px] transition-transform group-open:rotate-180">▼</span>
+                  </summary>
+                  <div className="px-4 pb-3 pt-1 bg-slate-50/60">
+                    <p className="text-xs text-slate-700 whitespace-pre-wrap ml-11">{r.content ?? '(내용 없음)'}</p>
+                  </div>
+                </details>
+              ))}
             </div>
           )}
         </section>

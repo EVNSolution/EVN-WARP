@@ -5,15 +5,25 @@ import { prisma } from '@/lib/db'
  * 팀별로 읽어주는 요약. AI 업무 기록 화면의 브리핑 카드가 쓴다.
  *
  * 기간: 직전 회의 시각(월/목 10:00 KST, 진행 중인 회의는 직전 회의로) ~ 지금.
- * 1차: Claude(Haiku)가 팀별 핵심을 불릿으로 요약. 폴백: 팀별 원문 목록.
+ * 팀 구분: 사람 소속이 아니라 「연계 과제의 팀」 — 독립활동·전사과제 직접 연계는 「공통」.
+ * 구조: 팀마다 서버가 계산한 유형별 집계줄(신규영업 N·고객미팅 M…) + AI(Haiku)의 종합 서술
+ * 불릿 3~5개. AI 실패 시 불릿은 대표 업무 몇 건으로 폴백하되 집계줄은 항상 나온다.
  * 캐시 30분 + 수동 새로고침(회의 중 실시간 갱신용). 비공개 활동 제외, 제목만 공개는 제목만.
  */
 
+export interface DigestTeam {
+  name: string
+  /** 유형별 건수 집계 한 줄 — 예: "신규영업 4 · 고객미팅 3 · 문서·자료작성 5 (총 12건)" */
+  stats: string
+  bullets: string[]
+}
+
 export interface WeeklyDigest {
-  windowStart: string // ISO
+  windowStart: string
   windowLabel: string // "10/9(목) 10:00 이후"
   generatedAt: string
-  text: string        // '## 팀명' 헤더 + '- ' 불릿 형식
+  headline: string
+  teams: DigestTeam[]
   activityCount: number
   teamCount: number
   peopleCount: number
@@ -29,18 +39,16 @@ const DOW_LABEL = ['일', '월', '화', '수', '목', '금', '토']
 
 /** 직전 주간회의(월/목 10:00 KST) 시각 — 회의 시작 후 2시간까지는 "이번 회의"로 보고 그 전 회의를 기준으로 한다. */
 export function previousMeetingSlot(now = new Date()): Date {
-  const slots: Date[] = []
   for (let back = 0; back < 10; back++) {
     const d = new Date(now.getTime() + KST)
     d.setUTCDate(d.getUTCDate() - back)
     const dow = d.getUTCDay()
     if (dow === 1 || dow === 4) { // 월, 목
       const slot = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), 10, 0) - KST)
-      if (slot.getTime() + 2 * 3600_000 <= now.getTime()) slots.push(slot)
+      if (slot.getTime() + 2 * 3600_000 <= now.getTime()) return slot
     }
-    if (slots.length >= 1) break
   }
-  return slots[0] ?? new Date(now.getTime() - 4 * 86400_000)
+  return new Date(now.getTime() - 4 * 86400_000)
 }
 
 function slotLabel(slot: Date): string {
@@ -80,7 +88,6 @@ function groupByTeam(rows: Row[]): Map<string, Row[]> {
     arr.push(r)
     byTeam.set(t, arr)
   }
-  // 「공통」은 항상 마지막 탭으로
   if (byTeam.has('공통')) {
     const common = byTeam.get('공통')!
     byTeam.delete('공통')
@@ -89,20 +96,24 @@ function groupByTeam(rows: Row[]): Map<string, Row[]> {
   return byTeam
 }
 
-function ruleText(byTeam: Map<string, Row[]>): string {
-  const parts: string[] = []
-  for (const [team, rows] of byTeam) {
-    parts.push(`## ${team}`)
-    for (const r of rows.slice(0, 5)) {
-      const who = r.userName ? ` (${r.userName})` : ''
-      parts.push(`- ${r.title}${who} — ${r.date}${r.startTime ? ` ${r.startTime}` : ''}, ${r.type}`)
-    }
-    if (rows.length > 5) parts.push(`- …외 ${rows.length - 5}건`)
-  }
-  return parts.join('\n')
+/** 유형별 건수 집계 한 줄 — 나열이 아니라 "무엇을 몇 건 했는지"가 먼저 보이게. */
+function statsLine(rows: Row[]): string {
+  const counts = new Map<string, number>()
+  for (const r of rows) counts.set(r.type, (counts.get(r.type) ?? 0) + 1)
+  const parts = [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5)
+    .map(([type, n]) => `${type} ${n}`)
+  const rest = counts.size > 5 ? ' 외' : ''
+  return `${parts.join(' · ')}${rest} (총 ${rows.length}건)`
 }
 
-async function aiText(byTeam: Map<string, Row[]>, label: string): Promise<string | null> {
+function ruleBullets(rows: Row[]): string[] {
+  const out = rows.slice(0, 4).map(r => `${r.title}${r.userName ? ` (${r.userName})` : ''}`)
+  if (rows.length > 4) out.push(`…외 ${rows.length - 4}건 — 자세한 내용은 기록 테이블에서`)
+  return out
+}
+
+async function aiSections(byTeam: Map<string, Row[]>, label: string):
+  Promise<{ headline: string; byName: Map<string, string[]> } | null> {
   const apiKey = process.env.ANTHROPIC_API_KEY?.trim()
   if (!apiKey) return null
   const input = [...byTeam.entries()].map(([team, rows]) => {
@@ -110,7 +121,7 @@ async function aiText(byTeam: Map<string, Row[]>, label: string): Promise<string
       const body = r.content && (r.visibility ?? '공개') !== '제목만 공개' ? ` — ${r.content.slice(0, 100)}` : ''
       return `- ${r.title}${body} (${r.userName ?? '미상'}, ${r.type}, 수행일 ${r.date})`
     })
-    return `[${team}]\n${lines.join('\n')}`
+    return `[${team}] 집계: ${statsLine(rows)}\n${lines.join('\n')}`
   }).join('\n\n')
 
   const Anthropic = (await import('@anthropic-ai/sdk')).default
@@ -122,19 +133,39 @@ async function aiText(byTeam: Map<string, Row[]>, label: string): Promise<string
       role: 'user',
       content:
         `다음은 ${label} 회사(EV&Solution) 업무시스템에 기록된 활동들이다. 월/목 주간회의에서 `
-        + '소리 내어 읽기 좋은 팀별 브리핑을 만들어라.\n'
-        + '- **개별 업무를 나열하지 마라.** 흐름을 묶어 「지금 무슨 일이 일어나고/진행되고 있는지」를\n'
-        + '  서술하는 요약 불릿을 팀마다 3~5개(적으면 2개)만 「## 팀명」 헤더 아래 「- 」로 적는다.\n'
-        + '  예: "화인로지스 정산 체계 전환이 공문 대응과 함께 본격화되고 있다 (김OO)" 처럼\n'
-        + '  여러 기록을 하나의 이야기로 묶은 문장.\n'
-        + '- 담당자 이름은 필요할 때만 괄호로. 수치·고객사·일정은 구체적으로 유지.\n'
-        + '- 과장·추측 금지, 기록에 있는 것만. 중요도 순으로.\n'
-        + '- 맨 위에 「## 전체」 헤더로 이번 기간을 관통하는 한 줄 헤드라인 1개.\n'
+        + '소리 내어 읽는 팀별 브리핑을 만들어라.\n'
+        + '규칙:\n'
+        + '- **개별 업무 제목을 그대로 옮겨 나열하는 것은 금지.** 집계줄과 기록 내용을 근거로,\n'
+        + '  같은 성격의 일을 묶어 「무슨 일이 몇 건 규모로, 어떤 방향으로 진행되고 있는지」를\n'
+        + '  종합한 서술 문장을 만든다.\n'
+        + '  좋은 예: "신규영업 4건이 ○○·△△ 고객 중심으로 진행됐고, 그중 2건은 견적 단계로 넘어갔다"\n'
+        + '  나쁜 예: "○○ 미팅 진행 (김OO)" 처럼 기록 한 줄을 그대로 옮긴 것\n'
+        + '- 팀마다 「## 팀명」 헤더(입력의 [팀명] 과 글자 그대로 동일하게) 아래 불릿 3~5개 (기록이 적으면 2개).\n'
+        + '- 담당자 이름은 묶음의 대표로 필요할 때만 괄호. 수치·고객사·일정은 구체적으로.\n'
+        + '- 과장·추측 금지, 기록에 있는 것만.\n'
+        + '- 맨 위에 「## 전체」 헤더로 이번 기간 전체를 관통하는 한 줄 헤드라인 1개.\n'
         + '다른 말 없이 그 형식만 출력하라.\n\n' + input,
     }],
   })
   const text = msg.content.map(b => (b.type === 'text' ? b.text : '')).join('').trim()
-  return text.includes('##') ? text : null
+  if (!text.includes('##')) return null
+
+  const byName = new Map<string, string[]>()
+  let headline = ''
+  let current: string | null = null
+  for (const raw of text.split('\n')) {
+    const line = raw.trim()
+    if (line.startsWith('## ')) {
+      current = line.slice(3).trim()
+      if (current !== '전체') byName.set(current, [])
+    } else if (line.startsWith('- ') && current) {
+      if (current === '전체') headline = headline || line.slice(2).trim()
+      else byName.get(current)!.push(line.slice(2).trim())
+    } else if (line && current === '전체' && !headline) {
+      headline = line
+    }
+  }
+  return byName.size > 0 ? { headline, byName } : null
 }
 
 async function build(): Promise<WeeklyDigest> {
@@ -142,24 +173,28 @@ async function build(): Promise<WeeklyDigest> {
   const since = previousMeetingSlot(now)
   const rows = await fetchRows(since)
   const byTeam = groupByTeam(rows)
-  let text: string | null = null
-  let source: 'ai' | 'rule' = 'rule'
+
+  let ai: Awaited<ReturnType<typeof aiSections>> = null
   if (rows.length > 0) {
-    try { text = await aiText(byTeam, slotLabel(since)) } catch { text = null }
-    if (text) source = 'ai'
-    else text = ruleText(byTeam)
-  } else {
-    text = '지난 회의 이후 기록된 활동이 아직 없습니다.'
+    try { ai = await aiSections(byTeam, slotLabel(since)) } catch { ai = null }
   }
+
+  const teams: DigestTeam[] = [...byTeam.entries()].map(([name, teamRows]) => ({
+    name,
+    stats: statsLine(teamRows),
+    bullets: ai?.byName.get(name)?.slice(0, 5) ?? ruleBullets(teamRows),
+  }))
+
   return {
     windowStart: since.toISOString(),
     windowLabel: slotLabel(since),
     generatedAt: now.toISOString(),
-    text,
+    headline: rows.length === 0 ? '지난 회의 이후 기록된 활동이 아직 없습니다.' : (ai?.headline ?? ''),
+    teams,
     activityCount: rows.length,
     teamCount: byTeam.size,
     peopleCount: new Set(rows.map(r => r.userName).filter(Boolean)).size,
-    source,
+    source: ai ? 'ai' : 'rule',
   }
 }
 
@@ -174,7 +209,6 @@ export async function weeklyDigest(force = false): Promise<WeeklyDigest> {
       .then(d => { cache = d; return d })
       .finally(() => { refreshing = null })
   }
-  // 캐시가 있으면 기다리지 않고 이전 것을 보여준다 (강제 새로고침은 기다린다)
   if (!force && cache) return cache
   return refreshing
 }
