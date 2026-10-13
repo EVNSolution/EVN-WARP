@@ -84,6 +84,8 @@ export const MCP_INSTRUCTIONS = `
   일정 등록을 제안하는 식으로 활용한다.
 - "그 일정에 ○○라고 남겨줘" 같은 요청은 내용을 확정받고 add_task_comment 로 남긴다 —
   활동 작성자와 동반자에게 알림이 간다. 본인 활동이 아니어도 이력을 남길 수 있다.
+- 사용자가 그 활동에 파일(증빙 등)을 올리고 싶어 하면, 도구 응답에 포함된 「활동 화면」
+  링크를 전달한다 — 그 화면의 댓글창에서 바로 파일을 첨부할 수 있다.
 
 ## 업무 삭제
 사용자가 등록된 업무를 지워 달라고 하면 list_my_tasks 로 찾아 제목·날짜·내용을 보여주고
@@ -699,7 +701,8 @@ async function getTaskHistory(user: McpUser, a: Record<string, any>): Promise<To
       + (act.companions ? `동반자: ${act.companions}\n` : '')
       + `내용: ${hideContent ? '(제목만 공개된 활동)' : act.content ?? '(없음)'}\n`
       + (attachments.length && !hideContent ? `첨부: ${attachments.map(abs).join(', ')}\n` : '')
-      + `이력(댓글) ${act.comments.length}건:${commentLines.length ? `\n${commentLines.join('\n')}` : ' 없음'}`,
+      + `이력(댓글) ${act.comments.length}건:${commentLines.length ? `\n${commentLines.join('\n')}` : ' 없음'}\n`
+      + `활동 화면(댓글·첨부는 여기서): ${base}/notes?month=${act.date.slice(0, 7)}&activity=${act.id}`,
   }
 }
 
@@ -724,7 +727,11 @@ async function addTaskComment(user: McpUser, a: Record<string, any>): Promise<To
     ownerId: act.userId, companions: act.companions,
     commenterId: user.id, commenterName: user.name,
   })
-  return { text: `댓글 등록 완료 — 「${act.title}」(${act.date})에 남겼습니다. 작성자·동반자에게 알림이 발송됩니다.` }
+  const base = (process.env.NEXTAUTH_URL || 'https://warp.cleversystem.ai').replace(/\/$/, '')
+  return {
+    text: `댓글 등록 완료 — 「${act.title}」(${act.date})에 남겼습니다. 작성자·동반자에게 알림이 발송됩니다.\n`
+      + `활동 화면(첨부파일은 여기서): ${base}/notes?month=${act.date.slice(0, 7)}&activity=${act.id}`,
+  }
 }
 
 /**

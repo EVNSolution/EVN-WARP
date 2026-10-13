@@ -95,7 +95,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     void createNotification({
       userId: activity.userId, type: 'activity_edited',
       message: `${authz.me.name ?? '관리자'}님이 회원님의 활동 「${activity.title}」(${activity.date})을 수정했습니다.`,
-      link: `/notes/${activity.id}/edit`,
+      link: `/notes?month=${activity.date.slice(0, 7)}&activity=${activity.id}`,
     })
   }
 
