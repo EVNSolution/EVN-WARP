@@ -37,9 +37,8 @@ export const MCP_INSTRUCTIONS = `
 1. 실제로 수행한 업무만 추린다 — 잡담·미완의 시도·사적 내용 제외.
 2. 업무 1건 = 활동 1건. 제목은 「대상 + 한 일」 15자 내외.
 3. note(내용)는 2~3문장 요약. 대화 원문을 길게 붙이지 않는다.
-4. 끝난 일은 status=완료 로 등록한다.
-5. 등록·수정 전에 반드시 제목·유형·내용을 사람이 읽는 문장으로 보여주고 확정받는다. id 는 노출하지 않는다.
-6. list_my_tasks 로 중복 등록을 피한다.
+4. 등록·수정 전에 반드시 제목·유형·내용을 사람이 읽는 문장으로 보여주고 확정받는다. id 는 노출하지 않는다.
+5. list_my_tasks 로 중복 등록을 피한다.
 
 ## 일정 등록
 날짜·시각이 정해진 약속이 보이면 "WARP 캘린더에 등록할까요?" 제안. start_time/end_time 을 넣으면
@@ -102,8 +101,7 @@ export const TOOL_DEFINITIONS = [
   {
     name: 'create_task',
     description:
-      'WARP 업무공간에 새 활동(할 일·일정)을 등록한다. 사용자가 할 일·업무·미팅 일정을 WARP에 올려 달라고 할 때 사용한다. '
-      + '등록된 활동은 「계획」 상태로 시작하며, 이미 끝낸 일은 status=완료 로 등록한다. '
+      'WARP 업무공간에 새 활동(업무 기록·일정)을 등록한다. 사용자가 한 일이나 미팅 일정을 WARP에 올려 달라고 할 때 사용한다. '
       + '시각이 정해진 일정은 start_time/end_time 을 넣으면 WARP 캘린더에 그 시간대로 표시된다. '
       + '호출 전에 반드시 등록할 내용(제목·날짜·시간·유형·내용)을 사람이 읽는 문장으로 보여주고 확정을 받아라.',
     inputSchema: {
@@ -114,7 +112,6 @@ export const TOOL_DEFINITIONS = [
         due: { type: 'string', pattern: DATE_RE, description: '종료일(기한) YYYY-MM-DD — 하루짜리 일이면 생략' },
         type: { type: 'string', enum: ACTIVITY_TYPES, description: '활동 유형 — 업무공간 입력창의 유형 버튼과 동일' },
         note: { type: 'string', description: '내용/메모' },
-        status: { type: 'string', enum: ['계획', '완료'], description: '이미 끝낸 일이면 「완료」 — 생략하면 「계획」' },
         start_time: { type: 'string', pattern: TIME_RE, description: '일정 시작 시각 HH:MM — 생략하면 하루종일' },
         end_time: { type: 'string', pattern: TIME_RE, description: '일정 종료 시각 HH:MM' },
       },
@@ -124,27 +121,21 @@ export const TOOL_DEFINITIONS = [
   {
     name: 'list_my_tasks',
     description:
-      '내 WARP 활동(할 일·일정) 목록을 조회한다 (최근 30일 ~ 앞으로 60일). '
-      + '자기 할 일·오늘 할 일·미완료 업무를 묻거나, 중복 등록을 확인할 때 사용한다. '
+      '내 WARP 활동(업무 기록·일정) 목록을 조회한다 (최근 30일 ~ 앞으로 60일). '
+      + '자기 기록·일정을 묻거나, 중복 등록을 확인할 때 사용한다. '
       + '사용자에게 보여줄 때는 제목·기간·내용 위주로 정리하고 id 는 노출하지 마라.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        status: { type: 'string', enum: ['계획', '완료'], description: '「계획」= 미완료만, 「완료」= 끝난 것만, 생략 = 전부' },
-      },
-    },
+    inputSchema: { type: 'object', properties: {} },
   },
   {
     name: 'update_task',
     description:
-      '내 WARP 활동을 수정한다 — 상태(계획/완료)·제목·내용·날짜·시간·유형. '
+      '내 WARP 활동을 수정한다 — 제목·내용·날짜·시간·유형. '
       + '어떤 활동인지 제목과 내용으로 사용자에게 보여주고 확정받은 뒤 호출한다. '
       + 'id 는 list_my_tasks 결과의 내부 키로만 쓰고 사용자에게 노출하지 않는다.',
     inputSchema: {
       type: 'object',
       properties: {
         id: { type: 'string', description: '활동 id — list_my_tasks 결과의 내부 키' },
-        status: { type: 'string', enum: ['계획', '완료'] },
         title: { type: 'string' },
         note: { type: 'string', description: '빈 문자열이면 내용 삭제' },
         date: { type: 'string', pattern: DATE_RE },
@@ -293,7 +284,7 @@ async function createTask(user: McpUser, a: Record<string, any>): Promise<ToolRe
       type: a.type,
       title: String(a.title).trim(),
       content: a.note || null,
-      planStatus: a.status === '완료' ? '완료' : '계획',
+      planStatus: '완료', // 계획/완료 구분은 폐기 — 업무공간 등록과 동일하게 완료로 둔다
       startTime: a.start_time || null,
       endTime: a.end_time || null,
       source: 'mcp',
@@ -302,24 +293,23 @@ async function createTask(user: McpUser, a: Record<string, any>): Promise<ToolRe
     },
   })
   const time = activity.startTime ? ` ${activity.startTime}${activity.endTime ? `~${activity.endTime}` : ''}` : ''
-  return { text: `등록 완료 — id: ${activity.id}\n제목: ${activity.title}\n기간: ${activity.date}${activity.endDate ? ` ~ ${activity.endDate}` : ''}${time}\n유형: ${activity.type} · 상태: ${activity.planStatus}` }
+  return { text: `등록 완료 — id: ${activity.id}\n제목: ${activity.title}\n기간: ${activity.date}${activity.endDate ? ` ~ ${activity.endDate}` : ''}${time}\n유형: ${activity.type}` }
 }
 
-async function listMyTasks(user: McpUser, a: Record<string, any>): Promise<ToolResult> {
+async function listMyTasks(user: McpUser, _a: Record<string, any>): Promise<ToolResult> {
   const today = todayKst()
   const tasks = await prisma.workActivity.findMany({
     where: {
       userId: user.id,
       date: { gte: shiftDays(today, -30), lte: shiftDays(today, 60) },
-      ...(a.status === '계획' || a.status === '완료' ? { planStatus: a.status } : {}),
     },
     orderBy: [{ date: 'asc' }, { createdAt: 'asc' }],
     take: 200,
-    select: { id: true, title: true, content: true, date: true, endDate: true, startTime: true, endTime: true, type: true, planStatus: true },
+    select: { id: true, title: true, content: true, date: true, endDate: true, startTime: true, endTime: true, type: true },
   })
   if (tasks.length === 0) return { text: '해당하는 활동이 없습니다.' }
   const lines = tasks.map(t =>
-    `- [${t.planStatus}] ${t.title} (id: ${t.id}, ${t.date}${t.endDate ? `~${t.endDate}` : ''}${t.startTime ? ` ${t.startTime}${t.endTime ? `-${t.endTime}` : ''}` : ''}, ${t.type})${t.content ? ` — ${t.content}` : ''}`)
+    `- ${t.title} (id: ${t.id}, ${t.date}${t.endDate ? `~${t.endDate}` : ''}${t.startTime ? ` ${t.startTime}${t.endTime ? `-${t.endTime}` : ''}` : ''}, ${t.type})${t.content ? ` — ${t.content}` : ''}`)
   return { text: `내 활동 ${tasks.length}건:\n${lines.join('\n')}` }
 }
 
@@ -328,7 +318,6 @@ async function updateTask(user: McpUser, a: Record<string, any>): Promise<ToolRe
   const before = await prisma.workActivity.findUnique({ where: { id: String(a.id) } })
   if (!before || before.userId !== user.id) return err('해당 활동을 찾을 수 없거나 본인 활동이 아닙니다.')
   const data: Record<string, unknown> = {}
-  if (a.status !== undefined) data.planStatus = a.status === '완료' ? '완료' : '계획'
   if (a.title !== undefined && String(a.title).trim()) data.title = String(a.title).trim()
   if (a.note !== undefined) data.content = a.note || null
   if (a.date !== undefined) { data.date = a.date; data.week = getWeekId(new Date(a.date)) }
@@ -339,13 +328,12 @@ async function updateTask(user: McpUser, a: Record<string, any>): Promise<ToolRe
   }
   if (a.start_time !== undefined) data.startTime = a.start_time || null
   if (a.end_time !== undefined) data.endTime = a.end_time || null
-  if (Object.keys(data).length === 0) return err('바꿀 내용이 없습니다 — status/title/note/date/due/type/start_time/end_time 중 하나 이상을 주세요.')
+  if (Object.keys(data).length === 0) return err('바꿀 내용이 없습니다 — title/note/date/due/type/start_time/end_time 중 하나 이상을 주세요.')
   data.source = 'mcp' // AI가 손댄 활동도 AI 업무 기록에 잡히게 표시
   const updated = await prisma.workActivity.update({ where: { id: before.id }, data })
   return {
     text: `수정 완료 — 「${before.title}」\n`
       + (data.title !== undefined ? `  제목: ${before.title} → ${updated.title}\n` : '')
-      + (data.planStatus !== undefined ? `  상태: ${before.planStatus} → ${updated.planStatus}\n` : '')
       + (data.content !== undefined ? `  내용: ${before.content ?? '(없음)'} → ${updated.content ?? '(없음)'}\n` : '')
       + (data.date !== undefined ? `  시작일: ${before.date} → ${updated.date}\n` : '')
       + (data.endDate !== undefined ? `  종료일: ${before.endDate ?? '(없음)'} → ${updated.endDate ?? '(없음)'}\n` : '')
