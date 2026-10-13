@@ -20,6 +20,8 @@ export async function notifyCompanions(opts: {
   title: string
   date: string
   action: '등록' | '변경'
+  /** 알림 클릭 시 이동할 활동 id — 있으면 그 활동 상세(수정) 화면으로 간다 */
+  activityId?: string
 }): Promise<CompanionNotifyResult> {
   try {
     const names = [...new Set((opts.companions ?? '').split(',').map(s => s.trim()).filter(Boolean))]
@@ -38,7 +40,7 @@ export async function notifyCompanions(opts: {
           userId: u.id,
           type: 'activity_companion',
           message: `${opts.actorName}님이 「${opts.title}」(${opts.date})을 ${verb}.`,
-          link: '/notes',
+          link: opts.activityId ? `/notes/${opts.activityId}/edit` : '/notes',
         })),
     )
     return { notified: targets.map(u => ({ name: u.name, email: u.email })), missing }
