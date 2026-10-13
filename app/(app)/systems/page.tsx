@@ -41,7 +41,7 @@ export default function SystemsPage() {
   return (
     <div className="p-6">
       {/* 헤더 (공통 스타일) */}
-      <div className="px-6 py-4 mb-4 rounded-xl" style={{ backgroundColor: '#111111' }}>
+      <div className="max-w-4xl px-6 py-4 mb-4 rounded-xl" style={{ backgroundColor: '#111111' }}>
         <h1 className="text-xl font-bold text-white">연동 시스템</h1>
         <p className="text-[11px] mt-0.5" style={{ color: '#C5D42A' }}>회사·고객사 시스템 모음 — 외부 시스템은 각자의 로그인 권한으로 접속됩니다</p>
       </div>

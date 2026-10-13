@@ -23,7 +23,9 @@ export interface McpUser {
 
 /** Claude/ChatGPT 가 대화 시작 시 로드하는 사용 지침 — 팀 공용 「하루 정리」 워크플로우. */
 export const MCP_INSTRUCTIONS = `
-EV& WARP 업무 기록 도우미. 사용자의 개인 AI 대화에서 한 업무를 회사 업무시스템(WARP)에 기록한다.
+이 연결의 이름은 CLEVER — 개인 AI 와 EV&Solution 업무시스템(WARP)을 잇는 회사 공식 연결이다.
+대화에서 한 업무를 WARP 에 기록하고, 회의실 예약·사내 스킬·피드백 채널을 제공한다.
+처음 쓰는 사용자가 "이게 뭐야"라고 물으면 CLEVER 라는 이름으로 소개한다.
 
 ## 업무 마무리를 감지하면 먼저 제안하라
 다음 신호가 보이면 "이 내용을 WARP에 업무 기록으로 올릴까요?"라고 한 번 제안한다 (같은 대화에서 반복 제안 금지, 거절하면 다시 묻지 않는다):
@@ -63,9 +65,15 @@ EV& WARP 업무 기록 도우미. 사용자의 개인 AI 대화에서 한 업무
 법무 검토, R&D 과제 관리 등 — 은 list_evn_skills 로 해당 스킬을 찾고, 있으면 load_evn_skill 로
 지침을 읽어 그 양식과 절차를 따른다. 사내 업무 문서를 일반 지식만으로 만들지 말 것 — 스킬이 정본이다.
 
-## 피드백
-사용자가 이 AI 연결 자체에 대한 불편·개선 아이디어를 말하면 "피드백으로 남겨둘까요?"라고
-제안하고, 확정받은 내용을 send_feedback 으로 등록한다 (AI 업무 기록 화면의 게시판에 쌓인다).
+## 피드백 (적극 수집 — 질문 대상을 분명히)
+- 묻는 대상은 항상 "CLEVER 로 회사 업무를 보는 경험"이다 — Claude/ChatGPT 자체에 대한
+  의견을 묻는 것으로 들리지 않게 반드시 CLEVER(회사 업무 연결)를 지칭해서 묻는다.
+- 사용자가 업무 연결에 대한 불편·개선 아이디어를 말하면 "피드백으로 남겨둘까요?" 제안 후
+  확정받은 내용을 send_feedback 으로 등록한다 (AI 업무 기록 화면에 쌓인다).
+- 도구가 오류를 내거나, 사용자가 같은 요청을 반복·수정하는 등 불편을 겪은 게 보이면,
+  일을 마무리한 뒤 "방금 겪으신 불편을 피드백으로 남겨둘까요?"라고 꼭 제안한다.
+- 도구 결과에 [피드백 요청] 표시가 오면, 작업 보고 끝에 가볍게 한 줄로 의견을 청한다.
+- 피드백 질문은 한 대화에 1회까지. 거절하면 다시 묻지 않는다.
 
 ## 금지
 - 사용자 확정 없이 등록·수정하지 않는다.
@@ -479,12 +487,23 @@ const TOOL_CATEGORY: Record<string, string> = {
   list_evn_skills: '스킬', load_evn_skill: '스킬',
 }
 
+/** 작업 성공 직후 가끔(약 1/5) 끼워 보내는 피드백 넛지 — AI 가 가볍게 의견을 청하게 한다. */
+const FEEDBACK_NUDGE =
+  '\n\n[피드백 요청] 작업 보고 끝에 가볍게 한 줄로 물어봐 주세요: '
+  + '"지금처럼 개인 AI 에 연결된 CLEVER 로 EV&Solution 업무를 보시면서 불편했던 점이나 '
+  + '바라는 점이 있으면 알려주세요 — 피드백으로 남겨드릴게요." '
+  + '(Claude/ChatGPT 자체가 아니라 CLEVER 업무 연결에 대한 의견을 묻는 것임을 분명히. '
+  + '이번 대화에서 이미 물어봤다면 생략. 의견을 주면 send_feedback 으로 등록)'
+
 export async function callTool(user: McpUser, name: string, args: Record<string, any>): Promise<ToolResult> {
-  const result = await dispatchTool(user, name, args)
+  let result = await dispatchTool(user, name, args)
   // 사용 로그 — 인자(내용)는 저장하지 않는다. 실패해도 도구 응답에는 영향 없음.
   prisma.mcpLog.create({
     data: { userId: user.id, userName: user.name, tool: name, category: TOOL_CATEGORY[name] ?? '기타', ok: !result.isError },
   }).catch(() => {})
+  if (!result.isError && (name === 'create_task' || name === 'reserve_meeting_room') && Math.random() < 0.2) {
+    result = { ...result, text: result.text + FEEDBACK_NUDGE }
+  }
   return result
 }
 

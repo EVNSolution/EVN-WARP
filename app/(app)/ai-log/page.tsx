@@ -1,5 +1,6 @@
 import { auth } from '@/auth'
 import { prisma } from '@/lib/db'
+import { workKeywords } from '@/lib/work-keywords'
 
 /**
  * AI 업무 기록 대시보드 — 전사 공용 화면. 4개 뷰로 구성:
@@ -63,7 +64,7 @@ export default async function AiLogPage() {
   const since28 = new Date(Date.now() - 28 * 86400_000)
   const since7 = new Date(Date.now() - 7 * 86400_000)
 
-  const [rawRows, feedbacks, logByCat, log28, logUsers, aiActivityCount, typeCounts] = await Promise.all([
+  const [rawRows, feedbacks, logByCat, log28, logUsers, aiActivityCount, firstLog, kw] = await Promise.all([
     prisma.workActivity.findMany({
       where: { source: 'mcp', date: { gte: from30 } },
       orderBy: [{ createdAt: 'desc' }],
@@ -87,35 +88,41 @@ export default async function AiLogPage() {
     }),
     prisma.mcpLog.groupBy({ by: ['userId'] }),
     prisma.workActivity.count({ where: { source: 'mcp' } }),
-    prisma.workActivity.groupBy({ by: ['type'], _count: { _all: true } }),
+    prisma.mcpLog.findFirst({ orderBy: { createdAt: 'asc' }, select: { createdAt: true } }),
+    workKeywords(),
   ])
 
-  // ── ① 집계 ──
+  // 호출 로그(McpLog)가 생기기 전의 AI 기록(어제 10/12 시작)도 집계에 소급 포함한다 —
+  // 로그 시작 시각 이전에 만들어진 source='mcp' 활동을 「업무기록」 호출 1건씩으로 센다.
+  const logEpoch = firstLog?.createdAt ?? new Date()
+  const backfill = await prisma.workActivity.findMany({
+    where: { source: 'mcp', createdAt: { lt: logEpoch } },
+    select: { createdAt: true, userId: true },
+  })
+
+  // ── ① 집계 (백필 포함) ──
   const catCounts = new Map<string, number>()
   for (const g of logByCat) catCounts.set(CATS.includes(g.category as any) ? g.category : '기타',
     (catCounts.get(CATS.includes(g.category as any) ? g.category : '기타') ?? 0) + g._count._all)
+  catCounts.set('업무기록', (catCounts.get('업무기록') ?? 0) + backfill.length)
   const totalCalls = [...catCounts.values()].reduce((a, b) => a + b, 0)
   const weekCalls = log28.filter(l => l.createdAt >= since7).length
+    + backfill.filter(b => b.createdAt >= since7).length
   const aiUserIds = new Set<string>(logUsers.map(u => u.userId))
   for (const r of rawRows) if (r.userId) aiUserIds.add(r.userId)
+  for (const b of backfill) if (b.userId) aiUserIds.add(b.userId)
 
-  // ── ④ 추이 (최근 28일, KST 일별 × 카테고리) ──
+  // ── ④ 추이 (최근 28일, KST 일별 × 카테고리, 백필 포함) ──
   const dayKeys = Array.from({ length: 28 }, (_, i) => daysAgoKst(27 - i))
   const byDay = new Map<string, Map<string, number>>(dayKeys.map(k => [k, new Map()]))
-  for (const l of log28) {
-    const k = kstDay(l.createdAt)
-    const m = byDay.get(k)
-    if (!m) continue
-    const c = CATS.includes(l.category as any) ? l.category : '기타'
-    m.set(c, (m.get(c) ?? 0) + 1)
+  const addDay = (at: Date, cat: string) => {
+    const m = byDay.get(kstDay(at))
+    if (m) m.set(cat, (m.get(cat) ?? 0) + 1)
   }
+  for (const l of log28) addDay(l.createdAt, CATS.includes(l.category as any) ? l.category : '기타')
+  for (const b of backfill) if (b.createdAt >= since28) addDay(b.createdAt, '업무기록')
   const maxDay = Math.max(1, ...dayKeys.map(k => [...byDay.get(k)!.values()].reduce((a, b) => a + b, 0)))
-
-  // ── ③ 온톨로지 ──
-  const ontology = typeCounts
-    .map(t => ({ type: t.type, count: t._count._all }))
-    .sort((a, b) => b.count - a.count)
-  const ontologyTotal = ontology.reduce((a, b) => a + b.count, 0)
+  const yMid = Math.ceil(maxDay / 2)
 
   // ── 최근 AI 기록 (공개여부 반영 — 업무공간과 같은 규칙) ──
   const rows = rawRows
@@ -127,7 +134,7 @@ export default async function AiLogPage() {
   return (
     <div className="p-6">
       {/* 헤더 (공통 스타일: 검은 배경 + 둥근 모서리) */}
-      <div className="px-6 py-4 mb-5 rounded-xl" style={{ backgroundColor: '#111111' }}>
+      <div className="max-w-5xl px-6 py-4 mb-5 rounded-xl" style={{ backgroundColor: '#111111' }}>
         <h1 className="text-xl font-bold text-white">AI 업무 기록</h1>
         <p className="text-[11px] mt-0.5" style={{ color: '#C5D42A' }}>
           개인 AI(Claude·ChatGPT 등)와 WARP 가 함께 일한 기록 — 연결은 내 계정 → AI 연결에서
@@ -177,7 +184,7 @@ export default async function AiLogPage() {
             </div>
           </div>
           <p className="text-[10px] text-slate-500 mt-4">
-            업무 기록·회의실 예약·사내 스킬·피드백 — AI 도구 호출 전체 집계입니다 (2026-10-13부터, 호출 내용은 저장하지 않음).
+            업무 기록·회의실 예약·사내 스킬·피드백 — AI 연결을 시작한 2026-10-12부터의 전체 집계입니다 (호출 내용은 저장하지 않음).
           </p>
         </section>
 
@@ -192,9 +199,9 @@ export default async function AiLogPage() {
               아직 피드백이 없습니다.
             </div>
           ) : (
-            <div className="border border-slate-200 rounded-xl overflow-hidden bg-white">
+            <div className="border border-slate-200 rounded-xl bg-white max-h-80 overflow-y-auto">
               <table className="w-full text-sm border-collapse">
-                <thead>
+                <thead className="sticky top-0 z-10">
                   <tr className="text-left text-[11px] text-slate-400 border-b border-slate-200 bg-slate-50">
                     <th className="py-2 px-3 font-medium w-20">날짜</th>
                     <th className="py-2 px-3 font-medium w-20">작성자</th>
@@ -232,47 +239,63 @@ export default async function AiLogPage() {
           <section className="border border-slate-200 rounded-2xl bg-white p-5">
             <h2 className="text-sm font-bold text-slate-800">업무 온톨로지</h2>
             <p className="text-[11px] text-slate-400 mb-4">
-              WARP 에 쌓인 전체 활동 {ontologyTotal.toLocaleString()}건의 유형 지도 — 글자가 클수록 많이 쌓인 일입니다.
+              최근 90일 공개 업무 {kw.total.toLocaleString()}건의 제목·내용에서 자동 추출한 주요 키워드 — 글자가 클수록 자주 등장합니다.
             </p>
-            <div className="flex flex-wrap items-center gap-x-2 gap-y-2">
-              {ontology.map((t, i) => {
-                const size = 11 + Math.min(11, Math.round(Math.sqrt(t.count) * 1.6))
-                const top = i < 3
-                return (
-                  <span key={t.type} title={`${t.type} ${t.count}건`}
-                    className={`px-2 py-0.5 rounded-lg border ${top
-                      ? 'border-[#C5D42A] bg-[#C5D42A]/15 text-[#5c6e00] font-bold'
-                      : 'border-slate-200 bg-slate-50 text-slate-600'}`}
-                    style={{ fontSize: `${size}px` }}>
-                    {t.type}<span className="ml-1 opacity-50 text-[0.7em]">{t.count}</span>
-                  </span>
-                )
-              })}
-            </div>
+            {kw.keywords.length === 0 ? (
+              <div className="text-xs text-slate-400 py-6 text-center">아직 집계할 공개 업무 기록이 부족합니다.</div>
+            ) : (
+              <div className="flex flex-wrap items-center gap-x-2 gap-y-2">
+                {kw.keywords.map((t, i) => {
+                  const size = 11 + Math.min(11, Math.round(Math.sqrt(t.count) * 1.6))
+                  const top = i < 3
+                  return (
+                    <span key={t.word} title={`${t.word} — ${t.count}회 등장`}
+                      className={`px-2 py-0.5 rounded-lg border ${top
+                        ? 'border-[#C5D42A] bg-[#C5D42A]/15 text-[#5c6e00] font-bold'
+                        : 'border-slate-200 bg-slate-50 text-slate-600'}`}
+                      style={{ fontSize: `${size}px` }}>
+                      {t.word}
+                    </span>
+                  )
+                })}
+              </div>
+            )}
           </section>
 
           <section className="border border-slate-200 rounded-2xl bg-white p-5">
             <h2 className="text-sm font-bold text-slate-800">AI 사용 추이</h2>
             <p className="text-[11px] text-slate-400 mb-4">최근 4주 · 일별 도구 호출 (유형별 색)</p>
-            <div className="flex items-end gap-[3px] h-28">
-              {dayKeys.map(k => {
-                const m = byDay.get(k)!
-                const dayTotal = [...m.values()].reduce((a, b) => a + b, 0)
-                return (
-                  <div key={k} className="flex-1 flex flex-col-reverse rounded-sm overflow-hidden"
-                    title={`${k} · ${dayTotal}건`}>
-                    {dayTotal === 0 ? (
-                      <div className="h-[2px] bg-slate-100" />
-                    ) : CATS.map(c => {
-                      const v = m.get(c) ?? 0
-                      if (!v) return null
-                      return <div key={c} style={{ height: `${Math.max((v / maxDay) * 104, 3)}px`, backgroundColor: CAT_COLOR[c] }} />
-                    })}
-                  </div>
-                )
-              })}
+            <div className="flex gap-1.5">
+              {/* 세로축 — 0 / 중간 / 최대 건수 */}
+              <div className="flex flex-col justify-between items-end w-7 h-28 text-[9px] text-slate-400 -translate-y-[4px]">
+                <span>{maxDay}건</span>
+                <span>{yMid}</span>
+                <span>0</span>
+              </div>
+              {/* 플롯 영역 — 하단 선이 가로축 */}
+              <div className="flex-1 relative h-28 border-b-2 border-l border-slate-300">
+                <div className="absolute inset-x-0 top-0 border-t border-dashed border-slate-100" />
+                <div className="absolute inset-x-0 top-1/2 border-t border-dashed border-slate-100" />
+                <div className="absolute inset-0 flex items-end gap-[3px] px-1">
+                  {dayKeys.map(k => {
+                    const m = byDay.get(k)!
+                    const dayTotal = [...m.values()].reduce((a, b) => a + b, 0)
+                    return (
+                      <div key={k} className="flex-1 flex flex-col-reverse rounded-t-sm overflow-hidden"
+                        title={`${k} · ${dayTotal}건`}>
+                        {dayTotal > 0 && CATS.map(c => {
+                          const v = m.get(c) ?? 0
+                          if (!v) return null
+                          return <div key={c} style={{ height: `${Math.max((v / maxDay) * 108, 3)}px`, backgroundColor: CAT_COLOR[c] }} />
+                        })}
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
             </div>
-            <div className="flex justify-between text-[10px] text-slate-400 mt-1.5">
+            {/* 가로축 날짜 라벨 — 플롯 바로 아래 */}
+            <div className="flex justify-between text-[10px] text-slate-400 mt-1 ml-[34px]">
               <span>{dayKeys[0].slice(5).replace('-', '/')}</span>
               <span>{dayKeys[13].slice(5).replace('-', '/')}</span>
               <span>{dayKeys[27].slice(5).replace('-', '/')}</span>
@@ -290,14 +313,15 @@ export default async function AiLogPage() {
               &ldquo;오늘 한 일 WARP에 정리해줘&rdquo;라고 해보세요.
             </div>
           ) : (
+            <div className="border border-slate-200 rounded-xl bg-white max-h-[28rem] overflow-y-auto px-4">
             <table className="w-full text-sm border-collapse">
-              <thead>
+              <thead className="sticky top-0 z-10 bg-white">
                 <tr className="text-left text-[11px] text-slate-400 border-b border-slate-200">
-                  <th className="py-2 pr-3 font-medium w-20">날짜</th>
-                  <th className="py-2 pr-3 font-medium w-20">담당</th>
-                  <th className="py-2 pr-3 font-medium">활동</th>
-                  <th className="py-2 pr-3 font-medium w-24">유형</th>
-                  <th className="py-2 font-medium w-14">상태</th>
+                  <th className="py-2.5 pr-3 font-medium w-20">날짜</th>
+                  <th className="py-2.5 pr-3 font-medium w-20">담당</th>
+                  <th className="py-2.5 pr-3 font-medium">활동</th>
+                  <th className="py-2.5 pr-3 font-medium w-24">유형</th>
+                  <th className="py-2.5 font-medium w-14">상태</th>
                 </tr>
               </thead>
               <tbody>
@@ -321,6 +345,7 @@ export default async function AiLogPage() {
                 ))}
               </tbody>
             </table>
+            </div>
           )}
         </section>
       </div>
