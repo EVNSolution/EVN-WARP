@@ -71,7 +71,7 @@ export default async function AiLogPage() {
       take: 300,
       select: {
         id: true, title: true, content: true, date: true, type: true,
-        planStatus: true, userId: true, userName: true, createdAt: true, visibility: true,
+        userId: true, userName: true, createdAt: true, visibility: true,
         team: { select: { name: true } },
       },
     }),
@@ -79,7 +79,7 @@ export default async function AiLogPage() {
       where: { title: { startsWith: '[AI 피드백]' } },
       orderBy: { createdAt: 'desc' },
       take: 50,
-      select: { id: true, userName: true, content: true, status: true, replyContent: true, repliedByName: true, createdAt: true },
+      select: { id: true, title: true, userName: true, content: true, status: true, replyContent: true, repliedByName: true, createdAt: true },
     }),
     prisma.mcpLog.groupBy({ by: ['category'], _count: { _all: true } }),
     prisma.mcpLog.findMany({
@@ -199,37 +199,35 @@ export default async function AiLogPage() {
               아직 피드백이 없습니다.
             </div>
           ) : (
-            <div className="border border-slate-200 rounded-xl bg-white max-h-80 overflow-y-auto">
-              <table className="w-full text-sm border-collapse">
-                <thead className="sticky top-0 z-10">
-                  <tr className="text-left text-[11px] text-slate-400 border-b border-slate-200 bg-slate-50">
-                    <th className="py-2 px-3 font-medium w-20">날짜</th>
-                    <th className="py-2 px-3 font-medium w-20">작성자</th>
-                    <th className="py-2 px-3 font-medium">피드백</th>
-                    <th className="py-2 px-3 font-medium w-56">답변</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {feedbacks.map(f => (
-                    <tr key={f.id} className="border-b border-slate-100 align-top last:border-b-0">
-                      <td className="py-2.5 px-3 text-slate-500 whitespace-nowrap text-xs">
+            <div className="border border-slate-200 rounded-xl bg-white max-h-96 overflow-y-auto divide-y divide-slate-100">
+              {feedbacks.map(f => {
+                const title = f.title.replace(/^\[AI 피드백\]\s*/, '')
+                return (
+                  <details key={f.id} className="group">
+                    <summary className="flex items-center gap-3 px-4 py-2.5 cursor-pointer select-none list-none hover:bg-slate-50 [&::-webkit-details-marker]:hidden">
+                      <span className="text-[11px] text-slate-400 w-11 shrink-0">
                         {f.createdAt.toISOString().slice(5, 10).replace('-', '/')}
-                      </td>
-                      <td className="py-2.5 px-3 text-slate-600 whitespace-nowrap text-xs font-semibold">{f.userName}</td>
-                      <td className="py-2.5 px-3 text-xs text-slate-700 whitespace-pre-wrap">{f.content}</td>
-                      <td className="py-2.5 px-3 text-[11px]">
-                        {f.replyContent ? (
-                          <span className="text-slate-500 whitespace-pre-wrap">
-                            <b className="text-slate-600">{f.repliedByName ?? '관리자'}</b> — {f.replyContent}
-                          </span>
-                        ) : (
-                          <span className="text-slate-300">대기 중</span>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+                      </span>
+                      <span className="text-xs font-semibold text-slate-600 w-14 shrink-0 truncate">{f.userName}</span>
+                      <span className="text-xs text-slate-700 truncate flex-1">{title}</span>
+                      {f.replyContent ? (
+                        <span className="shrink-0 text-[10px] px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-600">답변완료</span>
+                      ) : (
+                        <span className="shrink-0 text-[10px] text-slate-300">대기</span>
+                      )}
+                      <span className="shrink-0 text-slate-300 text-[10px] transition-transform group-open:rotate-180">▼</span>
+                    </summary>
+                    <div className="px-4 pb-3 pt-1 bg-slate-50/60">
+                      <p className="text-xs text-slate-700 whitespace-pre-wrap ml-11">{f.content}</p>
+                      {f.replyContent && (
+                        <div className="mt-2 ml-11 border-l-2 border-emerald-200 pl-3 text-[11px] text-slate-500 whitespace-pre-wrap">
+                          <b className="text-slate-600">{f.repliedByName ?? '관리자'}</b> — {f.replyContent}
+                        </div>
+                      )}
+                    </div>
+                  </details>
+                )
+              })}
             </div>
           )}
         </section>
@@ -331,8 +329,7 @@ export default async function AiLogPage() {
                   <th className="py-2.5 pr-3 font-medium w-20">날짜</th>
                   <th className="py-2.5 pr-3 font-medium w-20">담당</th>
                   <th className="py-2.5 pr-3 font-medium">활동</th>
-                  <th className="py-2.5 pr-3 font-medium w-24">유형</th>
-                  <th className="py-2.5 font-medium w-14">상태</th>
+                  <th className="py-2.5 font-medium w-24">유형</th>
                 </tr>
               </thead>
               <tbody>
@@ -344,14 +341,7 @@ export default async function AiLogPage() {
                       <div className="text-slate-800">{r.title}</div>
                       {r.content && <div className="text-[11px] text-slate-400 mt-0.5 line-clamp-2">{r.content}</div>}
                     </td>
-                    <td className="py-2 pr-3 text-slate-500 whitespace-nowrap">{r.type}</td>
-                    <td className="py-2">
-                      <span className={r.planStatus === '완료'
-                        ? 'text-[11px] px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-600'
-                        : 'text-[11px] px-1.5 py-0.5 rounded bg-amber-50 text-amber-600'}>
-                        {r.planStatus}
-                      </span>
-                    </td>
+                    <td className="py-2 text-slate-500 whitespace-nowrap">{r.type}</td>
                   </tr>
                 ))}
               </tbody>
