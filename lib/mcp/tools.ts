@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/db'
 import { getWeekId } from '@/lib/week'
+import { expandRepeatDates, type RepeatFreq } from '@/lib/recurrence'
 import { notifyCompanions, type CompanionNotifyResult } from '@/lib/notify-companions'
 import { cancelReservation, DongjakProfileError, myReservations, reserveRoom, roomStatus, type DongjakProfile } from './dongjak'
 import { listSkills, loadSkill } from './skills'
@@ -51,17 +52,22 @@ export const MCP_INSTRUCTIONS = `
    쉼표로 넣는다 — 그 팀원들에게 WARP 알림이 간다. 동명이인은 반드시 이메일로 구분한다.
    ⚠️ 동반자 이름을 note(내용)에 "동행: ○○" 처럼 적지 마라 — companions 인자에 넣어야만
    WARP 화면의 동반 인원으로 표시되고 알림이 발송된다.
-3. 과제 연계(필수 확인) — list_strategy_tasks 로 과제 트리를 받아 **한 단계씩** 묻는다:
-   ① 「어떤 전략과제에 해당하나요?」 — 전사 전략과제들을 번호 선택지로 제시하되, 마지막에
-      반드시 「N. 독립활동 (과제 연계 없음)」 선택지를 포함한다. 독립활동이면 task_id: "" 로 등록.
-   ② 전략과제를 고르면 그 아래 팀과제들을 번호 선택지로 제시해 고르게 한다.
-   ③ 고른 팀과제에 세부과제가 있으면 세부과제들을 제시한다 (「이 팀과제로 바로 연계」 선택지 포함).
-   한 메시지에 전체 트리를 쏟아붓지 말고 단계별로 좁혀 간다. 최종 선택된 가장 하위 항목의
-   id 를 task_id 로 넣는다. task_id 없이 호출하면 서버가 등록을 거부하고 목록을 돌려준다.
-   공개 여부를 언급하면 visibility 로 설정한다 — 기본은 공개.
-4. **최종 승인**: 등록될 내용 전체(제목·내용·날짜·시간·유형·동반자·연계 과제)를 한 번에 보여주고
-   「이대로 등록할까요?」 승인을 받는다. 승인 후에만 create_task 를 호출한다. id 는 노출하지 않는다.
-5. list_my_tasks 로 중복 등록을 피한다.
+3. 과제 연계(필수) — list_strategy_tasks 로 트리를 받아 두고, 질문은 **레벨별로 하나씩**:
+   ③-1 「이 업무는 과제 연계인가요, 독립활동인가요?」 (1. 과제 연계  2. 독립활동)
+        — 독립활동이면 task_id: "" 로 하고 ④로 간다.
+   ③-2 「어떤 전략과제인가요?」 — 전략과제 **이름만** 번호로 (예: 1. 확장과 성장  2. AI 기반 조직운영)
+   ③-3 「어느 팀의 과제인가요?」 — 그 전략과제 아래 팀과제가 있는 팀 이름들을 번호로 (사용자 소속 팀을 1번에)
+   ③-4 「팀과제 중 어떤 것인가요?」 — 해당 전략과제·팀의 팀과제 **풀네임만** 번호로.
+        코드(마케팅팀.01 같은 것)·id·상태 등 부가정보는 절대 보여주지 않는다 — 이름만.
+   ③-5 세부과제가 있으면 「세부과제까지 지정할까요?」 — 세부과제 이름들 + 「팀과제로 바로 연계」.
+   최종 선택된 가장 하위 항목의 id 를 task_id 로 넣는다 (id 는 내부용 — 사용자에게 노출 금지).
+   task_id 없이 호출하면 서버가 등록을 거부하고 트리를 돌려준다.
+4. 공개 여부 질문: 「공개 여부는 어떻게 할까요? 1. 공개  2. 제목만 공개  3. 전체 비공개」
+   — 답을 visibility 로 넣는다 (바쁘다고 하면 기본 공개).
+5. **최종 승인**: 등록될 내용 전체(제목·내용·날짜·시간·유형·동반자·연계 과제·공개 여부·반복 규칙)를
+   한 번에 보여주고 「이대로 등록할까요?」 승인을 받는다. 반복 등록이면 대략 몇 건이 생기는지도
+   말해준다. 승인 후에만 create_task 를 호출한다.
+6. list_my_tasks 로 중복 등록을 피한다.
 
 ## 업무 삭제
 사용자가 등록된 업무를 지워 달라고 하면 list_my_tasks 로 찾아 제목·날짜·내용을 보여주고
@@ -72,6 +78,8 @@ export const MCP_INSTRUCTIONS = `
 날짜·시각이 정해진 약속이 보이면 "WARP 캘린더에 등록할까요?" 제안. start_time/end_time 을 넣으면
 캘린더에 그 시간대로 표시된다. 종료 시각을 모르면 1시간으로 잡고 그렇게 말해준다.
 함께 참여하는 분이 있는지도 물어서, 있으면 find_coworker 로 확인 후 companions 에 넣는다.
+매일/평일/매주 반복되는 일정("매주 월~금 판매리드회의")은 repeat_freq 와 repeat_until 을 넣으면
+한 번에 반복 등록된다 (최대 60건). 수정·삭제는 건별로만 가능함을 미리 알려준다.
 ※ 캘린더 시간축에 뜨는 것은 일정 성격 유형(회의·미팅·통화·출장·행사·교육·현장서비스·영업 등)만이다.
 문서·자료작성, 개발·구현 같은 업무 기록 성격 유형은 시간을 넣어도 캘린더에서 사람별 업무
 목록으로 표시된다 — 사용자에게 "그 시간대로 표시된다"고 안내하지 말 것.
@@ -149,9 +157,12 @@ export const TOOL_DEFINITIONS = [
         note: { type: 'string', description: '세부내용 (필수) — 사용자에게 확인받은 2~3문장 요약. 없이 호출하면 등록이 거부된다' },
         companions: { type: 'string', description: '동반자 — 함께한 WARP 팀원 이름들, 쉼표 구분 (예: "홍길동, 김철수"). 반드시 이 인자로 넣을 것 — note 에 텍스트로 적으면 동반 인원 표시·알림이 되지 않는다' },
         task_id: { type: 'string', description: '연계할 과제 id — 전략과제→팀과제→세부과제 순으로 사용자에게 물어 고른 과제의 id. 독립활동이면 빈 문자열("")' },
-        visibility: { type: 'string', enum: ['공개', '제목만 공개', '전체 비공개'], description: '공개 여부 — 생략하면 「공개」' },
+        visibility: { type: 'string', enum: ['공개', '제목만 공개', '전체 비공개'], description: '공개 여부 — 사용자에게 물어서 받는다 (기본 「공개」)' },
         start_time: { type: 'string', pattern: TIME_RE, description: '일정 시작 시각 HH:MM — 생략하면 하루종일' },
         end_time: { type: 'string', pattern: TIME_RE, description: '일정 종료 시각 HH:MM' },
+        repeat_freq: { type: 'string', enum: ['매일', '평일', '매주'], description: '반복 등록 — date 부터 repeat_until 까지 해당 주기로 일괄 생성 (최대 60건). due(종료일)와 함께 쓸 수 없음' },
+        repeat_until: { type: 'string', pattern: DATE_RE, description: '반복 종료일 YYYY-MM-DD — repeat_freq 와 함께 필수' },
+        reference_url: { type: 'string', description: '참고 링크 URL (아웃룩 메일, 문서 링크 등) — 파일 자체 첨부는 WARP 화면에서만 가능' },
       },
       required: ['title', 'type', 'note', 'task_id'],
     },
@@ -181,6 +192,7 @@ export const TOOL_DEFINITIONS = [
         companions: { type: 'string', description: '동반자 — WARP 팀원 이름들, 쉼표 구분 (빈 문자열이면 삭제)' },
         task_id: { type: 'string', description: '연계할 과제 id — list_strategy_tasks 에서 선택 (빈 문자열이면 연계 해제)' },
         visibility: { type: 'string', enum: ['공개', '제목만 공개', '전체 비공개'] },
+        reference_url: { type: 'string', description: '참고 링크 URL (빈 문자열이면 삭제)' },
         date: { type: 'string', pattern: DATE_RE },
         due: { type: 'string', pattern: DATE_RE },
         type: { type: 'string', enum: ACTIVITY_TYPES },
@@ -377,12 +389,13 @@ async function createTask(user: McpUser, a: Record<string, any>): Promise<ToolRe
   if (a.task_id === undefined) {
     const lines = await buildTaskTreeLines(user)
     return err(
-      '아직 등록되지 않았습니다 — 과제 연계 확인이 필요합니다. 아래 과제 트리를 가지고 사용자에게 '
-      + '**한 단계씩** 물어봐 주세요: ① 전략과제 선택(마지막 선택지로 「독립활동(연계 없음)」 포함) '
-      + '② 그 아래 팀과제 선택 ③ 세부과제가 있으면 세부과제 선택. 각 단계는 번호 선택지로 제시합니다.\n'
+      '아직 등록되지 않았습니다 — 과제 연계 확인이 필요합니다. 아래 트리를 가지고 **레벨별로 하나씩** '
+      + '물어봐 주세요: ①「과제 연계인가요, 독립활동인가요?」 ②전략과제 선택 ③팀 선택 ④팀과제 선택 '
+      + '⑤세부과제 선택(있을 때). 각 단계는 번호 선택지로, 사용자에게는 과제 이름만 보여주세요(id·부가정보 금지).\n'
       + (lines.length ? `과제 트리 (★가 우리 팀):\n${lines.join('\n')}\n` : '(현재 등록된 과제가 없습니다 — 독립활동으로 진행하세요)\n')
       + '최종 선택한 과제의 id 를 task_id 인자에 넣어 다시 호출하고, 독립활동이면 task_id: "" 로 '
-      + '호출하면 등록됩니다. (task_id 항목이 도구 정의에 보이지 않아도 인자로 전달하면 처리됩니다)')
+      + '호출하면 등록됩니다. 이어서 공개 여부(공개/제목만 공개/전체 비공개)도 물어 visibility 로 넣어 주세요. '
+      + '(이 항목들이 도구 정의에 보이지 않아도 인자로 전달하면 처리됩니다)')
   }
   let linkedTask: { id: string; code: string; title: string } | null = null
   const tid = String(a.task_id ?? '').trim()
@@ -390,6 +403,18 @@ async function createTask(user: McpUser, a: Record<string, any>): Promise<ToolRe
     linkedTask = await resolveStrategyTask(tid)
     if (!linkedTask) return err('task_id 에 해당하는 과제가 없습니다 — list_strategy_tasks 로 과제 id 를 다시 확인해 주세요.')
   }
+  // 반복 등록 — 웹 [반복]과 동일한 규칙 (매일/평일/매주, 종료일까지, 최대 60건). 기간 활동과는 불가.
+  const FREQ_MAP: Record<string, RepeatFreq> = { '매일': 'daily', '평일': 'weekdays', '매주': 'weekly' }
+  let repeatFreq: RepeatFreq | null = null
+  if (a.repeat_freq !== undefined) {
+    repeatFreq = FREQ_MAP[String(a.repeat_freq)] ?? null
+    if (!repeatFreq) return err('repeat_freq 는 「매일」「평일」「매주」 중 하나여야 합니다.')
+    if (!a.repeat_until || !/^\d{4}-\d{2}-\d{2}$/.test(String(a.repeat_until))) {
+      return err('반복 등록에는 repeat_until(종료일, YYYY-MM-DD)이 필요합니다 — 사용자에게 언제까지 반복할지 물어봐 주세요.')
+    }
+    if (a.due) return err('반복 등록은 기간 활동(due)과 함께 쓸 수 없습니다 — 하루짜리 활동만 반복됩니다.')
+  }
+
   const date = a.date || todayKst()
   const activity = await prisma.workActivity.create({
     data: {
@@ -403,6 +428,7 @@ async function createTask(user: McpUser, a: Record<string, any>): Promise<ToolRe
       companions: a.companions ? String(a.companions).trim() || null : null,
       taskId: linkedTask?.id ?? null,
       visibility: VISIBILITIES.includes(a.visibility) ? a.visibility : '공개',
+      referenceUrl: typeof a.reference_url === 'string' && a.reference_url.trim() ? a.reference_url.trim() : null,
       planStatus: '완료', // 계획/완료 구분은 폐기 — 업무공간 등록과 동일하게 완료로 둔다
       startTime: a.start_time || null,
       endTime: a.end_time || null,
@@ -411,11 +437,32 @@ async function createTask(user: McpUser, a: Record<string, any>): Promise<ToolRe
       userName: user.name,
     },
   })
+  // 반복분 생성 — 첫 건과 같은 내용으로 날짜만 바꿔 복제 (웹 반복 등록과 동일)
+  let repeatDates: string[] = []
+  if (repeatFreq) {
+    repeatDates = expandRepeatDates(date, repeatFreq, String(a.repeat_until)).slice(1)
+    for (const d of repeatDates) {
+      await prisma.workActivity.create({
+        data: {
+          teamId: user.teamId, date: d, endDate: null, week: getWeekId(new Date(d)),
+          type: activity.type, title: activity.title, content: activity.content,
+          companions: activity.companions, taskId: activity.taskId, visibility: activity.visibility,
+          referenceUrl: activity.referenceUrl, planStatus: '완료',
+          startTime: activity.startTime, endTime: activity.endTime,
+          source: 'mcp', userId: user.id, userName: user.name,
+        },
+      })
+    }
+  }
+
   const noti = await notifyCompanions({
     companions: activity.companions, actorId: user.id, actorName: user.name,
     title: activity.title, date: activity.date, action: '등록', activityId: activity.id,
   })
   const time = activity.startTime ? ` ${activity.startTime}${activity.endTime ? `~${activity.endTime}` : ''}` : ''
+  const repeatNote = repeatFreq
+    ? `\n반복 등록: ${a.repeat_freq} · ${activity.date} ~ ${repeatDates[repeatDates.length - 1] ?? activity.date} · 총 ${repeatDates.length + 1}건 생성${repeatDates.length + 1 >= 60 ? ' (최대 60건 제한으로 잘렸을 수 있음)' : ''}`
+    : ''
   const linked = linkedTask ? `\n연계 과제: [${linkedTask.code}] ${linkedTask.title} ✓ 저장 확인` : ''
   const vis = activity.visibility && activity.visibility !== '공개' ? `\n공개 여부: ${activity.visibility}` : ''
   const comp = companionSummary(noti)
@@ -423,7 +470,7 @@ async function createTask(user: McpUser, a: Record<string, any>): Promise<ToolRe
   const hint = activity.companions ? '' :
     '\n(동반 참여자가 있다면 companions 인자에 "김철수, 박영희" 형태의 WARP 실명을 넣어 주세요 — '
     + '도구 정의에 이 항목이 보이지 않아도 인자로 보내면 처리되며, update_task 로 추가할 수도 있습니다)'
-  return { text: `등록 완료 — id: ${activity.id}\n제목: ${activity.title}\n기간: ${activity.date}${activity.endDate ? ` ~ ${activity.endDate}` : ''}${time}\n유형: ${activity.type}${linked}${vis}${comp}${hint}` }
+  return { text: `등록 완료 — id: ${activity.id}\n제목: ${activity.title}\n기간: ${activity.date}${activity.endDate ? ` ~ ${activity.endDate}` : ''}${time}\n유형: ${activity.type}${repeatNote}${linked}${vis}${comp}${hint}` }
 }
 
 async function listMyTasks(user: McpUser, _a: Record<string, any>): Promise<ToolResult> {
@@ -465,6 +512,7 @@ async function updateTask(user: McpUser, a: Record<string, any>): Promise<ToolRe
     }
   }
   if (a.visibility !== undefined && VISIBILITIES.includes(a.visibility)) data.visibility = a.visibility
+  if (a.reference_url !== undefined) data.referenceUrl = String(a.reference_url).trim() || null
   if (a.date !== undefined) { data.date = a.date; data.week = getWeekId(new Date(a.date)) }
   if (a.due !== undefined) data.endDate = a.due || null
   if (a.type !== undefined) {
@@ -525,19 +573,20 @@ async function buildTaskTreeLines(user: McpUser): Promise<string[]> {
     arr.push(t)
     children.set(t.parentId, arr)
   }
-  const statusTag = (s: string) => (s === '진행중' ? '' : ` (${s})`)
+  // ⚠️ 사용자에게는 과제 "이름"만 보여주는 게 원칙 — 코드·상태 같은 부가정보는 빼고,
+  //    id 는 호출용 내부 키로만 포함한다 (AI 가 사용자에게 노출하지 않도록 지침에 명시).
   const lines: string[] = []
   for (const top of all.filter(t => !t.parentId)) {
     const kids = children.get(top.id) ?? []
-    lines.push(`[${top.code}] ${top.title}${statusTag(top.status)} (id: ${top.id})`)
+    lines.push(`전략과제: ${top.title} (id: ${top.id})`)
     // 내 팀 과제를 먼저, 그 다음 다른 팀 — 웹 선택 UI 와 같은 범위
     const ordered = [...kids].sort((x, y) =>
       Number(y.teamId === user.teamId) - Number(x.teamId === user.teamId))
     for (const tt of ordered) {
       const mine = tt.teamId === user.teamId ? ' ★우리 팀' : ''
-      lines.push(`  - [${tt.code}] ${tt.title} (${tt.team?.name ?? '팀 미상'}${mine})${statusTag(tt.status)} (id: ${tt.id})`)
+      lines.push(`  - ${tt.title} 〔${tt.team?.name ?? '팀 미상'}${mine}〕 (id: ${tt.id})`)
       for (const sub of children.get(tt.id) ?? []) {
-        lines.push(`      · [${sub.code}] ${sub.title}${statusTag(sub.status)} (id: ${sub.id})`)
+        lines.push(`      · ${sub.title} (id: ${sub.id})`)
       }
     }
   }
@@ -563,8 +612,9 @@ async function listStrategyTasks(user: McpUser): Promise<ToolResult> {
   const lines = await buildTaskTreeLines(user)
   if (lines.length === 0) return { text: '등록된 과제가 없습니다 — 과제 없이(독립 활동, task_id: "") 등록하세요.' }
   return {
-    text: `과제 체계 (전사과제 → 팀과제 → 세부과제, ★가 우리 팀):\n${lines.join('\n')}\n`
-      + '사용자가 고른 과제의 id 를 create_task/update_task 의 task_id 로 넣으세요. 가장 구체적인(하위) 과제를 고르는 것이 좋습니다.',
+    text: `과제 체계 (전략과제 → 팀과제 → 세부과제, ★가 우리 팀):\n${lines.join('\n')}\n`
+      + '질문은 레벨별로 하나씩: ①연계/독립 ②전략과제 ③팀 ④팀과제 ⑤세부과제. '
+      + '사용자에게는 과제 이름만 보여주고(id·부가정보 금지), 최종 선택한 항목의 id 를 task_id 로 넣으세요.',
   }
 }
 
