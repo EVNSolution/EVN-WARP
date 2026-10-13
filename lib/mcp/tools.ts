@@ -1,7 +1,7 @@
 import { prisma } from '@/lib/db'
 import { getWeekId } from '@/lib/week'
 import { expandRepeatDates, type RepeatFreq } from '@/lib/recurrence'
-import { notifyCompanions, type CompanionNotifyResult } from '@/lib/notify-companions'
+import { notifyActivityComment, notifyCompanions, type CompanionNotifyResult } from '@/lib/notify-companions'
 import { cancelReservation, DongjakProfileError, myReservations, reserveRoom, roomStatus, type DongjakProfile } from './dongjak'
 import { listSkills, loadSkill } from './skills'
 
@@ -76,6 +76,14 @@ export const MCP_INSTRUCTIONS = `
    | 공개 여부 | ... |
    해당 없는 항목 행은 뺀다. 승인 후에만 create_task 를 호출한다.
 4. list_my_tasks 로 중복 등록을 피한다.
+
+## 활동 이력 (댓글)
+- 활동마다 댓글·첨부 이력이 쌓인다 (WARP 캘린더에서 활동을 누르면 보이는 대화창).
+- 특정 일정의 경과·이력을 물으면 get_task_history 로 상세와 댓글·첨부를 읽어 정리해 준다.
+  여러 회의의 이력을 모아 다음 회의자료 초안을 만들거나, 이력에서 후속 미팅이 필요해 보이면
+  일정 등록을 제안하는 식으로 활용한다.
+- "그 일정에 ○○라고 남겨줘" 같은 요청은 내용을 확정받고 add_task_comment 로 남긴다 —
+  활동 작성자와 동반자에게 알림이 간다. 본인 활동이 아니어도 이력을 남길 수 있다.
 
 ## 업무 삭제
 사용자가 등록된 업무를 지워 달라고 하면 list_my_tasks 로 찾아 제목·날짜·내용을 보여주고
@@ -245,6 +253,35 @@ export const TOOL_DEFINITIONS = [
       + '할 때 호출해, 목록을 보여주고 선택받은 과제의 id 를 create_task/update_task 의 '
       + 'task_id 로 넣는다.',
     inputSchema: { type: 'object', properties: {} },
+  },
+  {
+    name: 'get_task_history',
+    description:
+      '활동(업무·일정) 1건의 상세와 이력(댓글·첨부 파일)을 읽어온다. 특정 일정의 경과를 묻거나, '
+      + '지난 회의들의 이력을 모아 다음 회의자료·후속 일정을 준비할 때 쓴다. '
+      + 'id 는 list_my_tasks 결과의 내부 키.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        id: { type: 'string', description: '활동 id — list_my_tasks 결과의 내부 키' },
+      },
+      required: ['id'],
+    },
+  },
+  {
+    name: 'add_task_comment',
+    description:
+      '활동에 댓글(이력 메모)을 남긴다. 사용자가 "그 일정에 ○○라고 남겨줘"처럼 요청하면 '
+      + '내용을 확정받은 뒤 호출한다 — 활동 작성자와 동반자에게 알림이 간다. '
+      + '본인 활동이 아니어도 남길 수 있다 (비공개 활동 제외).',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        id: { type: 'string', description: '활동 id' },
+        message: { type: 'string', description: '남길 내용 (2000자 이내)' },
+      },
+      required: ['id', 'message'],
+    },
   },
   {
     name: 'find_coworker',
@@ -626,6 +663,70 @@ async function buildTaskTreeLines(user: McpUser): Promise<string[]> {
   return lines
 }
 
+/** 활동 상세 + 이력(댓글·첨부) 조회 — 비공개 규칙은 업무공간과 동일하게 존중한다. */
+async function getTaskHistory(user: McpUser, a: Record<string, any>): Promise<ToolResult> {
+  if (!a.id) return err('id 는 필수입니다.')
+  const act = await prisma.workActivity.findUnique({
+    where: { id: String(a.id) },
+    include: {
+      task: { select: { code: true, title: true } },
+      comments: { orderBy: { createdAt: 'asc' } },
+    },
+  })
+  if (!act) return err('해당 활동을 찾을 수 없습니다.')
+  const mine = act.userId === user.id
+  const vis = act.visibility ?? '공개'
+  if (vis === '전체 비공개' && !mine) return err('비공개 활동이라 열람할 수 없습니다.')
+  const hideContent = vis === '제목만 공개' && !mine
+
+  const base = (process.env.NEXTAUTH_URL || 'https://warp.cleversystem.ai').replace(/\/$/, '')
+  const abs = (u: string) => (u.startsWith('http') ? u : `${base}${u}`)
+  const time = act.startTime ? ` ${act.startTime}${act.endTime ? `~${act.endTime}` : ''}` : ''
+  const attachments = [
+    ...(act.imageUrl ? act.imageUrl.split('|') : []),
+    ...(act.documentUrl ? act.documentUrl.split('|') : []),
+  ]
+  const fmt = (d: Date) => new Intl.DateTimeFormat('ko-KR', {
+    timeZone: 'Asia/Seoul', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false,
+  }).format(d)
+  const commentLines = act.comments.map(c => {
+    const files = c.filesJson ? (JSON.parse(c.filesJson) as string[]).map(abs).join(', ') : ''
+    return `- [${fmt(c.createdAt)}] ${c.userName}: ${c.content}${files ? ` (첨부: ${files})` : ''}`
+  })
+  return {
+    text: `「${act.title}」 (${act.date}${time}, ${act.type}, 작성자: ${act.userName ?? '미상'})\n`
+      + (act.task ? `과제: [${act.task.code}] ${act.task.title}\n` : '')
+      + (act.companions ? `동반자: ${act.companions}\n` : '')
+      + `내용: ${hideContent ? '(제목만 공개된 활동)' : act.content ?? '(없음)'}\n`
+      + (attachments.length && !hideContent ? `첨부: ${attachments.map(abs).join(', ')}\n` : '')
+      + `이력(댓글) ${act.comments.length}건:${commentLines.length ? `\n${commentLines.join('\n')}` : ' 없음'}`,
+  }
+}
+
+/** 활동에 댓글(이력) 남기기 — 작성자·동반자에게 알림. 비공개 활동은 본인만. */
+async function addTaskComment(user: McpUser, a: Record<string, any>): Promise<ToolResult> {
+  if (!a.id || !String(a.message ?? '').trim()) return err('id 와 message 는 필수입니다.')
+  const message = String(a.message).trim()
+  if (message.length > 2000) return err('댓글은 2000자 이내로 적어 주세요.')
+  const act = await prisma.workActivity.findUnique({
+    where: { id: String(a.id) },
+    select: { id: true, title: true, date: true, userId: true, companions: true, visibility: true },
+  })
+  if (!act) return err('해당 활동을 찾을 수 없습니다.')
+  if ((act.visibility ?? '공개') === '전체 비공개' && act.userId !== user.id) {
+    return err('비공개 활동에는 댓글을 남길 수 없습니다.')
+  }
+  await prisma.activityComment.create({
+    data: { activityId: act.id, userId: user.id, userName: user.name, content: message },
+  })
+  await notifyActivityComment({
+    activityId: act.id, title: act.title, date: act.date,
+    ownerId: act.userId, companions: act.companions,
+    commenterId: user.id, commenterName: user.name,
+  })
+  return { text: `댓글 등록 완료 — 「${act.title}」(${act.date})에 남겼습니다. 작성자·동반자에게 알림이 발송됩니다.` }
+}
+
 /**
  * 내 활동 삭제 — 본인 것만, 건별 확정 후. 동반자에게는 삭제 알림이 간다.
  * 반복 등록된 일정(같은 제목·유형·시간의 이후 날짜 건들이 있는 경우)이면 scope 확인을 요구하고,
@@ -830,6 +931,7 @@ async function sendFeedback(user: McpUser, a: Record<string, any>): Promise<Tool
 const TOOL_CATEGORY: Record<string, string> = {
   create_task: '업무기록', list_my_tasks: '업무기록', update_task: '업무기록', delete_task: '업무기록',
   find_coworker: '업무기록', list_strategy_tasks: '업무기록',
+  get_task_history: '업무기록', add_task_comment: '업무기록',
   meeting_room_status: '회의실', reserve_meeting_room: '회의실', save_meeting_profile: '회의실',
   my_meeting_reservations: '회의실', cancel_meeting_reservation: '회의실',
   send_feedback: '피드백',
@@ -864,6 +966,8 @@ async function dispatchTool(user: McpUser, name: string, args: Record<string, an
       case 'list_my_tasks': return await listMyTasks(user, a)
       case 'update_task': return await updateTask(user, a)
       case 'delete_task': return await deleteTask(user, a)
+      case 'get_task_history': return await getTaskHistory(user, a)
+      case 'add_task_comment': return await addTaskComment(user, a)
       case 'find_coworker': return await findCoworker(a)
       case 'list_strategy_tasks': return await listStrategyTasks(user)
       case 'meeting_room_status': return await meetingRoomStatus(user, a)

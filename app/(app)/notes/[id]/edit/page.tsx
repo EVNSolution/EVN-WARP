@@ -1,9 +1,14 @@
 import { notFound } from 'next/navigation'
+import { auth } from '@/auth'
 import { prisma } from '@/lib/db'
+import { isAdminRole } from '@/lib/permissions'
 import ActivityForm from '@/components/ActivityForm'
+import ActivityComments from '@/components/ActivityComments'
 
 export default async function EditActivityPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
+  const session = await auth()
+  const me = session?.user as any
 
   const [activity, teams, tasks, users, vehicles] = await Promise.all([
     prisma.workActivity.findUnique({ where: { id } }),
@@ -25,6 +30,7 @@ export default async function EditActivityPage({ params }: { params: Promise<{ i
   const isOverseas = activity.type === '해외출장'
 
   return (
+    <>
     <ActivityForm
       teams={teams}
       tasks={tasks}
@@ -67,5 +73,12 @@ export default async function EditActivityPage({ params }: { params: Promise<{ i
       }}
       returnUrl="/notes"
     />
+    {/* 활동 이력 — 동반자·동료 누구나 댓글과 파일을 남긴다 (알림 딥링크 도착지) */}
+    <div className="max-w-3xl mx-auto px-6 pb-10">
+      <div className="bg-white border border-slate-200 rounded-xl overflow-hidden h-80 flex flex-col">
+        <ActivityComments activityId={id} myUserId={me?.id ?? ''} isAdmin={isAdminRole(me?.role)} />
+      </div>
+    </div>
+    </>
   )
 }

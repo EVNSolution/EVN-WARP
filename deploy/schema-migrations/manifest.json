@@ -1,5 +1,5 @@
 {
-  "prismaSchemaSha256": "497abcfb35c22f4ea8dc48659bdf087a6fcc66739d0963b45eb98018c694e9f1",
+  "prismaSchemaSha256": "d3c82b09e8efaae7e99e9cfa251fecde5dcac5cbc7d18cea9a06ac1be7115a0f",
   "requiredTables": [
     "Announcement",
     "BuildupEvent",
@@ -9,7 +9,8 @@
     "Garage",
     "PersonalCard",
     "McpToken",
-    "McpLog"
+    "McpLog",
+    "ActivityComment"
   ],
   "requiredColumnAdditions": {
     "WorkActivity": [
@@ -40,7 +41,8 @@
     "McpToken_tokenHash_key",
     "McpToken_userId_idx",
     "McpLog_createdAt_idx",
-    "McpLog_category_idx"
+    "McpLog_category_idx",
+    "ActivityComment_activityId_idx"
   ],
   "requiredColumns": {
     "CustomerMerge": [

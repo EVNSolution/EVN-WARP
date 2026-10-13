@@ -70,6 +70,21 @@ model McpToken {
   @@index([userId])
 }
 
+// 활동 댓글 — 활동(일정·업무) 하나에 대한 대화 이력. 동반자·동료 누구나 댓글과 파일을
+// 남길 수 있고, 나중에 AI(CLEVER)가 이 이력을 읽어 회의자료·후속 일정의 재료로 쓴다.
+model ActivityComment {
+  id         String       @id @default(cuid())
+  activityId String
+  activity   WorkActivity @relation(fields: [activityId], references: [id], onDelete: Cascade)
+  userId     String
+  userName   String
+  content    String
+  filesJson  String?      // 첨부 URL 배열 JSON
+  createdAt  DateTime     @default(now())
+
+  @@index([activityId])
+}
+
 // MCP 도구 호출 로그 — AI 사용 집계(AI 업무 기록 대시보드)용.
 // 호출 내용(인자)은 저장하지 않는다 — 누가 어떤 도구를 언제 썼고 성공했는지만.
 model McpLog {
@@ -228,6 +243,7 @@ model WorkActivity {
   title     String
   content   String?
   mentions    String?      // @멘션 대상 (콤마 구분)
+  comments    ActivityComment[]
   companions  String?      // 동반인원 이름 (콤마 구분, workActivity 기록용)
   startTime   String?      // "HH:MM" — null이면 하루종일
   endTime     String?      // "HH:MM" — null이면 하루종일

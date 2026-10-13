@@ -6,6 +6,35 @@ import { createNotification } from '@/lib/createNotification'
  * companions 는 쉼표로 구분된 이름 문자열("홍길동, 김철수"). 이름이 WARP 구성원과
  * 일치하는 사람에게만 가고, 등록자 본인은 제외한다. 실패해도 등록을 막지 않는다.
  */
+/** 활동 댓글 알림 — 활동 작성자 + 동반자(댓글 쓴 본인 제외)에게 보낸다. */
+export async function notifyActivityComment(opts: {
+  activityId: string
+  title: string
+  date: string
+  ownerId: string | null | undefined
+  companions: string | null | undefined
+  commenterId: string
+  commenterName: string
+}): Promise<void> {
+  try {
+    const names = [...new Set((opts.companions ?? '').split(',').map(s => s.trim()).filter(Boolean))]
+    const companionUsers = names.length
+      ? await prisma.user.findMany({ where: { name: { in: names } }, select: { id: true } })
+      : []
+    const targets = new Set<string>(companionUsers.map(u => u.id))
+    if (opts.ownerId) targets.add(opts.ownerId)
+    targets.delete(opts.commenterId)
+    await Promise.all([...targets].map(uid =>
+      createNotification({
+        userId: uid, type: 'activity_comment',
+        message: `${opts.commenterName}님이 「${opts.title}」(${opts.date})에 댓글을 남겼습니다.`,
+        link: `/notes/${opts.activityId}/edit`,
+      })))
+  } catch (e) {
+    console.error('[notifyActivityComment] 실패:', e instanceof Error ? e.message : e)
+  }
+}
+
 export interface CompanionNotifyResult {
   /** 알림이 발송된 구성원 (본인 제외) */
   notified: Array<{ name: string; email: string }>

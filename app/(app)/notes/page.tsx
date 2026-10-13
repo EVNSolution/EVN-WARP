@@ -15,7 +15,7 @@ import FilterSelects from './FilterSelects'
 import PersonalScopeToggle from './PersonalScopeToggle'
 import MeetingRoomsTab, { MeetingRoomsPrewarm } from './MeetingRoomsTab'
 import { auth } from '@/auth'
-import { canViewAllCardUsage } from '@/lib/permissions'
+import { canViewAllCardUsage, isAdminRole } from '@/lib/permissions'
 
 /* ── 상수 ── */
 const TYPE_META: Record<string, { icon: React.ReactNode; bg: string; text: string }> = {
@@ -116,6 +116,7 @@ export default async function NotesPage({ searchParams }: { searchParams: Promis
   const myName   = (session?.user as any)?.name as string | undefined
   const myUserId = (session?.user as any)?.id   as string | undefined
   const canViewAllCards = await canViewAllCardUsage(myUserId)
+  const isAdminUser = isAdminRole((session?.user as any)?.role)
 
   // 전체 팀 목록 조회 (팀 선택 드롭다운용)
   const allTeams = await prisma.team.findMany({ orderBy: { name: 'asc' }, select: { id: true, name: true } })
@@ -250,6 +251,7 @@ export default async function NotesPage({ searchParams }: { searchParams: Promis
     const resolvedName = a.userName ?? a.user?.name ?? myName ?? null
     const base: CalActivity = {
       id:           a.id,
+      userId:       a.userId ?? null,
       date:         a.date,
       type:         a.type,
       title:        a.title,
@@ -294,6 +296,7 @@ export default async function NotesPage({ searchParams }: { searchParams: Promis
       if (dateStr >= calFromDate && dateStr <= calToDate) {
         calActivities.push({
           id:           trip.id,
+          userId:       (trip as any).userId ?? null,
           date:         dateStr,
           type:         trip.type,
           title:        trip.title,
@@ -326,6 +329,7 @@ export default async function NotesPage({ searchParams }: { searchParams: Promis
       if (dateStr >= calFromDate && dateStr <= calToDate) {
         calActivities.push({
           id:           leave.id,
+          userId:       (leave as any).userId ?? null,
           date:         dateStr,
           type:         leave.type,
           title:        leave.type,
@@ -475,7 +479,7 @@ export default async function NotesPage({ searchParams }: { searchParams: Promis
       ══════════════════════════════════════ */}
       {activeTab === 'calendar' && (
         <CalendarView weeks={weeks} activities={calActivities} reservations={calReservations} scheduleItems={calScheduleItems} todayStr={todayStr}
-          myUserId={myUserId} canViewAllCardUsage={canViewAllCards} />
+          myUserId={myUserId} isAdmin={isAdminUser} canViewAllCardUsage={canViewAllCards} />
       )}
 
 
