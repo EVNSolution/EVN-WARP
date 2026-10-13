@@ -45,9 +45,10 @@ export const MCP_INSTRUCTIONS = `
    쉼표로 넣는다 — 그 팀원들에게 WARP 알림이 간다. 동명이인은 반드시 이메일로 구분한다.
    ⚠️ 동반자 이름을 note(내용)에 "동행: ○○" 처럼 적지 마라 — companions 인자에 넣어야만
    WARP 화면의 동반 인원으로 표시되고 알림이 발송된다.
-3. 과제 연계: 사용자가 과제와 연계해 달라고 하거나 업무가 분명히 특정 과제의 일이면
+3. 과제 연계(필수 확인): 「이 업무를 어떤 과제와 연계할까요?」를 반드시 묻는다 —
    list_strategy_tasks 로 과제 목록을 보여주고 선택받아 task_id 로 넣는다 (가장 하위 과제 권장).
-   공개 여부를 언급하면 visibility(공개/제목만 공개/전체 비공개)로 설정한다 — 기본은 공개.
+   해당 없다고 하면 task_id 를 빈 문자열("")로 등록한다. task_id 없이 호출하면 서버가 등록을
+   거부하고 과제 목록을 돌려준다. 공개 여부를 언급하면 visibility 로 설정한다 — 기본은 공개.
 4. **최종 승인**: 등록될 내용 전체(제목·내용·날짜·시간·유형·동반자·연계 과제)를 한 번에 보여주고
    「이대로 등록할까요?」 승인을 받는다. 승인 후에만 create_task 를 호출한다. id 는 노출하지 않는다.
 5. list_my_tasks 로 중복 등록을 피한다.
@@ -129,12 +130,12 @@ export const TOOL_DEFINITIONS = [
         type: { type: 'string', enum: ACTIVITY_TYPES, description: '활동 유형 — 업무공간 입력창의 유형 버튼과 동일' },
         note: { type: 'string', description: '내용/메모' },
         companions: { type: 'string', description: '동반자 — 함께한 WARP 팀원 이름들, 쉼표 구분 (예: "홍길동, 김철수"). 반드시 이 인자로 넣을 것 — note 에 텍스트로 적으면 동반 인원 표시·알림이 되지 않는다' },
-        task_id: { type: 'string', description: '연계할 과제 id — list_strategy_tasks 결과에서 선택. 생략하면 독립 활동' },
+        task_id: { type: 'string', description: '연계할 과제 id — 반드시 사용자에게 물어본 뒤, list_strategy_tasks 에서 선택한 과제 id. 해당 없으면 빈 문자열("")' },
         visibility: { type: 'string', enum: ['공개', '제목만 공개', '전체 비공개'], description: '공개 여부 — 생략하면 「공개」' },
         start_time: { type: 'string', pattern: TIME_RE, description: '일정 시작 시각 HH:MM — 생략하면 하루종일' },
         end_time: { type: 'string', pattern: TIME_RE, description: '일정 종료 시각 HH:MM' },
       },
-      required: ['title', 'type'],
+      required: ['title', 'type', 'task_id'],
     },
   },
   {
@@ -329,9 +330,21 @@ async function createTask(user: McpUser, a: Record<string, any>): Promise<ToolRe
   if (!a.title?.trim() || !a.type) return err('title 과 type 은 필수입니다.')
   if (!ACTIVITY_TYPES.includes(a.type)) return err(`지원하지 않는 활동 유형: ${a.type}`)
   if (!user.teamId) return err(`계정(${user.name})에 소속 팀이 없어 활동을 등록할 수 없습니다 — WARP 관리자에게 팀 배정을 요청하세요.`)
+  // 과제 연계는 서버가 강제로 확인한다 — task_id 없이 오면 등록하지 않고 과제 목록과 함께 되돌린다.
+  // (구버전 도구 정의를 캐시한 대화도 이 응답으로 인자 이름과 선택지를 배운다)
+  if (a.task_id === undefined) {
+    const lines = await buildTaskTreeLines(user)
+    return err(
+      '아직 등록되지 않았습니다 — 과제 연계 확인이 필요합니다. 사용자에게 「이 업무를 어떤 과제와 '
+      + '연계할까요? 해당 없으면 \'없음\'이라고 해주세요」라고 물어봐 주세요.\n'
+      + (lines.length ? `우리 팀 과제 목록:\n${lines.join('\n')}\n` : '(현재 연계 가능한 팀 과제가 없습니다)\n')
+      + '선택한 과제의 id 를 task_id 인자에 넣어 다시 호출하고, 해당 없으면 task_id: "" 로 호출하면 '
+      + '등록됩니다. (task_id 항목이 도구 정의에 보이지 않아도 인자로 전달하면 처리됩니다)')
+  }
   let linkedTask: { id: string; code: string; title: string } | null = null
-  if (a.task_id) {
-    linkedTask = await resolveStrategyTask(String(a.task_id))
+  const tid = String(a.task_id ?? '').trim()
+  if (tid && tid !== '없음' && tid.toLowerCase() !== 'none') {
+    linkedTask = await resolveStrategyTask(tid)
     if (!linkedTask) return err('task_id 에 해당하는 과제가 없습니다 — list_strategy_tasks 로 과제 id 를 다시 확인해 주세요.')
   }
   const date = a.date || todayKst()
@@ -448,8 +461,8 @@ function companionSummary(noti: CompanionNotifyResult): string {
   return parts.length ? `\n${parts.join('\n')}` : ''
 }
 
-/** 과제 체계 조회 — 전사 전략과제와 그 아래 우리 팀의 과제·세부과제를 id 와 함께 보여준다. */
-async function listStrategyTasks(user: McpUser): Promise<ToolResult> {
+/** 전사 전략과제 → 내 팀 과제 → 세부과제 트리를 텍스트 라인으로 — 조회 도구와 과제 확인 안내가 같이 쓴다. */
+async function buildTaskTreeLines(user: McpUser): Promise<string[]> {
   const all = await prisma.strategyTask.findMany({
     select: { id: true, code: true, title: true, parentId: true, teamId: true, status: true },
     orderBy: [{ strategy: 'asc' }, { teamSeq: 'asc' }, { subSeq: 'asc' }],
@@ -475,6 +488,12 @@ async function listStrategyTasks(user: McpUser): Promise<ToolResult> {
       }
     }
   }
+  return lines
+}
+
+/** 과제 체계 조회 — 전사 전략과제와 그 아래 우리 팀의 과제·세부과제를 id 와 함께 보여준다. */
+async function listStrategyTasks(user: McpUser): Promise<ToolResult> {
+  const lines = await buildTaskTreeLines(user)
   if (lines.length === 0) return { text: '연계할 수 있는 우리 팀 과제가 없습니다 — 과제 없이(독립 활동) 등록하세요.' }
   return {
     text: `과제 체계 (전사과제 → 우리 팀 과제 → 세부과제):\n${lines.join('\n')}\n`
