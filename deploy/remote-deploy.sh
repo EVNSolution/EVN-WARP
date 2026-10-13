@@ -263,6 +263,11 @@ prepare() {
   registry="${IMAGE_REF%%/*}"
 
   test -f "$LEGACY_APP_DIR/dev.db"
+
+  # 디스크 보호 — 어떤 컨테이너도 쓰지 않는 과거 이미지 레이어를 지운다.
+  # 실행 중인 active/previous 슬롯 이미지는 보호되고, 모든 릴리즈 이미지는 ECR 에 있어 재획득 가능.
+  docker image prune -af >/dev/null 2>&1 || true
+  echo "disk_free_before_pull=$(df -h / | awk 'NR==2{print $4}')"
   install -d -m 2770 -o root -g 1001 "$UPLOADS_DIR" "$DATA_DIR" "$RUNTIME_DIR/cache/$slot"
   chgrp -R 1001 "$UPLOADS_DIR" "$DATA_DIR"
   chmod -R g+rwX "$UPLOADS_DIR" "$DATA_DIR"
