@@ -59,7 +59,9 @@ export const MCP_INSTRUCTIONS = `
    ③-3 「어느 팀의 과제인가요?」 — 그 전략과제 아래 팀과제가 있는 팀 이름들을 번호로 (사용자 소속 팀을 1번에)
    ③-4 「팀과제 중 어떤 것인가요?」 — 해당 전략과제·팀의 팀과제 **풀네임만** 번호로.
         코드(마케팅팀.01 같은 것)·id·상태 등 부가정보는 절대 보여주지 않는다 — 이름만.
-   ③-5 세부과제가 있으면 「세부과제까지 지정할까요?」 — 세부과제 이름들 + 「팀과제로 바로 연계」.
+   ③-5 고른 팀과제에 세부과제가 있으면 **반드시** 그중 하나를 고르게 한다 —
+        「세부과제 중 어떤 것인가요?」 (팀과제 단계에서 멈출 수 없다. 하위가 있는 과제로
+        호출하면 서버가 거부하고 하위 목록을 돌려준다.)
    최종 선택된 가장 하위 항목의 id 를 task_id 로 넣는다 (id 는 내부용 — 사용자에게 노출 금지).
    task_id 없이 호출하면 서버가 등록을 거부하고 트리를 돌려준다.
 4. 공개 여부 질문: 「공개 여부는 어떻게 할까요? 1. 공개  2. 제목만 공개  3. 전체 비공개」
@@ -73,13 +75,17 @@ export const MCP_INSTRUCTIONS = `
 사용자가 등록된 업무를 지워 달라고 하면 list_my_tasks 로 찾아 제목·날짜·내용을 보여주고
 「정말 삭제할까요? (복구 불가)」 확정을 받은 뒤 delete_task 로 삭제한다. 여러 건을 지워
 달라고 해도 반드시 건별로 각각 보여주고 확정받아 하나씩 — 일괄 삭제는 하지 않는다.
+예외: **반복 등록된 일정**은 서버가 감지해 알려주는데, 그때는 「1. 이 건만 삭제
+2. 이 건과 이후 반복 전부 삭제」를 물어 scope("one"/"following")로 다시 호출한다.
 
 ## 일정 등록
 날짜·시각이 정해진 약속이 보이면 "WARP 캘린더에 등록할까요?" 제안. start_time/end_time 을 넣으면
 캘린더에 그 시간대로 표시된다. 종료 시각을 모르면 1시간으로 잡고 그렇게 말해준다.
 함께 참여하는 분이 있는지도 물어서, 있으면 find_coworker 로 확인 후 companions 에 넣는다.
 매일/평일/매주 반복되는 일정("매주 월~금 판매리드회의")은 repeat_freq 와 repeat_until 을 넣으면
-한 번에 반복 등록된다 (최대 60건). 수정·삭제는 건별로만 가능함을 미리 알려준다.
+한 번에 반복 등록된다 (최대 60건).
+사용자가 공문·사진·증빙 등 **파일 첨부**를 원하면: 파일 자체는 이 대화로 전달할 수 없음을
+알리고, 등록 응답에 포함된 「첨부·상세 편집」 링크에서 바로 올리도록 안내한다.
 ※ 캘린더 시간축에 뜨는 것은 일정 성격 유형(회의·미팅·통화·출장·행사·교육·현장서비스·영업 등)만이다.
 문서·자료작성, 개발·구현 같은 업무 기록 성격 유형은 시간을 넣어도 캘린더에서 사람별 업무
 목록으로 표시된다 — 사용자에게 "그 시간대로 표시된다"고 안내하지 말 것.
@@ -95,6 +101,8 @@ export const MCP_INSTRUCTIONS = `
   현황 조회가 실패하거나 느리면 기다리지 말고 이름만 물어 바로 예약을 진행한다 —
   이미 찬 시간이면 서버가 거절하므로 그때 대안을 보여주면 된다.
 - "회의실 비어 있어?"처럼 현황 자체를 묻는 경우는 meeting_room_status 결과만 정리해 보여준다.
+- 사용자에게 방을 보여줄 때는 **이름만**(예: 6층 회의실, 3-2 회의실) — 337 같은 방 번호(id)는
+  내부 참조용이므로 절대 노출하지 않는다.
 - 「예약 기본정보 등록 필요」 안내가 나오면 회사명·사업자등록번호·연락처·이메일·입주 호실을
   물어서 save_meeting_profile 로 저장한다(최초 1회, 이후 자동 동봉). 저장 후 예약을 다시 진행한다.
 - 취소는 my_meeting_reservations 로 확인 후, 어떤 예약인지 확정받고 cancel_meeting_reservation.
@@ -205,14 +213,18 @@ export const TOOL_DEFINITIONS = [
   {
     name: 'delete_task',
     description:
-      '내 WARP 활동 1건을 삭제한다 (복구 불가). 반드시 list_my_tasks 로 찾은 뒤, 어떤 활동인지 '
+      '내 WARP 활동을 삭제한다 (복구 불가). 반드시 list_my_tasks 로 찾은 뒤, 어떤 활동인지 '
       + '제목·날짜·내용으로 사용자에게 보여주고 「정말 삭제할까요?」 확정을 받고 나서 호출한다. '
-      + '한 번에 한 건만 — 여러 건을 지워 달라고 해도 건별로 보여주고 확정받아 하나씩 삭제한다. '
-      + '일괄 삭제는 지원하지 않는다.',
+      + '기본은 1건씩 — 반복 등록된 일정이면 서버가 알려주며, 그때는 「이 건만 / 이후 반복 전부」를 '
+      + '물어 scope 로 다시 호출한다. 그 외의 일괄 삭제는 지원하지 않는다.',
     inputSchema: {
       type: 'object',
       properties: {
         id: { type: 'string', description: '삭제할 활동 id — list_my_tasks 결과의 내부 키' },
+        scope: {
+          type: 'string', enum: ['one', 'following'],
+          description: '반복 일정일 때만: "one"=이 건만, "following"=이 건과 이후 반복 전부. 반드시 사용자에게 물어본 뒤 지정',
+        },
       },
       required: ['id'],
     },
@@ -263,7 +275,7 @@ export const TOOL_DEFINITIONS = [
     inputSchema: {
       type: 'object',
       properties: {
-        room_id: { type: 'string', description: '방 id — meeting_room_status 결과의 [대괄호] 값' },
+        room_id: { type: 'string', description: '방 id — meeting_room_status 결과 하단 [내부 참조] 의 값. 사용자에게는 방 이름만 보여주고 이 값은 노출하지 않는다' },
         date: { type: 'string', pattern: DATE_RE, description: '예약 날짜 YYYY-MM-DD' },
         start_hour: { type: 'integer', minimum: 0, maximum: 23, description: '시작 시각 (정시)' },
         end_hour: { type: 'integer', minimum: 1, maximum: 24, description: '종료 시각 — 시작보다 커야 함' },
@@ -365,12 +377,31 @@ const err = (text: string): ToolResult => ({ text, isError: true })
 
 const VISIBILITIES = ['공개', '제목만 공개', '전체 비공개']
 
-/** task_id 검증 — 존재하는 과제인지 확인하고 코드·제목을 돌려준다. */
-async function resolveStrategyTask(taskId: string): Promise<{ id: string; code: string; title: string } | null> {
-  return prisma.strategyTask.findUnique({
+/**
+ * task_id 검증 — 존재해야 하고, 하위 과제가 있으면 끝 단계(leaf)까지 선택해야 한다.
+ * 하위가 있는 과제가 오면 그 하위 목록을 담아 돌려줘 AI 가 이어서 물어보게 한다.
+ */
+async function resolveLeafTask(taskId: string):
+  Promise<{ ok: true; task: { id: string; code: string; title: string } } | { ok: false; msg: string }> {
+  const t = await prisma.strategyTask.findUnique({
     where: { id: taskId },
     select: { id: true, code: true, title: true },
   })
+  if (!t) return { ok: false, msg: 'task_id 에 해당하는 과제가 없습니다 — list_strategy_tasks 로 과제 id 를 다시 확인해 주세요.' }
+  const kids = await prisma.strategyTask.findMany({
+    where: { parentId: t.id, suspended: false },
+    select: { id: true, title: true },
+    orderBy: [{ teamSeq: 'asc' }, { subSeq: 'asc' }],
+  })
+  if (kids.length > 0) {
+    return {
+      ok: false,
+      msg: `「${t.title}」 아래에 하위 과제가 있어, 끝 단계까지 선택해야 합니다. `
+        + `사용자에게 다음 중 하나를 번호로 고르게 한 뒤 그 id 로 다시 호출해 주세요 (이름만 보여줄 것):\n`
+        + kids.map((k, i) => `${i + 1}. ${k.title} (id: ${k.id})`).join('\n'),
+    }
+  }
+  return { ok: true, task: t }
 }
 
 async function createTask(user: McpUser, a: Record<string, any>): Promise<ToolResult> {
@@ -400,8 +431,9 @@ async function createTask(user: McpUser, a: Record<string, any>): Promise<ToolRe
   let linkedTask: { id: string; code: string; title: string } | null = null
   const tid = String(a.task_id ?? '').trim()
   if (tid && tid !== '없음' && tid.toLowerCase() !== 'none') {
-    linkedTask = await resolveStrategyTask(tid)
-    if (!linkedTask) return err('task_id 에 해당하는 과제가 없습니다 — list_strategy_tasks 로 과제 id 를 다시 확인해 주세요.')
+    const resolved = await resolveLeafTask(tid)
+    if (!resolved.ok) return err(`아직 등록되지 않았습니다 — ${resolved.msg}`)
+    linkedTask = resolved.task
   }
   // 반복 등록 — 웹 [반복]과 동일한 규칙 (매일/평일/매주, 종료일까지, 최대 60건). 기간 활동과는 불가.
   const FREQ_MAP: Record<string, RepeatFreq> = { '매일': 'daily', '평일': 'weekdays', '매주': 'weekly' }
@@ -470,7 +502,10 @@ async function createTask(user: McpUser, a: Record<string, any>): Promise<ToolRe
   const hint = activity.companions ? '' :
     '\n(동반 참여자가 있다면 companions 인자에 "김철수, 박영희" 형태의 WARP 실명을 넣어 주세요 — '
     + '도구 정의에 이 항목이 보이지 않아도 인자로 보내면 처리되며, update_task 로 추가할 수도 있습니다)'
-  return { text: `등록 완료 — id: ${activity.id}\n제목: ${activity.title}\n기간: ${activity.date}${activity.endDate ? ` ~ ${activity.endDate}` : ''}${time}\n유형: ${activity.type}${repeatNote}${linked}${vis}${comp}${hint}` }
+  // 파일(공문·증빙 등)은 MCP 대화로 전달할 수 없다 — 바로 첨부할 수 있는 활동 링크를 준다
+  const base = (process.env.NEXTAUTH_URL || 'https://warp.cleversystem.ai').replace(/\/$/, '')
+  const attach = `\n첨부·상세 편집: ${base}/notes/${activity.id}/edit (공문·사진·증빙 파일은 이 링크에서 바로 올릴 수 있습니다)`
+  return { text: `등록 완료 — id: ${activity.id}\n제목: ${activity.title}\n기간: ${activity.date}${activity.endDate ? ` ~ ${activity.endDate}` : ''}${time}\n유형: ${activity.type}${repeatNote}${linked}${vis}${comp}${attach}${hint}` }
 }
 
 async function listMyTasks(user: McpUser, _a: Record<string, any>): Promise<ToolResult> {
@@ -506,8 +541,9 @@ async function updateTask(user: McpUser, a: Record<string, any>): Promise<ToolRe
     if (!a.task_id) {
       data.taskId = null // 연계 해제
     } else {
-      linkedTask = await resolveStrategyTask(String(a.task_id))
-      if (!linkedTask) return err('task_id 에 해당하는 과제가 없습니다 — list_strategy_tasks 로 과제 id 를 다시 확인해 주세요.')
+      const resolved = await resolveLeafTask(String(a.task_id))
+      if (!resolved.ok) return err(`아직 수정되지 않았습니다 — ${resolved.msg}`)
+      linkedTask = resolved.task
       data.taskId = linkedTask.id
     }
   }
@@ -593,11 +629,45 @@ async function buildTaskTreeLines(user: McpUser): Promise<string[]> {
   return lines
 }
 
-/** 내 활동 1건 삭제 — 본인 것만, 건별 확정 후. 동반자에게는 삭제 알림이 간다. */
+/**
+ * 내 활동 삭제 — 본인 것만, 건별 확정 후. 동반자에게는 삭제 알림이 간다.
+ * 반복 등록된 일정(같은 제목·유형·시간의 이후 날짜 건들이 있는 경우)이면 scope 확인을 요구하고,
+ * scope: "following" 이면 예외적으로 이 건과 이후 반복분을 함께 삭제한다.
+ */
 async function deleteTask(user: McpUser, a: Record<string, any>): Promise<ToolResult> {
   if (!a.id) return err('id 는 필수입니다 — list_my_tasks 로 삭제할 활동을 먼저 찾아 주세요.')
   const before = await prisma.workActivity.findUnique({ where: { id: String(a.id) } })
   if (!before || before.userId !== user.id) return err('해당 활동을 찾을 수 없거나 본인 활동이 아닙니다.')
+
+  // 반복 시리즈 감지 — 같은 제목·유형·시간대의 이후 날짜 건들
+  const following = await prisma.workActivity.findMany({
+    where: {
+      userId: user.id, id: { not: before.id },
+      title: before.title, type: before.type,
+      startTime: before.startTime, endTime: before.endTime,
+      date: { gt: before.date },
+    },
+    select: { id: true, date: true },
+    orderBy: { date: 'asc' },
+  })
+
+  if (following.length > 0 && a.scope !== 'one' && a.scope !== 'following') {
+    return err(
+      `아직 삭제되지 않았습니다 — 이 활동은 반복 등록된 일정으로 보입니다 (이후 같은 일정 ${following.length}건: `
+      + `${following[0].date} ~ ${following[following.length - 1].date}). 사용자에게 물어봐 주세요: `
+      + `「1. 이 건만 삭제  2. 이 건과 이후 반복 ${following.length}건까지 모두 삭제」 — `
+      + `답에 따라 scope: "one" 또는 "following" 을 넣어 다시 호출해 주세요.`)
+  }
+
+  if (a.scope === 'following' && following.length > 0) {
+    await prisma.workActivity.deleteMany({ where: { id: { in: [before.id, ...following.map(f => f.id)] } } })
+    const noti = await notifyCompanions({
+      companions: before.companions, actorId: user.id, actorName: user.name,
+      title: before.title, date: `${before.date}~${following[following.length - 1].date}`, action: '삭제',
+    })
+    return { text: `삭제 완료 — 「${before.title}」 반복 일정 총 ${following.length + 1}건 (${before.date} ~ ${following[following.length - 1].date})${companionSummary(noti)}` }
+  }
+
   await prisma.workActivity.delete({ where: { id: before.id } })
   const noti = await notifyCompanions({
     companions: before.companions, actorId: user.id, actorName: user.name,
@@ -641,8 +711,10 @@ async function meetingRoomStatus(user: McpUser, a: Record<string, any>): Promise
       .filter(r => String(r.roomId) === String(room.id))
       .sort((x, y) => Number(x.startHour) - Number(y.startHour))
       .map(r => `${r.startHour}시~${r.endHour}시(${r.title ?? '회의'}${r.userName ? ` · ${r.userName}` : ''})`)
-    return `- ${room.name} [${room.id}]: ${taken.length ? taken.join(', ') : '예약 없음'}`
+    return `- ${room.name}: ${taken.length ? taken.join(', ') : '예약 없음'}`
   })
+  // 방 번호(id)는 예약 호출용 내부 참조 — 사용자에게 보여주지 않는다
+  const idMap = `\n[내부 참조 — 사용자에게 노출 금지] room_id: ${day.rooms.map(r => `${r.name}=${r.id}`).join(', ')}`
   const orphans = day.reservations.filter(r => !day.rooms.some(room => String(room.id) === String(r.roomId)))
   const extra = orphans.length
     ? `\n(방 목록에 없는 예약 ${orphans.length}건: ${orphans.map(r => `${r.roomId} ${r.startHour}~${r.endHour}시`).join(', ')})`
@@ -650,7 +722,7 @@ async function meetingRoomStatus(user: McpUser, a: Record<string, any>): Promise
   const staleNote = day.stale
     ? `\n※ 예약 서버 응답이 느려 ${new Intl.DateTimeFormat('ko-KR', { timeZone: 'Asia/Seoul', hour: '2-digit', minute: '2-digit' }).format(new Date(day.asOf))} 기준 결과입니다 — 방금 바뀐 예약은 빠져 있을 수 있습니다.`
     : ''
-  return { text: `${day.date} 회의실 현황 (로그인: ${day.userName})\n${byRoom.join('\n')}${extra}${staleNote}` }
+  return { text: `${day.date} 회의실 현황 (로그인: ${day.userName})\n${byRoom.join('\n')}${extra}${staleNote}${idMap}` }
 }
 
 /** 저장된 예약 기본정보 JSON 파싱 — 깨져 있으면 없는 것으로 본다. */
