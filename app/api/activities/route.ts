@@ -4,6 +4,7 @@ import { getWeekId } from '@/lib/week'
 import { auth } from '@/auth'
 import { expandRepeatDates, isRepeatFreq } from '@/lib/recurrence'
 import { notifyCompanions } from '@/lib/notify-companions'
+import { isAdminRole } from '@/lib/permissions'
 
 export async function GET(req: NextRequest) {
   const [{ searchParams }, session] = await Promise.all([
@@ -71,8 +72,11 @@ export async function POST(req: NextRequest) {
     }
 
     const me = session?.user as any
-    const resolvedUserId   = userId   || me?.id   || null
-    const resolvedUserName = userName || me?.name  || null
+    if (!me?.id) return NextResponse.json({ error: '로그인이 필요합니다.' }, { status: 401 })
+    // 타인 명의 등록은 관리자만 — 일반 사용자는 항상 본인 명의로 저장된다
+    const canAssignOther = isAdminRole(me.role)
+    const resolvedUserId   = canAssignOther && userId ? userId : me.id
+    const resolvedUserName = canAssignOther && userId ? (userName || null) : (me.name ?? null)
 
     // 비용 금액이 하나라도 있으면 정산 승인 대기 상태로 자동 신청
     const hasExpenseAmount = [expenseTransport, expenseAccomm, expenseMeal, expenseOther]
