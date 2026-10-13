@@ -14,4 +14,8 @@ export async function register() {
     })
     return rows.map(r => r.dongjakSessionId).filter((s): s is string => !!s)
   })
+
+  // 업무 키워드(온톨로지) 예열 — 첫 방문자가 AI 선별을 기다리지 않게 미리 채워 둔다
+  const { workKeywords } = await import('./lib/work-keywords')
+  void workKeywords().catch(() => {})
 }
