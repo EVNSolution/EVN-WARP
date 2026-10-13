@@ -56,7 +56,8 @@ export default function MobileActivityForm({ teams, tasks, vehicles = [], initia
   })
   const [date,    setDate]    = useState(new Date().toISOString().slice(0, 10))
   const [catIdx,  setCatIdx]  = useState(0)
-  const [type,    setType]    = useState('내부회의')
+  // 유형 미선택으로 시작 — 반드시 직접 골라야 저장
+  const [type,    setType]    = useState('')
   const [allDay,     setAllDay]     = useState(true)
   const [startTime,  setStartTime]  = useState('09:00')
   // 반복 등록 (매일·평일·매주)
@@ -115,6 +116,7 @@ export default function MobileActivityForm({ teams, tasks, vehicles = [], initia
 
   async function submit() {
     if (linked && !parentId) { setError('전략과제를 선택하세요.'); return }
+    if (!type)               { setError('활동 유형을 선택하세요.'); return }
     if (!title.trim())       { setError('제목을 입력하세요.'); return }
     setSaving(true); setError('')
     try {
@@ -260,7 +262,7 @@ export default function MobileActivityForm({ teams, tasks, vehicles = [], initia
                     {sec.categories.map(cat => {
                       const i = CATEGORIES.indexOf(cat)
                       return (
-                        <button key={cat.label} onClick={() => { setCatIdx(i); setType(cat.types[0]) }}
+                        <button key={cat.label} onClick={() => setCatIdx(i)}
                           className={`${CHIP} ${catIdx === i ? 'bg-gray-800 text-white border-gray-800' : 'border-gray-200 text-gray-500 bg-white'}`}>
                           {cat.label}
                         </button>
@@ -274,7 +276,10 @@ export default function MobileActivityForm({ teams, tasks, vehicles = [], initia
 
           {/* 유형 — 흰 배경 */}
           <div className={BODY}>
-            <p className="text-[10px] font-bold text-blue-500 uppercase tracking-widest mb-2">유형 선택 · {currentCat.label}</p>
+            <p className="text-[10px] font-bold text-blue-500 uppercase tracking-widest mb-2">
+              유형 선택 · {currentCat.label}
+              {!type && <span className="ml-2 normal-case tracking-normal text-red-500">필수 — 하나를 선택하세요</span>}
+            </p>
             <div className="flex flex-wrap gap-1.5">
               {currentCat.types.map(t => (
                 <button key={t} onClick={() => setType(t)}

@@ -384,7 +384,8 @@ export default function ActivityForm({ teams, tasks, users = [], vehicles = [], 
   // 반복 등록 (신규 작성 시에만)
   const [repeatFreq,   setRepeatFreq]   = useState<'none' | RepeatFreq>('none')
   const [repeatUntil,  setRepeatUntil]  = useState('')
-  const [type,         setType]         = useState<string>(initial?.type ?? '내부회의')
+  // 신규 작성은 유형 미선택으로 시작 — 반드시 직접 골라야 저장 (일정/업무 기록 구분 정확도)
+  const [type,         setType]         = useState<string>(initial?.type ?? '')
   const [title,        setTitle]        = useState(initial?.title     ?? '')
   const [content,      setContent]      = useState(initial?.content   ?? '')
   const [mentionChips, setMentionChips] = useState<string[]>(() => {
@@ -543,6 +544,7 @@ export default function ActivityForm({ teams, tasks, users = [], vehicles = [], 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
 
+    if (!type) { setError('활동 유형을 선택해주세요.'); return }
     if (linked && !parentTaskId) { setError('전략과제를 선택해주세요.'); return }
     if (!linked && !finalTeamId) { setError('팀을 선택해주세요.'); return }
 
@@ -1042,6 +1044,7 @@ export default function ActivityForm({ teams, tasks, users = [], vehicles = [], 
           <div className="border-t border-slate-100 pt-4">
             <div className="flex items-center gap-2 mb-3">
               <p className="text-sm font-semibold text-slate-700">활동 유형</p>
+              {!type && <span className="text-[11px] font-semibold text-red-500">필수 — 하나를 선택하세요</span>}
               <button type="button" onClick={() => setShowGuide(true)}
                 className="flex items-center gap-1 text-[10px] text-slate-400 hover:text-indigo-500 transition-colors">
                 <HelpCircle size={13} />
