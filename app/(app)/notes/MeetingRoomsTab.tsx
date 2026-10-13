@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { useEffect, useRef, useState } from 'react'
-import { ChevronLeft, ChevronRight, RefreshCw } from 'lucide-react'
+import { CalendarDays, ChevronLeft, ChevronRight, RefreshCw } from 'lucide-react'
 
 /**
  * 업무공간 「회의실」 탭 — 동작사무실 회의실의 날짜별 예약 현황.
@@ -131,23 +131,29 @@ export default function MeetingRoomsTab() {
   // 이전 결과(stale)를 받은 경우 서버가 뒤에서 갱신 중 — 잠시 뒤 자동으로 최신본을 다시 가져온다 (최대 2회)
   const autoRefresh = useRef(0)
 
-  // 빈 시간 클릭 → 예약 창
+  // 빈 시간 클릭 → 예약 창 (입력은 예약자 이름 하나 — 기본정보 미등록이면 그때만 추가 입력란이 열린다)
   const [draft, setDraft] = useState<{ roomId: string; roomName: string; startHour: number; endHour: number } | null>(null)
   const [resName, setResName] = useState('')
-  const [resTitle, setResTitle] = useState('')
   const [saving, setSaving] = useState(false)
   const [modalError, setModalError] = useState('')
+  const [profileNeeded, setProfileNeeded] = useState(false)
+  const emptyProfile = { companyName: '', businessNumber: '', phone: '', email: '', roomNumber: '' }
+  const [profile, setProfile] = useState(emptyProfile)
 
   const openDraft = (room: Room, hour: number) => {
-    setResName(day?.userName ?? '')
-    setResTitle('')
+    setResName('')
     setModalError('')
+    setProfileNeeded(false)
     setDraft({ roomId: room.id, roomName: room.name, startHour: hour, endHour: Math.min(hour + 1, 24) })
   }
 
   const submitDraft = async () => {
     if (!draft) return
     if (!resName.trim()) { setModalError('예약자 이름을 입력해 주세요.'); return }
+    if (profileNeeded && Object.values(profile).some(v => !v.trim())) {
+      setModalError('기본정보 다섯 항목을 모두 입력해 주세요.')
+      return
+    }
     setSaving(true)
     setModalError('')
     try {
@@ -156,10 +162,17 @@ export default function MeetingRoomsTab() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           roomId: draft.roomId, date, startHour: draft.startHour, endHour: draft.endHour,
-          userName: resName.trim(), title: resTitle.trim() || undefined,
+          userName: resName.trim(),
+          ...(profileNeeded ? { profile } : {}),
         }),
       })
       const j = await res.json().catch(() => ({}))
+      if (j.code === 'profile_required') {
+        setProfileNeeded(true)
+        setProfile(emptyProfile)
+        setModalError('')
+        return
+      }
       if (!res.ok || j.error) { setModalError(j.error || '예약에 실패했습니다.'); return }
       setDraft(null)
       autoRefresh.current = 0
@@ -217,11 +230,15 @@ export default function MeetingRoomsTab() {
       <div className="flex items-center gap-2 mb-4">
         <button onClick={() => setDate(d => shiftDate(d, -1))}
           className="p-1.5 rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50"><ChevronLeft size={15} /></button>
-        <span className="flex items-center gap-1">
-          <input type="date" value={date} onChange={e => e.target.value && setDate(e.target.value)}
-            className="border border-slate-200 rounded-lg px-2 py-1.5 text-sm text-slate-700" />
-          <span className="text-sm text-slate-600">({weekday})</span>
-        </span>
+        {/* 날짜 + 요일이 한 칸에 — 보이는 건 커스텀 박스, 클릭하면 숨은 date input 의 달력이 열린다 */}
+        <label className="relative flex items-center gap-2 border border-slate-200 rounded-lg px-3 py-1.5 bg-white cursor-pointer hover:bg-slate-50">
+          <span className="text-sm text-slate-700">{date} <span className="text-slate-500">({weekday})</span></span>
+          <CalendarDays size={14} className="text-slate-400" />
+          <input type="date" value={date}
+            onChange={e => e.target.value && setDate(e.target.value)}
+            onClick={e => (e.currentTarget as HTMLInputElement).showPicker?.()}
+            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" />
+        </label>
         <button onClick={() => setDate(d => shiftDate(d, 1))}
           className="p-1.5 rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50"><ChevronRight size={15} /></button>
         <button onClick={() => setDate(todayKst())}
@@ -306,12 +323,29 @@ export default function MeetingRoomsTab() {
               </select>
             </div>
 
-            <input value={resName} onChange={e => setResName(e.target.value)}
+            <input value={resName} onChange={e => setResName(e.target.value)} autoFocus
               placeholder="예약자 이름 (예: 장원철, 장원철 외 3명)"
-              className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm mb-2" />
-            <input value={resTitle} onChange={e => setResTitle(e.target.value)}
-              placeholder="회의 제목 (선택 — 비우면 「회의」)"
               className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm" />
+
+            {profileNeeded && (
+              <div className="mt-3 border border-amber-200 bg-amber-50 rounded-lg p-3">
+                <p className="text-[11px] text-amber-700 mb-2">
+                  처음 한 번만 예약 기본정보가 필요합니다 — 이후 예약에는 자동으로 들어갑니다.
+                </p>
+                <div className="space-y-1.5">
+                  <input value={profile.companyName} onChange={e => setProfile(p => ({ ...p, companyName: e.target.value }))}
+                    placeholder="회사명" className="w-full border border-slate-200 rounded-lg px-3 py-1.5 text-sm bg-white" />
+                  <input value={profile.businessNumber} onChange={e => setProfile(p => ({ ...p, businessNumber: e.target.value }))}
+                    placeholder="사업자등록번호 (예: 123-45-67890)" className="w-full border border-slate-200 rounded-lg px-3 py-1.5 text-sm bg-white" />
+                  <input value={profile.phone} onChange={e => setProfile(p => ({ ...p, phone: e.target.value }))}
+                    placeholder="연락처 (예: 010-1234-5678)" className="w-full border border-slate-200 rounded-lg px-3 py-1.5 text-sm bg-white" />
+                  <input value={profile.email} onChange={e => setProfile(p => ({ ...p, email: e.target.value }))}
+                    placeholder="이메일" className="w-full border border-slate-200 rounded-lg px-3 py-1.5 text-sm bg-white" />
+                  <input value={profile.roomNumber} onChange={e => setProfile(p => ({ ...p, roomNumber: e.target.value }))}
+                    placeholder="입주 호실 (예: 601호)" className="w-full border border-slate-200 rounded-lg px-3 py-1.5 text-sm bg-white" />
+                </div>
+              </div>
+            )}
 
             {modalError && <p className="text-xs text-red-500 mt-2">{modalError}</p>}
 
