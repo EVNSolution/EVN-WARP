@@ -28,7 +28,7 @@ export async function notifyActivityComment(opts: {
       createNotification({
         userId: uid, type: 'activity_comment',
         message: `${opts.commenterName}님이 「${opts.title}」(${opts.date})에 댓글을 남겼습니다.`,
-        link: `/notes/${opts.activityId}/edit`,
+        link: `/notes?month=${opts.date.slice(0, 7)}&activity=${opts.activityId}`,
       })))
   } catch (e) {
     console.error('[notifyActivityComment] 실패:', e instanceof Error ? e.message : e)
@@ -71,7 +71,9 @@ export async function notifyCompanions(opts: {
           userId: u.id,
           type: 'activity_companion',
           message: `${opts.actorName}님이 「${opts.title}」(${opts.date})을 ${verb}.`,
-          link: opts.activityId ? `/notes/${opts.activityId}/edit` : '/notes',
+          link: opts.activityId && opts.action !== '삭제'
+            ? `/notes?month=${opts.date.slice(0, 7)}&activity=${opts.activityId}`
+            : '/notes',
         })),
     )
     return { notified: targets.map(u => ({ name: u.name, email: u.email })), missing }

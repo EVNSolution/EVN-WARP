@@ -65,7 +65,7 @@ const TYPE_META: Record<string, { icon: React.ReactNode; bg: string; text: strin
   '사무업무':  { icon: <Briefcase size={9} />, bg: 'bg-slate-100',  text: 'text-slate-600' },
 }
 type WeekDay = { dateStr: string; day: number; inMonth: boolean; dow: number }
-type SearchParams = { month?: string; tab?: string; user?: string; uid?: string; teamName?: string }
+type SearchParams = { month?: string; tab?: string; user?: string; uid?: string; teamName?: string; activity?: string }
 
 /* ── 출장보고 목록 ── */
 const TRIP_STATUS: Record<string, { bg: string; text: string }> = {
@@ -109,7 +109,7 @@ function TripList({ items }: { items: any[] }) {
 }
 
 export default async function NotesPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
-  const { month: monthParam, tab, user: userParam, uid: uidParam, teamName: teamParam } = await searchParams
+  const { month: monthParam, tab, user: userParam, uid: uidParam, teamName: teamParam, activity: activityParam } = await searchParams
   const activeTab  = tab === 'notes' ? 'notes' : tab === 'rooms' ? 'rooms' : 'calendar'
 
   const session  = await auth()
@@ -192,7 +192,8 @@ export default async function NotesPage({ searchParams }: { searchParams: Promis
         ...(teamParam  ? { team: { name: teamParam } } : {}),
       },
       include: {
-        task: { select: { id: true, code: true, title: true, strategy: true } },
+        task: { select: { id: true, code: true, title: true, strategy: true,
+          parent: { select: { title: true, parent: { select: { title: true } } } } } },
         team: true,
         user: { select: { id: true, name: true } },
       },
@@ -266,6 +267,9 @@ export default async function NotesPage({ searchParams }: { searchParams: Promis
       planStatus:   a.planStatus,
       taskTitle:    a.task?.title  ?? null,
       taskCode:     a.task?.code   ?? null,
+      taskPath:     a.task
+        ? [a.task.parent?.parent?.title, a.task.parent?.title, a.task.title].filter(Boolean).join(' › ')
+        : null,
       teamName:     a.team.name,
       userName:     resolvedName,
     }
@@ -309,6 +313,7 @@ export default async function NotesPage({ searchParams }: { searchParams: Promis
           planStatus:   '완료',
           taskTitle:    null,
           taskCode:     null,
+          taskPath:     null,
           teamName:     trip.teamName ?? '',
           userName:     trip.userName ?? null,
           tripId:       trip.id,
@@ -342,6 +347,7 @@ export default async function NotesPage({ searchParams }: { searchParams: Promis
           planStatus:   '완료',
           taskTitle:    null,
           taskCode:     null,
+          taskPath:     null,
           teamName:     '',
           userName:     leave.userName,
           leaveId:      leave.id,
@@ -479,7 +485,7 @@ export default async function NotesPage({ searchParams }: { searchParams: Promis
       ══════════════════════════════════════ */}
       {activeTab === 'calendar' && (
         <CalendarView weeks={weeks} activities={calActivities} reservations={calReservations} scheduleItems={calScheduleItems} todayStr={todayStr}
-          myUserId={myUserId} isAdmin={isAdminUser} canViewAllCardUsage={canViewAllCards} />
+          myUserId={myUserId} isAdmin={isAdminUser} canViewAllCardUsage={canViewAllCards} openActivityId={activityParam} />
       )}
 
 

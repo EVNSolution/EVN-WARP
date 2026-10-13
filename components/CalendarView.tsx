@@ -27,6 +27,7 @@ export type CalActivity = {
   planStatus:   string
   taskTitle:    string | null
   taskCode:     string | null
+  taskPath:     string | null
   teamName:     string
   userName:     string | null
   // 출장보고서 전용
@@ -126,6 +127,8 @@ interface Props {
   myUserId?:     string
   isAdmin?:      boolean
   canViewAllCardUsage?: boolean
+  /** URL(?activity=id)로 특정 활동 팝업을 바로 연다 — 알림·AI 링크의 도착지 */
+  openActivityId?: string
 }
 
 type FieldFilter = 'all' | 'activity' | 'leave' | 'vehicle' | 'schedule'
@@ -137,9 +140,17 @@ const FIELD_FILTERS: { key: FieldFilter; label: string }[] = [
   { key: 'schedule', label: '재무회계일정' },
 ]
 
-export default function CalendarView({ weeks, activities, reservations, scheduleItems, todayStr, myUserId, isAdmin = false, canViewAllCardUsage = false }: Props) {
+export default function CalendarView({ weeks, activities, reservations, scheduleItems, todayStr, myUserId, isAdmin = false, canViewAllCardUsage = false, openActivityId }: Props) {
   const router = useRouter()
   const [selected, setSelected]         = useState<CalActivity | null>(null)
+
+  // 딥링크(?activity=id)로 들어오면 해당 활동 팝업을 바로 연다
+  useEffect(() => {
+    if (!openActivityId) return
+    const target = activities.find(a => a.id === openActivityId)
+    if (target) setSelected(target)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [openActivityId])
   const [selectedResv, setSelectedResv] = useState<CalVehicleReservation | null>(null)
   const [showNewResv, setShowNewResv]   = useState(false)
   const [showVehStatus, setShowVehStatus] = useState(false)
@@ -479,10 +490,15 @@ export default function CalendarView({ weeks, activities, reservations, schedule
                 </div>
                 <span className="text-slate-400">팀</span>
                 <span className="text-slate-700">{selected.teamName}</span>
-                {selected.taskTitle && (
+                {(selected.taskPath || selected.taskTitle) ? (
                   <>
-                    <span className="text-slate-400">과제</span>
-                    <span className="text-slate-700 truncate">{selected.taskTitle}</span>
+                    <span className="text-slate-400">연계 과제</span>
+                    <span className="text-slate-700">{selected.taskPath ?? selected.taskTitle}</span>
+                  </>
+                ) : (
+                  <>
+                    <span className="text-slate-400">연계 과제</span>
+                    <span className="text-slate-300">독립활동 (과제 연계 없음)</span>
                   </>
                 )}
                 {selected.userName && (
@@ -537,6 +553,16 @@ export default function CalendarView({ weeks, activities, reservations, schedule
                       <span className="truncate">{decodeURIComponent(url.split('/').pop() ?? '첨부 문서').replace(/^\d+_/, '')}</span>
                     </a>
                   ))}
+                </div>
+              )}
+              {!selected.imageUrl && !selected.documentUrl && (
+                <div className="space-y-1.5">
+                  <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide">첨부</p>
+                  <div className="px-4 py-3 bg-slate-50 border border-dashed border-slate-200 rounded-lg text-xs text-slate-400">
+                    등록된 첨부파일이 없습니다 — {myUserId && selected.userId === myUserId
+                      ? '수정하기에서 추가하거나 댓글로 올릴 수 있어요.'
+                      : '관련 자료는 오른쪽 댓글로 올릴 수 있어요.'}
+                  </div>
                 </div>
               )}
             </div>
