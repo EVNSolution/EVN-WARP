@@ -50,7 +50,7 @@ export default function WeeklyBriefing({ windowLabel, generatedAt, activityCount
             )}
           </h2>
           <p className="text-[11px] text-slate-400 mt-0.5">
-            {windowLabel} 기록된 업무 {activityCount}건 · {peopleCount}명 — 모든 업무 기록 기반 (비공개 제외)
+            {windowLabel} · 기록 {activityCount}건 · {peopleCount}명 — 무슨 일이 진행되고 있는지 요약
           </p>
         </div>
         <div className="ml-auto flex items-center gap-2">
