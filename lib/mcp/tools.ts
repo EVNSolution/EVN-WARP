@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/db'
 import { getWeekId } from '@/lib/week'
+import { notifyCompanions } from '@/lib/notify-companions'
 import { cancelReservation, DongjakProfileError, myReservations, reserveRoom, roomStatus, type DongjakProfile } from './dongjak'
 import { listSkills, loadSkill } from './skills'
 
@@ -37,8 +38,9 @@ export const MCP_INSTRUCTIONS = `
 1. 실제로 수행한 업무만 추린다 — 잡담·미완의 시도·사적 내용 제외.
 2. 업무 1건 = 활동 1건. 제목은 「대상 + 한 일」 15자 내외.
 3. note(내용)는 2~3문장 요약. 대화 원문을 길게 붙이지 않는다.
-4. 등록·수정 전에 반드시 제목·유형·내용을 사람이 읽는 문장으로 보여주고 확정받는다. id 는 노출하지 않는다.
-5. list_my_tasks 로 중복 등록을 피한다.
+4. 함께한 팀원이 대화에 보이면 companions 에 쉼표로 넣는다 — 그 팀원들에게 WARP 알림이 간다.
+5. 등록·수정 전에 반드시 제목·유형·내용을 사람이 읽는 문장으로 보여주고 확정받는다. id 는 노출하지 않는다.
+6. list_my_tasks 로 중복 등록을 피한다.
 
 ## 일정 등록
 날짜·시각이 정해진 약속이 보이면 "WARP 캘린더에 등록할까요?" 제안. start_time/end_time 을 넣으면
@@ -112,6 +114,7 @@ export const TOOL_DEFINITIONS = [
         due: { type: 'string', pattern: DATE_RE, description: '종료일(기한) YYYY-MM-DD — 하루짜리 일이면 생략' },
         type: { type: 'string', enum: ACTIVITY_TYPES, description: '활동 유형 — 업무공간 입력창의 유형 버튼과 동일' },
         note: { type: 'string', description: '내용/메모' },
+        companions: { type: 'string', description: '동반자 — 함께한 WARP 팀원 이름들, 쉼표 구분 (예: "홍길동, 김철수") — 해당 팀원에게 알림이 간다' },
         start_time: { type: 'string', pattern: TIME_RE, description: '일정 시작 시각 HH:MM — 생략하면 하루종일' },
         end_time: { type: 'string', pattern: TIME_RE, description: '일정 종료 시각 HH:MM' },
       },
@@ -138,6 +141,7 @@ export const TOOL_DEFINITIONS = [
         id: { type: 'string', description: '활동 id — list_my_tasks 결과의 내부 키' },
         title: { type: 'string' },
         note: { type: 'string', description: '빈 문자열이면 내용 삭제' },
+        companions: { type: 'string', description: '동반자 — WARP 팀원 이름들, 쉼표 구분 (빈 문자열이면 삭제)' },
         date: { type: 'string', pattern: DATE_RE },
         due: { type: 'string', pattern: DATE_RE },
         type: { type: 'string', enum: ACTIVITY_TYPES },
@@ -284,6 +288,7 @@ async function createTask(user: McpUser, a: Record<string, any>): Promise<ToolRe
       type: a.type,
       title: String(a.title).trim(),
       content: a.note || null,
+      companions: a.companions ? String(a.companions).trim() || null : null,
       planStatus: '완료', // 계획/완료 구분은 폐기 — 업무공간 등록과 동일하게 완료로 둔다
       startTime: a.start_time || null,
       endTime: a.end_time || null,
@@ -292,8 +297,13 @@ async function createTask(user: McpUser, a: Record<string, any>): Promise<ToolRe
       userName: user.name,
     },
   })
+  void notifyCompanions({
+    companions: activity.companions, actorId: user.id, actorName: user.name,
+    title: activity.title, date: activity.date, action: '등록',
+  })
   const time = activity.startTime ? ` ${activity.startTime}${activity.endTime ? `~${activity.endTime}` : ''}` : ''
-  return { text: `등록 완료 — id: ${activity.id}\n제목: ${activity.title}\n기간: ${activity.date}${activity.endDate ? ` ~ ${activity.endDate}` : ''}${time}\n유형: ${activity.type}` }
+  const comp = activity.companions ? `\n동반자: ${activity.companions} (알림 발송)` : ''
+  return { text: `등록 완료 — id: ${activity.id}\n제목: ${activity.title}\n기간: ${activity.date}${activity.endDate ? ` ~ ${activity.endDate}` : ''}${time}\n유형: ${activity.type}${comp}` }
 }
 
 async function listMyTasks(user: McpUser, _a: Record<string, any>): Promise<ToolResult> {
@@ -320,6 +330,7 @@ async function updateTask(user: McpUser, a: Record<string, any>): Promise<ToolRe
   const data: Record<string, unknown> = {}
   if (a.title !== undefined && String(a.title).trim()) data.title = String(a.title).trim()
   if (a.note !== undefined) data.content = a.note || null
+  if (a.companions !== undefined) data.companions = String(a.companions).trim() || null
   if (a.date !== undefined) { data.date = a.date; data.week = getWeekId(new Date(a.date)) }
   if (a.due !== undefined) data.endDate = a.due || null
   if (a.type !== undefined) {
@@ -331,6 +342,10 @@ async function updateTask(user: McpUser, a: Record<string, any>): Promise<ToolRe
   if (Object.keys(data).length === 0) return err('바꿀 내용이 없습니다 — title/note/date/due/type/start_time/end_time 중 하나 이상을 주세요.')
   data.source = 'mcp' // AI가 손댄 활동도 AI 업무 기록에 잡히게 표시
   const updated = await prisma.workActivity.update({ where: { id: before.id }, data })
+  void notifyCompanions({
+    companions: updated.companions, actorId: user.id, actorName: user.name,
+    title: updated.title, date: updated.date, action: '변경',
+  })
   return {
     text: `수정 완료 — 「${before.title}」\n`
       + (data.title !== undefined ? `  제목: ${before.title} → ${updated.title}\n` : '')

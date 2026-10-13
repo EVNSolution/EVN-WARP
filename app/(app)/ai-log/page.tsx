@@ -1,6 +1,7 @@
 import { auth } from '@/auth'
 import { prisma } from '@/lib/db'
 import { workKeywords } from '@/lib/work-keywords'
+import AiFeedbackList from './AiFeedbackList'
 
 /**
  * AI 업무 기록 대시보드 — 전사 공용 화면. 4개 뷰로 구성:
@@ -192,43 +193,20 @@ export default async function AiLogPage() {
         <section>
           <h2 className="text-sm font-bold text-slate-800 mb-1">AI 연결 피드백</h2>
           <p className="text-[11px] text-slate-400 mb-3">
-            AI 와 대화하다 &ldquo;이 의견 피드백으로 남겨줘&rdquo;라고 하면 여기에 쌓입니다. 답변은 제안함에서 관리자가 답니다.
+            AI 와 대화하다 &ldquo;이 의견 피드백으로 남겨줘&rdquo;라고 하면 여기에 쌓입니다. 답변은 관리자가 이 화면에서 답니다.
           </p>
           {feedbacks.length === 0 ? (
             <div className="text-xs text-slate-400 border border-dashed border-slate-200 rounded-lg p-5 text-center">
               아직 피드백이 없습니다.
             </div>
           ) : (
-            <div className="border border-slate-200 rounded-xl bg-white max-h-96 overflow-y-auto divide-y divide-slate-100">
-              {feedbacks.map(f => {
-                const title = f.title.replace(/^\[AI 피드백\]\s*/, '')
-                return (
-                  <details key={f.id} className="group">
-                    <summary className="flex items-center gap-3 px-4 py-2.5 cursor-pointer select-none list-none hover:bg-slate-50 [&::-webkit-details-marker]:hidden">
-                      <span className="text-[11px] text-slate-400 w-11 shrink-0">
-                        {f.createdAt.toISOString().slice(5, 10).replace('-', '/')}
-                      </span>
-                      <span className="text-xs font-semibold text-slate-600 w-14 shrink-0 truncate">{f.userName}</span>
-                      <span className="text-xs text-slate-700 truncate flex-1">{title}</span>
-                      {f.replyContent ? (
-                        <span className="shrink-0 text-[10px] px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-600">답변완료</span>
-                      ) : (
-                        <span className="shrink-0 text-[10px] text-slate-300">대기</span>
-                      )}
-                      <span className="shrink-0 text-slate-300 text-[10px] transition-transform group-open:rotate-180">▼</span>
-                    </summary>
-                    <div className="px-4 pb-3 pt-1 bg-slate-50/60">
-                      <p className="text-xs text-slate-700 whitespace-pre-wrap ml-11">{f.content}</p>
-                      {f.replyContent && (
-                        <div className="mt-2 ml-11 border-l-2 border-emerald-200 pl-3 text-[11px] text-slate-500 whitespace-pre-wrap">
-                          <b className="text-slate-600">{f.repliedByName ?? '관리자'}</b> — {f.replyContent}
-                        </div>
-                      )}
-                    </div>
-                  </details>
-                )
-              })}
-            </div>
+            <AiFeedbackList
+              isAdmin={isPrivileged}
+              feedbacks={feedbacks.map(f => ({
+                id: f.id, title: f.title, userName: f.userName, content: f.content,
+                replyContent: f.replyContent, repliedByName: f.repliedByName,
+                createdAt: f.createdAt.toISOString().slice(5, 10).replace('-', '/'),
+              }))} />
           )}
         </section>
 

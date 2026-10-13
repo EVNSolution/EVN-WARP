@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
+import { notifyCompanions } from '@/lib/notify-companions'
 
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -59,6 +60,13 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
       ...(visibility              !== undefined && { visibility:              visibility              || '공개' }),
     },
   })
+
+  // 동반자로 적힌 팀원들에게 변경 알림 (실패해도 수정은 유지)
+  void notifyCompanions({
+    companions: activity.companions, actorId: activity.userId, actorName: activity.userName ?? '동료',
+    title: activity.title, date: activity.date, action: '변경',
+  })
+
   return NextResponse.json(activity)
 }
 
