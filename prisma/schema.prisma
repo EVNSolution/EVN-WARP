@@ -50,6 +50,7 @@ model User {
   skillsGithubToken String?
 
   mcpTokens      McpToken[]
+  mcpLogs        McpLog[]
 
   createdAt      DateTime       @default(now())
   updatedAt      DateTime       @updatedAt
@@ -67,6 +68,22 @@ model McpToken {
   revokedAt  DateTime?
 
   @@index([userId])
+}
+
+// MCP 도구 호출 로그 — AI 사용 집계(AI 업무 기록 대시보드)용.
+// 호출 내용(인자)은 저장하지 않는다 — 누가 어떤 도구를 언제 썼고 성공했는지만.
+model McpLog {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userName  String
+  tool      String
+  category  String   // 업무기록 | 회의실 | 스킬 | 피드백 | 기타
+  ok        Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([category])
 }
 
 model StrategyTask {

@@ -470,7 +470,25 @@ async function sendFeedback(user: McpUser, a: Record<string, any>): Promise<Tool
   return { text: '피드백이 등록되었습니다 — AI 업무 기록 화면과 제안함에서 볼 수 있고, 관리자가 답변을 남길 수 있습니다. 의견 감사합니다!' }
 }
 
+/** AI 사용 집계(AI 업무 기록 대시보드)용 도구 분류. */
+const TOOL_CATEGORY: Record<string, string> = {
+  create_task: '업무기록', list_my_tasks: '업무기록', update_task: '업무기록',
+  meeting_room_status: '회의실', reserve_meeting_room: '회의실', save_meeting_profile: '회의실',
+  my_meeting_reservations: '회의실', cancel_meeting_reservation: '회의실',
+  send_feedback: '피드백',
+  list_evn_skills: '스킬', load_evn_skill: '스킬',
+}
+
 export async function callTool(user: McpUser, name: string, args: Record<string, any>): Promise<ToolResult> {
+  const result = await dispatchTool(user, name, args)
+  // 사용 로그 — 인자(내용)는 저장하지 않는다. 실패해도 도구 응답에는 영향 없음.
+  prisma.mcpLog.create({
+    data: { userId: user.id, userName: user.name, tool: name, category: TOOL_CATEGORY[name] ?? '기타', ok: !result.isError },
+  }).catch(() => {})
+  return result
+}
+
+async function dispatchTool(user: McpUser, name: string, args: Record<string, any>): Promise<ToolResult> {
   try {
     const a = args ?? {}
     switch (name) {
