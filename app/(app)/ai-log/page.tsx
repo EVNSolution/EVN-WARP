@@ -169,14 +169,14 @@ export default async function AiLogPage() {
   return (
     <div className="p-6">
       {/* 헤더 (공통 스타일: 검은 배경 + 둥근 모서리) */}
-      <div className="max-w-5xl px-6 py-4 mb-5 rounded-xl" style={{ backgroundColor: '#111111' }}>
+      <div className="max-w-6xl px-6 py-4 mb-5 rounded-xl" style={{ backgroundColor: '#111111' }}>
         <h1 className="text-xl font-bold text-white">AI 업무 기록</h1>
         <p className="text-[11px] mt-0.5" style={{ color: '#C5D42A' }}>
           개인 AI(Claude·ChatGPT 등)와 WARP 가 함께 일한 기록 — 연결은 내 계정 → AI 연결에서
         </p>
       </div>
 
-      <div className="max-w-5xl space-y-6">
+      <div className="max-w-6xl space-y-5">
 
         {/* ① AI 활동 집계 — 어떤 일에 AI 를 쓰는가 */}
         <section className="rounded-2xl p-6 text-white" style={{ background: 'linear-gradient(135deg, #0b0f14 0%, #141b24 100%)' }}>
@@ -223,7 +223,13 @@ export default async function AiLogPage() {
           </p>
         </section>
 
-        {/* ② 주간회의 브리핑 — 월/목 10시 회의에서 팀 탭 넘기며 읽는다 */}
+
+
+        {/* ③·④ 온톨로지 + 사용 추이 */}
+        {/* ② 3열: 주간회의 브리핑 · 과제 × AI · AI 사용 추이 */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 items-stretch">
+
+        {/* 주간회의 브리핑 — 월/목 10시 회의용 */}
         <WeeklyBriefing
           windowLabel={digest.windowLabel}
           generatedAt={new Intl.DateTimeFormat('ko-KR', { timeZone: 'Asia/Seoul', hour: '2-digit', minute: '2-digit', hour12: false }).format(new Date(digest.generatedAt))}
@@ -232,30 +238,6 @@ export default async function AiLogPage() {
           source={digest.source}
           text={digest.text}
         />
-
-        {/* ③ 피드백 로그 */}
-        <section>
-          <h2 className="text-sm font-bold text-slate-800 mb-1">AI 연결 피드백</h2>
-          <p className="text-[11px] text-slate-400 mb-3">
-            AI 와 대화하다 &ldquo;이 의견 피드백으로 남겨줘&rdquo;라고 하면 여기에 쌓입니다. 답변은 관리자가 이 화면에서 답니다.
-          </p>
-          {feedbacks.length === 0 ? (
-            <div className="text-xs text-slate-400 border border-dashed border-slate-200 rounded-lg p-5 text-center">
-              아직 피드백이 없습니다.
-            </div>
-          ) : (
-            <AiFeedbackList
-              isAdmin={isPrivileged}
-              feedbacks={feedbacks.map(f => ({
-                id: f.id, title: f.title, userName: f.userName, content: f.content,
-                replyContent: f.replyContent, repliedByName: f.repliedByName,
-                createdAt: f.createdAt.toISOString().slice(5, 10).replace('-', '/'),
-              }))} />
-          )}
-        </section>
-
-        {/* ③·④ 온톨로지 + 사용 추이 */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
           <section className="border border-slate-200 rounded-2xl bg-white p-5">
             <h2 className="text-sm font-bold text-slate-800">과제 × AI</h2>
             <p className="text-[11px] text-slate-400 mb-4">
@@ -329,6 +311,28 @@ export default async function AiLogPage() {
           </section>
         </div>
 
+        {/* ③ 2열: 피드백 로그 · 최근 AI 업무 기록 */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 items-start">
+        {/* ③ 피드백 로그 */}
+        <section>
+          <h2 className="text-sm font-bold text-slate-800 mb-1">AI 연결 피드백</h2>
+          <p className="text-[11px] text-slate-400 mb-3">
+            AI 와 대화하다 &ldquo;이 의견 피드백으로 남겨줘&rdquo;라고 하면 여기에 쌓입니다. 답변은 관리자가 이 화면에서 답니다.
+          </p>
+          {feedbacks.length === 0 ? (
+            <div className="text-xs text-slate-400 border border-dashed border-slate-200 rounded-lg p-5 text-center">
+              아직 피드백이 없습니다.
+            </div>
+          ) : (
+            <AiFeedbackList
+              isAdmin={isPrivileged}
+              feedbacks={feedbacks.map(f => ({
+                id: f.id, title: f.title, userName: f.userName, content: f.content,
+                replyContent: f.replyContent, repliedByName: f.repliedByName,
+                createdAt: f.createdAt.toISOString().slice(5, 10).replace('-', '/'),
+              }))} />
+          )}
+        </section>
         {/* 최근 AI 업무 기록 */}
         <section>
           <h2 className="text-sm font-bold text-slate-800 mb-3">최근 AI 업무 기록 <span className="text-[11px] font-normal text-slate-400">(30일)</span></h2>
@@ -366,6 +370,7 @@ export default async function AiLogPage() {
             </div>
           )}
         </section>
+        </div>
       </div>
     </div>
   )

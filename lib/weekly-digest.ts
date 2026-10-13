@@ -85,11 +85,11 @@ function ruleText(byTeam: Map<string, Row[]>): string {
   const parts: string[] = []
   for (const [team, rows] of byTeam) {
     parts.push(`## ${team}`)
-    for (const r of rows.slice(0, 12)) {
+    for (const r of rows.slice(0, 5)) {
       const who = r.userName ? ` (${r.userName})` : ''
       parts.push(`- ${r.title}${who} — ${r.date}${r.startTime ? ` ${r.startTime}` : ''}, ${r.type}`)
     }
-    if (rows.length > 12) parts.push(`- …외 ${rows.length - 12}건`)
+    if (rows.length > 5) parts.push(`- …외 ${rows.length - 5}건`)
   }
   return parts.join('\n')
 }
@@ -115,8 +115,11 @@ async function aiText(byTeam: Map<string, Row[]>, label: string): Promise<string
       content:
         `다음은 ${label} 회사(EV&Solution) 업무시스템에 기록된 활동들이다. 월/목 주간회의에서 `
         + '소리 내어 읽기 좋은 팀별 브리핑을 만들어라.\n'
-        + '- 팀마다 「## 팀명」 헤더 아래 핵심 2~5개를 「- 」 불릿으로. 같은 주제는 묶어서.\n'
-        + '- 각 불릿은 한 문장, 담당자 이름을 괄호로. 수치·고객사·일정은 구체적으로 유지.\n'
+        + '- **개별 업무를 나열하지 마라.** 흐름을 묶어 「지금 무슨 일이 일어나고/진행되고 있는지」를\n'
+        + '  서술하는 요약 불릿을 팀마다 3~5개(적으면 2개)만 「## 팀명」 헤더 아래 「- 」로 적는다.\n'
+        + '  예: "화인로지스 정산 체계 전환이 공문 대응과 함께 본격화되고 있다 (김OO)" 처럼\n'
+        + '  여러 기록을 하나의 이야기로 묶은 문장.\n'
+        + '- 담당자 이름은 필요할 때만 괄호로. 수치·고객사·일정은 구체적으로 유지.\n'
         + '- 과장·추측 금지, 기록에 있는 것만. 중요도 순으로.\n'
         + '- 맨 위에 「## 전체」 헤더로 이번 기간을 관통하는 한 줄 헤드라인 1개.\n'
         + '다른 말 없이 그 형식만 출력하라.\n\n' + input,
