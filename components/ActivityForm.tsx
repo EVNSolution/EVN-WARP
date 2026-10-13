@@ -987,6 +987,10 @@ export default function ActivityForm({ teams, tasks, users = [], vehicles = [], 
                       }
                     }}
                       className="border border-slate-200 rounded-lg px-2 py-1.5 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-400">
+                      {/* AI 등록 등으로 30분 격자 밖 값(예: 09:45)이면 그 값을 옵션에 끼워 정확히 표시·보존한다 */}
+                      {startTime && startTime.slice(3) !== '00' && startTime.slice(3) !== '30' && (
+                        <option value={startTime}>{startTime}</option>
+                      )}
                       {Array.from({ length: 48 }, (_, i) => {
                         const h = Math.floor(i / 2), m = i % 2 === 0 ? '00' : '30'
                         const val = `${String(h).padStart(2, '0')}:${m}`
@@ -996,6 +1000,9 @@ export default function ActivityForm({ teams, tasks, users = [], vehicles = [], 
                     <span className="text-slate-400 text-sm">~</span>
                     <select value={endTime} onChange={e => setEndTime(e.target.value)}
                       className="border border-slate-200 rounded-lg px-2 py-1.5 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-400">
+                      {endTime && endTime.slice(3) !== '00' && endTime.slice(3) !== '30' && (
+                        <option value={endTime}>{endTime}</option>
+                      )}
                       {Array.from({ length: 48 }, (_, i) => {
                         const h = Math.floor(i / 2), m = i % 2 === 0 ? '00' : '30'
                         const val = `${String(h).padStart(2, '0')}:${m}`
