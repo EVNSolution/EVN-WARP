@@ -7,22 +7,11 @@ import { stratColor } from '@/lib/a3'
 import ActivityCardUsagePanel from '@/components/ActivityCardUsagePanel'
 import { draftToBody } from '@/components/CardUsageForm'
 import type { CardUsageDraft } from '@/lib/cardUsage'
+import { ACTIVITY_SECTIONS, ACTIVITY_CATEGORIES } from '@/lib/activityKind'
 import { REPEAT_OPTIONS, expandRepeatDates, MAX_REPEAT, type RepeatFreq } from '@/lib/recurrence'
 
-const CATEGORIES = [
-  { label: '커뮤니케이션', types: ['내부회의', '외부미팅', '이메일', '전화·통화', '화상회의'] },
-  { label: '현장·이동',    types: ['국내출장', '해외출장'] },
-  { label: '발표·행사',    types: ['발표/전시·행사'] },
-  { label: '학습',         types: ['교육/연수', '세미나·컨퍼런스'] },
-  { label: '업무산출물',   types: ['문서·자료작성', '개발·구현', '도면·설계', '제품제작·조립', '콘텐츠·디자인'] },
-  { label: '현장서비스',   types: ['AS출동', '설치·시운전', '정기점검'] },
-  { label: '영업',         types: ['고객미팅', '신규영업', '제안/견적', '고객행사'] },
-  { label: '관계·네트워킹',types: ['인재영입', '외부 네트워킹', '파트너십 타진'] },
-  { label: '투자·IR',      types: ['IR 발표', '투자자 미팅', '투자행사'] },
-  { label: '수주·발행',    types: ['견적서 발행', 'PO 발행', '수주 확정', '세금계산서 발행'] },
-  { label: '경영·행정',    types: ['대관·신청', '세무·회계', '신고·갱신', '법무·계약', '경영기획'] },
-  { label: 'HR',           types: ['연차', '반차(오전)', '반차(오후)', '재직증명서'] },
-] as const
+// 활동 유형 — 📅 일정 / 📝 업무 기록 / HR 구역 (lib/activityKind)
+const CATEGORIES = ACTIVITY_CATEGORIES
 
 const LEAVE_TYPES = new Set(['연차', '반차(오전)', '반차(오후)', '재직증명서'])
 
@@ -263,12 +252,22 @@ export default function MobileActivityForm({ teams, tasks, vehicles = [], initia
           {/* 분류 — 회색 배경 */}
           <div className="bg-gray-50 border-b border-gray-100 px-4 py-3">
             <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">분류</p>
-            <div className="flex flex-wrap gap-1.5">
-              {CATEGORIES.map((cat, i) => (
-                <button key={cat.label} onClick={() => { setCatIdx(i); setType(cat.types[0]) }}
-                  className={`${CHIP} ${catIdx === i ? 'bg-gray-800 text-white border-gray-800' : 'border-gray-200 text-gray-500 bg-white'}`}>
-                  {cat.label}
-                </button>
+            <div className="space-y-2">
+              {ACTIVITY_SECTIONS.map(sec => (
+                <div key={sec.key}>
+                  {sec.icon && <p className="text-[10px] font-semibold text-gray-500 mb-1">{sec.icon} {sec.label}</p>}
+                  <div className="flex flex-wrap gap-1.5">
+                    {sec.categories.map(cat => {
+                      const i = CATEGORIES.indexOf(cat)
+                      return (
+                        <button key={cat.label} onClick={() => { setCatIdx(i); setType(cat.types[0]) }}
+                          className={`${CHIP} ${catIdx === i ? 'bg-gray-800 text-white border-gray-800' : 'border-gray-200 text-gray-500 bg-white'}`}>
+                          {cat.label}
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
               ))}
             </div>
           </div>

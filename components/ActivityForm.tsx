@@ -19,6 +19,7 @@ import { draftToBody } from '@/components/CardUsageForm'
 import type { CardUsageDraft } from '@/lib/cardUsage'
 import { teamOrderIndex } from '@/lib/teamOrder'
 import { stratColor } from '@/lib/a3'
+import { ACTIVITY_SECTIONS } from '@/lib/activityKind'
 import { REPEAT_OPTIONS, expandRepeatDates, MAX_REPEAT, type RepeatFreq } from '@/lib/recurrence'
 
 /* ── 활동 유형 분류 가이드 (매뉴얼 기준) ── */
@@ -162,21 +163,7 @@ const TYPE_GUIDE = [
   },
 ] as const
 
-/* ── 활동 유형 8개 카테고리 ── */
-const ACTIVITY_CATEGORIES = [
-  { label: '커뮤니케이션',   types: ['내부회의', '외부미팅', '이메일', '전화·통화', '화상회의'] },
-  { label: '현장·이동',      types: ['국내출장', '해외출장'] },
-  { label: '발표·행사',      types: ['발표/전시·행사'] },
-  { label: '학습',           types: ['교육/연수', '세미나·컨퍼런스'] },
-  { label: '업무산출물',     types: ['문서·자료작성', '개발·구현', '도면·설계', '제품제작·조립', '콘텐츠·디자인'] },
-  { label: '현장서비스',     types: ['AS출동', '설치·시운전', '정기점검'] },
-  { label: '영업',           types: ['고객미팅', '신규영업', '제안/견적', '고객행사'] },
-  { label: '관계·네트워킹',  types: ['인재영입', '외부 네트워킹', '파트너십 타진'] },
-  { label: '투자·IR',        types: ['IR 발표', '투자자 미팅', '투자행사'] },
-  { label: '수주·발행',      types: ['견적서 발행', 'PO 발행', '수주 확정', '세금계산서 발행'] },
-  { label: '경영·행정',      types: ['대관·신청', '세무·회계', '신고·갱신', '법무·계약', '경영기획'] },
-  { label: 'HR',             types: ['연차', '반차(오전)', '반차(오후)', '재직증명서'] },
-] as const
+/* ── 활동 유형 — 📅 일정 / 📝 업무 기록 / HR 구역 (lib/activityKind) ── */
 
 /* HR 카테고리 전용 2단 선택 — 근태 / 증명서발급 */
 const HR_GROUPS = [
@@ -1016,33 +1003,34 @@ export default function ActivityForm({ teams, tasks, users = [], vehicles = [], 
                     className="w-4 h-4 rounded border-slate-300 text-indigo-500 cursor-pointer" />
                   <span className="text-sm text-slate-600">하루 종일</span>
                 </label>
-              </div>
-            )}
-            {/* 반복 — 판매리드회의처럼 매일·매주 반복되는 활동을 한 번에 등록 */}
-            {canRepeat && (
-              <div className="flex items-center gap-2 flex-wrap mt-2">
-                <span className="text-xs font-semibold text-slate-500">반복</span>
-                <select value={repeatFreq}
-                  onChange={e => {
-                    const v = e.target.value as 'none' | RepeatFreq
-                    setRepeatFreq(v)
-                    if (v !== 'none' && !repeatUntil) {
-                      const d = new Date(date + 'T00:00:00Z'); d.setUTCDate(d.getUTCDate() + 27)
-                      setRepeatUntil(d.toISOString().slice(0, 10))
-                    }
-                  }}
-                  className="border border-slate-200 rounded-lg px-2 py-1.5 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-400">
-                  {REPEAT_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-                </select>
-                {repeatFreq !== 'none' && (
+                {/* 반복 — 날짜와 같은 줄 오른편 (판매리드회의처럼 매일·매주 반복 활동을 한 번에 등록) */}
+                {canRepeat && (
                   <>
-                    <span className="text-xs text-slate-500">종료일</span>
-                    <input type="date" value={repeatUntil} min={date} onChange={e => setRepeatUntil(e.target.value)}
-                      className="border border-slate-200 rounded-lg px-3 py-1.5 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-400" />
-                    {repeatCount > 0 && (
-                      <span className={`text-xs font-semibold ${repeatCount >= MAX_REPEAT ? 'text-amber-600' : 'text-indigo-600'}`}>
-                        총 {repeatCount}회 등록{repeatCount >= MAX_REPEAT ? ` (최대 ${MAX_REPEAT}회)` : ''}
-                      </span>
+                    <span className="w-px h-6 bg-slate-200 mx-1" />
+                    <span className="text-sm text-slate-600">반복</span>
+                    <select value={repeatFreq}
+                      onChange={e => {
+                        const v = e.target.value as 'none' | RepeatFreq
+                        setRepeatFreq(v)
+                        if (v !== 'none' && !repeatUntil) {
+                          const d = new Date(date + 'T00:00:00Z'); d.setUTCDate(d.getUTCDate() + 27)
+                          setRepeatUntil(d.toISOString().slice(0, 10))
+                        }
+                      }}
+                      className="border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-400">
+                      {REPEAT_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                    </select>
+                    {repeatFreq !== 'none' && (
+                      <>
+                        <span className="text-sm text-slate-600">종료일</span>
+                        <input type="date" value={repeatUntil} min={date} onChange={e => setRepeatUntil(e.target.value)}
+                          className="border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-400" />
+                        {repeatCount > 0 && (
+                          <span className={`text-sm font-semibold ${repeatCount >= MAX_REPEAT ? 'text-amber-600' : 'text-indigo-600'}`}>
+                            총 {repeatCount}회{repeatCount >= MAX_REPEAT ? ` (최대 ${MAX_REPEAT}회)` : ''}
+                          </span>
+                        )}
+                      </>
                     )}
                   </>
                 )}
@@ -1060,8 +1048,17 @@ export default function ActivityForm({ teams, tasks, users = [], vehicles = [], 
                 <span>분류 가이드</span>
               </button>
             </div>
-            <div className="space-y-2">
-              {ACTIVITY_CATEGORIES.map(cat => {
+            <div className="space-y-3">
+              {ACTIVITY_SECTIONS.map(sec => (
+              <div key={sec.key} className={sec.key === 'hr' ? 'px-3' : `rounded-xl border px-3 py-2.5 ${sec.key === 'schedule' ? 'border-indigo-100 bg-indigo-50/30' : 'border-slate-200 bg-slate-50/70'}`}>
+                {sec.icon && (
+                  <div className="flex items-baseline gap-2 mb-2">
+                    <span className="text-xs font-bold text-slate-700">{sec.icon} {sec.label}</span>
+                    <span className="text-[10px] text-slate-400">{sec.hint}</span>
+                  </div>
+                )}
+                <div className="space-y-2">
+              {sec.categories.map(cat => {
                 if (cat.label === 'HR') {
                   const activeGroup = HR_GROUPS.find(g => (g.types as readonly string[]).includes(type)) ?? null
                   return (
@@ -1134,6 +1131,9 @@ export default function ActivityForm({ teams, tasks, users = [], vehicles = [], 
                   </div>
                 )
               })}
+                </div>
+              </div>
+              ))}
             </div>
           </div>
 

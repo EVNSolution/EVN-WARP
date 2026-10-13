@@ -7,6 +7,7 @@ import { Plus, X, ExternalLink, Mail, Car, Pencil, Trash2, MapPin, ChevronLeft, 
 import VehicleReservationModal from './VehicleReservationModal'
 import VehicleStatusModal from './VehicleStatusModal'
 import CardUsageModal from './CardUsageModal'
+import { isWorkRecord } from '@/lib/activityKind'
 
 export type CalActivity = {
   id:           string
@@ -146,6 +147,9 @@ export default function CalendarView({ weeks, activities, reservations, schedule
   const [deletingResv, setDeletingResv] = useState(false)
   const [showDayView, setShowDayView]   = useState(false)
   const [dayViewDate, setDayViewDate]   = useState(todayStr)
+  // 📝 업무 기록(문서·개발·이메일 등) 표시 여부 — 월간은 사람별 칩, 일별은 별도 영역
+  const [showWork, setShowWork]         = useState(true)
+  const [openWorkPeople, setOpenWorkPeople] = useState<Set<string>>(new Set())
 
   // 마지막으로 선택한 표시 필터를 기억해 다음 방문에도 자동 적용 (브라우저별)
   useEffect(() => {
@@ -154,6 +158,17 @@ export default function CalendarView({ weeks, activities, reservations, schedule
       if (saved && FIELD_FILTERS.some(f => f.key === saved)) setFieldFilter(saved as FieldFilter)
     } catch {}
   }, [])
+
+  useEffect(() => {
+    try { if (localStorage.getItem('warp-calendar-show-work') === '0') setShowWork(false) } catch {}
+  }, [])
+  const toggleShowWork = () => {
+    setShowWork(v => {
+      try { localStorage.setItem('warp-calendar-show-work', v ? '0' : '1') } catch {}
+      return !v
+    })
+  }
+  const openDayView = (dateStr: string) => { setDayViewDate(dateStr); setOpenWorkPeople(new Set()); setShowDayView(true) }
 
   const changeFieldFilter = (key: FieldFilter) => {
     setFieldFilter(key)
@@ -219,6 +234,13 @@ export default function CalendarView({ weeks, activities, reservations, schedule
           onClick={() => { setDayViewDate(todayStr); setShowDayView(true) }}
           className="px-3 py-1 rounded-full text-xs font-semibold bg-violet-100 text-violet-700 hover:bg-violet-200 transition-colors flex items-center gap-1">
           일별 보기
+        </button>
+        <button type="button" onClick={toggleShowWork}
+          title="문서·개발·이메일 등 업무 기록을 사람별로 묶어 표시"
+          className={`px-3 py-1 rounded-full text-xs font-semibold transition-colors ${
+            showWork ? 'bg-slate-700 text-white' : 'bg-slate-100 text-slate-400 hover:bg-slate-200'
+          }`}>
+          📝 업무 기록 {showWork ? '표시' : '숨김'}
         </button>
         <button
           onClick={() => setShowCardUsage(true)}
@@ -342,7 +364,13 @@ export default function CalendarView({ weeks, activities, reservations, schedule
                     {(() => {
                       const leaveGroups = new Map<string, { first: CalActivity; names: string[] }>()
                       const otherActs: CalActivity[] = []
+                      const workByPerson = new Map<string, number>()
                       for (const act of dayActs) {
+                        if (!act.tripId && isWorkRecord(act.type)) {
+                          const who = act.userName || '미상'
+                          workByPerson.set(who, (workByPerson.get(who) ?? 0) + 1)
+                          continue
+                        }
                         if (LEAVE_TYPES.has(act.type)) {
                           if (!leaveGroups.has(act.type)) leaveGroups.set(act.type, { first: act, names: [] })
                           const g = leaveGroups.get(act.type)!
@@ -389,6 +417,16 @@ export default function CalendarView({ weeks, activities, reservations, schedule
                               </button>
                             )
                           })}
+                          {/* 📝 업무 기록 — 사람별 칩, 누르면 일별 보기 */}
+                          {showWork && [...workByPerson.entries()].map(([who, n]) => (
+                            <button key={`work-${who}`} type="button"
+                              onClick={() => { openDayView(dateStr); setOpenWorkPeople(new Set([who])) }}
+                              title={`${who}님의 업무 기록 ${n}건 — 일별 보기에서 확인`}
+                              className="flex items-center gap-1 text-[9px] font-semibold px-1 py-0.5 rounded w-full text-left truncate bg-slate-50 text-slate-500 border border-dashed border-slate-200 hover:bg-slate-100 transition-colors">
+                              <span className="shrink-0">📝</span>
+                              <span className="truncate">{who} 업무 {n}</span>
+                            </button>
+                          ))}
                         </div>
                       )
                     })()}
@@ -616,8 +654,17 @@ export default function CalendarView({ weeks, activities, reservations, schedule
         const enriched = dayActs.map(a =>
           (!a.startTime && HALF_DAY_TIMES[a.type]) ? { ...a, ...HALF_DAY_TIMES[a.type] } : a
         )
-        const allDayActs = enriched.filter(a => !a.startTime)
-        const timedActs  = enriched.filter(a => !!a.startTime)
+        // 📝 업무 기록은 시간축에서 빼고 사람별 영역으로 — 시간축에는 일정만
+        const workActs     = enriched.filter(a => !a.tripId && isWorkRecord(a.type))
+        const scheduleActs = enriched.filter(a => !(!a.tripId && isWorkRecord(a.type)))
+        const workGroups = new Map<string, typeof workActs>()
+        for (const a of workActs) {
+          const who = a.userName || '미상'
+          if (!workGroups.has(who)) workGroups.set(who, [])
+          workGroups.get(who)!.push(a)
+        }
+        const allDayActs = scheduleActs.filter(a => !a.startTime)
+        const timedActs  = scheduleActs.filter(a => !!a.startTime)
 
         // ── 겹치는 활동 컬럼 배치 알고리즘 (Teams 스타일) ──
         const layoutMap = new Map<string, { col: number; totalCols: number }>()
@@ -732,6 +779,51 @@ export default function CalendarView({ weeks, activities, reservations, schedule
                 </div>
               </div>
 
+              {/* 📝 업무 기록 — 사람별로 접기/펼치기 */}
+              {showWork && workGroups.size > 0 && (
+                <div className="border-b border-slate-100 shrink-0 max-h-[38vh] overflow-y-auto">
+                  <div className="flex items-start">
+                    <span className="text-[10px] font-bold text-slate-400 shrink-0 pt-2 text-right pr-2 leading-tight"
+                      style={{ width: LABEL_W }}>업무<br />기록</span>
+                    <div className="flex-1 border-l border-slate-200 py-1.5 px-2 space-y-1">
+                      {[...workGroups.entries()].map(([who, list]) => {
+                        const open = openWorkPeople.has(who)
+                        return (
+                          <div key={who} className="rounded-lg border border-slate-200 bg-white">
+                            <button type="button"
+                              onClick={() => setOpenWorkPeople(prev => { const n = new Set(prev); if (n.has(who)) n.delete(who); else n.add(who); return n })}
+                              className="w-full flex items-center gap-2 px-2.5 py-1.5 text-left hover:bg-slate-50 rounded-lg">
+                              <ChevronRight size={13} className={`shrink-0 text-slate-400 transition-transform ${open ? 'rotate-90' : ''}`} />
+                              <span className="text-xs font-bold text-slate-700 shrink-0">{who}</span>
+                              <span className="text-[10px] font-semibold text-slate-400 shrink-0">{list.length}건</span>
+                              {!open && (
+                                <span className="text-[11px] text-slate-400 truncate">{list.map(a => a.title).join(' · ')}</span>
+                              )}
+                            </button>
+                            {open && (
+                              <div className="px-2.5 pb-2 space-y-0.5">
+                                {list.map(act => {
+                                  const c = TYPE_COLORS[act.type] ?? TYPE_COLORS['문서·자료작성']
+                                  return (
+                                    <button key={act.id} type="button"
+                                      onClick={() => { setShowDayView(false); setSelected(act) }}
+                                      className={`w-full text-left px-2 py-1 rounded text-xs font-medium truncate hover:opacity-80 ${c.bg} ${c.text}`}>
+                                      <span className="opacity-60 mr-1 text-[10px]">[{act.type}]</span>
+                                      {act.title}
+                                      {act.startTime && <span className="ml-1 text-[10px] opacity-60">{act.startTime}–{act.endTime ?? ''}</span>}
+                                    </button>
+                                  )
+                                })}
+                              </div>
+                            )}
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {/* 시간 그리드 — 가로 스크롤: 8개 이상 겹칠 때 자동 */}
               <div className="flex-1 overflow-auto">
                 <div className="flex" style={{ height: TOTAL_PX, minHeight: TOTAL_PX, minWidth: LABEL_W + eventsMinWidth }}>
@@ -806,7 +898,7 @@ export default function CalendarView({ weeks, activities, reservations, schedule
                       )
                     })}
 
-                    {timedActs.length === 0 && allDayActs.length === 0 && (
+                    {timedActs.length === 0 && allDayActs.length === 0 && (!showWork || workActs.length === 0) && (
                       <div className="absolute inset-0 flex items-center justify-center">
                         <p className="text-sm text-slate-400">이 날의 활동이 없습니다</p>
                       </div>
