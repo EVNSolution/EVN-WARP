@@ -6,7 +6,9 @@ export async function GET() {
   const session = await auth()
   if (!(session?.user as any)?.id) return NextResponse.json([], { status: 401 })
 
+  // AI(CLEVER) 피드백은 AI 업무 기록 화면 전용 — 제안함 목록·미답변 배지에서 제외한다
   const suggestions = await prisma.suggestion.findMany({
+    where: { NOT: { title: { startsWith: '[AI 피드백]' } } },
     orderBy: { createdAt: 'desc' },
   })
   return NextResponse.json(suggestions)
