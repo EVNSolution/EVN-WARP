@@ -499,10 +499,11 @@ async function createTask(user: McpUser, a: Record<string, any>): Promise<ToolRe
   const linked = linkedTask ? `\n연계 과제: [${linkedTask.code}] ${linkedTask.title} ✓ 저장 확인` : ''
   const vis = activity.visibility && activity.visibility !== '공개' ? `\n공개 여부: ${activity.visibility}` : ''
   const comp = companionSummary(noti)
-  // 구버전 도구 정의를 캐시한 대화도 인자 이름을 배울 수 있게 — 동반자 없이 등록되면 한 줄 안내
-  const hint = activity.companions ? '' :
-    '\n(동반 참여자가 있다면 companions 인자에 "김철수, 박영희" 형태의 WARP 실명을 넣어 주세요 — '
-    + '도구 정의에 이 항목이 보이지 않아도 인자로 보내면 처리되며, update_task 로 추가할 수도 있습니다)'
+  // 구버전 도구 정의를 캐시한 대화도 전체 인자를 배울 수 있게 — 항상 한 줄로 동봉 (AI 용 메타 정보)
+  const hint =
+    '\n[지원 인자 — 도구 정의에 안 보여도 전달하면 처리됨] companions=동반자(쉼표 구분 실명), '
+    + 'repeat_freq("매일"/"평일"/"매주")+repeat_until=반복 일괄 등록(최대 60건 — 반복 일정을 회차별로 '
+    + '따로 만들지 말 것), task_id=과제 연계, visibility=공개 여부, reference_url=참고 링크'
   // 파일(공문·증빙 등)은 MCP 대화로 전달할 수 없다 — 바로 첨부할 수 있는 활동 링크를 준다
   const base = (process.env.NEXTAUTH_URL || 'https://warp.cleversystem.ai').replace(/\/$/, '')
   const attach = `\n첨부·상세 편집: ${base}/notes/${activity.id}/edit (공문·사진·증빙 파일은 이 링크에서 바로 올릴 수 있습니다)`
