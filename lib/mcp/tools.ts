@@ -34,6 +34,11 @@ export const MCP_INSTRUCTIONS = `
 - 하나의 업무 단위가 끝난 흐름 (문서 완성, 분석 결론, 회의록 정리, 견적/보고서 마무리)
 - "오늘 한 일 정리해줘" 같은 직접 요청
 
+## 질문 방식
+사용자에게 무언가를 골라야 하는 질문(과제 선택, 회의실 선택, 동명이인 구분 등)을 할 때는
+가능한 한 **번호 선택지**로 제시한다 — 「1. ○○○  2. △△△  3. 해당 없음」처럼, 사용자가
+번호만 답해도 되게. 선택지가 많으면 관련성 높은 것 위주로 추리고 "전체 보기"를 덧붙인다.
+
 ## 업무 등록 절차 (이 순서를 지킨다)
 0. 실제로 수행한 업무만 추린다 — 잡담·미완의 시도·사적 내용 제외. 업무 1건 = 활동 1건.
 1. **업무명과 내용부터 묻는다**: 대화를 바탕으로 제목(「대상 + 한 일」 15자 내외)과
@@ -337,7 +342,7 @@ async function createTask(user: McpUser, a: Record<string, any>): Promise<ToolRe
     return err(
       '아직 등록되지 않았습니다 — 과제 연계 확인이 필요합니다. 사용자에게 「이 업무를 어떤 과제와 '
       + '연계할까요? 해당 없으면 \'없음\'이라고 해주세요」라고 물어봐 주세요.\n'
-      + (lines.length ? `우리 팀 과제 목록:\n${lines.join('\n')}\n` : '(현재 연계 가능한 팀 과제가 없습니다)\n')
+      + (lines.length ? `과제 목록 (★가 우리 팀):\n${lines.join('\n')}\n` : '(현재 등록된 과제가 없습니다)\n')
       + '선택한 과제의 id 를 task_id 인자에 넣어 다시 호출하고, 해당 없으면 task_id: "" 로 호출하면 '
       + '등록됩니다. (task_id 항목이 도구 정의에 보이지 않아도 인자로 전달하면 처리됩니다)')
   }
@@ -461,13 +466,21 @@ function companionSummary(noti: CompanionNotifyResult): string {
   return parts.length ? `\n${parts.join('\n')}` : ''
 }
 
-/** 전사 전략과제 → 내 팀 과제 → 세부과제 트리를 텍스트 라인으로 — 조회 도구와 과제 확인 안내가 같이 쓴다. */
+/**
+ * 과제 트리(전사과제 → 팀과제 → 세부과제)를 텍스트 라인으로 — 조회 도구와 과제 확인 안내가 같이 쓴다.
+ * 웹 활동추가의 과제연계 선택과 동일하게 suspended 제외·전 팀 표시하되, 내 팀 과제를 먼저 보여준다.
+ */
 async function buildTaskTreeLines(user: McpUser): Promise<string[]> {
   const all = await prisma.strategyTask.findMany({
-    select: { id: true, code: true, title: true, parentId: true, teamId: true, status: true },
-    orderBy: [{ strategy: 'asc' }, { teamSeq: 'asc' }, { subSeq: 'asc' }],
+    where: { suspended: false },
+    select: {
+      id: true, code: true, title: true, parentId: true, teamId: true, status: true,
+      team: { select: { name: true } },
+    },
+    orderBy: [{ strategy: 'asc' }, { teamId: 'asc' }, { teamSeq: 'asc' }, { subSeq: 'asc' }],
   })
-  const children = new Map<string, typeof all>()
+  type Row = (typeof all)[number]
+  const children = new Map<string, Row[]>()
   for (const t of all) {
     if (!t.parentId) continue
     const arr = children.get(t.parentId) ?? []
@@ -477,12 +490,14 @@ async function buildTaskTreeLines(user: McpUser): Promise<string[]> {
   const statusTag = (s: string) => (s === '진행중' ? '' : ` (${s})`)
   const lines: string[] = []
   for (const top of all.filter(t => !t.parentId)) {
-    // 전사과제 아래에서는 내 팀의 팀과제만 보여준다 (다른 팀 과제에 연계할 일은 없다)
-    const teamTasks = (children.get(top.id) ?? []).filter(t => t.teamId === user.teamId)
-    if (teamTasks.length === 0) continue
+    const kids = children.get(top.id) ?? []
     lines.push(`[${top.code}] ${top.title}${statusTag(top.status)} (id: ${top.id})`)
-    for (const tt of teamTasks) {
-      lines.push(`  - [${tt.code}] ${tt.title}${statusTag(tt.status)} (id: ${tt.id})`)
+    // 내 팀 과제를 먼저, 그 다음 다른 팀 — 웹 선택 UI 와 같은 범위
+    const ordered = [...kids].sort((x, y) =>
+      Number(y.teamId === user.teamId) - Number(x.teamId === user.teamId))
+    for (const tt of ordered) {
+      const mine = tt.teamId === user.teamId ? ' ★우리 팀' : ''
+      lines.push(`  - [${tt.code}] ${tt.title} (${tt.team?.name ?? '팀 미상'}${mine})${statusTag(tt.status)} (id: ${tt.id})`)
       for (const sub of children.get(tt.id) ?? []) {
         lines.push(`      · [${sub.code}] ${sub.title}${statusTag(sub.status)} (id: ${sub.id})`)
       }
@@ -491,12 +506,12 @@ async function buildTaskTreeLines(user: McpUser): Promise<string[]> {
   return lines
 }
 
-/** 과제 체계 조회 — 전사 전략과제와 그 아래 우리 팀의 과제·세부과제를 id 와 함께 보여준다. */
+/** 과제 체계 조회 — 전사 전략과제와 그 아래 팀과제·세부과제를 id 와 함께 보여준다 (★우리 팀 우선). */
 async function listStrategyTasks(user: McpUser): Promise<ToolResult> {
   const lines = await buildTaskTreeLines(user)
-  if (lines.length === 0) return { text: '연계할 수 있는 우리 팀 과제가 없습니다 — 과제 없이(독립 활동) 등록하세요.' }
+  if (lines.length === 0) return { text: '등록된 과제가 없습니다 — 과제 없이(독립 활동, task_id: "") 등록하세요.' }
   return {
-    text: `과제 체계 (전사과제 → 우리 팀 과제 → 세부과제):\n${lines.join('\n')}\n`
+    text: `과제 체계 (전사과제 → 팀과제 → 세부과제, ★가 우리 팀):\n${lines.join('\n')}\n`
       + '사용자가 고른 과제의 id 를 create_task/update_task 의 task_id 로 넣으세요. 가장 구체적인(하위) 과제를 고르는 것이 좋습니다.',
   }
 }
