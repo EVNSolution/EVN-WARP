@@ -10,12 +10,13 @@ import DigestRefresh from './DigestRefresh'
 
 export interface BriefingTeam { name: string; stats: string; bullets: string[] }
 
-export default function WeeklyBriefing({ windowLabel, generatedAt, activityCount, peopleCount, source, headline, teams }: {
+export default function WeeklyBriefing({ windowLabel, generatedAt, activityCount, peopleCount, source, aiError, headline, teams }: {
   windowLabel: string
   generatedAt: string // HH:MM
   activityCount: number
   peopleCount: number
   source: 'ai' | 'rule'
+  aiError?: string
   headline: string
   teams: BriefingTeam[]
 }) {
@@ -35,6 +36,9 @@ export default function WeeklyBriefing({ windowLabel, generatedAt, activityCount
           <p className="text-[11px] text-slate-400 mt-0.5">
             {windowLabel} · 기록 {activityCount}건 · {peopleCount}명 — 무슨 일이 진행되고 있는지 요약
           </p>
+          {source === 'rule' && aiError && (
+            <p className="text-[10px] text-amber-600 mt-0.5">AI 요약 실패: {aiError}</p>
+          )}
         </div>
         <div className="ml-auto flex items-center gap-2">
           <span className="text-[10px] text-slate-400">{generatedAt} 생성</span>
