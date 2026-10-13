@@ -237,56 +237,67 @@ export default async function AiLogPage() {
         {/* ③·④ 온톨로지 + 사용 추이 */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
           <section className="border border-slate-200 rounded-2xl bg-white p-5">
-            <h2 className="text-sm font-bold text-slate-800">업무 온톨로지</h2>
+            <h2 className="text-sm font-bold text-slate-800">
+              업무 온톨로지
+              {kw.source === 'ai' && (
+                <span className="ml-2 align-middle text-[10px] px-1.5 py-0.5 rounded-md bg-[#C5D42A]/20 text-[#7a9200] font-semibold">AI 분석</span>
+              )}
+            </h2>
             <p className="text-[11px] text-slate-400 mb-4">
-              최근 90일 공개 업무 {kw.total.toLocaleString()}건의 제목·내용에서 자동 추출한 주요 키워드 — 글자가 클수록 자주 등장합니다.
+              최근 90일 공개 업무 {kw.total.toLocaleString()}건에서 뽑은 실제 업무 주제 — 글자가 클수록 비중이 큽니다.
             </p>
             {kw.keywords.length === 0 ? (
               <div className="text-xs text-slate-400 py-6 text-center">아직 집계할 공개 업무 기록이 부족합니다.</div>
-            ) : (
-              <div className="flex flex-wrap items-center gap-x-2 gap-y-2">
-                {kw.keywords.map((t, i) => {
-                  const size = 11 + Math.min(11, Math.round(Math.sqrt(t.count) * 1.6))
-                  const top = i < 3
-                  return (
-                    <span key={t.word} title={`${t.word} — ${t.count}회 등장`}
-                      className={`px-2 py-0.5 rounded-lg border ${top
-                        ? 'border-[#C5D42A] bg-[#C5D42A]/15 text-[#5c6e00] font-bold'
-                        : 'border-slate-200 bg-slate-50 text-slate-600'}`}
-                      style={{ fontSize: `${size}px` }}>
-                      {t.word}
-                    </span>
-                  )
-                })}
-              </div>
-            )}
+            ) : (() => {
+              const sorted = [...kw.keywords].sort((a, b) => b.weight - a.weight)
+              const maxW = sorted[0].weight || 1
+              return (
+                <div className="flex flex-wrap items-baseline justify-center gap-x-3 gap-y-2 py-2">
+                  {sorted.map((t, i) => {
+                    const size = 12 + Math.round(18 * Math.pow(t.weight / maxW, 0.8))
+                    const cls = i < 3
+                      ? 'text-[#7a9200] font-extrabold'
+                      : i < 9
+                        ? 'text-slate-700 font-semibold'
+                        : 'text-slate-400'
+                    return (
+                      <span key={t.word} title={`${t.word} — 비중 ${t.weight}/100`}
+                        className={`${cls} leading-tight`} style={{ fontSize: `${size}px` }}>
+                        {t.word}
+                      </span>
+                    )
+                  })}
+                </div>
+              )
+            })()}
           </section>
 
-          <section className="border border-slate-200 rounded-2xl bg-white p-5">
+          <section className="border border-slate-200 rounded-2xl bg-white p-5 flex flex-col">
             <h2 className="text-sm font-bold text-slate-800">AI 사용 추이</h2>
             <p className="text-[11px] text-slate-400 mb-4">최근 4주 · 일별 도구 호출 (유형별 색)</p>
-            <div className="flex gap-1.5">
+            {/* 플롯이 카드 남은 높이를 전부 쓴다 — 가로축(굵은 선)이 박스 바닥까지 내려온다 */}
+            <div className="flex gap-1.5 flex-1 min-h-[10rem]">
               {/* 세로축 — 0 / 중간 / 최대 건수 */}
-              <div className="flex flex-col justify-between items-end w-7 h-28 text-[9px] text-slate-400 -translate-y-[4px]">
+              <div className="flex flex-col justify-between items-end w-7 text-[9px] text-slate-400 -translate-y-[4px]">
                 <span>{maxDay}건</span>
                 <span>{yMid}</span>
                 <span>0</span>
               </div>
               {/* 플롯 영역 — 하단 선이 가로축 */}
-              <div className="flex-1 relative h-28 border-b-2 border-l border-slate-300">
+              <div className="flex-1 relative border-b-2 border-l border-slate-300">
                 <div className="absolute inset-x-0 top-0 border-t border-dashed border-slate-100" />
                 <div className="absolute inset-x-0 top-1/2 border-t border-dashed border-slate-100" />
-                <div className="absolute inset-0 flex items-end gap-[3px] px-1">
+                <div className="absolute inset-0 flex gap-[3px] px-1">
                   {dayKeys.map(k => {
                     const m = byDay.get(k)!
                     const dayTotal = [...m.values()].reduce((a, b) => a + b, 0)
                     return (
-                      <div key={k} className="flex-1 flex flex-col-reverse rounded-t-sm overflow-hidden"
+                      <div key={k} className="flex-1 h-full flex flex-col-reverse rounded-t-sm overflow-hidden"
                         title={`${k} · ${dayTotal}건`}>
                         {dayTotal > 0 && CATS.map(c => {
                           const v = m.get(c) ?? 0
                           if (!v) return null
-                          return <div key={c} style={{ height: `${Math.max((v / maxDay) * 108, 3)}px`, backgroundColor: CAT_COLOR[c] }} />
+                          return <div key={c} style={{ height: `${Math.max((v / maxDay) * 100, 2.5)}%`, backgroundColor: CAT_COLOR[c] }} />
                         })}
                       </div>
                     )
@@ -294,7 +305,7 @@ export default async function AiLogPage() {
                 </div>
               </div>
             </div>
-            {/* 가로축 날짜 라벨 — 플롯 바로 아래 */}
+            {/* 가로축 날짜 라벨 — 가로축 선 바로 아래 */}
             <div className="flex justify-between text-[10px] text-slate-400 mt-1 ml-[34px]">
               <span>{dayKeys[0].slice(5).replace('-', '/')}</span>
               <span>{dayKeys[13].slice(5).replace('-', '/')}</span>
