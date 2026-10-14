@@ -1,6 +1,7 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import DigestRefresh from './DigestRefresh'
 
 /**
@@ -21,6 +22,19 @@ export default function WeeklyBriefing({ windowLabel, generatedAt, activityCount
 }) {
   const [active, setActive] = useState(0)
   const current = teams[Math.min(active, Math.max(teams.length - 1, 0))]
+  const router = useRouter()
+
+  // 집계 폴백(AI 생성 중) 상태면 — 완성을 기다렸다가 화면을 자동으로 AI 요약으로 교체한다.
+  // refresh API 는 생성이 끝날 때까지 기다렸다 응답하므로, 응답이 오면 바로 다시 그리면 된다.
+  useEffect(() => {
+    if (source !== 'rule' || aiError || activityCount === 0) return
+    let cancelled = false
+    const t = setTimeout(async () => {
+      try { await fetch('/api/ai-digest/refresh', { method: 'POST' }) } catch { /* 다음 수동 새로고침에 맡긴다 */ }
+      if (!cancelled) router.refresh()
+    }, 5000)
+    return () => { cancelled = true; clearTimeout(t) }
+  }, [source, aiError, activityCount, router])
 
   return (
     <section className="border border-slate-200 rounded-2xl bg-white overflow-hidden lg:col-span-2 h-[26rem] flex flex-col">
