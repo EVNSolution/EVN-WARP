@@ -854,12 +854,20 @@ async function findCoworker(a: Record<string, any>): Promise<ToolResult> {
   if (!q) return err('name 은 필수입니다.')
   const users = await prisma.user.findMany({
     where: { name: { contains: q } },
-    select: { name: true, email: true, team: { select: { name: true } } },
+    select: {
+      name: true, email: true,
+      team: { select: { name: true } },
+      team2: { select: { name: true } },
+      team3: { select: { name: true } },
+    },
     take: 10,
     orderBy: { name: 'asc' },
   })
   if (users.length === 0) return { text: `「${q}」와 일치하는 WARP 구성원이 없습니다 — 이름을 다시 확인해 주세요.` }
-  const lines = users.map(u => `- ${u.name} (${u.email}${u.team?.name ? `, ${u.team.name}` : ''})`)
+  const lines = users.map(u => {
+    const teams = [u.team?.name, u.team2?.name, u.team3?.name].filter(Boolean).join('·')
+    return `- ${u.name} (${u.email}${teams ? `, ${teams}` : ''})`
+  })
   return { text: `일치하는 구성원 ${users.length}명:\n${lines.join('\n')}\n이 중 맞는 분인지 사용자에게 이름·이메일로 확인받은 뒤 companions 에 넣으세요.` }
 }
 
