@@ -24,6 +24,10 @@ interface UserRow {
   role:      string
   teamId:    string | null
   team:      { name: string } | null
+  teamId2:   string | null
+  team2:     { name: string } | null
+  teamId3:   string | null
+  team3:     { name: string } | null
   nickname:  string | null
   position:  string | null
   ssnFront:  string | null
@@ -388,7 +392,7 @@ export default function AdminClient({
   const [detailId,    setDetailId]    = useState<string | null>(null)
   const [editId,      setEditId]      = useState<string | null>(null)
   const [editVal,     setEditVal]     = useState({
-    name: '', email: '', role: 'user', teamId: '', newPassword: '',
+    name: '', email: '', role: 'user', teamId: '', teamId2: '', teamId3: '', newPassword: '',
     nickname: '', position: '', ssnFront: '', ssnBack: '', address: '', hireDate: '', phone: '',
     employmentType: '사내', externalRole: '영업',
   })
@@ -433,6 +437,8 @@ export default function AdminClient({
       const body: Record<string, unknown> = {
         name: editVal.name, email: editVal.email, role: editVal.role,
         teamId: editVal.teamId || null,
+        teamId2: editVal.teamId2 || null,
+        teamId3: editVal.teamId3 || null,
         nickname: editVal.nickname, position: editVal.position, ssnFront: editVal.ssnFront,
         ssnBack: editVal.ssnBack, address: editVal.address,
         hireDate: editVal.hireDate || null, phone: editVal.phone,
@@ -913,10 +919,12 @@ export default function AdminClient({
           {users.length === 0 ? (
             <p className="text-sm text-slate-400 text-center py-8">등록된 사용자가 없습니다.</p>
           ) : (() => {
+            const memberOf = (u: UserRow, teamId: string) =>
+              u.teamId === teamId || u.teamId2 === teamId || u.teamId3 === teamId
             const teamGroups = teams
-              .map(t => ({ team: t, members: users.filter(u => u.teamId === t.id) }))
+              .map(t => ({ team: t, members: users.filter(u => memberOf(u, t.id)) }))
               .filter(g => g.members.length > 0)
-            const noTeam = users.filter(u => !u.teamId)
+            const noTeam = users.filter(u => !u.teamId && !u.teamId2 && !u.teamId3)
 
             const renderUser = (u: UserRow) => (
               <div key={u.id}>
@@ -926,7 +934,11 @@ export default function AdminClient({
                       <span className="font-semibold text-sm text-slate-800">{u.name}</span>
                       {u.nickname && <span className="text-xs text-slate-400">({u.nickname})</span>}
                       {u.phone && <span className="text-xs text-slate-400">{u.phone}</span>}
-                      {u.team && <span className="text-[10px] text-slate-400">{u.team.name}</span>}
+                      {(u.team || u.team2 || u.team3) && (
+                        <span className="text-[10px] text-slate-400">
+                          {[u.team?.name, u.team2?.name, u.team3?.name].filter(Boolean).join(' · ')}
+                        </span>
+                      )}
                     </div>
                     <p className="text-xs text-slate-400 mt-0.5">{u.email}</p>
                   </div>
@@ -952,7 +964,8 @@ export default function AdminClient({
                           </button>
                           <button
                             onClick={() => { setEditId(editId === u.id ? null : u.id); setEditVal({
-                              name: u.name, email: u.email, role: u.role, teamId: u.teamId ?? '', newPassword: '',
+                              name: u.name, email: u.email, role: u.role,
+                              teamId: u.teamId ?? '', teamId2: u.teamId2 ?? '', teamId3: u.teamId3 ?? '', newPassword: '',
                               nickname: u.nickname ?? '', position: u.position ?? '', ssnFront: u.ssnFront ?? '',
                               ssnBack: u.ssnBack ?? '', address: u.address ?? '',
                               hireDate: u.hireDate ? u.hireDate.slice(0, 10) : '', phone: u.phone ?? '',
@@ -1006,13 +1019,21 @@ export default function AdminClient({
                         <input value={editVal.email} onChange={e => setEditVal(p => ({ ...p, email: e.target.value }))}
                           className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-slate-400" />
                       </div>
-                      <div>
-                        <label className="text-xs text-slate-500 mb-1 block">팀</label>
-                        <select value={editVal.teamId} onChange={e => setEditVal(p => ({ ...p, teamId: e.target.value }))}
-                          className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-1 focus:ring-slate-400">
-                          <option value="">팀 없음</option>
-                          {teams.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
-                        </select>
+                      <div className="col-span-2">
+                        <label className="text-xs text-slate-500 mb-1 block">팀 (최대 3개 — 팀1이 우선순위가 가장 높아 「내 팀 보기」 기본값이 된다)</label>
+                        <div className="grid grid-cols-3 gap-2">
+                          {(['teamId', 'teamId2', 'teamId3'] as const).map((key, i) => (
+                            <select key={key} value={editVal[key]}
+                              onChange={e => setEditVal(p => ({ ...p, [key]: e.target.value }))}
+                              className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-1 focus:ring-slate-400">
+                              <option value="">{i === 0 ? '팀 없음' : `팀${i + 1} 없음`}</option>
+                              {teams
+                                .filter(t => t.id === editVal[key]
+                                  || !(['teamId', 'teamId2', 'teamId3'] as const).some(k => k !== key && editVal[k] === t.id))
+                                .map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                            </select>
+                          ))}
+                        </div>
                       </div>
                       <div>
                         <label className="text-xs text-slate-500 mb-1 block">권한</label>

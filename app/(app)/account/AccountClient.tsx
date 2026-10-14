@@ -10,11 +10,13 @@ interface Props {
   userEmail:     string
   teams:         Team[]
   currentTeamId: string | null
+  currentTeamId2?: string | null
+  currentTeamId3?: string | null
   /** 카드 열 맨 아래에 끼워 넣을 추가 섹션 (예: AI 연결) */
   children?:     React.ReactNode
 }
 
-export default function AccountClient({ userName, userEmail, teams, currentTeamId, children }: Props) {
+export default function AccountClient({ userName, userEmail, teams, currentTeamId, currentTeamId2, currentTeamId3, children }: Props) {
   const [current, setCurrent] = useState('')
   const [next, setNext]       = useState('')
   const [confirm, setConfirm] = useState('')
@@ -23,6 +25,8 @@ export default function AccountClient({ userName, userEmail, teams, currentTeamI
   const [success, setSuccess] = useState(false)
 
   const [teamId,      setTeamId]      = useState(currentTeamId ?? '')
+  const [teamId2,     setTeamId2]     = useState(currentTeamId2 ?? '')
+  const [teamId3,     setTeamId3]     = useState(currentTeamId3 ?? '')
   const [teamSaving,  setTeamSaving]  = useState(false)
   const [teamSaved,   setTeamSaved]   = useState(false)
 
@@ -62,7 +66,7 @@ export default function AccountClient({ userName, userEmail, teams, currentTeamI
           'Content-Type': 'application/json',
           'Idempotency-Key': crypto.randomUUID(),
         },
-        body: JSON.stringify({ teamId: teamId || null }),
+        body: JSON.stringify({ teamId: teamId || null, teamId2: teamId2 || null, teamId3: teamId3 || null }),
       })
       if (!response.ok) throw new Error('team_update_failed')
       setTeamSaved(true)
@@ -103,23 +107,36 @@ export default function AccountClient({ userName, userEmail, teams, currentTeamI
               <Users size={15} className="text-slate-400" />
               <span className="text-sm font-semibold text-slate-700">소속팀 설정</span>
             </div>
-            <p className="text-xs text-slate-400 mb-3">주간업무 &gt; 내 팀 · 개인 뷰에 사용됩니다.</p>
-            <div className="flex gap-2">
-              <select
-                value={teamId}
-                onChange={e => setTeamId(e.target.value)}
-                className="flex-1 border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-800 focus:outline-none focus:border-indigo-400 focus:ring-1 focus:ring-indigo-400"
-              >
-                <option value="">팀 미지정</option>
-                {teams.map(t => (
-                  <option key={t.id} value={t.id}>{t.name}</option>
-                ))}
-              </select>
+            <p className="text-xs text-slate-400 mb-3">
+              최대 3개까지 — <b>팀1</b>이 우선순위가 가장 높아 「내 팀 보기」 기본값이 됩니다.
+            </p>
+            <div className="space-y-2">
+              {([
+                { label: '팀1', value: teamId, set: setTeamId },
+                { label: '팀2', value: teamId2, set: setTeamId2 },
+                { label: '팀3', value: teamId3, set: setTeamId3 },
+              ] as const).map(({ label, value, set }) => (
+                <div key={label} className="flex items-center gap-2">
+                  <span className="text-xs font-semibold text-slate-500 w-8 shrink-0">{label}</span>
+                  <select
+                    value={value}
+                    onChange={e => set(e.target.value)}
+                    className="flex-1 border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-800 focus:outline-none focus:border-indigo-400 focus:ring-1 focus:ring-indigo-400"
+                  >
+                    <option value="">{label === '팀1' ? '팀 미지정' : '없음'}</option>
+                    {teams
+                      .filter(t => t.id === value || ![teamId, teamId2, teamId3].filter(v => v !== value).includes(t.id))
+                      .map(t => (
+                        <option key={t.id} value={t.id}>{t.name}</option>
+                      ))}
+                  </select>
+                </div>
+              ))}
               <button
                 type="button"
                 onClick={handleTeamSave}
                 disabled={teamSaving}
-                className="px-4 py-2 rounded-lg text-sm font-semibold text-black transition disabled:opacity-50 shrink-0"
+                className="w-full py-2 rounded-lg text-sm font-semibold text-black transition disabled:opacity-50"
                 style={{ backgroundColor: '#C5D42A' }}
               >
                 {teamSaving ? '저장 중…' : teamSaved ? '✓ 저장됨' : '저장'}

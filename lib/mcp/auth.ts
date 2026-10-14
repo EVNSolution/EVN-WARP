@@ -20,7 +20,7 @@ export async function resolveMcpUser(token: string): Promise<McpUser | null> {
   if (!token || token.length < 20 || token.length > 200) return null
   const row = await prisma.mcpToken.findUnique({
     where: { tokenHash: hashToken(token) },
-    include: { user: { select: { id: true, name: true, teamId: true, dongjakSessionId: true, dongjakProfile: true, employmentType: true, skillsGithubToken: true } } },
+    include: { user: { select: { id: true, name: true, teamId: true, teamId2: true, teamId3: true, dongjakSessionId: true, dongjakProfile: true, employmentType: true, skillsGithubToken: true } } },
   })
   if (!row || row.revokedAt) return null
   // lastUsedAt 은 분 단위로만 갱신 (매 호출 write 방지)
@@ -29,6 +29,7 @@ export async function resolveMcpUser(token: string): Promise<McpUser | null> {
   }
   return {
     id: row.user.id, name: row.user.name, teamId: row.user.teamId,
+    teamId2: row.user.teamId2, teamId3: row.user.teamId3,
     dongjakSessionId: row.user.dongjakSessionId, dongjakProfile: row.user.dongjakProfile,
     employmentType: row.user.employmentType,
     skillsGithubToken: row.user.skillsGithubToken,

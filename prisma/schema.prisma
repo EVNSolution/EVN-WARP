@@ -14,6 +14,8 @@ model Team {
   weeklyUpdates  WeeklyUpdate[]
   workActivities WorkActivity[]
   users          User[]
+  users2         User[]          @relation("UserTeam2")
+  users3         User[]          @relation("UserTeam3")
   createdAt      DateTime        @default(now())
 }
 
@@ -25,6 +27,12 @@ model User {
   role           String         @default("user")  // "admin" | "ceo" | "user" — admin·ceo는 모든 권한 보유
   teamId         String?
   team           Team?          @relation(fields: [teamId], references: [id])
+  // 복수 팀(최대 3) — teamId 가 팀1(주 팀·우선순위 최상), 아래 둘은 팀2·팀3.
+  // 「내 팀 보기」 등 기본 선택은 항상 팀1(teamId)이다.
+  teamId2        String?
+  team2          Team?          @relation("UserTeam2", fields: [teamId2], references: [id])
+  teamId3        String?
+  team3          Team?          @relation("UserTeam3", fields: [teamId3], references: [id])
   agentProfile   Agent?
   workActivities WorkActivity[]
 
