@@ -170,7 +170,8 @@ async function aiSections(byTeam: Map<string, Row[]>, label: string):
   const client = new Anthropic({ apiKey })
   const msg = await client.messages.create({
     model: 'claude-haiku-4-5-20251001',
-    max_tokens: 1500,
+    max_tokens: 4000, // 팀·기록이 늘면 출력이 길어진다 — 1500 으로는 중간에 잘려 불릿이 사라졌다
+
     messages: [{
       role: 'user',
       content:
@@ -183,8 +184,8 @@ async function aiSections(byTeam: Map<string, Row[]>, label: string):
         + '  좋은 예: "신규영업 4건이 ○○·△△ 고객 중심으로 진행됐고, 그중 2건은 견적 단계로 넘어갔다"\n'
         + '  나쁜 예: "○○ 미팅 진행 (김OO)" 처럼 기록 한 줄을 그대로 옮긴 것\n'
         + '- 팀마다 「## 팀명」 헤더(입력의 [팀명] 과 글자 그대로 동일하게)를 쓰고, 그 아래\n'
-        + '  첫 줄에 그 팀의 기간 전체를 관통하는 **한 줄 요약**(불릿 기호 없이), 이어서 불릿 3~5개\n'
-        + '  (기록이 적으면 2개).\n'
+        + '  첫 줄에 그 팀의 기간 전체를 관통하는 **한 줄 요약**(불릿 기호 없이, 한 문장으로 짧게),\n'
+        + '  이어서 「- 」로 시작하는 불릿 3~5개 (기록이 적으면 2개). 불릿 한 개는 1~2문장.\n'
         + `- 오늘은 ${today} 이다. 기록마다 「수행일」(실제로 하는 날)과 「등록일」(기록을 남긴 날)이\n`
         + '  구분돼 있다. 시제는 반드시 **수행일** 기준: 수행일이 오늘 이전인 일은 「~했다/진행했다」,\n'
         + '  오늘 이후이거나 (예정) 표시가 있는 일은 「~할 예정이다/예정돼 있다」. 등록일은 시제에\n'
@@ -194,11 +195,19 @@ async function aiSections(byTeam: Map<string, Row[]>, label: string):
         + '다른 말 없이 그 형식만 출력하라.\n\n' + input,
     }],
   })
-  const text = msg.content.map(b => (b.type === 'text' ? b.text : '')).join('').trim()
+  let text = msg.content.map(b => (b.type === 'text' ? b.text : '')).join('').trim()
   if (!text.includes('##')) return null
+  // 출력 상한에 걸려 잘렸으면 마지막 줄은 문장이 끊긴 상태 — 버린다
+  if (msg.stop_reason === 'max_tokens') {
+    const lines = text.split('\n')
+    lines.pop()
+    text = lines.join('\n')
+    console.warn('[weekly-digest] AI 출력이 max_tokens 에 걸려 잘림 — 마지막 줄 제거')
+  }
 
   const byName = new Map<string, AiTeamSection>()
   let current: AiTeamSection | null = null
+  const BULLET = /^[-•*▸·]\s*/
   for (const raw of text.split('\n')) {
     const line = raw.trim()
     if (line.startsWith('## ')) {
@@ -206,16 +215,18 @@ async function aiSections(byTeam: Map<string, Row[]>, label: string):
       if (name === '전체') { current = null; continue } // 구형식 출력 방어
       current = { headline: '', bullets: [] }
       byName.set(name, current)
-    } else if (line.startsWith('- ') && current) {
-      current.bullets.push(line.slice(2).trim())
-    } else if (line && current && !current.headline && current.bullets.length === 0) {
-      current.headline = line.replace(/\*\*/g, '').trim()
+    } else if (BULLET.test(line) && current) {
+      current.bullets.push(line.replace(BULLET, '').trim())
+    } else if (line && current) {
+      // 불릿 기호 없는 줄 — 첫 줄은 팀 헤드라인, 그 뒤 줄글은 불릿으로 수용 (버리면 내용이 사라진다)
+      if (!current.headline && current.bullets.length === 0) current.headline = line.replace(/\*\*/g, '').trim()
+      else current.bullets.push(line.replace(/\*\*/g, '').trim())
     }
   }
   return byName.size > 0 ? byName : null
 }
 
-async function build(): Promise<WeeklyDigest> {
+async function build(withAi = true): Promise<WeeklyDigest> {
   const now = new Date()
   const since = previousMeetingSlot(now)
   const rows = await fetchRows(since)
@@ -223,7 +234,7 @@ async function build(): Promise<WeeklyDigest> {
 
   let ai: Awaited<ReturnType<typeof aiSections>> = null
   let aiError: string | undefined
-  if (rows.length > 0) {
+  if (withAi && rows.length > 0) {
     try {
       ai = await aiSections(byTeam, slotLabel(since))
       if (!ai) aiError = process.env.ANTHROPIC_API_KEY?.trim() ? '응답 형식 불일치' : 'ANTHROPIC_API_KEY 미설정'
@@ -265,15 +276,20 @@ async function build(): Promise<WeeklyDigest> {
  * 뒤에서 갱신하고, 새로고침 버튼(waitFresh=true)은 새 결과가 나올 때까지 기다린다.
  */
 export async function weeklyDigest(waitFresh = false): Promise<WeeklyDigest> {
-  const freshEnough = cache
-    && cache.slotAt === slotStart().toISOString()
-    && cache.windowStart === previousMeetingSlot().toISOString()
-  if (freshEnough) return cache!
+  const sameSlot = (d: WeeklyDigest | null) => !!d
+    && d.slotAt === slotStart().toISOString()
+    && d.windowStart === previousMeetingSlot().toISOString()
+  // 이번 슬롯에서 AI 요약까지 끝난(또는 실패가 확정된) 캐시 — 그대로 쓴다
+  if (sameSlot(cache) && (cache!.source === 'ai' || cache!.aiError)) return cache!
   if (!refreshing) {
-    refreshing = build()
+    refreshing = build(true)
       .then(d => { cache = d; return d })
       .finally(() => { refreshing = null })
   }
-  if (!waitFresh && cache) return cache
-  return refreshing
+  if (waitFresh) return refreshing
+  // 화면 로드는 절대 AI 호출을 기다리지 않는다 — 이전 캐시가 있으면 그걸,
+  // 콜드 스타트(캐시 없음)면 집계 버전을 즉시 만들어 먼저 보여주고 AI 버전은 뒤에서 교체된다.
+  if (cache) return cache
+  cache = await build(false)
+  return cache
 }

@@ -38,6 +38,9 @@ export default function WeeklyBriefing({ windowLabel, generatedAt, activityCount
           {source === 'rule' && aiError && (
             <p className="text-[10px] text-amber-600 mt-0.5">AI 요약 실패: {aiError}</p>
           )}
+          {source === 'rule' && !aiError && activityCount > 0 && (
+            <p className="text-[10px] text-slate-400 mt-0.5">AI 요약 생성 중 — 잠시 후 새로고침하면 종합 서술로 바뀝니다</p>
+          )}
         </div>
         <div className="ml-auto flex items-center gap-2">
           <span className="text-[10px] text-slate-400">{generatedAt} 생성</span>
