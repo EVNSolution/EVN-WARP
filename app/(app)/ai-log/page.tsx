@@ -62,13 +62,13 @@ export default async function AiLogPage() {
   const myUserId: string | null = me?.id ?? null
   const isPrivileged = me?.role === 'admin' || me?.role === 'ceo'
 
-  const from30 = daysAgoKst(30)
+  const since30 = new Date(Date.now() - 30 * 86400_000)
   const since28 = new Date(Date.now() - 28 * 86400_000)
   const since7 = new Date(Date.now() - 7 * 86400_000)
 
   const [rawRows, feedbacks, logByCat, log28, logUsers, aiActivityCount, firstLog, digest] = await Promise.all([
     prisma.workActivity.findMany({
-      where: { source: 'mcp', date: { gte: from30 } },
+      where: { source: 'mcp', createdAt: { gte: since30 } },
       orderBy: [{ createdAt: 'desc' }],
       take: 300,
       select: {
@@ -276,7 +276,7 @@ export default async function AiLogPage() {
         <section>
           <h2 className="text-sm font-bold text-slate-800 mb-1">최근 AI 업무 기록</h2>
           <p className="text-[11px] text-slate-400 mb-3">
-            개인 AI(CLEVER)로 등록·수정된 최근 30일 활동 — 수행일 기준 표시, 최근 기록 순 정렬.
+            개인 AI(CLEVER)로 등록·수정된 최근 30일 활동 — 등록일 순 정렬, 수행일은 펼치면 확인.
           </p>
           {rows.length === 0 ? (
             <div className="h-96 flex flex-col items-center justify-center text-sm text-slate-400 border border-dashed border-slate-200 rounded-xl text-center">
@@ -288,7 +288,7 @@ export default async function AiLogPage() {
             <div className="border border-slate-200 rounded-xl bg-white h-96 overflow-y-auto divide-y divide-slate-100">
               {/* 컬럼 헤더 — 피드백 목록과 동일한 형식 */}
               <div className="sticky top-0 z-10 flex items-center gap-3 px-4 py-2 bg-slate-50 text-[11px] text-slate-400 font-medium">
-                <span className="w-11 shrink-0">수행일</span>
+                <span className="w-11 shrink-0">등록일</span>
                 <span className="w-14 shrink-0">담당</span>
                 <span className="flex-1">활동</span>
                 <span className="shrink-0">유형</span>
@@ -297,13 +297,14 @@ export default async function AiLogPage() {
               {rows.slice(0, 100).map(r => (
                 <details key={r.id} className="group">
                   <summary className="flex items-center gap-3 px-4 py-2.5 cursor-pointer select-none list-none hover:bg-slate-50 [&::-webkit-details-marker]:hidden">
-                    <span className="text-[11px] text-slate-400 w-11 shrink-0">{r.date.slice(5)}</span>
+                    <span className="text-[11px] text-slate-400 w-11 shrink-0">{kstDay(r.createdAt).slice(5).replace('-', '/')}</span>
                     <span className="text-xs font-semibold text-slate-600 w-14 shrink-0 truncate">{r.userName ?? '-'}</span>
                     <span className="text-xs text-slate-700 truncate flex-1">{r.title}</span>
                     <span className="shrink-0 text-[10px] px-1.5 py-0.5 rounded bg-slate-100 text-slate-500">{r.type}</span>
                     <span className="shrink-0 text-slate-300 text-[10px] transition-transform group-open:rotate-180">▼</span>
                   </summary>
                   <div className="px-4 pb-3 pt-1 bg-slate-50/60">
+                    <p className="text-[10px] text-slate-400 ml-11 mb-1">수행일 {r.date}</p>
                     <p className="text-xs text-slate-700 whitespace-pre-wrap ml-11">{r.content ?? '(내용 없음)'}</p>
                   </div>
                 </details>
