@@ -10,20 +10,27 @@ export async function PATCH(req: NextRequest) {
     const context = await requireAccountContext()
     const idempotencyKey = validateIdempotencyKey(req.headers.get(IDEMPOTENCY_KEY_HEADER))
     const body: unknown = await req.json()
-    const rawTeamId = typeof body === 'object' && body !== null ? (body as { teamId?: unknown }).teamId : undefined
-    if (rawTeamId !== null && rawTeamId !== undefined && typeof rawTeamId !== 'string') {
+    const readTeam = (key: 'teamId' | 'teamId2' | 'teamId3'): string | null | 'invalid' => {
+      const raw = typeof body === 'object' && body !== null ? (body as Record<string, unknown>)[key] : undefined
+      if (raw !== null && raw !== undefined && typeof raw !== 'string') return 'invalid'
+      return typeof raw === 'string' && raw.trim() ? raw.trim() : null
+    }
+    const parsed = [readTeam('teamId'), readTeam('teamId2'), readTeam('teamId3')]
+    if (parsed.includes('invalid')) {
       return NextResponse.json({ ok: false, code: 'invalid_team_id' }, { status: 422 })
     }
-    const teamId = typeof rawTeamId === 'string' && rawTeamId.trim() ? rawTeamId.trim() : null
+    // 최대 3개 — 중복 제거 후 앞당긴다 (팀2 없이 팀3만 있는 상태 방지). 팀1이 우선순위 최상.
+    const compact = [...new Set(parsed.filter((t): t is string => !!t))]
+    const [teamId, teamId2, teamId3] = [compact[0] ?? null, compact[1] ?? null, compact[2] ?? null]
     const action = 'warp.account.team.update'
     const result = await executeAccountAction(prisma, {
       context,
       idempotencyKey,
       action,
-      requestFingerprint: accountActionFingerprint(action, teamId ?? ''),
+      requestFingerprint: accountActionFingerprint(action, compact.join(',')),
       execute: transaction => transaction.user.update({
         where: { id: context.subject },
-        data: { teamId },
+        data: { teamId, teamId2, teamId3 },
       }),
     })
     return NextResponse.json(

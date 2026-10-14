@@ -9,7 +9,7 @@ export default async function AccountPage() {
 
   const [teams, dbUser] = await Promise.all([
     prisma.team.findMany({ orderBy: { name: 'asc' }, select: { id: true, name: true } }),
-    me?.id ? prisma.user.findUnique({ where: { id: me.id }, select: { teamId: true } }) : null,
+    me?.id ? prisma.user.findUnique({ where: { id: me.id }, select: { teamId: true, teamId2: true, teamId3: true } }) : null,
   ])
 
   return (
@@ -18,6 +18,8 @@ export default async function AccountPage() {
       userEmail={me?.email ?? ''}
       teams={teams}
       currentTeamId={dbUser?.teamId ?? null}
+      currentTeamId2={dbUser?.teamId2 ?? null}
+      currentTeamId3={dbUser?.teamId3 ?? null}
     >
       <McpConnectSection />
     </AccountClient>
