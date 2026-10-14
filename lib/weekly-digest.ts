@@ -42,6 +42,30 @@ let cache: WeeklyDigest | null = null
 let refreshing: Promise<WeeklyDigest> | null = null
 
 const KST = 9 * 3600_000
+const CACHE_ROW_ID = 'weekly'
+
+/** 마지막 생성본(DB) — 재시작·배포 후에도 목록 폴백 대신 이걸 즉시 띄운다. */
+async function loadStored(): Promise<WeeklyDigest | null> {
+  try {
+    const row = await prisma.aiDigestCache.findUnique({ where: { id: CACHE_ROW_ID } })
+    return row ? (JSON.parse(row.json) as WeeklyDigest) : null
+  } catch {
+    return null
+  }
+}
+
+async function store(d: WeeklyDigest): Promise<void> {
+  try {
+    const json = JSON.stringify(d)
+    await prisma.aiDigestCache.upsert({
+      where: { id: CACHE_ROW_ID },
+      create: { id: CACHE_ROW_ID, json },
+      update: { json },
+    })
+  } catch (e) {
+    console.error('[weekly-digest] 생성본 저장 실패:', e instanceof Error ? e.message : e)
+  }
+}
 
 /**
  * 재생성 슬롯 — AI 호출을 아끼기 위해 정각 격자에 맞춘다.
@@ -293,16 +317,18 @@ export async function weeklyDigest(waitFresh = false): Promise<WeeklyDigest> {
   const sameSlot = (d: WeeklyDigest | null) => !!d
     && d.slotAt === slotStart().toISOString()
     && d.windowStart === previousMeetingSlot().toISOString()
+  // 재시작·배포 직후엔 DB의 마지막 생성본부터 복원 — 목록 폴백 대신 AI 요약을 즉시 띄운다
+  if (!cache) cache = await loadStored()
   // 이번 슬롯에서 AI 요약까지 끝난(또는 실패가 확정된) 캐시 — 그대로 쓴다
   if (sameSlot(cache) && (cache!.source === 'ai' || cache!.aiError)) return cache!
   if (!refreshing) {
     refreshing = build(true)
-      .then(d => { cache = d; return d })
+      .then(d => { cache = d; void store(d); return d })
       .finally(() => { refreshing = null })
   }
   if (waitFresh) return refreshing
-  // 화면 로드는 절대 AI 호출을 기다리지 않는다 — 이전 캐시가 있으면 그걸,
-  // 콜드 스타트(캐시 없음)면 집계 버전을 즉시 만들어 먼저 보여주고 AI 버전은 뒤에서 교체된다.
+  // 화면 로드는 절대 AI 호출을 기다리지 않는다 — 마지막 생성본(이전 슬롯이어도)을 먼저 보여주고
+  // 새 슬롯 버전은 뒤에서 완성되면 교체된다. 생성본이 아예 없을 때만 집계 버전을 즉시 만든다.
   if (cache) return cache
   cache = await build(false)
   return cache
