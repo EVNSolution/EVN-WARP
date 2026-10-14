@@ -8,7 +8,8 @@ import { prisma } from '@/lib/db'
  * 팀 구분: 사람 소속이 아니라 「연계 과제의 팀」 — 독립활동·전사과제 직접 연계는 「공통」.
  * 구조: 팀마다 서버가 계산한 유형별 집계줄(신규영업 N·고객미팅 M…) + AI(Haiku)의 종합 서술
  * 불릿 3~5개. AI 실패 시 불릿은 대표 업무 몇 건으로 폴백하되 집계줄은 항상 나온다.
- * 캐시: 업무시간(평일 9~18시 KST) 1시간 / 그 외 3시간 — 새로고침 버튼도 주기를 우회하지 않는다.
+ * 캐시: 정각 슬롯 — 업무시간(평일 9~18시 KST) 매시 정각 / 그 외 3시간 격자.
+ * 새로고침 버튼도 슬롯을 우회하지 않는다.
  * 비공개 활동 제외, 제목만 공개는 제목만.
  */
 
@@ -25,6 +26,8 @@ export interface WeeklyDigest {
   windowStart: string
   windowLabel: string // "10/9(목) 10:00 이후"
   generatedAt: string
+  /** 이 요약이 속한 재생성 슬롯의 정각 — 화면에 "14:00 생성"처럼 표시되는 기준 시각 */
+  slotAt: string
   teams: DigestTeam[]
   activityCount: number
   teamCount: number
@@ -40,16 +43,18 @@ let refreshing: Promise<WeeklyDigest> | null = null
 const KST = 9 * 3600_000
 
 /**
- * 재생성 주기 — AI 호출을 아끼기 위해 시간대별로 다르게 둔다.
- * 평일 업무시간(9~18시 KST)은 1시간, 그 외(야간·주말)는 3시간.
- * 새로고침 버튼도 이 주기를 우회하지 못한다 — 주기가 지났을 때만 새로 만든다.
+ * 재생성 슬롯 — AI 호출을 아끼기 위해 정각 격자에 맞춘다.
+ * 평일 업무시간(9~18시 KST)은 매시 정각(14:00 → 15:00…), 그 외(야간·주말)는
+ * 3시간 격자(18:00 → 21:00 → 00:00…). 같은 슬롯 안에서는 새로고침을 눌러도 재생성하지 않고,
+ * 슬롯이 바뀌었을 때만 새로 만든다. 화면의 생성 시각도 이 슬롯 정각으로 표시된다.
  */
-function currentTtl(now = new Date()): number {
+function slotStart(now = new Date()): Date {
   const k = new Date(now.getTime() + KST)
   const dow = k.getUTCDay()
   const hour = k.getUTCHours()
   const business = dow >= 1 && dow <= 5 && hour >= 9 && hour < 18
-  return business ? 60 * 60_000 : 3 * 60 * 60_000
+  const anchorHour = business ? hour : Math.floor(hour / 3) * 3
+  return new Date(Date.UTC(k.getUTCFullYear(), k.getUTCMonth(), k.getUTCDate(), anchorHour) - KST)
 }
 const DOW_LABEL = ['일', '월', '화', '수', '목', '금', '토']
 
@@ -76,6 +81,7 @@ type Row = {
   title: string; content: string | null; type: string; date: string
   userName: string | null; visibility: string | null
   startTime: string | null
+  createdAt: Date
   team: { name: string } | null
   task: { title: string; parentId: string | null; team: { name: string } | null } | null
 }
@@ -87,7 +93,7 @@ async function fetchRows(since: Date): Promise<Row[]> {
     take: 400,
     select: {
       title: true, content: true, type: true, date: true, userName: true, visibility: true,
-      startTime: true,
+      startTime: true, createdAt: true,
       team: { select: { name: true } },
       task: { select: { title: true, parentId: true, team: { select: { name: true } } } },
     },
@@ -139,7 +145,8 @@ async function aiSections(byTeam: Map<string, Row[]>, label: string):
     const lines = rows.slice(0, 40).map(r => {
       const body = r.content && (r.visibility ?? '공개') !== '제목만 공개' ? ` — ${r.content.slice(0, 100)}` : ''
       const future = r.date > today ? ' (예정)' : ''
-      return `- ${r.title}${body} (${r.userName ?? '미상'}, ${r.type}, 수행일 ${r.date}${future})`
+      const regDay = new Date(r.createdAt.getTime() + KST).toISOString().slice(0, 10)
+      return `- ${r.title}${body} (${r.userName ?? '미상'}, ${r.type}, 수행일 ${r.date}${future}, 등록일 ${regDay})`
     })
     return `[${team}] 집계: ${statsLine(rows)}\n${lines.join('\n')}`
   }).join('\n\n')
@@ -163,8 +170,10 @@ async function aiSections(byTeam: Map<string, Row[]>, label: string):
         + '- 팀마다 「## 팀명」 헤더(입력의 [팀명] 과 글자 그대로 동일하게)를 쓰고, 그 아래\n'
         + '  첫 줄에 그 팀의 기간 전체를 관통하는 **한 줄 요약**(불릿 기호 없이), 이어서 불릿 3~5개\n'
         + '  (기록이 적으면 2개).\n'
-        + `- 오늘은 ${today} 이다. 수행일이 오늘 이전인 일은 「~했다/진행했다」, 오늘 이후이거나\n`
-        + '  (예정) 표시가 있는 일은 「~할 예정이다/예정돼 있다」로 시제를 반드시 구분해 서술하라.\n'
+        + `- 오늘은 ${today} 이다. 기록마다 「수행일」(실제로 하는 날)과 「등록일」(기록을 남긴 날)이\n`
+        + '  구분돼 있다. 시제는 반드시 **수행일** 기준: 수행일이 오늘 이전인 일은 「~했다/진행했다」,\n'
+        + '  오늘 이후이거나 (예정) 표시가 있는 일은 「~할 예정이다/예정돼 있다」. 등록일은 시제에\n'
+        + '  쓰지 말고, 미래 일을 미리 잡아둔 것임을 말할 때만 참고하라.\n'
         + '- 담당자 이름은 묶음의 대표로 필요할 때만 괄호. 수치·고객사·일정은 구체적으로.\n'
         + '- 과장·추측 금지, 기록에 있는 것만.\n'
         + '다른 말 없이 그 형식만 출력하라.\n\n' + input,
@@ -224,6 +233,7 @@ async function build(): Promise<WeeklyDigest> {
     windowStart: since.toISOString(),
     windowLabel: slotLabel(since),
     generatedAt: now.toISOString(),
+    slotAt: slotStart(now).toISOString(),
     teams,
     activityCount: rows.length,
     teamCount: byTeam.size,
@@ -234,14 +244,14 @@ async function build(): Promise<WeeklyDigest> {
 }
 
 /**
- * 브리핑 조회 — 업무시간 1시간 / 그 외 3시간 캐시.
- * 주기 안이면 항상 캐시를 그대로 돌려준다(새로고침 버튼 포함 — AI 재호출 없음).
- * 주기가 지났으면 재생성하되, 일반 화면 로드(waitFresh=false)는 기존 캐시를 먼저 보여주며
+ * 브리핑 조회 — 정각 슬롯 캐시 (업무시간 매시 정각 / 그 외 3시간 격자).
+ * 같은 슬롯 안이면 항상 캐시를 그대로 돌려준다(새로고침 버튼 포함 — AI 재호출 없음).
+ * 슬롯이 바뀌면 재생성하되, 일반 화면 로드(waitFresh=false)는 기존 캐시를 먼저 보여주며
  * 뒤에서 갱신하고, 새로고침 버튼(waitFresh=true)은 새 결과가 나올 때까지 기다린다.
  */
 export async function weeklyDigest(waitFresh = false): Promise<WeeklyDigest> {
   const freshEnough = cache
-    && Date.now() - new Date(cache.generatedAt).getTime() < currentTtl()
+    && cache.slotAt === slotStart().toISOString()
     && cache.windowStart === previousMeetingSlot().toISOString()
   if (freshEnough) return cache!
   if (!refreshing) {

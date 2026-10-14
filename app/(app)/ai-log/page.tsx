@@ -200,7 +200,7 @@ export default async function AiLogPage() {
         {/* 주간회의 브리핑 — 월/목 10시 회의용 */}
         <WeeklyBriefing
           windowLabel={digest.windowLabel}
-          generatedAt={new Intl.DateTimeFormat('ko-KR', { timeZone: 'Asia/Seoul', hour: '2-digit', minute: '2-digit', hour12: false }).format(new Date(digest.generatedAt))}
+          generatedAt={new Intl.DateTimeFormat('ko-KR', { timeZone: 'Asia/Seoul', hour: '2-digit', minute: '2-digit', hour12: false }).format(new Date(digest.slotAt))}
           activityCount={digest.activityCount}
           peopleCount={digest.peopleCount}
           source={digest.source}
