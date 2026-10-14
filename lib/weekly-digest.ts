@@ -7,8 +7,8 @@ import { prisma } from '@/lib/db'
  * 기간: 직전 회의 시각(월/목 10:00 KST, 진행 중인 회의는 직전 회의로) 이후 등록된 기록
  *       + 수행일이 그 기간(오늘+7일까지)에 걸리는 기존 기록 — AI/수기 등록을 가리지 않는다.
  * 팀 구분: 사람 소속이 아니라 「연계 과제의 팀」 — 독립활동·전사과제 직접 연계는 「공통」.
- * 구조: 팀마다 서버가 계산한 유형별 집계줄(신규영업 N·고객미팅 M…) + AI(Haiku)의 종합 서술
- * 불릿 3~5개. AI 실패 시 불릿은 대표 업무 몇 건으로 폴백하되 집계줄은 항상 나온다.
+ * 구조: 팀마다 서버가 계산한 유형별 집계줄(신규영업 N·고객미팅 M…) + AI(Claude Opus 5)의
+ * 종합 서술 불릿 3~5개. AI 실패 시 불릿은 대표 업무 몇 건으로 폴백하되 집계줄은 항상 나온다.
  * 캐시: 정각 슬롯 — 업무시간(평일 9~18시 KST) 매시 정각 / 그 외 3시간 격자.
  * 새로고침 버튼도 슬롯을 우회하지 않는다.
  * 비공개 활동 제외, 제목만 공개는 제목만.
@@ -156,9 +156,11 @@ async function aiSections(byTeam: Map<string, Row[]>, label: string):
   const apiKey = process.env.ANTHROPIC_API_KEY?.trim()
   if (!apiKey) return null
   const today = new Date(Date.now() + KST).toISOString().slice(0, 10) // KST 기준 오늘 — 시제 구분용
+  // 기록 내용은 자르지 않고 전부 넘긴다 — 모델이 전체 맥락을 읽고 종합하는 쪽이 요약 품질이 낫다.
+  // (전체 분량은 fetchRows 의 take 400 이 이미 묶는다)
   const input = [...byTeam.entries()].map(([team, rows]) => {
-    const lines = rows.slice(0, 40).map(r => {
-      const body = r.content && (r.visibility ?? '공개') !== '제목만 공개' ? ` — ${r.content.slice(0, 100)}` : ''
+    const lines = rows.slice(0, 120).map(r => {
+      const body = r.content && (r.visibility ?? '공개') !== '제목만 공개' ? ` — ${r.content.replace(/\s+/g, ' ').trim()}` : ''
       const future = r.date > today ? ' (예정)' : ''
       const regDay = new Date(r.createdAt.getTime() + KST).toISOString().slice(0, 10)
       return `- ${r.title}${body} (${r.userName ?? '미상'}, ${r.type}, 수행일 ${r.date}${future}, 등록일 ${regDay})`
@@ -169,8 +171,10 @@ async function aiSections(byTeam: Map<string, Row[]>, label: string):
   const Anthropic = (await import('@anthropic-ai/sdk')).default
   const client = new Anthropic({ apiKey })
   const msg = await client.messages.create({
-    model: 'claude-haiku-4-5-20251001',
-    max_tokens: 4000, // 팀·기록이 늘면 출력이 길어진다 — 1500 으로는 중간에 잘려 불릿이 사라졌다
+    model: 'claude-opus-5', // 요약 품질 우선 — Opus 5 는 사고(thinking)가 기본 켜져 있다
+    // max_tokens 는 사고 + 응답 텍스트 합산 상한 — 낮으면 응답이 중간에 잘려 불릿이 사라진다
+    max_tokens: 10000,
+    output_config: { effort: 'low' }, // 정형 요약 작업 — 낮은 effort 로도 충분하고 지연·비용을 줄인다
 
     messages: [{
       role: 'user',
