@@ -4,7 +4,8 @@ import { prisma } from '@/lib/db'
  * 주간회의 브리핑 — 매주 월/목 오전 10시 주간회의에서 "지난 회의 이후 WARP에 기록된 일"을
  * 팀별로 읽어주는 요약. AI 업무 기록 화면의 브리핑 카드가 쓴다.
  *
- * 기간: 직전 회의 시각(월/목 10:00 KST, 진행 중인 회의는 직전 회의로) ~ 지금.
+ * 기간: 직전 회의 시각(월/목 10:00 KST, 진행 중인 회의는 직전 회의로) 이후 등록된 기록
+ *       + 수행일이 그 기간(오늘+7일까지)에 걸리는 기존 기록 — AI/수기 등록을 가리지 않는다.
  * 팀 구분: 사람 소속이 아니라 「연계 과제의 팀」 — 독립활동·전사과제 직접 연계는 「공통」.
  * 구조: 팀마다 서버가 계산한 유형별 집계줄(신규영업 N·고객미팅 M…) + AI(Haiku)의 종합 서술
  * 불릿 3~5개. AI 실패 시 불릿은 대표 업무 몇 건으로 폴백하되 집계줄은 항상 나온다.
@@ -86,9 +87,23 @@ type Row = {
   task: { title: string; parentId: string | null; team: { name: string } | null } | null
 }
 
+/**
+ * 브리핑 대상 기록 — 둘 중 하나면 포함한다 (AI/수기 등록 구분 없음):
+ *  ① 지난 회의 이후 새로 등록된 기록 (등록일 기준)
+ *  ② 수행일이 「지난 회의일 ~ 오늘+7일」에 걸리는 기록 — 몇 주 전에 미리 잡아둔
+ *     수기 일정·반복 일정도 이번 기간에 수행되면 브리핑에 들어온다.
+ */
 async function fetchRows(since: Date): Promise<Row[]> {
+  const sinceDay = new Date(since.getTime() + KST).toISOString().slice(0, 10)
+  const horizonDay = new Date(Date.now() + KST + 7 * 86400_000).toISOString().slice(0, 10)
   return prisma.workActivity.findMany({
-    where: { createdAt: { gte: since }, NOT: { visibility: '전체 비공개' } },
+    where: {
+      NOT: { visibility: '전체 비공개' },
+      OR: [
+        { createdAt: { gte: since } },
+        { date: { gte: sinceDay, lte: horizonDay } },
+      ],
+    },
     orderBy: [{ teamId: 'asc' }, { createdAt: 'asc' }],
     take: 400,
     select: {
