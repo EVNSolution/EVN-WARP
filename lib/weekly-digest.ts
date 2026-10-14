@@ -211,19 +211,25 @@ async function aiSections(byTeam: Map<string, Row[]>, label: string):
   const byName = new Map<string, AiTeamSection>()
   let current: AiTeamSection | null = null
   const BULLET = /^[-•*▸·]\s*/
+  // 구분선·장식 줄(---, ===, ⸻ 등) — 불릿 기호를 떼고 나면 대시만 남아 「--」 불릿으로 오염된다
+  const NOISE = /^[-–—=*_~\s]*$/
   for (const raw of text.split('\n')) {
     const line = raw.trim()
+    if (NOISE.test(line)) continue
     if (line.startsWith('## ')) {
       const name = line.slice(3).trim()
       if (name === '전체') { current = null; continue } // 구형식 출력 방어
       current = { headline: '', bullets: [] }
       byName.set(name, current)
     } else if (BULLET.test(line) && current) {
-      current.bullets.push(line.replace(BULLET, '').trim())
-    } else if (line && current) {
+      const content = line.replace(BULLET, '').trim()
+      if (!NOISE.test(content)) current.bullets.push(content)
+    } else if (current) {
       // 불릿 기호 없는 줄 — 첫 줄은 팀 헤드라인, 그 뒤 줄글은 불릿으로 수용 (버리면 내용이 사라진다)
-      if (!current.headline && current.bullets.length === 0) current.headline = line.replace(/\*\*/g, '').trim()
-      else current.bullets.push(line.replace(/\*\*/g, '').trim())
+      const content = line.replace(/\*\*/g, '').trim()
+      if (NOISE.test(content)) continue
+      if (!current.headline && current.bullets.length === 0) current.headline = content
+      else current.bullets.push(content)
     }
   }
   return byName.size > 0 ? byName : null
