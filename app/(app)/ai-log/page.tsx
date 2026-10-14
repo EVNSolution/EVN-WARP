@@ -137,14 +137,14 @@ export default async function AiLogPage() {
   return (
     <div className="p-6">
       {/* 헤더 (공통 스타일: 검은 배경 + 둥근 모서리) */}
-      <div className="max-w-6xl px-6 py-4 mb-5 rounded-xl" style={{ backgroundColor: '#111111' }}>
+      <div className="max-w-7xl px-6 py-4 mb-5 rounded-xl" style={{ backgroundColor: '#111111' }}>
         <h1 className="text-xl font-bold text-white">AI 업무 기록</h1>
         <p className="text-[11px] mt-0.5" style={{ color: '#C5D42A' }}>
           개인 AI(Claude·ChatGPT 등)와 WARP 가 함께 일한 기록 — 연결은 내 계정 → AI 연결에서
         </p>
       </div>
 
-      <div className="max-w-6xl space-y-5">
+      <div className="max-w-7xl space-y-5">
 
         {/* ① AI 활동 집계 — 어떤 일에 AI 를 쓰는가 */}
         <section className="rounded-2xl p-6 text-white" style={{ background: 'linear-gradient(135deg, #0b0f14 0%, #141b24 100%)' }}>
@@ -205,11 +205,10 @@ export default async function AiLogPage() {
           peopleCount={digest.peopleCount}
           source={digest.source}
           aiError={digest.aiError}
-          headline={digest.headline}
           teams={digest.teams}
         />
 
-          <section className="border border-slate-200 rounded-2xl bg-white p-5 flex flex-col h-[22rem]">
+          <section className="border border-slate-200 rounded-2xl bg-white p-5 flex flex-col h-[26rem]">
             <h2 className="text-sm font-bold text-slate-800">AI 사용 추이</h2>
             <p className="text-[11px] text-slate-400 mb-4">최근 4주 · 일별 도구 호출 (유형별 색)</p>
             {/* 플롯이 카드 남은 높이를 전부 쓴다 — 가로축(굵은 선)이 박스 바닥까지 내려온다 */}
