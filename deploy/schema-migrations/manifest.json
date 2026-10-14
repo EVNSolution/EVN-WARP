@@ -1,5 +1,5 @@
 {
-  "prismaSchemaSha256": "c6b1043bc4b904c50e2c3d670b186888fc7a899aa17e9e02f0a1c53dc8a4ab5e",
+  "prismaSchemaSha256": "cd1927ce5f04f3fbca1c334df1cd11f0ce4d6919ff6741c1066ff26b038291f1",
   "requiredTables": [
     "Announcement",
     "BuildupEvent",
@@ -10,7 +10,8 @@
     "PersonalCard",
     "McpToken",
     "McpLog",
-    "ActivityComment"
+    "ActivityComment",
+    "AiDigestCache"
   ],
   "requiredColumnAdditions": {
     "WorkActivity": [

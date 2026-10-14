@@ -7,6 +7,14 @@ datasource db {
   provider = "sqlite"
 }
 
+// AI 생성 캐시(주간회의 브리핑 등) — 한 키당 한 줄, 마지막 생성본 JSON 을 저장해
+// 재시작·배포 후에도 즉시 띄운다 (메모리 캐시의 영속화).
+model AiDigestCache {
+  id        String   @id // 'weekly' 등 캐시 키
+  json      String
+  updatedAt DateTime @updatedAt
+}
+
 model Team {
   id              String          @id @default(cuid())
   name            String          @unique
