@@ -8,7 +8,8 @@ import { prisma } from '@/lib/db'
  * 팀 구분: 사람 소속이 아니라 「연계 과제의 팀」 — 독립활동·전사과제 직접 연계는 「공통」.
  * 구조: 팀마다 서버가 계산한 유형별 집계줄(신규영업 N·고객미팅 M…) + AI(Haiku)의 종합 서술
  * 불릿 3~5개. AI 실패 시 불릿은 대표 업무 몇 건으로 폴백하되 집계줄은 항상 나온다.
- * 캐시 30분 + 수동 새로고침(회의 중 실시간 갱신용). 비공개 활동 제외, 제목만 공개는 제목만.
+ * 캐시: 업무시간(평일 9~18시 KST) 1시간 / 그 외 3시간 — 새로고침 버튼도 주기를 우회하지 않는다.
+ * 비공개 활동 제외, 제목만 공개는 제목만.
  */
 
 export interface DigestTeam {
@@ -33,11 +34,23 @@ export interface WeeklyDigest {
   aiError?: string
 }
 
-const TTL = 30 * 60_000
 let cache: WeeklyDigest | null = null
 let refreshing: Promise<WeeklyDigest> | null = null
 
 const KST = 9 * 3600_000
+
+/**
+ * 재생성 주기 — AI 호출을 아끼기 위해 시간대별로 다르게 둔다.
+ * 평일 업무시간(9~18시 KST)은 1시간, 그 외(야간·주말)는 3시간.
+ * 새로고침 버튼도 이 주기를 우회하지 못한다 — 주기가 지났을 때만 새로 만든다.
+ */
+function currentTtl(now = new Date()): number {
+  const k = new Date(now.getTime() + KST)
+  const dow = k.getUTCDay()
+  const hour = k.getUTCHours()
+  const business = dow >= 1 && dow <= 5 && hour >= 9 && hour < 18
+  return business ? 60 * 60_000 : 3 * 60 * 60_000
+}
 const DOW_LABEL = ['일', '월', '화', '수', '목', '금', '토']
 
 /** 직전 주간회의(월/목 10:00 KST) 시각 — 회의 시작 후 2시간까지는 "이번 회의"로 보고 그 전 회의를 기준으로 한다. */
@@ -220,17 +233,22 @@ async function build(): Promise<WeeklyDigest> {
   }
 }
 
-/** 브리핑 조회 — 30분 캐시. force=true(새로고침 버튼)면 즉시 재생성한다. */
-export async function weeklyDigest(force = false): Promise<WeeklyDigest> {
+/**
+ * 브리핑 조회 — 업무시간 1시간 / 그 외 3시간 캐시.
+ * 주기 안이면 항상 캐시를 그대로 돌려준다(새로고침 버튼 포함 — AI 재호출 없음).
+ * 주기가 지났으면 재생성하되, 일반 화면 로드(waitFresh=false)는 기존 캐시를 먼저 보여주며
+ * 뒤에서 갱신하고, 새로고침 버튼(waitFresh=true)은 새 결과가 나올 때까지 기다린다.
+ */
+export async function weeklyDigest(waitFresh = false): Promise<WeeklyDigest> {
   const freshEnough = cache
-    && Date.now() - new Date(cache.generatedAt).getTime() < TTL
+    && Date.now() - new Date(cache.generatedAt).getTime() < currentTtl()
     && cache.windowStart === previousMeetingSlot().toISOString()
-  if (!force && freshEnough) return cache!
+  if (freshEnough) return cache!
   if (!refreshing) {
     refreshing = build()
       .then(d => { cache = d; return d })
       .finally(() => { refreshing = null })
   }
-  if (!force && cache) return cache
+  if (!waitFresh && cache) return cache
   return refreshing
 }

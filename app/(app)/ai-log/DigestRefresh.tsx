@@ -4,7 +4,10 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { RefreshCw } from 'lucide-react'
 
-/** 주간회의 브리핑 새로고침 — 회의 중 방금 등록된 기록까지 반영해 다시 생성한다. */
+/**
+ * 주간회의 브리핑 새로고침 — 재생성 주기(업무시간 1시간 / 그 외 3시간)가 지났으면
+ * 새로 생성해 보여주고, 주기 안이면 기존 요약을 그대로 다시 불러온다 (AI 재호출 없음).
+ */
 export default function DigestRefresh() {
   const router = useRouter()
   const [busy, setBusy] = useState(false)
