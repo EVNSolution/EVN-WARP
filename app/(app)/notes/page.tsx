@@ -12,7 +12,7 @@ import {
 } from 'lucide-react'
 import CalendarView, { type CalActivity, type CalVehicleReservation, type CalScheduleItem } from '@/components/CalendarView'
 import FilterSelects from './FilterSelects'
-import PersonalScopeToggle from './PersonalScopeToggle'
+import ScopeSelector from './ScopeSelector'
 import MeetingRoomsTab, { MeetingRoomsPrewarm } from './MeetingRoomsTab'
 import { auth } from '@/auth'
 import { canViewAllCardUsage, isAdminRole } from '@/lib/permissions'
@@ -118,8 +118,16 @@ export default async function NotesPage({ searchParams }: { searchParams: Promis
   const canViewAllCards = await canViewAllCardUsage(myUserId)
   const isAdminUser = isAdminRole((session?.user as any)?.role)
 
-  // 전체 팀 목록 조회 (팀 선택 드롭다운용)
-  const allTeams = await prisma.team.findMany({ orderBy: { name: 'asc' }, select: { id: true, name: true } })
+  // 전체 팀 목록 + 내 소속 팀(팀1>팀2>팀3) — 범위 선택 드롭다운용
+  const [allTeams, meRow] = await Promise.all([
+    prisma.team.findMany({ orderBy: { name: 'asc' }, select: { id: true, name: true } }),
+    myUserId ? prisma.user.findUnique({
+      where: { id: myUserId },
+      select: { team: { select: { name: true } }, team2: { select: { name: true } }, team3: { select: { name: true } } },
+    }) : null,
+  ])
+  const myTeamNames = [meRow?.team?.name, meRow?.team2?.name, meRow?.team3?.name]
+    .filter((n): n is string => !!n)
 
   /* ── 날짜 계산 ── */
   const now      = new Date()
@@ -433,13 +441,18 @@ export default async function NotesPage({ searchParams }: { searchParams: Promis
               <ChevronRight size={16} />
             </Link>
           </div>
-          {/* 개인 / 전체 토글 — 작성자 필터만 전환, 팀 필터는 별도 유지. 마지막 선택을 기억해 다음 방문에도 적용 */}
+          {/* 범위 선택 — 개인(기본) | 팀 ▾ | 전체. 마지막 선택을 기억해 다음 방문에도 적용 */}
           {myName && (
-            <PersonalScopeToggle
-              hrefPersonal={`${buildHref({ user: myName })}${myUserId ? `&uid=${encodeURIComponent(myUserId)}` : ''}`}
-              hrefAll={buildHref({ user: null })}
-              isPersonalActive={uidParam ? uidParam === myUserId : userParam === myName}
-              hasExplicitScope={!!(userParam || uidParam)}
+            <ScopeSelector
+              monthId={monthId}
+              activeTab={activeTab}
+              myName={myName}
+              myUserId={myUserId}
+              teams={allTeams}
+              myTeamNames={myTeamNames}
+              userParam={userParam}
+              uidParam={uidParam}
+              teamParam={teamParam}
             />
           )}
           {/* ── 팀 · 작성자 선택 ── */}
