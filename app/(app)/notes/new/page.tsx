@@ -2,10 +2,15 @@ import { prisma } from '@/lib/db'
 import { auth } from '@/auth'
 import ActivityForm from '@/components/ActivityForm'
 
-type SearchParams = { taskId?: string; date?: string; type?: string }
+type SearchParams = { taskId?: string; date?: string; type?: string; start?: string }
 
 export default async function NewActivityPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
-  const { taskId, date, type } = await searchParams
+  const { taskId, date, type, start } = await searchParams
+  // 캘린더 주간 그리드의 빈 시간대 클릭 → 그 시각으로 시작시간 프리필 (+1시간 종료)
+  const startTime = start && /^([01]?\d|2[0-3]):[0-5]\d$/.test(start) ? start : undefined
+  const endTime = startTime
+    ? `${String(Math.min(Number(startTime.slice(0, 2)) + 1, 23)).padStart(2, '0')}:${startTime.slice(3)}`
+    : undefined
 
   const [session, teams, tasks, users, vehicles] = await Promise.all([
     auth(),
@@ -43,6 +48,8 @@ export default async function NewActivityPage({ searchParams }: { searchParams: 
         teamId:   preTask?.teamId ?? myTeam?.teamId ?? undefined,
         date:     date,
         type:     type,
+        startTime,
+        endTime,
         userId:   myUserId,
         userName: myUserName,
       }}

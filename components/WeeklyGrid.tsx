@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef } from 'react'
+import { useRouter } from 'next/navigation'
 import { isWorkRecord } from '@/lib/activityKind'
 import type { CalActivity } from './CalendarView'
 
@@ -70,8 +71,16 @@ export default function WeeklyGrid({ days, actByDate, todayStr, typeColors, show
   onSelect: (act: CalActivity) => void
   onOpenDay: (dateStr: string) => void
 }) {
+  const router = useRouter()
   const hours = Array.from({ length: HOUR_END - HOUR_START + 1 }, (_, i) => HOUR_START + i)
   const gridH = (HOUR_END - HOUR_START) * ROW_H
+
+  // 빈 시간대 클릭 → 그 날짜·시각이 채워진 활동 추가로 이동
+  const clickEmptySlot = (dateStr: string, e: React.MouseEvent<HTMLDivElement>) => {
+    const rect = e.currentTarget.getBoundingClientRect()
+    const hour = Math.min(23, Math.max(0, Math.floor((e.clientY - rect.top) / ROW_H) + HOUR_START))
+    router.push(`/notes/new?date=${dateStr}&start=${String(hour).padStart(2, '0')}:00`)
+  }
 
   // 기본 스크롤 위치 = 08시 (0~24시 전체는 스크롤로 본다)
   const scrollRef = useRef<HTMLDivElement>(null)
@@ -152,7 +161,9 @@ export default function WeeklyGrid({ days, actByDate, todayStr, typeColors, show
         {/* 요일 열 */}
         {perDay.map(({ day, blocks }) => (
           <div key={day.dateStr}
-            className={`relative border-r border-slate-100 last:border-r-0 ${
+            onClick={e => clickEmptySlot(day.dateStr, e)}
+            title="빈 시간대를 누르면 그 시각으로 활동을 추가합니다"
+            className={`relative border-r border-slate-100 last:border-r-0 cursor-pointer ${
               day.dateStr === todayStr ? 'bg-amber-50/40' : day.dow === 0 || day.dow === 6 ? 'bg-slate-50/50' : ''
             }`}
             style={{ height: gridH }}>
@@ -169,7 +180,8 @@ export default function WeeklyGrid({ days, actByDate, todayStr, typeColors, show
               const height = Math.max(22, Math.min(rawH, gridH - top))
               const widthPct = 100 / b.cols
               return (
-                <button key={b.act.id + b.act.date} type="button" onClick={() => onSelect(b.act)}
+                <button key={b.act.id + b.act.date} type="button"
+                  onClick={e => { e.stopPropagation(); onSelect(b.act) }}
                   title={`${b.act.startTime}${b.act.endTime ? `~${b.act.endTime}` : ''} ${b.act.title}${b.act.userName ? ` (${b.act.userName})` : ''}`}
                   className={`absolute rounded-md px-1 py-0.5 text-left overflow-hidden border border-white/60 hover:opacity-85 transition-opacity ${c.bg} ${c.text}`}
                   style={{ top, height, left: `${b.col * widthPct}%`, width: `calc(${widthPct}% - 2px)` }}>
