@@ -210,7 +210,7 @@ async function aiSections(byTeam: Map<string, Row[]>, label: string):
         + '  나쁜 예: "○○ 미팅 진행 (김OO)" 처럼 기록 한 줄을 그대로 옮긴 것\n'
         + '- 팀마다 「## 팀명」 헤더(입력의 [팀명] 과 글자 그대로 동일하게)를 쓰고, 그 아래\n'
         + '  첫 줄에 그 팀의 기간 전체를 관통하는 **한 줄 요약**(불릿 기호 없이, 1~2문장),\n'
-        + '  이어서 「- 」로 시작하는 불릿 3~5개 (기록이 적으면 2개). 불릿 한 개는 1~2문장.\n'
+        + '  이어서 「- 」로 시작하는 불릿 3~7개 (기록이 적으면 2개). 불릿 한 개는 1~2문장.\n'
         + '- **한 줄 요약은 최대 2문장·250자 이내로 짧게** — 길게 늘어놓지 말고 핵심 수치만 압축하라.\n'
         + '  상세한 내용은 불릿에서 풀면 된다.\n'
         + '- **한 줄 요약은 정량 지표 중심으로 쓴다** — 건수·고객사 수·완료/예정 비율·금액·일정 등\n'
@@ -289,7 +289,7 @@ async function build(withAi = true): Promise<WeeklyDigest> {
       name,
       stats: statsLine(teamRows),
       headline: sec?.headline || undefined,
-      bullets: sec?.bullets.slice(0, 5) ?? ruleBullets(teamRows),
+      bullets: sec?.bullets.slice(0, 7) ?? ruleBullets(teamRows),
     }
   })
 
