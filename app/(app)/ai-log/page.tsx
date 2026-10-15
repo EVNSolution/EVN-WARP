@@ -197,7 +197,7 @@ export default async function AiLogPage() {
         {/* ② 주간회의 브리핑(넓게) + AI 사용 추이 */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 items-stretch">
 
-        {/* 주간회의 브리핑 — 월/목 10시 회의용 */}
+        {/* 주간회의 브리핑 — 이번 주(월 09시 이후) 누적 */}
         <WeeklyBriefing
           windowLabel={digest.windowLabel}
           generatedAt={new Intl.DateTimeFormat('ko-KR', { timeZone: 'Asia/Seoul', hour: '2-digit', minute: '2-digit', hour12: false }).format(new Date(digest.slotAt))}

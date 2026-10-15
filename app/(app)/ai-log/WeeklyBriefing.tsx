@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import DigestRefresh from './DigestRefresh'
 
 /**
- * 주간회의 브리핑 — 지난 회의(월/목 10시) 이후 WARP에 기록된 모든 업무를 팀 탭으로 넘기며 본다.
+ * 주간회의 브리핑 — 이번 주(월요일 09시 이후) WARP에 기록된 모든 업무를 누적해 팀 탭으로 넘기며 본다.
  * 팀마다 유형별 집계 한 줄(서버 계산) + AI 종합 서술 불릿 3~5개. 카드 높이는 고정.
  */
 
@@ -64,7 +64,7 @@ export default function WeeklyBriefing({ windowLabel, generatedAt, activityCount
 
       <div className="px-6 py-4 flex-1 min-h-0 overflow-y-auto">
         {teams.length === 0 ? (
-          <p className="text-xs text-slate-400 py-6 text-center">지난 회의 이후 기록된 활동이 아직 없습니다.</p>
+          <p className="text-xs text-slate-400 py-6 text-center">이번 주에 기록된 활동이 아직 없습니다.</p>
         ) : (
           <>
             {/* 팀 탭 — 넘기면서 본다 */}
