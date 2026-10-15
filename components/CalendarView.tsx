@@ -270,23 +270,20 @@ export default function CalendarView({ weeks, activities, reservations, schedule
             </button>
           </div>
         )}
-        <button
-          onClick={() => { setDayViewDate(todayStr); setShowDayView(true) }}
-          className="px-3 py-1 rounded-full text-xs font-semibold bg-violet-100 text-violet-700 hover:bg-violet-200 transition-colors flex items-center gap-1">
-          일별 보기
-        </button>
-        {fieldFilter === 'activity' && viewMode === 'week' && (
-          <button type="button" onClick={toggleShowWork}
-            title="문서·개발·이메일 등 업무 기록을 종일 칩으로 표시"
-            className={`px-3 py-1 rounded-full text-xs font-semibold transition-colors ${
-              showWork ? 'bg-slate-700 text-white' : 'bg-slate-100 text-slate-400 hover:bg-slate-200'
-            }`}>
-            📝 업무 기록 {showWork ? '표시' : '숨김'}
-          </button>
+        {/* 업무기록 표시 스위치 — 보기 탭과 레벨이 다른 옵션이라 오른쪽에 분리 (주간·월간 공통) */}
+        {fieldFilter === 'activity' && (
+          <label className="ml-auto flex items-center gap-1.5 cursor-pointer select-none mr-1"
+            title="문서·개발·이메일 등 업무 기록을 함께 표시할지 선택">
+            <span className="text-[11px] font-medium text-slate-500">📝 업무기록 표시</span>
+            <button type="button" onClick={toggleShowWork} role="switch" aria-checked={showWork}
+              className={`relative w-8 h-[18px] rounded-full transition-colors ${showWork ? 'bg-[#C5D42A]' : 'bg-slate-300'}`}>
+              <span className={`absolute top-[2px] w-[14px] h-[14px] rounded-full bg-white shadow transition-all ${showWork ? 'left-[18px]' : 'left-[2px]'}`} />
+            </button>
+          </label>
         )}
         <button
           onClick={() => setShowCardUsage(true)}
-          className="ml-auto flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-semibold text-amber-700 bg-white border border-amber-200 rounded-lg hover:bg-amber-50 transition-colors">
+          className={`${fieldFilter === 'activity' ? '' : 'ml-auto '}flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-semibold text-amber-700 bg-white border border-amber-200 rounded-lg hover:bg-amber-50 transition-colors`}>
           <CreditCard size={11} />
           법인카드사용
         </button>
@@ -441,6 +438,7 @@ export default function CalendarView({ weeks, activities, reservations, schedule
                     {fieldFilter === 'activity' ? (() => {
                       const byTeam = new Map<string, number>()
                       for (const act of dayActs) {
+                        if (!showWork && !act.tripId && isWorkRecord(act.type)) continue // 업무기록 표시 스위치 존중
                         const t = act.teamName || '기타'
                         byTeam.set(t, (byTeam.get(t) ?? 0) + 1)
                       }
