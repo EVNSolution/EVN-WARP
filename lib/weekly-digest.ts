@@ -1,10 +1,10 @@
 import { prisma } from '@/lib/db'
 
 /**
- * 주간회의 브리핑 — 매주 월/목 오전 10시 주간회의에서 "지난 회의 이후 WARP에 기록된 일"을
+ * 주간회의 브리핑 — "이번 주(월요일 09시 이후) WARP에 기록된 일"을 주 내내 누적해
  * 팀별로 읽어주는 요약. AI 업무 기록 화면의 브리핑 카드가 쓴다.
  *
- * 기간: 직전 회의 시각(월/목 10:00 KST, 진행 중인 회의는 직전 회의로) 이후 등록된 기록
+ * 기간: 이번 주 월요일 09:00 KST 이후 등록된 기록을 한 주 내내 누적해 보여준다
  *       + 수행일이 그 기간(오늘+7일까지)에 걸리는 기존 기록 — AI/수기 등록을 가리지 않는다.
  * 팀 구분: 사람 소속이 아니라 「연계 과제의 팀」 — 독립활동·전사과제 직접 연계는 「공통」.
  * 구조: 팀마다 서버가 계산한 유형별 집계줄(신규영업 N·고객미팅 M…) + AI(Haiku)의 종합 서술
@@ -83,23 +83,21 @@ function slotStart(now = new Date()): Date {
 }
 const DOW_LABEL = ['일', '월', '화', '수', '목', '금', '토']
 
-/** 직전 주간회의(월/목 10:00 KST) 시각 — 회의 시작 후 2시간까지는 "이번 회의"로 보고 그 전 회의를 기준으로 한다. */
-export function previousMeetingSlot(now = new Date()): Date {
-  for (let back = 0; back < 10; back++) {
-    const d = new Date(now.getTime() + KST)
-    d.setUTCDate(d.getUTCDate() - back)
-    const dow = d.getUTCDay()
-    if (dow === 1 || dow === 4) { // 월, 목
-      const slot = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), 10, 0) - KST)
-      if (slot.getTime() + 2 * 3600_000 <= now.getTime()) return slot
-    }
-  }
-  return new Date(now.getTime() - 4 * 86400_000)
+/**
+ * 브리핑 기간 시작 — 이번 주 월요일 09:00 KST. 월~금(주말 포함) 내용이 한 주 동안 계속
+ * 누적되고, 다음 주 월요일 09시에 새 주로 넘어간다. 월요일 09시 전이면 지난주 월요일 기준.
+ */
+export function weekWindowStart(now = new Date()): Date {
+  const k = new Date(now.getTime() + KST)
+  const backToMonday = (k.getUTCDay() + 6) % 7 // 월=0, 화=1 … 일=6
+  let start = new Date(Date.UTC(k.getUTCFullYear(), k.getUTCMonth(), k.getUTCDate() - backToMonday, 9, 0) - KST)
+  if (start.getTime() > now.getTime()) start = new Date(start.getTime() - 7 * 86400_000)
+  return start
 }
 
 function slotLabel(slot: Date): string {
   const k = new Date(slot.getTime() + KST)
-  return `${k.getUTCMonth() + 1}/${k.getUTCDate()}(${DOW_LABEL[k.getUTCDay()]}) 10:00 이후`
+  return `${k.getUTCMonth() + 1}/${k.getUTCDate()}(${DOW_LABEL[k.getUTCDay()]}) ${String(k.getUTCHours()).padStart(2, '0')}:00 이후`
 }
 
 type Row = {
@@ -113,8 +111,8 @@ type Row = {
 
 /**
  * 브리핑 대상 기록 — 둘 중 하나면 포함한다 (AI/수기 등록 구분 없음):
- *  ① 지난 회의 이후 새로 등록된 기록 (등록일 기준)
- *  ② 수행일이 「지난 회의일 ~ 오늘+7일」에 걸리는 기록 — 몇 주 전에 미리 잡아둔
+ *  ① 이번 주(월 09시) 이후 새로 등록된 기록 (등록일 기준)
+ *  ② 수행일이 「주 시작 ~ 오늘+7일」에 걸리는 기록 — 몇 주 전에 미리 잡아둔
  *     수기 일정·반복 일정도 이번 기간에 수행되면 브리핑에 들어온다.
  */
 async function fetchRows(since: Date): Promise<Row[]> {
@@ -202,7 +200,7 @@ async function aiSections(byTeam: Map<string, Row[]>, label: string):
     messages: [{
       role: 'user',
       content:
-        `다음은 ${label} 회사(EV&Solution) 업무시스템에 기록된 활동들이다. 월/목 주간회의에서 `
+        `다음은 ${label} 회사(EV&Solution) 업무시스템에 기록된 이번 주 활동들이다. 주간회의에서 `
         + '소리 내어 읽는 팀별 브리핑을 만들어라.\n'
         + '규칙:\n'
         + '- **개별 업무 제목을 그대로 옮겨 나열하는 것은 금지.** 집계줄과 기록 내용을 근거로,\n'
@@ -266,7 +264,7 @@ async function aiSections(byTeam: Map<string, Row[]>, label: string):
 
 async function build(withAi = true): Promise<WeeklyDigest> {
   const now = new Date()
-  const since = previousMeetingSlot(now)
+  const since = weekWindowStart(now)
   const rows = await fetchRows(since)
   const byTeam = groupByTeam(rows)
 
@@ -316,7 +314,7 @@ async function build(withAi = true): Promise<WeeklyDigest> {
 export async function weeklyDigest(waitFresh = false): Promise<WeeklyDigest> {
   const sameSlot = (d: WeeklyDigest | null) => !!d
     && d.slotAt === slotStart().toISOString()
-    && d.windowStart === previousMeetingSlot().toISOString()
+    && d.windowStart === weekWindowStart().toISOString()
   // 재시작·배포 직후엔 DB의 마지막 생성본부터 복원 — 목록 폴백 대신 AI 요약을 즉시 띄운다
   if (!cache) cache = await loadStored()
   // 이번 슬롯에서 AI 요약까지 끝난(또는 실패가 확정된) 캐시 — 그대로 쓴다
