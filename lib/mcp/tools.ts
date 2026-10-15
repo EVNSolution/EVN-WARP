@@ -64,9 +64,10 @@ export const MCP_INSTRUCTIONS = `
    세부내용(미팅 목적 등, 2~3문장 요약) 초안을 제시하면서, 같은 메시지에서
    「동반 참여자가 있으면 이름도, 공개 여부(공개/제목만 공개/전체 비공개 — 말 없으면 공개)도
    함께 알려주세요」라고 한 번에 묻는다. **세부내용(note)은 필수** — 없이 호출하면 서버가 거부한다.
-   소속 팀이 2개 이상인 사용자는 「어느 팀 업무로 등록할까요?」도 이 질문에 묶어서 번호 선택지로
-   묻고, 선택된 팀의 id 를 team_id 인자에 넣는다 (팀 이름만 보여주고 id 노출 금지 — 소속 팀이
-   1개면 묻지 않는다). team_id 없이 호출하면 서버가 거부하며 선택지를 돌려준다.
+   팀 구분: 과제에 연계하면 그 과제의 팀으로 자동 결정되므로 묻지 않는다. **독립활동(0번)이고
+   소속 팀이 2개 이상**일 때만 「어느 팀 업무로 등록할까요?」를 이 질문에 묶어 번호 선택지로 묻고,
+   선택된 팀의 id 를 team_id 에 넣는다 (팀 이름만 보여주고 id 노출 금지). 사용자가 소속이 아닌
+   다른 팀의 업무라고 하면 그 팀 이름을 그대로 team_id 로 보내면 된다.
    동반자 이름을 받으면 find_coworker 로 확인해 companions 에 넣는다 (동명이인일 때만 추가로
    이메일 구분 질문). ⚠️ 동반자 이름을 note 에 "동행: ○○" 처럼 적지 마라 — companions 인자여야
    WARP 동반 인원 표시·알림이 된다.
@@ -76,7 +77,7 @@ export const MCP_INSTRUCTIONS = `
    |---|---|
    | 제목 | ... |
    | 유형 | ... |
-   | 팀 | ... (소속 팀이 2개 이상일 때만) |
+   | 팀 | ... (독립활동 + 소속 팀 2개 이상이거나, 다른 팀 업무로 지정했을 때만) |
    | 일시 | ... (반복이면 규칙과 총 건수) |
    | 동반자 | ... |
    | 연계 과제 | 전략과제 > 팀과제 > 세부과제 이름 |
@@ -191,7 +192,7 @@ export const TOOL_DEFINITIONS = [
         note: { type: 'string', description: '세부내용 (필수) — 사용자에게 확인받은 2~3문장 요약. 없이 호출하면 등록이 거부된다' },
         companions: { type: 'string', description: '동반자 — 함께한 WARP 팀원 이름들, 쉼표 구분 (예: "홍길동, 김철수"). 반드시 이 인자로 넣을 것 — note 에 텍스트로 적으면 동반 인원 표시·알림이 되지 않는다' },
         task_id: { type: 'string', description: '연계할 과제 id — 전략과제→팀과제→세부과제 순으로 사용자에게 물어 고른 과제의 id. 독립활동이면 빈 문자열("")' },
-        team_id: { type: 'string', description: '등록할 팀 id — 소속 팀이 2개 이상인 사용자만 필수 (없이 호출하면 서버가 선택지를 돌려준다). 소속 팀이 1개면 생략' },
+        team_id: { type: 'string', description: '등록할 팀 — 팀 id 또는 팀 이름 그대로. 과제 연계 시엔 과제의 팀이 자동이라 생략. 독립활동이고 소속 팀이 2개 이상이면 필수(없이 호출하면 서버가 선택지를 돌려준다). 소속이 아닌 팀의 업무도 팀 이름으로 지정 가능' },
         visibility: { type: 'string', enum: ['공개', '제목만 공개', '전체 비공개'], description: '공개 여부 — 사용자에게 물어서 받는다 (기본 「공개」)' },
         start_time: { type: 'string', pattern: TIME_RE, description: '일정 시작 시각 HH:MM — 생략하면 하루종일' },
         end_time: { type: 'string', pattern: TIME_RE, description: '일정 종료 시각 HH:MM' },
@@ -439,33 +440,36 @@ function memberTeamIds(user: McpUser): string[] {
 }
 
 /**
- * 등록할 활동의 팀 결정 — 소속 팀이 1개면 그 팀, 2개 이상이면 team_id 인자를 요구한다
- * (어느 팀 업무인지 사용자에게 묻게 하는 서버 강제 — 구버전 도구 정의 대화도 이 응답으로 배운다).
+ * 등록할 활동의 팀 결정 — 웹 활동추가와 동일 규칙:
+ *  ① team_id(id 또는 팀 이름)를 명시하면 어느 팀이든 그 팀 (내 소속과 무관 — 업무의 팀을 구분하는 값)
+ *  ② 과제에 연계하면 그 과제의 팀 자동 (질문 불필요)
+ *  ③ 독립활동이면 소속 팀 — 1개면 그 팀, 2개 이상이면 질문을 강제한다
  */
-async function resolveActivityTeam(user: McpUser, a: Record<string, any>):
+async function resolveActivityTeam(user: McpUser, a: Record<string, any>, linkedTaskTeamId: string | null):
   Promise<{ ok: true; teamId: string } | { ok: false; msg: string }> {
-  const teams = memberTeamIds(user)
-  if (teams.length === 0) {
-    return { ok: false, msg: `계정(${user.name})에 소속 팀이 없어 활동을 등록할 수 없습니다 — WARP 관리자에게 팀 배정을 요청하세요.` }
-  }
-  if (teams.length === 1) return { ok: true, teamId: teams[0] }
   const given = String(a.team_id ?? '').trim()
-  if (given && teams.includes(given)) return { ok: true, teamId: given }
+  if (given) {
+    const t = await prisma.team.findFirst({ where: { OR: [{ id: given }, { name: given }] }, select: { id: true } })
+    if (!t) return { ok: false, msg: `아직 등록되지 않았습니다 — team_id(${given})에 해당하는 팀이 없습니다. 팀 이름을 그대로 보내도 됩니다.` }
+    return { ok: true, teamId: t.id }
+  }
+  if (linkedTaskTeamId) return { ok: true, teamId: linkedTaskTeamId } // 과제의 팀을 따른다
+  const teams = memberTeamIds(user)
+  if (teams.length === 1) return { ok: true, teamId: teams[0] }
+  if (teams.length === 0) {
+    return { ok: false, msg: `계정(${user.name})에 소속 팀이 없습니다 — 사용자에게 어느 팀 업무인지 물어 팀 이름을 team_id 로 보내거나, WARP 관리자에게 팀 배정을 요청하세요.` }
+  }
   const named = await prisma.team.findMany({ where: { id: { in: teams } }, select: { id: true, name: true } })
   const nameOf = new Map(named.map(t => [t.id, t.name]))
-  // 이름으로 보냈어도 소속 팀과 일치하면 받아준다
-  if (given) {
-    const byName = named.find(t => t.name === given)
-    if (byName) return { ok: true, teamId: byName.id }
-  }
   const choices = teams.map((id, i) => `${i + 1}. ${nameOf.get(id) ?? id} (team_id: ${id})${i === 0 ? ' ← 팀1(기본)' : ''}`)
   return {
     ok: false,
     msg:
-      '아직 등록되지 않았습니다 — 소속 팀이 2개 이상이라 어느 팀 업무로 넣을지 확인이 필요합니다. '
+      '아직 등록되지 않았습니다 — 독립활동인데 소속 팀이 2개 이상이라 어느 팀 업무로 넣을지 확인이 필요합니다. '
       + '사용자에게 「어느 팀 업무로 등록할까요?」라고 번호 선택지로 물어봐 주세요 (팀 이름만 보여주고 id 는 노출 금지):\n'
       + choices.join('\n')
-      + '\n선택된 팀의 team_id 를 인자로 넣어 다시 호출하면 등록됩니다. '
+      + '\n다른 팀의 업무라면 그 팀 이름을 그대로 team_id 로 보내도 됩니다. '
+      + '선택된 팀의 team_id 를 인자로 넣어 다시 호출하면 등록됩니다. '
       + '(team_id 항목이 도구 정의에 보이지 않아도 인자로 전달하면 처리됩니다)',
   }
 }
@@ -475,10 +479,10 @@ async function resolveActivityTeam(user: McpUser, a: Record<string, any>):
  * 있다 (각 단계에서 「여기에 바로 연계 / 더 내려가기」를 사용자가 고른다). 존재만 확인한다.
  */
 async function resolveLeafTask(taskId: string):
-  Promise<{ ok: true; task: { id: string; code: string; title: string } } | { ok: false; msg: string }> {
+  Promise<{ ok: true; task: { id: string; code: string; title: string; teamId: string | null } } | { ok: false; msg: string }> {
   const t = await prisma.strategyTask.findUnique({
     where: { id: taskId },
-    select: { id: true, code: true, title: true },
+    select: { id: true, code: true, title: true, teamId: true },
   })
   if (!t) return { ok: false, msg: 'task_id 에 해당하는 과제가 없습니다 — list_strategy_tasks 로 과제 id 를 다시 확인해 주세요.' }
   return { ok: true, task: t }
@@ -487,10 +491,6 @@ async function resolveLeafTask(taskId: string):
 async function createTask(user: McpUser, a: Record<string, any>): Promise<ToolResult> {
   if (!a.title?.trim() || !a.type) return err('title 과 type 은 필수입니다.')
   if (!ACTIVITY_TYPES.includes(a.type)) return err(`지원하지 않는 활동 유형: ${a.type}`)
-  // 소속 팀 결정 — 2개 이상이면 어느 팀 업무인지 질문을 강제한다
-  const teamResolved = await resolveActivityTeam(user, a)
-  if (!teamResolved.ok) return err(teamResolved.msg)
-  const activityTeamId = teamResolved.teamId
   // 세부내용은 필수 — 없이 오면 등록하지 않고 질문을 지시한다 (구버전 정의 대화도 배우게)
   if (!String(a.note ?? '').trim()) {
     return err(
@@ -512,13 +512,17 @@ async function createTask(user: McpUser, a: Record<string, any>): Promise<ToolRe
       + '호출하면 등록됩니다. 이어서 공개 여부(공개/제목만 공개/전체 비공개)도 물어 visibility 로 넣어 주세요. '
       + '(이 항목들이 도구 정의에 보이지 않아도 인자로 전달하면 처리됩니다)')
   }
-  let linkedTask: { id: string; code: string; title: string } | null = null
+  let linkedTask: { id: string; code: string; title: string; teamId: string | null } | null = null
   const tid = String(a.task_id ?? '').trim()
   if (tid && tid !== '없음' && tid.toLowerCase() !== 'none') {
     const resolved = await resolveLeafTask(tid)
     if (!resolved.ok) return err(`아직 등록되지 않았습니다 — ${resolved.msg}`)
     linkedTask = resolved.task
   }
+  // 팀 결정 — 과제 연계면 과제의 팀, 독립활동이면 소속 팀(2개 이상이면 질문 강제), team_id 명시가 최우선
+  const teamResolved = await resolveActivityTeam(user, a, linkedTask?.teamId ?? null)
+  if (!teamResolved.ok) return err(teamResolved.msg)
+  const activityTeamId = teamResolved.teamId
   // 반복 등록 — 웹 [반복]과 동일한 규칙 (매일/평일/매주, 종료일까지, 최대 60건). 기간 활동과는 불가.
   const FREQ_MAP: Record<string, RepeatFreq> = { '매일': 'daily', '평일': 'weekdays', '매주': 'weekly' }
   let repeatFreq: RepeatFreq | null = null
@@ -586,7 +590,7 @@ async function createTask(user: McpUser, a: Record<string, any>): Promise<ToolRe
   const hint =
     '\n[지원 인자 — 도구 정의에 안 보여도 전달하면 처리됨] companions=동반자(쉼표 구분 실명), '
     + 'repeat_freq("매일"/"평일"/"매주")+repeat_until=반복 일괄 등록(최대 60건 — 반복 일정을 회차별로 '
-    + '따로 만들지 말 것), task_id=과제 연계, team_id=등록 팀(소속 팀 2개 이상이면 필수), '
+    + '따로 만들지 말 것), task_id=과제 연계, team_id=등록 팀(독립활동+복수 소속이면 필수, 팀 이름 가능), '
     + 'visibility=공개 여부, reference_url=참고 링크'
   // 파일(공문·증빙 등)은 MCP 대화로 전달할 수 없다 — 바로 첨부할 수 있는 활동 링크를 준다
   const base = (process.env.NEXTAUTH_URL || 'https://warp.cleversystem.ai').replace(/\/$/, '')

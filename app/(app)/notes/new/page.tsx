@@ -26,6 +26,10 @@ export default async function NewActivityPage({ searchParams }: { searchParams: 
   const me = session?.user as any
   const myUserId   = me?.id   as string | undefined
   const myUserName = me?.name as string | undefined
+  // 독립활동 기본 팀 = 작성자의 팀1 (가나다순 첫 팀이 기본으로 잡히던 문제 방지)
+  const myTeam = myUserId
+    ? await prisma.user.findUnique({ where: { id: myUserId }, select: { teamId: true } })
+    : null
 
   return (
     <ActivityForm
@@ -36,7 +40,7 @@ export default async function NewActivityPage({ searchParams }: { searchParams: 
       mode="new"
       initial={{
         taskId:   preTask?.id,
-        teamId:   preTask?.teamId,
+        teamId:   preTask?.teamId ?? myTeam?.teamId ?? undefined,
         date:     date,
         type:     type,
         userId:   myUserId,
