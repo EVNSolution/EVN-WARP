@@ -1,5 +1,21 @@
 # 마케팅 문의 수신 연동 검토
 
+## 2026-10-15 기존 고객 이름 보완 — 검토 대상
+
+신규 또는 과거 같은 번호 문의에 실명이 있고 WARP에는 이름 미상 고객이 있는 경우, 별도 `POST /api/external/marketing-inquiries/customer-name`에서 **미리보기 → 사용자 확인 → 이름 보완**을 수행한다. 새 고객·리드를 등록하거나 기존 리드의 이름을 수정하는 기능이 아니다. 과거 문의, 등록 영수증, 등록완료 상태와 유입 집계는 보존한다.
+
+- 전용 `WARP_MARKETING_API_KEY`로 새 제한 권한 `customer.unknown-name.enrich`만 추가한다. BUILDUP 키·일반 고객 수정 권한은 사용하지 않는다. 기존 append는 고객 정보를 덮어쓰지 않고, check는 기존 응답 형식을 그대로 유지한다.
+- 정확한 두 출처 튜플과 원본 문의 UUID를 요구한다. Marketing 서버가 보관 중인 동일 번호 문의에서 실명을 선택하고, 인증된 관리자 세션에서 요청자 ID·이름을 정한다. 웹에는 키를 추가하지 않으며 기존 lease 소유 worker가 보호된 단기 작업을 처리한다. 서명된 미리보기 토큰은 서버에서만 보관하고 브라우저에 전달하지 않는다.
+- 입력은 action/source/companyScopeId/homepageScopeId/sourceId/phone/name/actor의 정확한 필드만 허용한다. confirm에는 previewToken이 추가로 필수이고 preview에는 허용하지 않는다. actor는 id/name만 받는다. 본문 16KB, 이름 100자, 요청자 ID 128자, 요청자 이름 100자, 휴대폰 40자, 토큰 2,048자 한도이며 제어문자나 이름·요청자의 앞뒤 공백은 거부한다.
+- 유효한 국내 휴대폰 기본 연락처로만 비교한다(+82/0082·기존 011/016/017/018/019 포함). 회사 번호·보조 연락처·리드 단독 번호는 이름 수정 대상을 찾는 근거가 아니다. 일치 고객이 없으면 not_found, 여러 명이면 ambiguous로 보류하며 후보 고객 정보는 반환하지 않는다.
+- 유일한 현재 고객이 공란·하이픈·정확한 미상/신원미상 형식(괄호 부연 가능)이거나 이름 자체가 같은 휴대폰일 때만 ready다. 실제 이름이 이미 있으면 already_named, 제안 이름과 같으면 same_name이며 수정 토큰을 발급하지 않는다. 실제 이름에 ‘미상’이라는 글자가 포함됐다는 이유로 덮어쓰지 않는다.
+- preview는 읽기 전용이며 유일한 고객의 id/name/정규화된 요청 phone과 proposedName만 노출한다. ready인 경우 전용 키 HMAC으로 출처·원본 문의·전화·실명·요청자·고객 ID·기존 이름/수정시각·10분 만료를 묶은 토큰을 발급한다.
+- confirm은 customerWrite의 공통 쓰기 잠금에서 고객 유일성, 통합되지 않은 동일 고객 ID, 이름/updatedAt 일치와 미상 여부를 다시 확인한다. 다른 담당자가 수정했거나 고객이 통합·삭제되었으면 409 stale_preview로 새 미리보기를 요구한다. 토큰 위변조·만료는 400 invalid_preview이며 고객 정보는 바뀌지 않는다.
+- 성공 시 Customer.name과 자동 updatedAt만 바꾸고 CustomerActivity에 변경 전후 이름, 정확한 출처와 원본 문의 ID, 요청자, 시각을 같은 트랜잭션으로 남긴다. 감사 저장 실패 시 이름 변경도 취소된다. 감사 ID는 미리보기 토큰에서 결정하며 기존 문의 등록 활동 ID와 구분한다.
+- 같은 확인 요청의 재전송은 토큰 유효기간 내 보관된 감사와 현재 고객 이름/updatedAt/휴대폰/정체성이 일치할 때만 unchanged로 응답한다. 정상 최초 저장은 updated다. 감사 삭제·변경이나 이후 고객 변경은 성공 재전송으로 간주하지 않는다. 기존 CustomerActivity의 보존 기간과 편집 권한을 사용하는 변경 이력이며 별도 불변 감사 저장소를 신설하지 않는다.
+
+기계 판독 계약과 응답·오류 목록은 JSON의 customer_name_enrichment에 있다. Marketing은 사용자 확인을 받아 이 경로만 실행하고, 이름 보완 성공을 신규 등록완료 또는 새 DB 유입으로 집계하지 않는다. 운영 공개 전에 양쪽 PR 링크를 JSON에 채우고 파일을 동일하게 맞춘다. 검토 범위는 [기존 Issue #48](https://github.com/EVNSolution/EVN-WARP/issues/48)과 [CRM 위임](https://github.com/EVNSolution/EVN-WARP/pull/56#issuecomment-6009236448)이며 배포 순서는 WARP → Marketing이다. 실제 고객 수정·리드 생성·일괄 보정 없이 합성 DB로 검증한다. 스키마·IAM·배포 경로 변경은 없다.
+
 ## 2026-10-08 홈페이지 수동 CRM 등록 확장 — 검토 대상
 
 이번 변경은 기존 전용 키와 두 외부 경로를 재사용한다. 기존 mleverage 계약과 활동 ID는 유지하고, 홈페이지의 정확한 출처 evn-landing / evnsolution / pv5를 별도로 허용한다. 홈페이지는 HH:mm:ss, 기존 수집 문의는 종전 HH:mm 형식을 유지한다. 홈페이지 고객의 source는 evn-landing이며 활동 제목·상담 종류·지역·동의 버전/시각을 원본대로 보관한다. 새 테이블이나 열은 없다.

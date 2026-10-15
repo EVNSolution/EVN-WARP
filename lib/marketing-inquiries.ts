@@ -65,7 +65,7 @@ function error(code: 'unauthorized' | 'not_configured' | 'bad_payload' | 'ambigu
   return Response.json({ error: code }, { status, headers: NO_STORE })
 }
 
-function readApiKey(env: Readonly<Record<string, string | undefined>>) {
+export function readApiKey(env: Readonly<Record<string, string | undefined>>) {
   const key = env.WARP_MARKETING_API_KEY ?? ''
   return key.length >= MIN_KEY_LENGTH && !/\s/u.test(key) ? key : null
 }
@@ -85,7 +85,7 @@ function normalizeMarketingPhone(value: string | null | undefined): string | nul
   return /^\d{9,15}$/.test(phone) ? phone : null
 }
 
-function allowedScope(value: Record<string, unknown>) {
+export function allowedScope(value: Record<string, unknown>) {
   return (value.source === SOURCE && value.companyScopeId === COMPANY_SCOPE_ID && value.homepageScopeId === HOMEPAGE_SCOPE_ID)
     || (value.source === LANDING_SOURCE && value.companyScopeId === 'evnsolution' && value.homepageScopeId === 'pv5')
 }
@@ -213,7 +213,7 @@ function databaseErrorCode(error: unknown) {
   return /^P\d{4}$/.test(code) ? code : 'unknown'
 }
 
-async function readBoundedBody(request: Request): Promise<Uint8Array | null> {
+export async function readBoundedBody(request: Request): Promise<Uint8Array | null> {
   const reader = request.body?.getReader()
   if (!reader) return new Uint8Array()
   const body = new Uint8Array(MAX_BODY_BYTES)
