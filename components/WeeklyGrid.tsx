@@ -76,11 +76,8 @@ export default function WeeklyGrid({ days, actByDate, todayStr, typeColors, show
   const gridH = (HOUR_END - HOUR_START) * ROW_H
 
   // 빈 시간대 클릭 → 그 날짜·시각이 채워진 활동 추가로 이동
-  const clickEmptySlot = (dateStr: string, e: React.MouseEvent<HTMLDivElement>) => {
-    const rect = e.currentTarget.getBoundingClientRect()
-    const hour = Math.min(23, Math.max(0, Math.floor((e.clientY - rect.top) / ROW_H) + HOUR_START))
+  const goNewActivity = (dateStr: string, hour: number) =>
     router.push(`/notes/new?date=${dateStr}&start=${String(hour).padStart(2, '0')}:00`)
-  }
 
   // 기본 스크롤 위치 = 08시 (0~24시 전체는 스크롤로 본다)
   const scrollRef = useRef<HTMLDivElement>(null)
@@ -161,15 +158,25 @@ export default function WeeklyGrid({ days, actByDate, todayStr, typeColors, show
         {/* 요일 열 */}
         {perDay.map(({ day, blocks }) => (
           <div key={day.dateStr}
-            onClick={e => clickEmptySlot(day.dateStr, e)}
-            title="빈 시간대를 누르면 그 시각으로 활동을 추가합니다"
-            className={`relative border-r border-slate-100 last:border-r-0 cursor-pointer ${
+            className={`relative border-r border-slate-100 last:border-r-0 ${
               day.dateStr === todayStr ? 'bg-amber-50/40' : day.dow === 0 || day.dow === 6 ? 'bg-slate-50/50' : ''
             }`}
             style={{ height: gridH }}>
+            {/* 빈 시간 칸 — 올리면 그 시간대가 하이라이트되고, 누르면 그 시각으로 활동 추가 */}
+            {hours.slice(0, -1).map(h => (
+              <div key={`slot-${h}`}
+                onClick={() => goNewActivity(day.dateStr, h)}
+                title={`${String(h).padStart(2, '0')}:00 활동 추가`}
+                className="group/slot absolute inset-x-0 cursor-pointer hover:bg-[#C5D42A]/20 transition-colors"
+                style={{ top: (h - HOUR_START) * ROW_H, height: ROW_H }}>
+                <span className="hidden group-hover/slot:flex h-full items-center justify-center text-[10px] font-bold text-[#7a9200] pointer-events-none">
+                  + {String(h).padStart(2, '0')}:00
+                </span>
+              </div>
+            ))}
             {/* 시간 눈금 */}
             {hours.slice(1).map(h => (
-              <div key={h} className="absolute inset-x-0 border-t border-slate-100"
+              <div key={h} className="absolute inset-x-0 border-t border-slate-100 pointer-events-none"
                 style={{ top: (h - HOUR_START) * ROW_H }} />
             ))}
             {/* 일정 블록 */}

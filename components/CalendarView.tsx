@@ -272,9 +272,9 @@ export default function CalendarView({ weeks, activities, reservations, schedule
         )}
         {/* 업무기록 표시 스위치 — 보기 탭과 레벨이 다른 옵션이라 오른쪽에 분리 (주간·월간 공통) */}
         {fieldFilter === 'activity' && (
-          <label className="ml-auto flex items-center gap-1.5 cursor-pointer select-none mr-1"
+          <label className="ml-auto flex items-center gap-2 cursor-pointer select-none px-2.5 py-1 bg-white border border-slate-200 rounded-lg shadow-sm hover:border-slate-300 transition-colors mr-1"
             title="문서·개발·이메일 등 업무 기록을 함께 표시할지 선택">
-            <span className="text-[11px] font-medium text-slate-500">📝 업무기록 표시</span>
+            <span className={`text-[11px] font-semibold ${showWork ? 'text-slate-600' : 'text-slate-400'}`}>📝 업무기록 표시</span>
             <button type="button" onClick={toggleShowWork} role="switch" aria-checked={showWork}
               className={`relative w-8 h-[18px] rounded-full transition-colors ${showWork ? 'bg-[#C5D42A]' : 'bg-slate-300'}`}>
               <span className={`absolute top-[2px] w-[14px] h-[14px] rounded-full bg-white shadow transition-all ${showWork ? 'left-[18px]' : 'left-[2px]'}`} />
