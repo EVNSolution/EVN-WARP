@@ -1,5 +1,6 @@
 'use client'
 
+import { useEffect, useRef } from 'react'
 import { isWorkRecord } from '@/lib/activityKind'
 import type { CalActivity } from './CalendarView'
 
@@ -7,12 +8,15 @@ import type { CalActivity } from './CalendarView'
  * 업무 탭 주간 뷰 — 세로 시간축 × 월~일 7열 그리드.
  * 시간이 있는 일정형 활동은 시간대 블록으로, 시간이 없거나 업무기록형(문서·개발 등)은
  * 각 요일 상단의 「종일」 칩으로 보여준다. 블록·칩을 누르면 기존 활동 팝업이 열린다.
+ * 시간축은 0~24시 전체를 그리고, 기본 스크롤 위치는 08시(업무시간)다.
  */
 
 type WeekDay = { dateStr: string; day: number; inMonth: boolean; dow: number }
 
-const HOUR_START = 8
-const HOUR_END = 20 // 20:00 줄까지
+const HOUR_START = 0
+const HOUR_END = 24
+const VIEW_START = 8  // 처음 보이는 시각
+const VIEW_HOURS = 12 // 뷰포트 높이(시간 수) — 08~20시가 기본으로 보인다
 const ROW_H = 44 // px per hour
 
 const DOW_KR = ['일', '월', '화', '수', '목', '금', '토']
@@ -68,6 +72,12 @@ export default function WeeklyGrid({ days, actByDate, todayStr, typeColors, show
 }) {
   const hours = Array.from({ length: HOUR_END - HOUR_START + 1 }, (_, i) => HOUR_START + i)
   const gridH = (HOUR_END - HOUR_START) * ROW_H
+
+  // 기본 스크롤 위치 = 08시 (0~24시 전체는 스크롤로 본다)
+  const scrollRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (scrollRef.current) scrollRef.current.scrollTop = (VIEW_START - HOUR_START) * ROW_H
+  }, [])
 
   const perDay = days.map(d => {
     const acts = actByDate.get(d.dateStr) ?? []
@@ -127,7 +137,8 @@ export default function WeeklyGrid({ days, actByDate, todayStr, typeColors, show
         ))}
       </div>
 
-      {/* 시간축 그리드 */}
+      {/* 시간축 그리드 — 0~24시 전체, 기본 스크롤 위치 08시 */}
+      <div ref={scrollRef} className="overflow-y-auto" style={{ maxHeight: VIEW_HOURS * ROW_H + 2 }}>
       <div className="grid" style={{ gridTemplateColumns: '48px repeat(7, 1fr)' }}>
         {/* 시간 라벨 열 */}
         <div className="relative border-r border-slate-200" style={{ height: gridH }}>
@@ -156,7 +167,6 @@ export default function WeeklyGrid({ days, actByDate, todayStr, typeColors, show
               const top = Math.max(0, ((b.startMin / 60) - HOUR_START) * ROW_H)
               const rawH = ((b.endMin - Math.max(b.startMin, HOUR_START * 60)) / 60) * ROW_H
               const height = Math.max(22, Math.min(rawH, gridH - top))
-              if (b.startMin >= HOUR_END * 60) return null // 범위 밖 (20시 이후 시작) — 종일 칩이 아니라 생략 대신 바닥에 붙임
               const widthPct = 100 / b.cols
               return (
                 <button key={b.act.id + b.act.date} type="button" onClick={() => onSelect(b.act)}
@@ -172,6 +182,7 @@ export default function WeeklyGrid({ days, actByDate, todayStr, typeColors, show
             })}
           </div>
         ))}
+      </div>
       </div>
     </section>
   )

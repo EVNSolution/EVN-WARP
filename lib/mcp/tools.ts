@@ -459,9 +459,15 @@ async function resolveActivityTeam(user: McpUser, a: Record<string, any>, linked
   if (teams.length === 0) {
     return { ok: false, msg: `계정(${user.name})에 소속 팀이 없습니다 — 사용자에게 어느 팀 업무인지 물어 팀 이름을 team_id 로 보내거나, WARP 관리자에게 팀 배정을 요청하세요.` }
   }
-  const named = await prisma.team.findMany({ where: { id: { in: teams } }, select: { id: true, name: true } })
+  const [named, commonTeam] = await Promise.all([
+    prisma.team.findMany({ where: { id: { in: teams } }, select: { id: true, name: true } }),
+    prisma.team.findUnique({ where: { name: '공통' }, select: { id: true } }), // 팀 구분이 애매할 때 쓰는 구분자
+  ])
   const nameOf = new Map(named.map(t => [t.id, t.name]))
   const choices = teams.map((id, i) => `${i + 1}. ${nameOf.get(id) ?? id} (team_id: ${id})${i === 0 ? ' ← 팀1(기본)' : ''}`)
+  if (commonTeam && !teams.includes(commonTeam.id)) {
+    choices.push(`${teams.length + 1}. 공통 — 팀 구분이 애매한 업무 (team_id: ${commonTeam.id})`)
+  }
   return {
     ok: false,
     msg:
