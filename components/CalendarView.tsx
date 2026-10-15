@@ -8,6 +8,7 @@ import VehicleReservationModal from './VehicleReservationModal'
 import VehicleStatusModal from './VehicleStatusModal'
 import CardUsageModal from './CardUsageModal'
 import ActivityComments from './ActivityComments'
+import WeeklyGrid from './WeeklyGrid'
 import { isWorkRecord } from '@/lib/activityKind'
 
 export type CalActivity = {
@@ -56,7 +57,7 @@ export type CalVehicleReservation = {
 
 type WeekDay = { dateStr: string; day: number; inMonth: boolean; dow: number }
 
-const TYPE_COLORS: Record<string, { bg: string; text: string }> = {
+export const TYPE_COLORS: Record<string, { bg: string; text: string }> = {
   '내부회의':        { bg: 'bg-blue-100',    text: 'text-blue-700' },
   '외부미팅':        { bg: 'bg-purple-100',  text: 'text-purple-700' },
   '이메일':          { bg: 'bg-sky-100',     text: 'text-sky-700' },
@@ -131,13 +132,13 @@ interface Props {
   openActivityId?: string
 }
 
-type FieldFilter = 'all' | 'activity' | 'leave' | 'vehicle' | 'schedule'
+// 업무(주간 기본·월간은 팀별 그룹핑) / 근태·차량·재무회계(월력)
+type FieldFilter = 'activity' | 'leave' | 'vehicle' | 'schedule'
 const FIELD_FILTERS: { key: FieldFilter; label: string }[] = [
-  { key: 'all',      label: '전체' },
-  { key: 'activity', label: '활동' },
+  { key: 'activity', label: '업무' },
   { key: 'leave',    label: '근태' },
   { key: 'vehicle',  label: '차량' },
-  { key: 'schedule', label: '재무회계일정' },
+  { key: 'schedule', label: '재무회계' },
 ]
 
 export default function CalendarView({ weeks, activities, reservations, scheduleItems, todayStr, myUserId, isAdmin = false, canViewAllCardUsage = false, openActivityId }: Props) {
@@ -156,7 +157,11 @@ export default function CalendarView({ weeks, activities, reservations, schedule
   const [showVehStatus, setShowVehStatus] = useState(false)
   const [showCardUsage, setShowCardUsage] = useState(false)
   const [newResvDate, setNewResvDate]   = useState('')
-  const [fieldFilter, setFieldFilter]   = useState<FieldFilter>('all')
+  const [fieldFilter, setFieldFilter]   = useState<FieldFilter>('activity')
+  // 업무 탭 보기 — 주간(기본) / 월간(팀별 그룹핑)
+  const [viewMode, setViewMode]         = useState<'week' | 'month'>('week')
+  const [weekIdx, setWeekIdx]           = useState<number>(() =>
+    Math.max(0, weeks.findIndex(w => w.some(d => d.dateStr === todayStr))))
   const [editingResv, setEditingResv]   = useState<CalVehicleReservation | null>(null)
   const [deletingResv, setDeletingResv] = useState(false)
   const [showDayView, setShowDayView]   = useState(false)
@@ -170,8 +175,17 @@ export default function CalendarView({ weeks, activities, reservations, schedule
     try {
       const saved = localStorage.getItem('warp-calendar-field-filter')
       if (saved && FIELD_FILTERS.some(f => f.key === saved)) setFieldFilter(saved as FieldFilter)
+      // 구버전 저장값('all'·'활동')은 업무 탭으로
+      else if (saved) setFieldFilter('activity')
+      const savedView = localStorage.getItem('warp-calendar-view-mode')
+      if (savedView === 'month' || savedView === 'week') setViewMode(savedView)
     } catch {}
   }, [])
+
+  const changeViewMode = (mode: 'week' | 'month') => {
+    setViewMode(mode)
+    try { localStorage.setItem('warp-calendar-view-mode', mode) } catch {}
+  }
 
   useEffect(() => {
     try { if (localStorage.getItem('warp-calendar-show-work') === '0') setShowWork(false) } catch {}
@@ -233,29 +247,43 @@ export default function CalendarView({ weeks, activities, reservations, schedule
 
   return (
     <>
-      {/* ─── 표시 항목 필터 + 일별 보기 + 차량 신청 ─── */}
+      {/* ─── 보기 탭(업무·근태·차량·재무회계) + 주/월 토글 + 일별 보기 ─── */}
       <div className="flex items-center gap-2 mb-3 flex-wrap">
-        <span className="text-xs font-semibold text-slate-500">표시</span>
         {FIELD_FILTERS.map(f => (
           <button key={f.key} type="button" onClick={() => changeFieldFilter(f.key)}
-            className={`px-3 py-1 rounded-full text-xs font-semibold transition-colors ${
+            className={`px-3.5 py-1 rounded-full text-xs font-semibold transition-colors ${
               fieldFilter === f.key ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
             }`}>
             {f.label}
           </button>
         ))}
+        {/* 업무 탭 전용 — 주간(기본) / 월간(팀별 그룹핑) 전환 */}
+        {fieldFilter === 'activity' && (
+          <div className="flex rounded-full overflow-hidden border border-slate-200 text-xs font-semibold">
+            <button type="button" onClick={() => changeViewMode('week')}
+              className={`px-3 py-1 transition-colors ${viewMode === 'week' ? 'bg-slate-800 text-white' : 'bg-white text-slate-500 hover:bg-slate-50'}`}>
+              주간
+            </button>
+            <button type="button" onClick={() => changeViewMode('month')}
+              className={`px-3 py-1 border-l border-slate-200 transition-colors ${viewMode === 'month' ? 'bg-slate-800 text-white' : 'bg-white text-slate-500 hover:bg-slate-50'}`}>
+              월간
+            </button>
+          </div>
+        )}
         <button
           onClick={() => { setDayViewDate(todayStr); setShowDayView(true) }}
           className="px-3 py-1 rounded-full text-xs font-semibold bg-violet-100 text-violet-700 hover:bg-violet-200 transition-colors flex items-center gap-1">
           일별 보기
         </button>
-        <button type="button" onClick={toggleShowWork}
-          title="문서·개발·이메일 등 업무 기록을 사람별로 묶어 표시"
-          className={`px-3 py-1 rounded-full text-xs font-semibold transition-colors ${
-            showWork ? 'bg-slate-700 text-white' : 'bg-slate-100 text-slate-400 hover:bg-slate-200'
-          }`}>
-          📝 업무 기록 {showWork ? '표시' : '숨김'}
-        </button>
+        {fieldFilter === 'activity' && viewMode === 'week' && (
+          <button type="button" onClick={toggleShowWork}
+            title="문서·개발·이메일 등 업무 기록을 종일 칩으로 표시"
+            className={`px-3 py-1 rounded-full text-xs font-semibold transition-colors ${
+              showWork ? 'bg-slate-700 text-white' : 'bg-slate-100 text-slate-400 hover:bg-slate-200'
+            }`}>
+            📝 업무 기록 {showWork ? '표시' : '숨김'}
+          </button>
+        )}
         <button
           onClick={() => setShowCardUsage(true)}
           className="ml-auto flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-semibold text-amber-700 bg-white border border-amber-200 rounded-lg hover:bg-amber-50 transition-colors">
@@ -276,7 +304,43 @@ export default function CalendarView({ weeks, activities, reservations, schedule
         </button>
       </div>
 
-      {/* ─── 캘린더 그리드 ─── */}
+      {/* ─── 업무 주간 뷰 (기본) ─── */}
+      {fieldFilter === 'activity' && viewMode === 'week' ? (() => {
+        const idx = Math.min(Math.max(weekIdx, 0), weeks.length - 1)
+        const weekDays = weeks[idx]
+        const weekLabel = (d: WeekDay) => `${Number(d.dateStr.slice(5, 7))}/${d.day}`
+        // 근태 유형은 업무 탭에서 제외
+        const weekActs = new Map<string, CalActivity[]>()
+        for (const d of weekDays) {
+          weekActs.set(d.dateStr, (actByDate.get(d.dateStr) ?? []).filter(a => !LEAVE_TYPES.has(a.type)))
+        }
+        return (
+          <>
+            <div className="flex items-center justify-center gap-2 mb-2">
+              <button type="button" onClick={() => setWeekIdx(Math.max(0, idx - 1))} disabled={idx === 0}
+                className="w-7 h-7 flex items-center justify-center rounded-lg border border-slate-200 text-slate-400 hover:text-slate-700 hover:bg-slate-50 disabled:opacity-30">
+                <ChevronLeft size={14} />
+              </button>
+              <span className="text-sm font-bold text-slate-700 min-w-[150px] text-center">
+                {weekLabel(weekDays[0])}({DOW_KR[weekDays[0].dow]}) ~ {weekLabel(weekDays[6])}({DOW_KR[weekDays[6].dow]})
+              </span>
+              <button type="button" onClick={() => setWeekIdx(Math.min(weeks.length - 1, idx + 1))} disabled={idx === weeks.length - 1}
+                className="w-7 h-7 flex items-center justify-center rounded-lg border border-slate-200 text-slate-400 hover:text-slate-700 hover:bg-slate-50 disabled:opacity-30">
+                <ChevronRight size={14} />
+              </button>
+            </div>
+            <WeeklyGrid
+              days={weekDays}
+              actByDate={weekActs}
+              todayStr={todayStr}
+              typeColors={TYPE_COLORS}
+              showWork={showWork}
+              onSelect={act => setSelected(act)}
+              onOpenDay={openDayView}
+            />
+          </>
+        )
+      })() : (
       <section className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
 
         {/* 요일 헤더 */}
@@ -296,14 +360,13 @@ export default function CalendarView({ weeks, activities, reservations, schedule
                 const dayActs = (fieldFilter === 'vehicle' || fieldFilter === 'schedule')
                   ? []
                   : (actByDate.get(dateStr) ?? []).filter(a => {
-                      if (fieldFilter === 'all') return true
                       const isLeave = LEAVE_TYPES.has(a.type)
                       return fieldFilter === 'leave' ? isLeave : !isLeave
                     })
-                const dayResvs = (fieldFilter === 'activity' || fieldFilter === 'leave' || fieldFilter === 'schedule') ? [] : resvForDate(dateStr)
+                const dayResvs = fieldFilter === 'vehicle' ? resvForDate(dateStr) : []
                 const isToday  = dateStr === todayStr
 
-                const daySchedItems = (fieldFilter === 'all' || fieldFilter === 'schedule')
+                const daySchedItems = fieldFilter === 'schedule'
                   ? (schedByDate.get(dateStr) ?? [])
                   : []
 
@@ -374,8 +437,27 @@ export default function CalendarView({ weeks, activities, reservations, schedule
                       </div>
                     )}
 
-                    {/* 활동 칩 — 클릭 시 모달 or 출장 페이지 */}
-                    {(() => {
+                    {/* 업무 월간 — 팀별 집계 칩, 클릭하면 일별 보기 팝업 (나열 방지) */}
+                    {fieldFilter === 'activity' ? (() => {
+                      const byTeam = new Map<string, number>()
+                      for (const act of dayActs) {
+                        const t = act.teamName || '기타'
+                        byTeam.set(t, (byTeam.get(t) ?? 0) + 1)
+                      }
+                      const entries = [...byTeam.entries()].sort((a, b) => b[1] - a[1])
+                      return (
+                        <div className="space-y-0.5">
+                          {entries.map(([team, n]) => (
+                            <button key={team} type="button" onClick={() => openDayView(dateStr)}
+                              title={`${team} ${n}건 — 일별 보기에서 확인`}
+                              className="flex items-center justify-between gap-1 text-[9px] font-semibold px-1.5 py-0.5 rounded w-full bg-indigo-50 text-indigo-700 border border-indigo-100 hover:bg-indigo-100 transition-colors">
+                              <span className="truncate">{team}</span>
+                              <span className="shrink-0 font-bold">{n}</span>
+                            </button>
+                          ))}
+                        </div>
+                      )
+                    })() : (() => {
                       const leaveGroups = new Map<string, { first: CalActivity; names: string[] }>()
                       const otherActs: CalActivity[] = []
                       const workByPerson = new Map<string, number>()
@@ -452,6 +534,7 @@ export default function CalendarView({ weeks, activities, reservations, schedule
           </div>
         ))}
       </section>
+      )}
 
       {/* ─── 활동 상세 모달 ─── */}
       {selected && (
@@ -691,11 +774,8 @@ export default function CalendarView({ weeks, activities, reservations, schedule
         }
         const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v))
 
-        const dayActs = activities.filter(a => a.date === dayViewDate &&
-          (fieldFilter === 'all' ? true
-           : fieldFilter === 'leave' ? LEAVE_TYPES.has(a.type)
-           : fieldFilter === 'vehicle' ? false
-           : !LEAVE_TYPES.has(a.type)))
+        // 일별 보기는 보기 탭과 무관하게 그날의 모든 활동(일정·업무기록·근태)을 보여준다
+        const dayActs = activities.filter(a => a.date === dayViewDate)
 
         // 반차(오전/오후): startTime이 없으면 합성 시간 부여 → 타임라인 막대로 표시
         const HALF_DAY_TIMES: Record<string, { startTime: string; endTime: string }> = {

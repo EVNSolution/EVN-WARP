@@ -30,19 +30,10 @@ export default function FilterSelects({ monthId, activeTab, userParam, teamParam
   // select 자체의 흰 글자색이 그대로 상속되면 안 보이게 된다 — option에 어두운 글자색을 따로 지정
   const optionCls = "text-slate-800 bg-white"
 
+  // 팀 선택은 범위 선택기(개인|팀|전체)로 이동 — 여기서는 작성자 선택만 남긴다
+  void teams
   return (
     <div className="flex items-center gap-3 shrink-0">
-      <div className="flex items-center gap-1.5">
-        <label className="text-xs font-semibold text-white/50">팀</label>
-        <select
-          value={teamParam ?? ''}
-          onChange={e => navigate({ teamName: e.target.value })}
-          className={selectCls}
-        >
-          <option value="" className={optionCls}>전체</option>
-          {teams.map(t => <option key={t.id} value={t.name} className={optionCls}>{t.name}</option>)}
-        </select>
-      </div>
       {userNames.length > 1 && (
         <div className="flex items-center gap-1.5">
           <label className="text-xs font-semibold text-white/50">작성자</label>
