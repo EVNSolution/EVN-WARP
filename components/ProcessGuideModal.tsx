@@ -58,8 +58,13 @@ export default function ProcessGuideModal({ onClose }: { onClose: () => void }) 
       const mt: TouchpointMap = {}
       for (const ph of PIPELINE) {
         for (const proc of ph.processes) {
-          mc[proc.code] = cl[proc.code] ?? proc.checks
-          md[proc.code] = dc[proc.code] ?? proc.documents
+          mc[proc.code] = proc.code === '1-2'
+            ? [...proc.checks.map(base => ({ ...base, label: base.upload ? base.label : cl[proc.code]?.find(item => item.key === base.key)?.label ?? base.label })),
+              ...(cl[proc.code] ?? []).filter(item => !proc.checks.some(base => base.key === item.key))]
+            : cl[proc.code] ?? proc.checks
+          md[proc.code] = proc.code === '1-2'
+            ? [...proc.documents, ...(dc[proc.code] ?? []).filter(doc => doc.key !== 'initial_quotation')]
+            : dc[proc.code] ?? proc.documents
           mt[proc.code] = tp[proc.code] ?? proc.touchpoints ?? []
         }
       }
@@ -264,7 +269,7 @@ export default function ProcessGuideModal({ onClose }: { onClose: () => void }) 
         {segment === 'B2C' && (
           <div className="px-6 py-3 border-b border-blue-100 bg-blue-50/70 text-[11px] text-slate-600 leading-relaxed">
             <p className="font-bold text-blue-800">단계 이동 관문</p>
-            <p>미성숙: 전화통화 완료 → 잠재: 구매의사 확인 + 1차 견적서 발송 완료 → 성숙: 최종 견적서 확정</p>
+            <p>미성숙: 전화통화 완료 → 잠재: 구매의사 확인 + 1차 견적서 발송 완료 + 1차 견적서 첨부 → 성숙: 최종 견적서 확정</p>
             <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1">
               {Object.entries(ROLE_GUIDE).map(([role, guide]) => (
                 <span key={role} className="inline-flex items-center gap-1">

@@ -79,13 +79,17 @@ export async function prepareSalesProcessWrite(tx: CustomerDb, id: string, b: Re
   if (isGateComplete(checks['1-3-confirmed']) && (!isGateComplete(priorChecks['1-3-confirmed']) || changed)) {
     const error = quoteError(process); if (error) fail(error)
   }
-  const error = transitionError(segment, from, to, checks, process)
+  const documents = from === to ? [] : await tx.dealDocument.findMany({
+    where: { dealId: id, docKey: 'initial_quotation', fileSize: { gt: 0 } },
+    select: { id: true, docKey: true, fileSize: true },
+  })
+  const error = transitionError(segment, from, to, checks, process, documents)
   if (error) fail(error)
   if (!protectedChange) return {current, data:{}}
   await tx.salesProcessAudit.create({data:{id:crypto.randomUUID(),dealId:id,actorId:actor.id,actorName:actor.name,
     reason: reason || '영업 절차 확인',
     beforeJson:JSON.stringify({stage:from,process:previous,checks:priorChecks}),
-    afterJson:JSON.stringify({stage:to,process,checks}),
+    afterJson:JSON.stringify({stage:to,process,checks,initialQuotationIds:documents.map(doc => doc.id)}),
   }})
   return {current,data:{salesProcessJson:JSON.stringify(process),salesProcessRevision:{increment:1}}}
 }

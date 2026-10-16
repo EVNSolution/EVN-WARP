@@ -100,7 +100,8 @@ export async function POST(req: NextRequest) {
         await customerWrite(prisma,async tx=>{
           const current=await tx.salesDeal.findUniqueOrThrow({where:{id:rec.id},include:{customer:{select:{customerSegment:true}}}})
           const from=current.stageCode ?? getStageCode(current.stage)
-          const error=transitionError(current.customer?.customerSegment ?? current.customerSegment,from,stageCode,parseChecks(current.checklistJson),readSalesProcess(current.salesProcessJson))
+          const documents=await tx.dealDocument.findMany({where:{dealId:current.id,docKey:'initial_quotation'},select:{docKey:true,fileSize:true}})
+          const error=transitionError(current.customer?.customerSegment ?? current.customerSegment,from,stageCode,parseChecks(current.checklistJson),readSalesProcess(current.salesProcessJson),documents)
           if(error) throw new CustomerMergeError(400,error)
           await tx.salesDeal.update({where:{id:rec.id},data:{...dealData,salesProcessRevision:{increment:1}}})
         })

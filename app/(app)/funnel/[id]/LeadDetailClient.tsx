@@ -342,7 +342,11 @@ export default function LeadDetailClient({ canDeleteProcessAudit = false, deal, 
   const pendingDocRef = useRef<{ docKey: string; docLabel: string; stageCode: string } | null>(null)
 
   useEffect(() => {
-    fetch(`/api/deals/${deal.id}/documents`).then(r => r.json()).then(setDealDocs).catch(() => {})
+    fetch(`/api/deals/${deal.id}/documents`).then(async r => {
+      const docs = await r.json()
+      if (!r.ok || !Array.isArray(docs)) throw new Error('첨부파일을 불러오지 못했습니다. 새로고침해 주세요.')
+      setDealDocs(docs)
+    }).catch(() => setMsg('첨부파일을 불러오지 못했습니다. 새로고침해 주세요.'))
   }, [deal.id])
 
   const handleDocUploadClick = (docKey: string, docLabel: string, sc: string) => {
@@ -354,6 +358,7 @@ export default function LeadDetailClient({ canDeleteProcessAudit = false, deal, 
     const file = e.target.files?.[0]
     const pending = pendingDocRef.current
     if (!file || !pending) return
+    if (!file.size) { setMsg('내용이 있는 파일을 선택해 주세요.'); e.target.value = ''; return }
     setUploadingDoc(pending.docKey)
     try {
       const fd = new FormData()
@@ -363,7 +368,10 @@ export default function LeadDetailClient({ canDeleteProcessAudit = false, deal, 
       fd.append('docLabel', pending.docLabel)
       const res = await fetch(`/api/deals/${deal.id}/documents`, { method: 'POST', body: fd })
       const doc = await res.json()
+      if (!res.ok) throw new Error(doc.error || '파일 업로드에 실패했습니다.')
       setDealDocs(prev => [...prev, doc])
+    } catch (error) {
+      setMsg(error instanceof Error ? error.message : '파일 업로드에 실패했습니다.')
     } finally {
       setUploadingDoc(null)
       pendingDocRef.current = null
@@ -590,7 +598,7 @@ export default function LeadDetailClient({ canDeleteProcessAudit = false, deal, 
   }
 
   /* ── 단계 필수 항목 충족 여부 ── */
-  const stageError = (from: string, to: string) => transitionError(isB2C ? 'B2C' : 'B2B', from, to, checks, processData)
+  const stageError = (from: string, to: string) => transitionError(isB2C ? 'B2C' : 'B2B', from, to, checks, processData, dealDocs)
   const canAdvance = (code: string) => !stageError(code, allCodes[allCodes.indexOf(code) + 1] ?? code)
   const selectStage = (code: string) => {
     const error = stageError(deal.stageCode, code)
@@ -910,13 +918,20 @@ export default function LeadDetailClient({ canDeleteProcessAudit = false, deal, 
     const isOpen    = isCurrent || expanded.has(proc.code)
     // B2B 전용 증빙서류 목록이 있고 현재 고객이 B2B면 우선 사용
     const isB2BSeg  = (customer?.customerSegment ?? deal.customerSegment) === 'B2B'
-    const docs      = (isB2BSeg && proc.documentsB2B) ? proc.documentsB2B : proc.documents
+    const docs      = ((isB2BSeg && proc.documentsB2B) ? proc.documentsB2B : proc.documents)
+      .filter(doc => !(isB2C && proc.code === '1-2' && doc.key === 'initial_quotation'))
 
     const fDefs       = STAGE_FIELDS[proc.code] ?? []
     const req         = STAGE_REQUIRED[proc.code] ?? []
     const stageChecks = (checksMap[proc.code] ?? (isB2BSeg && ('checksB2B' in proc) ? (proc as import('@/lib/pipeline').PipelineProcess).checksB2B : undefined) ?? proc.checks).map(c => ({...c, label: isB2C && PROCESS_GATES[proc.code]?.includes(c.key) ? `[전환 필수] ${GATE_LABELS[c.key]}` : c.label}))
+    const separateRequired = isB2C && proc.code === '1-2'
+    const checkGroups = separateRequired ? [
+      { title: '전환 필수', checks: stageChecks.filter(c => c.role === 'required') },
+      { title: '선택 사항 · 참고 정보', checks: stageChecks.filter(c => c.role !== 'required') },
+    ] : [{ title: '체크리스트', checks: stageChecks }]
     const doneCnt     = stageChecks.filter(c =>
-      c.field ? isFieldSatisfied(c.field) : !!checks[c.key]
+      c.upload ? dealDocs.some(doc => doc.docKey === c.upload && doc.fileSize > 0)
+        : c.field ? isFieldSatisfied(c.field) : !!checks[c.key]
     ).length
     const totalCnt    = stageChecks.length
 
@@ -1032,13 +1047,14 @@ export default function LeadDetailClient({ canDeleteProcessAudit = false, deal, 
           if (JSON.stringify(value.finalQuote) !== JSON.stringify(processData.finalQuote)) setChecks(previous => ({...previous, '1-3-confirmed':false}))
           setProcessData(value); setSaved(false)
         }} documents={dealDocs} reason={processReason} onReasonChange={value => {setProcessReason(value);setSaved(false)}} queue={saved ? deal.queue : {position:null,message:'저장 후 순번을 다시 계산합니다.'}} audit={deal.processAudit} auditDealId={deal.id} canDeleteAudit={canDeleteProcessAudit} />}
-        {isB2C && PROCESS_GATES[proc.code] && <p className="px-4 py-3 text-xs text-blue-800 bg-blue-50">다음 단계 필수: {PROCESS_GATES[proc.code].map(k => GATE_LABELS[k]).join(' + ')}. 나머지 항목은 참고 정보·거래별 업무로 기록을 유지합니다.</p>}
+        {isB2C && PROCESS_GATES[proc.code] && <p className="px-4 py-3 text-xs text-blue-800 bg-blue-50">다음 단계 필수: {PROCESS_GATES[proc.code].map(k => GATE_LABELS[k]).join(' + ')}{proc.code === '1-2' ? ' + 1차 견적서 첨부' : ''}. 나머지 항목은 참고 정보·거래별 업무로 기록을 유지합니다.</p>}
         {/* 체크리스트 */}
-        {stageChecks.length > 0 && (
-          <div className="px-4 py-3 bg-white">
-            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">체크리스트</p>
+        {checkGroups.filter(group => group.checks.length > 0).map(group => (
+          <section key={group.title} aria-label={group.title} className={`px-4 py-4 border-t border-slate-100 ${separateRequired && group.title === '전환 필수' ? 'bg-blue-50/30' : 'bg-white'}`}>
+            <h3 className={`text-xs font-bold mb-2 ${separateRequired && group.title === '전환 필수' ? 'text-blue-700' : 'text-slate-500'}`}>{group.title}</h3>
+            {separateRequired && group.title !== '전환 필수' && <p className="text-xs text-slate-400 mb-3">다음 단계 이동에 필수는 아니며, 기존 기록은 유지됩니다.</p>}
             <div className="space-y-2">
-              {stageChecks.map(c => {
+              {group.checks.map(c => {
                 /* ── 공통: 체크 여부 판단 ── */
                 const checked: boolean = c.field
                   ? isFieldSatisfied(c.field)
@@ -1284,7 +1300,7 @@ export default function LeadDetailClient({ canDeleteProcessAudit = false, deal, 
                 if (c.upload) {
                   const uploaded = dealDocs.filter(d => d.docKey === c.upload)
                   const isUploading = uploadingDoc === c.upload
-                  const hasFile = uploaded.length > 0
+                  const hasFile = uploaded.some(doc => doc.fileSize > 0)
                   const docChecked = hasFile
                   const cls = `rounded-lg border px-3 py-2.5 transition-colors ${
                     docChecked ? 'bg-green-50 border-green-200' : 'bg-white border-slate-200'
@@ -1296,7 +1312,7 @@ export default function LeadDetailClient({ canDeleteProcessAudit = false, deal, 
                         <span className={`text-sm shrink-0 ${docChecked ? 'text-green-500' : 'text-slate-300'}`}>
                           {docChecked ? '✓' : '○'}
                         </span>
-                        <span className={`text-xs font-medium shrink-0 ${docChecked ? 'text-green-700' : 'text-slate-600'}`}>
+                        <span className={`text-xs font-medium min-w-0 break-words ${docChecked ? 'text-green-700' : 'text-slate-600'}`}>
                           {c.label}
                         </span>
                         {uploadDate && (
@@ -1316,8 +1332,9 @@ export default function LeadDetailClient({ canDeleteProcessAudit = false, deal, 
                           ))}
                           <button type="button"
                             onClick={() => handleDocUploadClick(c.upload!, c.uploadLabel ?? c.label, proc.code)}
+                            aria-label={`${c.uploadLabel ?? c.label} 업로드`}
                             disabled={isUploading}
-                            className={`text-[10px] font-semibold px-2 py-0.5 rounded border transition whitespace-nowrap ${
+                            className={`min-h-11 sm:min-h-0 text-xs font-semibold px-3 py-1.5 rounded border transition whitespace-nowrap ${
                               isUploading
                                 ? 'opacity-50 cursor-not-allowed border-slate-200 text-slate-400'
                                 : hasFile
@@ -1370,8 +1387,8 @@ export default function LeadDetailClient({ canDeleteProcessAudit = false, deal, 
                 )
               })}
             </div>
-          </div>
-        )}
+          </section>
+        ))}
 
         {/* 증빙서류 */}
         {isOpen && docs.length > 0 && (
@@ -1457,7 +1474,7 @@ export default function LeadDetailClient({ canDeleteProcessAudit = false, deal, 
   const allChecksArr = PIPELINE.flatMap(ph => ph.processes.flatMap(p => checksMap[p.code] ?? p.checks))
   const totalChecks  = allChecksArr.length
   const doneChecks   = allChecksArr.filter(c =>
-    c.field ? isFieldSatisfied(c.field) : !!checks[c.key]
+    c.upload ? dealDocs.some(doc => doc.docKey === c.upload && doc.fileSize > 0) : c.field ? isFieldSatisfied(c.field) : !!checks[c.key]
   ).length
   const pct = totalChecks ? Math.round((doneChecks / totalChecks) * 100) : 0
 

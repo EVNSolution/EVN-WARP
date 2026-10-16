@@ -11,7 +11,7 @@ test('B2C lead stages expose only the approved transition gates and retain suppo
 
   assert.deepEqual(immature.checks.filter(check => check.role === 'required').map(check => check.key), ['1-1-call'])
   assert.equal(immature.checks.find(check => check.key === '1-1-0')?.role, 'reference')
-  assert.deepEqual(potential.checks.filter(check => check.role === 'required').map(check => check.key), ['1-2-2', '1-2-4'])
+  assert.deepEqual(potential.checks.filter(check => check.role === 'required').map(check => check.key), ['1-2-2', '1-2-4', '1-2-quote'])
   assert.deepEqual(mature.checks.filter(check => check.role === 'required').map(check => check.key), ['1-3-confirmed'])
 
   assert.equal(mature.checks.find(check => check.key === '1-3-1')?.role, 'confirmation')
