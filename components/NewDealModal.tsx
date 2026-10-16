@@ -182,6 +182,7 @@ export default function NewDealModal({ onClose, onCreated }: Props) {
       onCreated({
         id:              deal.id,
         stageCode:       deal.stageCode       ?? '1-1',
+        salesProcessRevision: deal.salesProcessRevision,
         salesStatus:     deal.salesStatus     ?? '진행중',
         name:            deal.name,
         phone:           deal.phone,
