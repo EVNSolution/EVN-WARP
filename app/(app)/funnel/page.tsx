@@ -8,6 +8,7 @@ import PipelineView, { type PipelineDeal } from '@/components/PipelineView'
 import ProcessGuideButton from '@/components/ProcessGuideButton'
 import ExcelImportExport from '@/components/ExcelImportExport'
 import BuildupEventNotice from '@/components/BuildupEventNotice'
+import { readInquiryStatus } from '@/lib/sales-process'
 
 export default async function FunnelPage({ searchParams }: { searchParams: Promise<{ stage?: string; seg?: string }> }) {
   const sp = await searchParams
@@ -101,6 +102,8 @@ export default async function FunnelPage({ searchParams }: { searchParams: Promi
       assignee:         d.assignee,
       memo:             d.memo,
       checklistJson:    a.checklistJson    ?? null,
+      inquiryStatus: stageCode === '1-1' && (cust?.customerSegment ?? a.customerSegment) !== 'B2B'
+        ? readInquiryStatus(d.salesProcessJson, d.checklistJson) : null,
       // Customer 테이블 우선, SalesDeal 필드 fallback
       customerSegment:  cust?.customerSegment ?? a.customerSegment  ?? null,
       email:            cust?.email           ?? a.email            ?? null,

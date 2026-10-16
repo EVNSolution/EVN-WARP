@@ -2,6 +2,7 @@
 
 import { useId } from 'react'
 import type { SalesProcessData } from '@/lib/sales-process'
+import { InquiryStatusBadge } from './InquiryStatus'
 
 type DocumentOption = { id: string; docKey: string; fileName: string }
 type AuditEntry = {
@@ -92,6 +93,7 @@ export default function SalesProcessFields({
       {stageCode === '1-1' && (
         <fieldset>
           <legend className="text-sm font-semibold text-slate-700">문의 상태</legend>
+          {value.inquiryStatus === '첫 상담 완료' ? <div className="mt-2"><InquiryStatusBadge status="첫 상담 완료" /></div> :
           <div className="mt-2 grid grid-cols-2 gap-2 sm:max-w-md">
             {INQUIRY_STATUSES.map(status => (
               <label key={status} className="cursor-pointer">
@@ -108,7 +110,7 @@ export default function SalesProcessFields({
                 </span>
               </label>
             ))}
-          </div>
+          </div>}
         </fieldset>
       )}
 

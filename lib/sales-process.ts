@@ -1,7 +1,8 @@
 import { ALL_PROCESS_CODES } from './pipeline'
 
+export type InquiryStatus = '상담 대기' | '부재중 대기' | '첫 상담 완료'
 export interface SalesProcessData {
-  inquiryStatus: '신규 문의' | '상담 대기' | '부재중 대기'
+  inquiryStatus: '신규 문의' | InquiryStatus
   callbackAt: string
   finalQuote: { date: string; model: string; spec: string; amountWon: number | null; documentId: string }
   deposit: {
@@ -26,7 +27,7 @@ export function readSalesProcess(json: string | null | undefined): SalesProcessD
   const blank = emptySalesProcess()
   if (!json) return blank
   try { const p = JSON.parse(json); return { ...blank, ...p,
-    inquiryStatus: p.inquiryStatus === '부재중 대기' ? '부재중 대기' : '상담 대기',
+    inquiryStatus: ['부재중 대기', '첫 상담 완료'].includes(p.inquiryStatus) ? p.inquiryStatus : '상담 대기',
     finalQuote: { ...blank.finalQuote, ...p.finalQuote }, deposit: { ...blank.deposit, ...p.deposit } } }
   catch { return blank }
 }
@@ -56,6 +57,15 @@ export function isGateComplete(value: unknown): boolean {
   if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(value)) return false
   const time=Date.parse(value)
   return Number.isFinite(time) && new Date(time).toISOString()===value && time<=Date.now()
+}
+export function getInquiryStatus(process: SalesProcessData, checks: Record<string, unknown>): InquiryStatus {
+  if (isGateComplete(checks['1-1-call'])) return '첫 상담 완료'
+  return process.inquiryStatus === '부재중 대기' ? '부재중 대기' : '상담 대기'
+}
+export function readInquiryStatus(processJson: string | null, checklistJson: string | null): InquiryStatus {
+  let checks: Record<string, unknown> = {}
+  try { checks = JSON.parse(checklistJson || '{}') ?? {} } catch { /* Legacy malformed checklists are incomplete. */ }
+  return getInquiryStatus(readSalesProcess(processJson), checks)
 }
 export function transitionError(segment: string | null, from: string, to: string,
   checks: Record<string, unknown>, process: SalesProcessData): string | null {
