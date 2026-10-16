@@ -18,14 +18,16 @@ export const GATE_LABELS: Record<string, string> = {
   '1-2-4': '1차 견적서 발송 완료', '1-3-confirmed': '최종 견적서 확정',
 }
 export function emptySalesProcess(): SalesProcessData {
-  return { inquiryStatus: '신규 문의', callbackAt: '',
+  return { inquiryStatus: '상담 대기', callbackAt: '',
     finalQuote: { date: '', model: '', spec: '', amountWon: null, documentId: '' },
     deposit: { status: 'unpaid', amountWon: null, date: '', time: '', model: '', spec: '', documentId: '', reviewPending: false } }
 }
 export function readSalesProcess(json: string | null | undefined): SalesProcessData {
   const blank = emptySalesProcess()
   if (!json) return blank
-  try { const p = JSON.parse(json); return { ...blank, ...p, finalQuote: { ...blank.finalQuote, ...p.finalQuote }, deposit: { ...blank.deposit, ...p.deposit } } }
+  try { const p = JSON.parse(json); return { ...blank, ...p,
+    inquiryStatus: p.inquiryStatus === '부재중 대기' ? '부재중 대기' : '상담 대기',
+    finalQuote: { ...blank.finalQuote, ...p.finalQuote }, deposit: { ...blank.deposit, ...p.deposit } } }
   catch { return blank }
 }
 export function validDate(value: string): boolean {

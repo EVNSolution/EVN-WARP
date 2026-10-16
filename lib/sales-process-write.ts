@@ -21,7 +21,8 @@ export function parseProcessInput(input: unknown): SalesProcessData {
   if (!['unpaid','paid','refunded','cancelled'].includes(p.deposit.status) || typeof p.deposit.reviewPending !== 'boolean') fail('계약금 상태를 확인해 주세요.')
   if (p.deposit.time && !/^([01]\d|2[0-3]):[0-5]\d(:[0-5]\d)?$/.test(p.deposit.time)) fail('입금시각을 확인해 주세요.')
   // Whitelist fields: clients cannot append actor, history, or arbitrary payloads.
-  return { inquiryStatus: p.inquiryStatus, callbackAt: p.callbackAt,
+  // Accept an older open screen's status, but save the current two-choice value.
+  return { inquiryStatus: p.inquiryStatus === '신규 문의' ? '상담 대기' : p.inquiryStatus, callbackAt: p.callbackAt,
     finalQuote: { date:p.finalQuote.date, model:p.finalQuote.model.trim(), spec:p.finalQuote.spec.trim(), amountWon:p.finalQuote.amountWon, documentId:p.finalQuote.documentId },
     deposit: { status:p.deposit.status, date:p.deposit.date, time:p.deposit.time, model:p.deposit.model.trim(), spec:p.deposit.spec.trim(), amountWon:p.deposit.amountWon, documentId:p.deposit.documentId, reviewPending:p.deposit.reviewPending } }
 }

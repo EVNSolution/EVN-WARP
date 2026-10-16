@@ -65,6 +65,17 @@ function queueDeal(id: string, process: SalesProcessData, overrides: Partial<Que
   }
 }
 
+test('inquiry defaults and old screens use consultation waiting without losing prior callback or quote facts', () => {
+  assert.equal(emptySalesProcess().inquiryStatus, '상담 대기')
+  assert.equal(readSalesProcess(null).inquiryStatus, '상담 대기')
+  const legacy = { ...validProcess(), inquiryStatus: '신규 문의' as const, callbackAt: '2026-01-05T10:30' }
+  const expected = { ...legacy, inquiryStatus: '상담 대기' }
+  assert.deepEqual(readSalesProcess(JSON.stringify(legacy)), expected)
+  assert.deepEqual(parseProcessInput(legacy), expected)
+  assert.equal(readSalesProcess(JSON.stringify({ ...legacy, inquiryStatus: '부재중 대기' })).inquiryStatus, '부재중 대기')
+  assert.throws(() => parseProcessInput({ ...legacy, inquiryStatus: '알 수 없음' }), /상담 대기 상태/)
+})
+
 test('all three B2C gates are required and legacy supporting checks do not satisfy them', () => {
   const process = validProcess()
   const all = { '1-1-call': true, '1-2-2': true, '1-2-4': true, '1-3-confirmed': true }
@@ -312,7 +323,7 @@ test('transaction commits the process, revision, and immutable audit evidence to
 
 test('stale revisions and unauthorized assignments fail without process or audit writes', async () => {
   await createDeal()
-  const process = { ...emptySalesProcess(), inquiryStatus: '상담 대기' as const }
+  const process = { ...emptySalesProcess(), inquiryStatus: '부재중 대기' as const }
 
   await rejectsStatus(writeProcess({ salesProcess: process, salesProcessRevision: 9 }), 409, /새로고침/)
   await rejectsStatus(writeProcess({ salesProcess: process, salesProcessRevision: 0 }, { id: 'other', name: '다른 담당자' }), 403, /담당 리드/)
@@ -320,6 +331,16 @@ test('stale revisions and unauthorized assignments fail without process or audit
   assert.equal(stored.salesProcessJson, null)
   assert.equal(stored.salesProcessRevision, 0)
   assert.equal(await db.salesProcessAudit.count(), 0)
+})
+
+test('inquiry state can change without a correction reason while retaining a hidden callback', async () => {
+  const old = { ...emptySalesProcess(), inquiryStatus: '신규 문의' as const, callbackAt: '2026-01-05T10:30' }
+  await createDeal({ process: old })
+  const process = { ...readSalesProcess(JSON.stringify(old)), inquiryStatus: '부재중 대기' as const }
+  const saved = await writeProcess({ salesProcess: process, salesProcessRevision: 0 })
+  assert.equal(saved.salesProcessRevision, 1)
+  assert.deepEqual(readSalesProcess(saved.salesProcessJson), process)
+  assert.equal((await db.salesProcessAudit.findFirstOrThrow()).reason, '영업 절차 확인')
 })
 
 test('foreign or wrong-family documents are rejected without audit writes', async () => {
