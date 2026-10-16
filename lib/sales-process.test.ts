@@ -50,6 +50,8 @@ function validProcess(): SalesProcessData {
   }
 }
 
+const initialQuotation = [{ docKey: 'initial_quotation', fileSize: 10 }]
+
 function tomorrowInKorea() {
   const date = new Date(`${koreaToday()}T00:00:00Z`)
   date.setUTCDate(date.getUTCDate() + 1)
@@ -94,14 +96,14 @@ test('all three B2C gates are required and legacy supporting checks do not satis
   const process = validProcess()
   const all = { '1-1-call': true, '1-2-2': true, '1-2-4': true, '1-3-confirmed': true }
 
-  assert.equal(transitionError('B2C', '1-1', '2-1', all, process), null)
+  assert.equal(transitionError('B2C', '1-1', '2-1', all, process, initialQuotation), null)
   for (const [key, label] of [
     ['1-1-call', '전화통화 완료'],
     ['1-2-2', '구매의사 확인'],
     ['1-2-4', '1차 견적서 발송 완료'],
     ['1-3-confirmed', '최종 견적서 확정'],
   ] as const) {
-    assert.match(transitionError('B2C', '1-1', '2-1', { ...all, [key]: false }, process)!, new RegExp(label))
+    assert.match(transitionError('B2C', '1-1', '2-1', { ...all, [key]: false }, process, initialQuotation)!, new RegExp(label))
   }
 
   assert.match(transitionError('B2C', '1-1', '1-2', { '1-1-0': true }, process)!, /전화통화 완료/)
@@ -146,10 +148,23 @@ test('forward skips enforce every crossed gate and paid-deposit facts while same
   assert.match(transitionError('B2C', '1-1', '2-2', all, {
     ...process,
     deposit: { ...process.deposit, status: 'refunded' },
-  })!, /계약금 입금/)
-  assert.equal(transitionError('B2C', '1-1', '2-2', all, process), null)
+  }, initialQuotation)!, /계약금 입금/)
+  assert.equal(transitionError('B2C', '1-1', '2-2', all, process, initialQuotation), null)
   assert.equal(transitionError('B2C', '1-3', '1-3', {}, emptySalesProcess()), null)
   assert.equal(transitionError('B2B', '1-1', '3-1', {}, emptySalesProcess()), null)
+})
+
+test('potential lead transitions require a nonempty initial quotation, including skipped stages', () => {
+  const checks = { '1-1-call': true, '1-2-2': true, '1-2-4': true, '1-2-quote': true }
+  for (const documents of [[], [{ docKey: 'quotation', fileSize: 10 }], [{ docKey: 'initial_quotation', fileSize: 0 }]]) {
+    assert.match(transitionError('B2C', '1-2', '1-3', checks, emptySalesProcess(), documents)!, /1차 견적서를 업로드/)
+    assert.match(transitionError('B2C', '1-1', '2-1', checks, emptySalesProcess(), documents)!, /1차 견적서를 업로드/)
+  }
+  assert.equal(transitionError('B2C', '1-2', '1-3', checks, emptySalesProcess(), initialQuotation), null)
+  assert.equal(transitionError('B2C', '1-2', '1-2', checks, emptySalesProcess()), null)
+  assert.equal(transitionError('B2C', '1-2', '1-1', checks, emptySalesProcess()), null)
+  assert.equal(transitionError('B2C', '1-3', '1-2', checks, emptySalesProcess()), null)
+  assert.equal(transitionError('B2B', '1-2', '1-3', {}, emptySalesProcess()), null)
 })
 
 test('dates reject malformed calendar values and future facts without inventing a default', () => {
@@ -358,6 +373,28 @@ test('repeated list changes use each saved revision and keep completed call evid
   assert.equal(reloaded.salesProcessRevision, 3)
   assert.equal(await db.salesProcessAudit.count(), 3)
   assert.deepEqual(parseChecks(reloaded.checklistJson), { '1-1-call': true })
+})
+
+test('saved potential transitions trust only this lead uploaded quotation and retain its evidence', async () => {
+  const checks = { '1-2-2': true, '1-2-4': '2020-01-02T03:04:05.006Z', '1-2-1': false, '1-2-note': '기존 기록' }
+  await createDeal({ stageCode: '1-2', checklist: checks })
+  await createDeal({ id: 'other-deal' })
+  await createDocument('other-deal', 'foreign-initial', 'initial_quotation')
+  await createDocument('deal', 'wrong-kind', 'final_quotation')
+  const body = { stageCode: '1-3', salesProcessRevision: 0, documents: initialQuotation, '1-2-quote': true }
+  await rejectsStatus(writeProcess(body), 400, /1차 견적서를 업로드/)
+  await createDocument('deal', 'own-initial', 'initial_quotation')
+  await db.dealDocument.update({ where: { id: 'own-initial' }, data: { fileSize: 0 } })
+  await rejectsStatus(writeProcess(body), 400, /1차 견적서를 업로드/)
+  assert.equal(await db.salesProcessAudit.count(), 0)
+  assert.equal((await db.salesDeal.findUniqueOrThrow({ where: { id: 'deal' } })).stageCode, '1-2')
+  await db.dealDocument.update({ where: { id: 'own-initial' }, data: { fileSize: 10 } })
+  await writeProcess(body)
+  const saved = await db.salesDeal.findUniqueOrThrow({ where: { id: 'deal' } })
+  assert.equal(saved.stageCode, '1-3')
+  assert.deepEqual(parseChecks(saved.checklistJson), checks)
+  const audit = await db.salesProcessAudit.findFirstOrThrow()
+  assert.deepEqual(JSON.parse(audit.afterJson).initialQuotationIds, ['own-initial'])
 })
 
 test('transaction commits the process, revision, and immutable audit evidence together', async () => {

@@ -54,7 +54,8 @@ export async function POST(req: NextRequest) {
       if (row.action === 'update' && row.dealId) {
         await customerWrite(prisma,async tx=>{
           const current=await tx.salesDeal.findUniqueOrThrow({where:{id:row.dealId},include:{customer:{select:{customerSegment:true}}}})
-          const error=transitionError(current.customer?.customerSegment ?? current.customerSegment,current.stageCode ?? getStageCode(current.stage),dealFields.stageCode,parseChecks(current.checklistJson),readSalesProcess(current.salesProcessJson))
+          const documents=await tx.dealDocument.findMany({where:{dealId:current.id,docKey:'initial_quotation'},select:{docKey:true,fileSize:true}})
+          const error=transitionError(current.customer?.customerSegment ?? current.customerSegment,current.stageCode ?? getStageCode(current.stage),dealFields.stageCode,parseChecks(current.checklistJson),readSalesProcess(current.salesProcessJson),documents)
           if(error) throw new CustomerMergeError(400,error)
           await tx.salesDeal.update({where:{id:row.dealId},data:{...dealFields,salesProcessRevision:{increment:1}}})
         })

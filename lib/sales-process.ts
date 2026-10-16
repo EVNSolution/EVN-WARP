@@ -68,7 +68,8 @@ export function readInquiryStatus(processJson: string | null, checklistJson: str
   return getInquiryStatus(readSalesProcess(processJson), checks)
 }
 export function transitionError(segment: string | null, from: string, to: string,
-  checks: Record<string, unknown>, process: SalesProcessData): string | null {
+  checks: Record<string, unknown>, process: SalesProcessData,
+  documents: readonly { docKey: string; fileSize: number }[] = []): string | null {
   if (segment === 'B2B' || from === to) return null
   const start = ALL_PROCESS_CODES.indexOf(from), end = ALL_PROCESS_CODES.indexOf(to)
   if (end < 0) return '유효한 영업 단계를 선택해 주세요.'
@@ -77,6 +78,8 @@ export function transitionError(segment: string | null, from: string, to: string
     const code = ALL_PROCESS_CODES[i]
     const missing = (PROCESS_GATES[code] ?? []).filter(k => !isGateComplete(checks[k]))
     if (missing.length) return `다음 단계 이동 전 ${missing.map(k => GATE_LABELS[k]).join(' + ')} 확인이 필요합니다.`
+    if (code === '1-2' && !documents.some(doc => doc.docKey === 'initial_quotation' && doc.fileSize > 0))
+      return '다음 단계 이동 전 이 리드의 1차 견적서를 업로드해 주세요.'
     if (code === '1-3') { const error = quoteError(process); if (error) return error }
     if (code === '2-1') { const error = depositError(process); if (error) return error }
   }

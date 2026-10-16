@@ -70,11 +70,12 @@ export const PIPELINE: PipelinePhase[] = [
       {
         code: '1-2', name: '잠재 리드', target: 10, conversionRate: 0.30,
         checks: [
+          { key: '1-2-2', label: '구매의사 확인', role: 'required', noteLabel: '구매의사 근거' },
+          { key: '1-2-4', label: '1차 견적서 발송 완료', role: 'required' },
+          { key: '1-2-quote', label: '1차 견적서 첨부', role: 'required', upload: 'initial_quotation', uploadLabel: '1차 견적서' },
           { key: '1-2-0', label: '차량정보 확보', role: 'reference', field: 'vehicle' },
           { key: '1-2-1', label: '화주정보 확보', role: 'reference', field: 'shipper' },
           { key: '1-2-3', label: '연락 가능 ("이 분과 친구가 되었음")', role: 'reference' },
-          { key: '1-2-2', label: '구매의사 확인', role: 'required', noteLabel: '구매의사 근거' },
-          { key: '1-2-4', label: '1차 견적서 발송 완료', role: 'required' },
         ],
         checksB2B: [
           { key: '1-2-b2b-0', label: '담당자 신뢰 확보 ("담당자와 친구가 되었음")' },
@@ -82,7 +83,7 @@ export const PIPELINE: PipelinePhase[] = [
           { key: '1-2-b2b-2', label: 'EV& 회사소개 완료 (팀장급)' },
           { key: '1-2-b2b-4', label: '실물차량 소개' },
         ],
-        documents: [{ key: 'initial_quotation', label: '1차 견적서 (선택 첨부)' }],
+        documents: [{ key: 'initial_quotation', label: '1차 견적서 (전환 필수)' }],
         documentsB2B: [],
         touchpoints: [
           { key: '1-2-tp-0', activity: '전화통화', owner: '영업 담당자', frequency: '1주' },
