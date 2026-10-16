@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { X, Car, Save } from 'lucide-react'
+import { X, Car, Save, MapPin } from 'lucide-react'
 
 type Vehicle = { id: string; name: string; plateNo: string }
 type Garage  = { id: string; name: string }
@@ -36,6 +36,8 @@ interface Props {
   reservation?: ExistingReservation   // 있으면 수정 모드
   onClose: () => void
   onSaved: () => void
+  /** 차량현황 모달 열기 — 신청 전에 차량 위치·예약 상태를 확인하는 버튼 */
+  onOpenStatus?: () => void
 }
 
 const EMPTY: ResvFormData = {
@@ -52,7 +54,7 @@ function splitIso(iso: string): { date: string; time: string } {
   }
 }
 
-export default function VehicleReservationModal({ initialDate, reservation, onClose, onSaved }: Props) {
+export default function VehicleReservationModal({ initialDate, reservation, onClose, onSaved, onOpenStatus }: Props) {
   const isEdit = !!reservation
   const [vehicles, setVehicles] = useState<Vehicle[]>([])
   const [garages,  setGarages]  = useState<Garage[]>([])
@@ -147,7 +149,14 @@ export default function VehicleReservationModal({ initialDate, reservation, onCl
         <div className="flex items-center justify-between px-6 pt-5 pb-4 bg-lime-50 border-b border-lime-100">
           <div className="flex items-center gap-2">
             <Car size={16} className="text-lime-700" />
-            <h2 className="text-sm font-bold text-lime-800">{isEdit ? '차량 예약 수정' : '차량 신청'}</h2>
+            <h2 className="text-sm font-bold text-lime-800">{isEdit ? '차량 예약 수정' : '차량 사용신청'}</h2>
+            {onOpenStatus && (
+              <button type="button" onClick={onOpenStatus}
+                className="ml-1 flex items-center gap-1 px-2 py-0.5 text-[10px] font-semibold text-lime-700 bg-white border border-lime-200 rounded-md hover:bg-lime-100 transition-colors">
+                <MapPin size={10} />
+                차량현황 보기
+              </button>
+            )}
           </div>
           <button onClick={onClose}
             className="w-7 h-7 flex items-center justify-center rounded-full bg-white/70 hover:bg-white transition-colors">
