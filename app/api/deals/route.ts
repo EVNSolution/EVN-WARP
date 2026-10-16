@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { auth } from '@/auth'
 import { logStageChange } from '@/lib/stageHistory'
+import { transitionError, emptySalesProcess } from '@/lib/sales-process'
+import { parseChecks } from '@/lib/sales-process-write'
 
 export async function GET() {
   const deals = await prisma.salesDeal.findMany({ orderBy: { createdAt: 'asc' } })
@@ -18,6 +20,8 @@ export async function POST(req: NextRequest) {
     if (me?.employmentType === '사외') body.assignee = me?.name ?? null
 
     // Customer CRM 레코드: 전화번호가 같은 기존 고객이 있으면 연결, 없으면 신규 생성
+    const gateError = transitionError(body.customerSegment, '1-1', body.stageCode || '1-1', parseChecks(body.checklistJson), emptySalesProcess())
+    if (gateError) return NextResponse.json({error:gateError},{status:400})
     const customerData = {
       name:             body.name.trim(),
       phone:            body.phone            || null,

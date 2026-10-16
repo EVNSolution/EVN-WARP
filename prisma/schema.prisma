@@ -545,6 +545,8 @@ model SalesDeal {
   stageCode     String?   // null이면 getStageCode(stage)로 계산
   checklistJson String?   // JSON: {"1-1-0": true, "1-2-1": false, ...}
   salesStatus   String?   // "진행중" | "이탈" | "완료"
+  salesProcessJson String?
+  salesProcessRevision Int @default(0)
 
   // 기본 고객 정보
   name        String
@@ -1055,4 +1057,17 @@ model CompanyScheduleRule {
   month       Int?     // 1–12 (YEARLY_MONTHDAY 전용)
   active      Boolean  @default(true)
   createdAt   DateTime @default(now())
+}
+
+// Append-only evidence; not cascaded when a lead is removed.
+model SalesProcessAudit {
+  id String @id
+  dealId String
+  actorId String
+  actorName String
+  reason String
+  beforeJson String
+  afterJson String
+  createdAt DateTime @default(now())
+  @@index([dealId, createdAt])
 }

@@ -2,8 +2,10 @@
 
 import { useState, useTransition, useEffect, useRef, type ChangeEvent } from 'react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
+import { useRouter, usePathname } from 'next/navigation'
 import { PIPELINE, SALE_HOLD_CHECK_KEY, SALE_HOLD_TRIGGER_OPTS } from '@/lib/pipeline'
+import SalesProcessFields from '@/components/SalesProcessFields'
+import { readSalesProcess, transitionError, PROCESS_GATES, GATE_LABELS } from '@/lib/sales-process'
 import { FIELD_CLS } from '@/lib/ui'
 import { SectionHeader } from '@/components/SectionCard'
 import AgentPicker from '@/components/AgentPicker'
@@ -118,6 +120,10 @@ interface Deal {
   stageCode: string
   salesStatus: string
   checklistJson: string | null
+  salesProcessJson: string | null
+  salesProcessRevision: number
+  queue: {position:number|null;message:string}
+  processAudit: {id:string;createdAt:string;actorName:string;reason:string;summary:string}[]
   // CRM
   customerSegment: string | null
   customerCategory: string | null
@@ -200,6 +206,7 @@ function toDatetimeLocal(isoStr: string) {
 export default function LeadDetailClient({ deal, customer = null, products = [], fromStage, fromSeg, teams = [], shares: initialShares = [] }: { deal: Deal; customer?: CustomerSnap | null; products?: ProductOption[]; fromStage?: string | null; fromSeg?: string | null; teams?: { id: string; name: string }[]; shares?: ShareRecord[] }) {
   const [shares, setShares] = useState<ShareRecord[]>(initialShares)
   const router = useRouter()
+  const isMobile = usePathname().startsWith('/m/')
   const [, startTransition] = useTransition()
 
   /* ── 필드 상태 (모든 값을 string으로 관리) ── */
@@ -260,6 +267,10 @@ export default function LeadDetailClient({ deal, customer = null, products = [],
   const [converting,  setConverting]  = useState(false)
   const [confirmingConvert, setConfirmingConvert] = useState(false)
   const [saving,      setSaving]      = useState(false)
+  const [processData, setProcessData] = useState(() => readSalesProcess(deal.salesProcessJson))
+  const [processRevision, setProcessRevision] = useState(deal.salesProcessRevision)
+  const [processReason, setProcessReason] = useState('')
+  const isB2C = (customer?.customerSegment ?? deal.customerSegment) !== 'B2B'
   const [saved,       setSaved]       = useState(true)
   const [msg,         setMsg]         = useState('')
   const [expanded,    setExpanded]    = useState<Set<string>>(new Set())
@@ -362,7 +373,8 @@ export default function LeadDetailClient({ deal, customer = null, products = [],
 
   const handleDocDelete = async (docId: string, docKey: string) => {
     if (!confirm('이 파일을 삭제할까요?')) return
-    await fetch(`/api/deals/${deal.id}/documents/${docId}`, { method: 'DELETE' })
+    const response = await fetch(`/api/deals/${deal.id}/documents/${docId}`, { method: 'DELETE' })
+    if (!response.ok) {const result=await response.json();setMsg(result.error || '삭제하지 못했습니다.');return}
     setDealDocs(prev => prev.filter(d => d.id !== docId))
   }
 
@@ -575,8 +587,13 @@ export default function LeadDetailClient({ deal, customer = null, products = [],
   }
 
   /* ── 단계 필수 항목 충족 여부 ── */
-  const canAdvance = (code: string) =>
-    (STAGE_REQUIRED[code] ?? []).every(k => !!f[k]?.trim())
+  const stageError = (from: string, to: string) => transitionError(isB2C ? 'B2C' : 'B2B', from, to, checks, processData)
+  const canAdvance = (code: string) => !stageError(code, allCodes[allCodes.indexOf(code) + 1] ?? code)
+  const selectStage = (code: string) => {
+    const error = stageError(deal.stageCode, code)
+    if (error) { setMsg(error); return }
+    setStageCode(code); setSaved(false)
+  }
 
   /* ── 다음 단계로 이동 ── */
   const advanceStage = () => {
@@ -584,10 +601,12 @@ export default function LeadDetailClient({ deal, customer = null, products = [],
     if (idx < 0 || idx >= allCodes.length - 1) return
     const next = allCodes[idx + 1]
     const nextName = PIPELINE.flatMap(ph => ph.processes).find(p => p.code === next)?.name ?? next
+    const error = stageError(deal.stageCode, next)
+    if (error) { setMsg(error); return }
     if (!confirm(`[${stageCode}] 단계를 완료하고 [${next}] ${nextName} 단계로 이동할까요?`)) return
     setStageCode(next)
     setSaved(false)
-    setMsg(`[${stageCode}] 완료 → [${next}] 단계로 이동했습니다`)
+    setMsg(`[${next}] 단계로 변경할 준비가 되었습니다. 저장을 눌러 적용해 주세요.`)
     setTimeout(() => setMsg(''), 4000)
   }
 
@@ -667,11 +686,13 @@ export default function LeadDetailClient({ deal, customer = null, products = [],
   /* ── 저장 ── */
   const handleSave = async () => {
     setSaving(true)
-    await fetch(`/api/deals/${deal.id}`, {
+    try {
+    const response = await fetch(`/api/deals/${deal.id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         stageCode,
+        ...(isB2C ? {salesProcess:processData, salesProcessRevision:processRevision, salesProcessReason:processReason} : {}),
         salesStatus,
         checklistJson: JSON.stringify(checks),
         name:             f.name.trim() || deal.name,
@@ -706,9 +727,16 @@ export default function LeadDetailClient({ deal, customer = null, products = [],
         vehicleCount:     f.vehicleCount ? parseInt(f.vehicleCount) : null,
       }),
     })
-    setSaving(false)
+    const result = await response.json()
+    if (!response.ok) throw new Error(result.error || '저장하지 못했습니다.')
+    setProcessData(readSalesProcess(result.salesProcessJson))
+    setProcessRevision(result.salesProcessRevision)
+    setProcessReason('')
     setSaved(true)
+    setMsg('저장되었습니다.')
     startTransition(() => router.refresh())
+    } catch (error) { setMsg(error instanceof Error ? error.message : '저장하지 못했습니다.'); setSaved(false) }
+    finally {setSaving(false)}
   }
 
   /* ── 단계 요약 텍스트 (collapsed 상태용) ── */
@@ -883,7 +911,7 @@ export default function LeadDetailClient({ deal, customer = null, products = [],
 
     const fDefs       = STAGE_FIELDS[proc.code] ?? []
     const req         = STAGE_REQUIRED[proc.code] ?? []
-    const stageChecks = checksMap[proc.code] ?? proc.checks
+    const stageChecks = (checksMap[proc.code] ?? (isB2BSeg && ('checksB2B' in proc) ? (proc as import('@/lib/pipeline').PipelineProcess).checksB2B : undefined) ?? proc.checks).map(c => ({...c, label: isB2C && PROCESS_GATES[proc.code]?.includes(c.key) ? `[전환 필수] ${GATE_LABELS[c.key]}` : c.label}))
     const doneCnt     = stageChecks.filter(c =>
       c.field ? isFieldSatisfied(c.field) : !!checks[c.key]
     ).length
@@ -902,7 +930,7 @@ export default function LeadDetailClient({ deal, customer = null, products = [],
         <div key={proc.code} className="rounded-xl border border-slate-200 bg-slate-50/60">
           <div className="px-4 py-3 flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <button onClick={() => { setStageCode(proc.code); setSaved(false) }}
+              <button onClick={() => selectStage(proc.code)}
                 className="w-5 h-5 rounded-full border-2 border-slate-300 hover:border-slate-400 transition" />
               <span className={`text-xs font-bold ${col.text} opacity-40`}>{proc.code}</span>
               <span className="text-sm text-slate-400">{proc.name}</span>
@@ -923,7 +951,7 @@ export default function LeadDetailClient({ deal, customer = null, products = [],
         <div key={proc.code} className="rounded-xl border border-green-200 bg-green-50/40">
           <div className="px-4 py-3 flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <button onClick={() => { setStageCode(proc.code); setSaved(false) }}
+              <button onClick={() => selectStage(proc.code)}
                 className="w-5 h-5 rounded-full bg-green-500 flex items-center justify-center text-white text-[9px] font-bold">✓</button>
               <span className={`text-xs font-bold ${col.text}`}>{proc.code}</span>
               <span className="text-sm font-medium text-slate-600">{proc.name}</span>
@@ -960,7 +988,7 @@ export default function LeadDetailClient({ deal, customer = null, products = [],
         <div className={`px-4 py-3 flex items-center justify-between
           ${isCurrent ? 'bg-amber-50' : 'bg-green-50'}`}>
           <div className="flex items-center gap-2">
-            <button onClick={() => { setStageCode(proc.code); setSaved(false) }}
+            <button onClick={() => selectStage(proc.code)}
               className={`w-5 h-5 rounded-full border-2 flex items-center justify-center text-[9px] font-bold transition
                 ${isCurrent
                   ? 'bg-amber-400 border-amber-400 text-white'
@@ -997,6 +1025,11 @@ export default function LeadDetailClient({ deal, customer = null, products = [],
           </div>
         )}
 
+        {isB2C && ['1-1','1-3','2-1'].includes(proc.code) && <SalesProcessFields stageCode={proc.code} value={processData} onChange={value => {
+          if (JSON.stringify(value.finalQuote) !== JSON.stringify(processData.finalQuote)) setChecks(previous => ({...previous, '1-3-confirmed':false}))
+          setProcessData(value); setSaved(false)
+        }} documents={dealDocs} reason={processReason} onReasonChange={value => {setProcessReason(value);setSaved(false)}} queue={saved ? deal.queue : {position:null,message:'저장 후 순번을 다시 계산합니다.'}} audit={deal.processAudit} />}
+        {isB2C && PROCESS_GATES[proc.code] && <p className="px-4 py-3 text-xs text-blue-800 bg-blue-50">다음 단계 필수: {PROCESS_GATES[proc.code].map(k => GATE_LABELS[k]).join(' + ')}. 나머지 항목은 참고 정보·거래별 업무로 기록을 유지합니다.</p>}
         {/* 체크리스트 */}
         {stageChecks.length > 0 && (
           <div className="px-4 py-3 bg-white">
@@ -1392,14 +1425,12 @@ export default function LeadDetailClient({ deal, customer = null, products = [],
 
         {/* 하단 액션바 — 열린 카드 전체 표시 */}
         {isOpen && (
-          <div className="px-4 py-3 bg-slate-50 border-t border-slate-100 flex items-center justify-between gap-2">
-            <span className="text-xs text-slate-400 min-w-0 truncate">
+          <div className="px-4 py-3 bg-slate-50 border-t border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+            <span className="text-xs text-slate-500 min-w-0 whitespace-normal">
               {isCurrent && procIdx < allCodes.length - 1
                 ? canAdvance(proc.code)
                   ? '필수 항목 입력 완료 — 다음 단계로 이동할 수 있습니다'
-                  : req.length > 0
-                    ? `필수: ${req.map(k => fDefs.find(fd => fd.key === k)?.label ?? k).join(', ')}`
-                    : ''
+                  : stageError(proc.code, allCodes[procIdx + 1])
                 : ''}
             </span>
             <div className="flex items-center gap-2 shrink-0">
@@ -1456,20 +1487,20 @@ export default function LeadDetailClient({ deal, customer = null, products = [],
   )
 
   return (
-    <div className="p-6 max-w-5xl mx-auto">
+    <div className="p-3 sm:p-6 max-w-5xl mx-auto min-w-0">
       {/* 알림 배너 */}
       {msg && (
-        <div className="mb-4 px-4 py-2.5 rounded-lg bg-green-50 border border-green-200 text-green-700 text-sm font-medium">
-          ✓ {msg}
+        <div className="mb-4 px-4 py-2.5 rounded-lg bg-blue-50 border border-blue-200 text-blue-900 text-sm font-medium">
+          {msg}
         </div>
       )}
 
       {/* 헤더 */}
-      <div className="flex items-center justify-between mb-6">
-        <div className="flex items-center gap-3">
+      <div className="flex flex-wrap items-start justify-between gap-3 mb-6">
+        <div className="flex flex-wrap items-center gap-3">
           <div className="flex items-center gap-2">
             <Link
-              href={fromStage ? `/funnel?stage=${fromStage}&seg=${fromSeg ?? 'all'}` : '/funnel'}
+              href={isMobile ? '/m/pipeline' : fromStage ? `/funnel?stage=${fromStage}&seg=${fromSeg ?? 'all'}` : '/funnel'}
               className="text-slate-400 hover:text-slate-600 text-sm transition"
             >← 리드 목록</Link>
             {customer && (
@@ -1492,7 +1523,7 @@ export default function LeadDetailClient({ deal, customer = null, products = [],
                 <span className="ml-2 text-sm font-semibold text-slate-400">{customer.customerCategory}</span>
               )}
             </h1>
-            <div className="flex items-center gap-2 mt-0.5">
+            <div className="flex flex-wrap items-center gap-2 mt-0.5">
               {(() => {
                 const seg = customer?.customerSegment ?? deal.customerSegment
                 const company = customer?.companyName ?? deal.companyName
@@ -1531,6 +1562,7 @@ export default function LeadDetailClient({ deal, customer = null, products = [],
         </div>
       </div>
 
+      {isMobile && <div className="flex flex-wrap gap-4 text-sm mb-4"><Link href={`/m/activity?dealId=${deal.id}&dealName=${encodeURIComponent(deal.name)}`}>활동 기록</Link>{(customer?.phone || deal.phone) && <a href={`tel:${customer?.phone || deal.phone}`}>전화 걸기</a>}<Link href="/m/pipeline/deposit-queue">출고 대기 순번</Link></div>}
       {/* 진행률 바 */}
       <div className="mb-6 p-4 bg-slate-50 rounded-xl border border-slate-100 flex items-center gap-4">
         <div className="flex-1">
@@ -2033,7 +2065,7 @@ export default function LeadDetailClient({ deal, customer = null, products = [],
                           })}
                         </div>
                       )}
-                      <div className="flex items-center gap-3">
+                      <div className="flex flex-wrap items-center gap-3">
                         <button onClick={() => handleEditMeeting(m)}
                           className="text-[11px] text-slate-400 hover:text-indigo-500 transition">수정</button>
                         <button onClick={() => handleDeleteMeeting(m.id)}

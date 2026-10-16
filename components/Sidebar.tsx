@@ -38,7 +38,7 @@ export default function Sidebar({ userName, userEmail, isAdmin = false, isExtern
   const visibleNavItems = isExternal ? EXTERNAL_NAV_ITEMS : navItems
 
   return (
-    <aside className="w-56 min-h-screen flex flex-col" style={{ backgroundColor: '#111111' }}>
+    <aside className={`w-56 min-h-screen flex-col ${pathname.startsWith('/funnel') ? 'hidden md:flex' : 'flex'}`} style={{ backgroundColor: '#111111' }}>
 
       {/* 로고 — 가운데 정렬 */}
       <div className="px-3 py-5" style={{ borderBottom: '1px solid rgba(255,255,255,0.1)' }}>

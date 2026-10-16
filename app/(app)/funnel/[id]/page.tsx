@@ -2,6 +2,7 @@ import { prisma } from '@/lib/db'
 import { notFound } from 'next/navigation'
 import { auth } from '@/auth'
 import { canViewAllLeads } from '@/lib/permissions'
+import { readDepositQueue, auditSummary } from '@/lib/sales-process-read'
 import { PIPELINE, getStageCode } from '@/lib/pipeline'
 import LeadDetailClient, { type CustomerSnap } from './LeadDetailClient'
 
@@ -49,6 +50,10 @@ export default async function LeadDetailPage({
   const salesStatus  = a.salesStatus ?? (d.stage === '이탈' ? '이탈' : d.stage === '출고 완료' ? '완료' : '진행중')
   const checklistJson = a.checklistJson ?? null
 
+  const [queueData, processAudit] = await Promise.all([
+    readDepositQueue(),
+    prisma.salesProcessAudit.findMany({where:{dealId:id},orderBy:{createdAt:'desc'},take:30}),
+  ])
   const customerSnap: CustomerSnap | null = customer ? {
     id:               customer.id,
     name:             customer.name             ?? null,
@@ -156,6 +161,10 @@ export default async function LeadDetailPage({
         stageCode,
         salesStatus,
         checklistJson,
+        salesProcessJson:d.salesProcessJson,
+        salesProcessRevision:d.salesProcessRevision,
+        queue:queueData.positions.get(id) ?? {position:null,message:'입금 기록 확인 전에는 순번을 부여하지 않습니다.'},
+        processAudit:processAudit.map(a=>({id:a.id,actorName:a.actorName,reason:a.reason,createdAt:a.createdAt.toISOString(),summary:auditSummary(a.beforeJson,a.afterJson)})),
         // CRM
         customerSegment:  a.customerSegment  ?? null,
         customerCategory: a.customerCategory ?? null,

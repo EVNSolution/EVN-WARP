@@ -1,5 +1,5 @@
 {
-  "prismaSchemaSha256": "cd1927ce5f04f3fbca1c334df1cd11f0ce4d6919ff6741c1066ff26b038291f1",
+  "prismaSchemaSha256": "f1c274fb46c414f3ec488a38a311f9128229854a5ac88e1be0255923a4d0aa22",
   "requiredTables": [
     "Announcement",
     "BuildupEvent",
@@ -11,7 +11,8 @@
     "McpToken",
     "McpLog",
     "ActivityComment",
-    "AiDigestCache"
+    "AiDigestCache",
+    "SalesProcessAudit"
   ],
   "requiredColumnAdditions": {
     "WorkActivity": [
@@ -35,6 +36,10 @@
       "dongjakProfile",
       "teamId2",
       "teamId3"
+    ],
+    "SalesDeal": [
+      "salesProcessJson",
+      "salesProcessRevision"
     ]
   },
   "requiredIndexes": [
@@ -45,7 +50,8 @@
     "McpToken_userId_idx",
     "McpLog_createdAt_idx",
     "McpLog_category_idx",
-    "ActivityComment_activityId_idx"
+    "ActivityComment_activityId_idx",
+    "SalesProcessAudit_dealId_createdAt_idx"
   ],
   "requiredColumns": {
     "CustomerMerge": [
@@ -134,6 +140,16 @@
       "travelersJson",
       "fxCurrency",
       "fxRate"
+    ],
+    "SalesProcessAudit": [
+      "id",
+      "dealId",
+      "actorId",
+      "actorName",
+      "reason",
+      "beforeJson",
+      "afterJson",
+      "createdAt"
     ]
   },
   "privacyPreflights": []

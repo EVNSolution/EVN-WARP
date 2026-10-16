@@ -1,6 +1,7 @@
 export interface PipelineCheck {
   key: string
   label: string
+  role?: 'required' | 'reference' | 'transaction' | 'history' | 'confirmation' | 'firstTask'
   field?: string      // 고객 데이터 연동 필드 ('vehicle' | 'shipper')
   opts?: string[]     // 칩 선택형 항목 옵션
   multiSelect?: boolean // true면 opts 중 복수 선택 허용 (기본: 단일 선택)
@@ -50,7 +51,8 @@ export const PIPELINE: PipelinePhase[] = [
       {
         code: '1-1', name: '미성숙 리드', target: 20, conversionRate: 0.10,
         checks: [
-          { key: '1-1-0', label: '배송업 의향 확인 ("이 분은 계속 배송일은 하시겠네")' },
+          { key: '1-1-call', label: '전화통화 완료 (실제 통화된 경우만 완료)', role: 'required' },
+          { key: '1-1-0', label: '배송업 의향 확인 ("이 분은 계속 배송일은 하시겠네")', role: 'reference' },
         ],
         checksB2B: [
           { key: '1-1-b2b-0', label: '일반화물자동차운송업 확보 ("이 회사는 전기차를 사서 자체 사용을 할 수 있음")' },
@@ -68,11 +70,11 @@ export const PIPELINE: PipelinePhase[] = [
       {
         code: '1-2', name: '잠재 리드', target: 10, conversionRate: 0.30,
         checks: [
-          { key: '1-2-0', label: '차량정보 확보',   field: 'vehicle' },
-          { key: '1-2-1', label: '화주정보 확보',   field: 'shipper' },
-          { key: '1-2-3', label: '연락 가능 ("이 분과 친구가 되었음")' },
-          { key: '1-2-2', label: '구매의향 확인', noteLabel: '구매의향 근거' },
-          { key: '1-2-4', label: '1차 견적서 발송' },
+          { key: '1-2-0', label: '차량정보 확보', role: 'reference', field: 'vehicle' },
+          { key: '1-2-1', label: '화주정보 확보', role: 'reference', field: 'shipper' },
+          { key: '1-2-3', label: '연락 가능 ("이 분과 친구가 되었음")', role: 'reference' },
+          { key: '1-2-2', label: '구매의사 확인', role: 'required', noteLabel: '구매의사 근거' },
+          { key: '1-2-4', label: '1차 견적서 발송 완료', role: 'required' },
         ],
         checksB2B: [
           { key: '1-2-b2b-0', label: '담당자 신뢰 확보 ("담당자와 친구가 되었음")' },
@@ -80,7 +82,8 @@ export const PIPELINE: PipelinePhase[] = [
           { key: '1-2-b2b-2', label: 'EV& 회사소개 완료 (팀장급)' },
           { key: '1-2-b2b-4', label: '실물차량 소개' },
         ],
-        documents: [],
+        documents: [{ key: 'initial_quotation', label: '1차 견적서 (선택 첨부)' }],
+        documentsB2B: [],
         touchpoints: [
           { key: '1-2-tp-0', activity: '전화통화', owner: '영업 담당자', frequency: '1주' },
         ],
@@ -88,15 +91,16 @@ export const PIPELINE: PipelinePhase[] = [
       {
         code: '1-3', name: '성숙 리드', target: 3, conversionRate: 0.50,
         checks: [
-          { key: '1-3-0', label: '구매예상시점 확정', yearMonth: true },
-          { key: '1-3-4', label: '자금조달방법 확인',   opts: ['여유자금', '캐피탈', '중고차매각', '직접입력'], multiSelect: true },
-          { key: '1-3-4b', label: '차량 시승' },
-          { key: '1-3-5', label: '신용평가 필요서류 확보' },
-          { key: '1-3-6', label: '사전 신용조회 (캐피탈업체)' },
-          { key: '1-3-7', label: '판매방법 확정', opts: ['캐피탈', '현금', '판매보류'] },
-          { key: '1-3-1', label: '차량 / 특장 옵션 확정', extLink: 'buildup-ev' },
-          { key: '1-3-2', label: '최종 견적서 발송' },
-          { key: '2-1-0', label: '특장계약서 작성' },
+          { key: '1-3-confirmed', label: '최종 견적서 확정 (모델·주요 사양·최종 금액 고객 확인)', role: 'required' },
+          { key: '1-3-0', label: '구매예상시점 확정', role: 'reference', yearMonth: true },
+          { key: '1-3-4', label: '자금조달방법 확인', role: 'reference', opts: ['여유자금', '캐피탈', '중고차매각', '직접입력'], multiSelect: true },
+          { key: '1-3-4b', label: '차량 시승', role: 'reference' },
+          { key: '1-3-5', label: '신용평가 필요서류 확보', role: 'transaction' },
+          { key: '1-3-6', label: '사전 신용조회 (캐피탈업체)', role: 'transaction' },
+          { key: '1-3-7', label: '판매방법 확정', role: 'reference', opts: ['캐피탈', '현금', '판매보류'] },
+          { key: '1-3-1', label: '차량 / 특장 옵션 확정', role: 'confirmation', extLink: 'buildup-ev' },
+          { key: '1-3-2', label: '최종 견적서 발송', role: 'history' },
+          { key: '2-1-0', label: '특장계약서 작성', role: 'transaction' },
         ],
         checksB2B: [
           { key: '1-3-0', label: '구매예상시점 확정', yearMonth: true },
@@ -116,7 +120,8 @@ export const PIPELINE: PipelinePhase[] = [
           { key: 'vehicle_reg',           label: '자동차등록증' },
           { key: 'small_biz_cert',        label: '소상공인 확인서' },
           { key: 'local_tax_cert',        label: '지방세납세증명' },
-          { key: 'quotation',             label: '견적서' },
+          { key: 'quotation',             label: '기존 견적서 (보존)' },
+          { key: 'final_quotation',       label: '최종 견적서 (확정 자료)' },
           { key: 'special_contract',      label: '특장계약서' },
         ],
         documentsB2B: [
@@ -133,6 +138,12 @@ export const PIPELINE: PipelinePhase[] = [
       {
         code: '2-1', name: '판매 신청', target: 2, conversionRate: 0.70,
         checks: [
+          { key: '2-1-1', label: 'B2C 10만원 계약금 입금·실제 입금일 확인', role: 'firstTask' },
+          { key: '2-1-2', label: 'KIA 대리점 판매신청' },
+          { key: '2-1-3', label: 'KIA 계약금 납입' },
+          { key: '2-1-4', label: '전기차보조금 신청확인' },
+        ],
+        checksB2B: [
           { key: '2-1-1', label: 'EV& 계약금 납입' },
           { key: '2-1-2', label: 'KIA 대리점 판매신청' },
           { key: '2-1-3', label: 'KIA 계약금 납입' },
