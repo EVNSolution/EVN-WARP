@@ -1,3 +1,4 @@
+import Link from 'next/link'
 import { prisma } from '@/lib/db'
 import { auth } from '@/auth'
 import { canViewAllLeads } from '@/lib/permissions'
@@ -153,8 +154,9 @@ export default async function FunnelPage({ searchParams }: { searchParams: Promi
             3단계 · 9 프로세스 통합 관리
           </p>
         </div>
-        <div className="flex items-center gap-3 text-xs">
+        <div className="flex flex-wrap justify-end items-center gap-2 text-xs">
           <ExcelImportExport />
+          <Link href="/funnel/deposit-queue" className="text-white border border-white/30 rounded-lg px-2 py-2">계약금·출고 대기</Link>
           <ProcessGuideButton />
         </div>
       </div>

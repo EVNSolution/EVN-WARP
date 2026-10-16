@@ -3,7 +3,7 @@ import { prisma } from '@/lib/db'
 import { auth } from '@/auth'
 import { canViewAllLeads } from '@/lib/permissions'
 import { customerWrite, customerErrorResponse, requireCurrentCustomerId } from '@/lib/customer-alias'
-import { logStageChange } from '@/lib/stageHistory'
+import { prepareSalesProcessWrite } from '@/lib/sales-process-write'
 
 const toDate = (v: unknown) => (v ? new Date(v as string) : null)
 
@@ -16,7 +16,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     where: { id },
     select: {
       id: true, name: true, phone: true, stageCode: true, stage: true,
-      assignee: true, customerType: true, checklistJson: true,
+      assignee: true, customerType: true, checklistJson: true, salesProcessJson:true, salesProcessRevision:true,
       customer: { select: { phone: true } },
     },
   })
@@ -33,17 +33,15 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     const [b, session] = await Promise.all([req.json(), auth()])
     const me = session?.user as any
 
-    const ownerCheck = await prisma.salesDeal.findUnique({ where: { id }, select: { stageCode: true, assignee: true } })
+    if (!me?.id || !me?.name) return NextResponse.json({error:'로그인이 필요합니다.'},{status:401})
     const isAdminPut = await canViewAllLeads(me?.id)
-    if (!isAdminPut && ownerCheck?.assignee !== me?.name) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-    }
-    const before = b.stageCode !== undefined ? ownerCheck : null
     const deal = await customerWrite(prisma, async tx => {
       if (b.customerId) await requireCurrentCustomerId(tx, b.customerId)
-      return tx.salesDeal.update({
+      const processUpdate = await prepareSalesProcessWrite(tx, id, b, {id:me.id,name:me.name}, isAdminPut)
+      const updatedDeal = await tx.salesDeal.update({
         where: { id },
         data: {
+          ...processUpdate.data,
           // agentId는 FK 필드 — libSQL 어댑터 호환을 위해 ORM update에서 제외, 아래 $executeRaw로 처리
           ...(b.stage            !== undefined && { stage: b.stage }),
           ...(b.name             !== undefined && { name: b.name.trim() }),
@@ -132,55 +130,56 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
           ...(b.cargoNote      !== undefined && { cargoNote:      b.cargoNote      || null }),
         },
       })
+
+      // DateTime/문자열 핵심 필드: libSQL 어댑터 호환 — 같은 트랜잭션에서 raw UPDATE로 보장
+      if (b.purchaseMethod !== undefined) {
+        const v = b.purchaseMethod || null
+        await tx.$executeRaw`UPDATE "SalesDeal" SET "purchaseMethod" = ${v} WHERE id = ${id}`
+      }
+      if (b.vehicleModel !== undefined) {
+        const v = b.vehicleModel || null
+        await tx.$executeRaw`UPDATE "SalesDeal" SET "vehicleModel" = ${v} WHERE id = ${id}`
+      }
+      if (b.capitalCheckedAt !== undefined) {
+        const v = b.capitalCheckedAt || null
+        await tx.$executeRaw`UPDATE "SalesDeal" SET "capitalCheckedAt" = ${v} WHERE id = ${id}`
+      }
+      if (b.contractedAt !== undefined) {
+        const v = b.contractedAt || null
+        await tx.$executeRaw`UPDATE "SalesDeal" SET "contractedAt" = ${v} WHERE id = ${id}`
+      }
+
+      // FK 필드: libSQL 어댑터 호환 — 같은 트랜잭션에서 raw UPDATE로 처리
+      if (b.agentId !== undefined) {
+        const agentId = b.agentId || null
+        if (agentId) {
+          await tx.$executeRaw`UPDATE "SalesDeal" SET "agentId" = ${agentId} WHERE id = ${id}`
+        } else {
+          await tx.$executeRaw`UPDATE "SalesDeal" SET "agentId" = NULL WHERE id = ${id}`
+        }
+      }
+      if (b.productId !== undefined) {
+        const productId = b.productId || null
+        if (productId) {
+          await tx.$executeRaw`UPDATE "SalesDeal" SET "productId" = ${productId} WHERE id = ${id}`
+        } else {
+          await tx.$executeRaw`UPDATE "SalesDeal" SET "productId" = NULL WHERE id = ${id}`
+        }
+      }
+
+      if (b.stageCode !== undefined && updatedDeal.stageCode && processUpdate.current.stageCode !== updatedDeal.stageCode) {
+        await tx.stageHistory.create({ data: {
+          dealId: id,
+          fromStageCode: processUpdate.current.stageCode,
+          toStageCode: updatedDeal.stageCode,
+          changedBy: me.name,
+        } })
+      }
+
+      return tx.salesDeal.findUniqueOrThrow({ where: { id } })
     })
 
-    // DateTime/문자열 핵심 필드: libSQL 어댑터 호환 — $executeRaw로 별도 보장
-    if (b.purchaseMethod !== undefined) {
-      const v = b.purchaseMethod || null
-      await prisma.$executeRaw`UPDATE "SalesDeal" SET "purchaseMethod" = ${v} WHERE id = ${id}`
-    }
-    if (b.vehicleModel !== undefined) {
-      const v = b.vehicleModel || null
-      await prisma.$executeRaw`UPDATE "SalesDeal" SET "vehicleModel" = ${v} WHERE id = ${id}`
-    }
-    if (b.capitalCheckedAt !== undefined) {
-      const v = b.capitalCheckedAt || null
-      await prisma.$executeRaw`UPDATE "SalesDeal" SET "capitalCheckedAt" = ${v} WHERE id = ${id}`
-    }
-    if (b.contractedAt !== undefined) {
-      const v = b.contractedAt || null
-      await prisma.$executeRaw`UPDATE "SalesDeal" SET "contractedAt" = ${v} WHERE id = ${id}`
-    }
-
-    // FK 필드: libSQL 어댑터 호환 — $executeRaw로 별도 처리
-    if (b.agentId !== undefined) {
-      const agentId = b.agentId || null
-      if (agentId) {
-        await prisma.$executeRaw`UPDATE "SalesDeal" SET "agentId" = ${agentId} WHERE id = ${id}`
-      } else {
-        await prisma.$executeRaw`UPDATE "SalesDeal" SET "agentId" = NULL WHERE id = ${id}`
-      }
-    }
-    if (b.productId !== undefined) {
-      const productId = b.productId || null
-      if (productId) {
-        await prisma.$executeRaw`UPDATE "SalesDeal" SET "productId" = ${productId} WHERE id = ${id}`
-      } else {
-        await prisma.$executeRaw`UPDATE "SalesDeal" SET "productId" = NULL WHERE id = ${id}`
-      }
-    }
-
-    if (b.stageCode !== undefined && before && deal.stageCode) {
-      const me = session?.user as any
-      await logStageChange({
-        dealId: id,
-        fromStageCode: before.stageCode,
-        toStageCode: deal.stageCode,
-        changedBy: me?.name ?? null,
-      })
-    }
-
-    return NextResponse.json({ ...deal, agentId: b.agentId !== undefined ? (b.agentId || null) : undefined })
+    return NextResponse.json(deal)
   } catch (error) {
     return customerErrorResponse(error)
   }

@@ -71,7 +71,7 @@ async function leadMapping() {
 }
 const withLead = (input: MarketingInquiry): MarketingInquiry => ({ ...input, rejectExistingCustomer: true, registrationPolicy: MARKETING_LEAD_POLICY })
 
-test('opt-in registration atomically creates online customer, mapped potential lead and both stage records for each source', async () => {
+test('opt-in registration atomically creates an unchecked mapped lead at the immature stage for each source', async () => {
   const product = await leadMapping()
   for (const input of [withLead(landingPayload()), withLead(payload('00000000-0000-4000-8000-000000000090', { phone: '01011112222' }))]) {
     const first = await send(input)
@@ -82,18 +82,18 @@ test('opt-in registration atomically creates online customer, mapped potential l
     assert.equal(customer.id, first.body.customerId)
     assert.equal(customer.source, '온라인')
     assert.equal(lead.source, '온라인'); assert.equal(lead.assignee, '최도준'); assert.equal(lead.productId, product.id)
-    assert.equal(lead.stageCode, '1-2'); assert.equal(lead.stage, '리드'); assert.equal(lead.salesStatus, '진행중')
-    assert.deepEqual(JSON.parse(lead.checklistJson!), { '1-1-0': true })
+    assert.equal(lead.stageCode, '1-1'); assert.equal(lead.stage, '리드'); assert.equal(lead.salesStatus, '진행중')
+    assert.equal(lead.checklistJson, null)
     assert.equal(lead.memo, marketingRegistrationMemo(new Date(first.body.registration.registeredAt)))
     const stages = await prisma.stageHistory.findMany({ where: { dealId: lead.id }, orderBy: { toStageCode: 'asc' } })
-    assert.deepEqual(stages.map(row => [row.fromStageCode, row.toStageCode, row.changedBy]), [[null, '1-1', 'EV&Marketing'], ['1-1', '1-2', 'EV&Marketing']])
+    assert.deepEqual(stages.map(row => [row.fromStageCode, row.toStageCode, row.changedBy]), [[null, '1-1', 'EV&Marketing']])
     const again = await send({ ...input, sourceId: input.sourceId.toUpperCase() })
     assert.deepEqual(again.body, { ...first.body, created: false, duplicate: true })
     const lookup = await check({ source: input.source, companyScopeId: input.companyScopeId, homepageScopeId: input.homepageScopeId,
       registrationPolicy: MARKETING_LEAD_POLICY, items: [{ sourceId: input.sourceId, phone: input.phone }] })
     assert.deepEqual(lookup.body.results[0].receipt, again.body)
   }
-  assert.equal(await prisma.customer.count(), 2); assert.equal(await prisma.salesDeal.count(), 2); assert.equal(await prisma.stageHistory.count(), 4)
+  assert.equal(await prisma.customer.count(), 2); assert.equal(await prisma.salesDeal.count(), 2); assert.equal(await prisma.stageHistory.count(), 2)
 })
 
 test('registration memo uses the first success KST date and replay preserves later sales edits', async () => {
@@ -147,17 +147,17 @@ test('missing, inactive and ambiguous operational mapping hold before any custom
 test('a failure after customer and lead creation rolls back all stages and permits one safe retry', async () => {
   await leadMapping()
   const input = withLead(landingPayload()), logger = test.mock.method(console, 'error', () => {})
-  await prisma.$executeRawUnsafe(`CREATE TRIGGER reject_potential_stage BEFORE INSERT ON StageHistory
-    WHEN NEW.toStageCode = '1-2' BEGIN SELECT RAISE(ABORT, 'synthetic-private-stage-error'); END`)
+  await prisma.$executeRawUnsafe(`CREATE TRIGGER reject_initial_stage BEFORE INSERT ON StageHistory
+    WHEN NEW.toStageCode = '1-1' BEGIN SELECT RAISE(ABORT, 'synthetic-private-stage-error'); END`)
   try {
     assert.equal((await send(input)).response.status, 503)
     assert.equal(await prisma.customer.count(), 0); assert.equal(await prisma.customerActivity.count(), 0)
     assert.equal(await prisma.salesDeal.count(), 0); assert.equal(await prisma.stageHistory.count(), 0)
     assert.doesNotMatch(JSON.stringify(logger.mock.calls.map(call => call.arguments)), /synthetic-private-stage-error|010-1234-5678/)
-  } finally { logger.mock.restore(); await prisma.$executeRawUnsafe('DROP TRIGGER reject_potential_stage') }
+  } finally { logger.mock.restore(); await prisma.$executeRawUnsafe('DROP TRIGGER reject_initial_stage') }
   assert.equal((await send(input)).body.registration.state, 'complete')
   assert.equal((await send(input)).body.duplicate, true)
-  assert.equal(await prisma.customer.count(), 1); assert.equal(await prisma.salesDeal.count(), 1); assert.equal(await prisma.stageHistory.count(), 2)
+  assert.equal(await prisma.customer.count(), 1); assert.equal(await prisma.salesDeal.count(), 1); assert.equal(await prisma.stageHistory.count(), 1)
 })
 
 test('independent retry and cross-source phone races create one customer and one lead', async () => {
@@ -168,7 +168,7 @@ test('independent retry and cross-source phone races create one customer and one
     assert.equal(repeated[0].response.status, 200); assert.equal(repeated[1].status, 200)
     const rival = withLead(payload('00000000-0000-4000-8000-000000000092', { phone: '+82 10 1234 5678' }))
     assert.equal((await send(rival)).body.error, 'phone_exists')
-    assert.equal(await prisma.customer.count(), 1); assert.equal(await prisma.salesDeal.count(), 1); assert.equal(await prisma.stageHistory.count(), 2)
+    assert.equal(await prisma.customer.count(), 1); assert.equal(await prisma.salesDeal.count(), 1); assert.equal(await prisma.stageHistory.count(), 1)
     const before = await prisma.customer.findMany()
     assert.equal((await send({ ...input, sourceId: rival.sourceId, registrationPolicy: 'other-policy' })).response.status, 400)
     assert.equal((await send({ ...input, rejectExistingCustomer: undefined })).response.status, 400)

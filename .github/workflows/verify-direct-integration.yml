@@ -26,6 +26,13 @@ on:
       - deploy/schema-migrations/**
       - lib/buildup-import/**
       - lib/marketing-inquiries*.ts
+      - lib/sales-process*.ts
+      - lib/pipeline*.ts
+      - app/api/deals/**
+      - app/api/import/execute/**
+      - components/SalesProcessFields.tsx
+      - app/(app)/funnel/**
+      - app/(mobile)/m/pipeline/**
       - docs/integrations/**
       - scripts/verify-direct-integration-contract.mjs
       - package.json
@@ -54,6 +61,7 @@ jobs:
           DATABASE_URL=file:/tmp/warp-ci.db npx prisma generate
           npm run test:external-lookup
           npm run test:buildup-import
+          npm run test:sales-process
           npm run test:marketing-inquiries
           python3 -m unittest discover -s deploy/tests -p 'test_*.py'
           npm run test:customer-merge

@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
-import { customerWrite, requireCurrentCustomerId, resolveCustomerId } from '@/lib/customer-alias'
+import { transitionError, readSalesProcess, emptySalesProcess } from '@/lib/sales-process'
+import { parseChecks } from '@/lib/sales-process-write'
+import { getStageCode } from '@/lib/pipeline'
+import { CustomerMergeError, customerWrite, requireCurrentCustomerId, resolveCustomerId } from '@/lib/customer-alias'
 
 export interface ExecuteRow {
   action:          'update' | 'create' | 'link' | 'skip'
@@ -49,13 +52,17 @@ export async function POST(req: NextRequest) {
 
     try {
       if (row.action === 'update' && row.dealId) {
-        await prisma.salesDeal.update({
-          where: { id: row.dealId },
-          data:  dealFields,
+        await customerWrite(prisma,async tx=>{
+          const current=await tx.salesDeal.findUniqueOrThrow({where:{id:row.dealId},include:{customer:{select:{customerSegment:true}}}})
+          const error=transitionError(current.customer?.customerSegment ?? current.customerSegment,current.stageCode ?? getStageCode(current.stage),dealFields.stageCode,parseChecks(current.checklistJson),readSalesProcess(current.salesProcessJson))
+          if(error) throw new CustomerMergeError(400,error)
+          await tx.salesDeal.update({where:{id:row.dealId},data:{...dealFields,salesProcessRevision:{increment:1}}})
         })
         updated++
       } else {
         await customerWrite(prisma, async prisma => {
+          const error=transitionError(dealFields.customerSegment,'1-1',dealFields.stageCode,{},emptySalesProcess())
+          if(error) throw new CustomerMergeError(400,error)
           let customerId: string
 
           if (row.action === 'create') {
@@ -88,8 +95,8 @@ export async function POST(req: NextRequest) {
         if (row.action === 'create') created++
         else linked++
       }
-    } catch {
-      errors.push('고객 연결 또는 저장에 실패했습니다. 현재 고객 정보를 확인해 주세요.')
+    } catch(error) {
+      errors.push(error instanceof CustomerMergeError ? error.message : '고객 연결 또는 저장에 실패했습니다. 현재 고객 정보를 확인해 주세요.')
     }
   }
 

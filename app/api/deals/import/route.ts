@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { logStageChange } from '@/lib/stageHistory'
+import { customerWrite, CustomerMergeError } from '@/lib/customer-alias'
+import { transitionError, readSalesProcess, emptySalesProcess } from '@/lib/sales-process'
+import { parseChecks } from '@/lib/sales-process-write'
+import { getStageCode } from '@/lib/pipeline'
 
 const HEADER_MAP: Record<string, string> = {
   'ID': 'id',
@@ -93,12 +97,20 @@ export async function POST(req: NextRequest) {
           errors.push({ row: rowNum, msg: `ID '${rec.id}'를 찾을 수 없습니다.` })
           continue
         }
-        await prisma.salesDeal.update({ where: { id: rec.id }, data: dealData })
+        await customerWrite(prisma,async tx=>{
+          const current=await tx.salesDeal.findUniqueOrThrow({where:{id:rec.id},include:{customer:{select:{customerSegment:true}}}})
+          const from=current.stageCode ?? getStageCode(current.stage)
+          const error=transitionError(current.customer?.customerSegment ?? current.customerSegment,from,stageCode,parseChecks(current.checklistJson),readSalesProcess(current.salesProcessJson))
+          if(error) throw new CustomerMergeError(400,error)
+          await tx.salesDeal.update({where:{id:rec.id},data:{...dealData,salesProcessRevision:{increment:1}}})
+        })
         await logStageChange({
           dealId: rec.id, fromStageCode: exists.stageCode, toStageCode: stageCode, changedBy: '엑셀 임포트',
         })
         updated++
       } else {
+        const error=transitionError(dealData.customerSegment,'1-1',stageCode,{},emptySalesProcess())
+        if(error) throw new CustomerMergeError(400,error)
         // 신규 딜 생성 — 전화번호로 기존 고객 연결
         const phone = rec.phone?.trim() || null
         // 전화번호가 같아도 이름이 다르면 다른 사람(번호 공유·오기입)일 수 있으므로 병합하지 않는다.
@@ -135,8 +147,8 @@ export async function POST(req: NextRequest) {
         })
         created++
       }
-    } catch {
-      errors.push({ row: rowNum, msg: '저장 중 오류가 발생했습니다.' })
+    } catch (error) {
+      errors.push({ row: rowNum, msg: error instanceof CustomerMergeError ? error.message : '저장 중 오류가 발생했습니다.' })
     }
   }
 

@@ -2,9 +2,9 @@
 
 import { useState, useEffect } from 'react'
 import { X, ChevronDown, ChevronUp, CheckCircle2, FileText, Pencil, Plus, Trash2, Save, Loader2, Printer, Users, PauseCircle, XCircle } from 'lucide-react'
-import { PIPELINE } from '@/lib/pipeline'
+import { PIPELINE, type PipelineCheck } from '@/lib/pipeline'
 
-type ItemDef  = { key: string; label: string; field?: string }
+type ItemDef  = Pick<PipelineCheck, 'key' | 'label' | 'field' | 'role'>
 type ConfigMap = Record<string, ItemDef[]>
 type TouchpointDef = { key: string; activity: string; owner: string; frequency: string }
 type TouchpointMap = Record<string, TouchpointDef[]>
@@ -19,6 +19,15 @@ const PHASE_COLORS: Record<number, string> = {
   2: 'bg-violet-700',
   3: 'bg-orange-600',
   4: 'bg-teal-600',
+}
+
+const ROLE_GUIDE: Record<NonNullable<PipelineCheck['role']>, { label: string; description: string; className: string }> = {
+  required: { label: '단계 이동 필수', description: '완료해야 다음 단계로 이동', className: 'bg-blue-100 text-blue-700' },
+  reference: { label: '참고 정보', description: '기록하되 단계 이동을 막지 않음', className: 'bg-slate-200 text-slate-600' },
+  transaction: { label: '거래별 업무', description: '필요한 거래에서 계속 수행', className: 'bg-amber-100 text-amber-700' },
+  history: { label: '발송 이력', description: '발송 기록이며 확정 조건은 아님', className: 'bg-violet-100 text-violet-700' },
+  confirmation: { label: '확정 시 확인', description: '최종 견적 확정과 함께 확인', className: 'bg-emerald-100 text-emerald-700' },
+  firstTask: { label: '첫 업무', description: '판매신청 후 가장 먼저 확인', className: 'bg-rose-100 text-rose-700' },
 }
 
 export default function ProcessGuideModal({ onClose }: { onClose: () => void }) {
@@ -252,6 +261,25 @@ export default function ProcessGuideModal({ onClose }: { onClose: () => void }) 
           </div>
         </div>
 
+        {segment === 'B2C' && (
+          <div className="px-6 py-3 border-b border-blue-100 bg-blue-50/70 text-[11px] text-slate-600 leading-relaxed">
+            <p className="font-bold text-blue-800">단계 이동 관문</p>
+            <p>미성숙: 전화통화 완료 → 잠재: 구매의사 확인 + 1차 견적서 발송 완료 → 성숙: 최종 견적서 확정</p>
+            <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1">
+              {Object.entries(ROLE_GUIDE).map(([role, guide]) => (
+                <span key={role} className="inline-flex items-center gap-1">
+                  <span className={`rounded px-1.5 py-0.5 font-bold ${guide.className}`}>{guide.label}</span>
+                  <span>{guide.description}</span>
+                </span>
+              ))}
+            </div>
+            <p className="mt-2 border-t border-blue-100 pt-2">
+              판매신청 첫 업무는 10만원 입금과 실제 입금일 확인입니다. 같은 모델·주요 사양은 실제 입금일이 빠른 순으로 관리하고,
+              같은 날은 입금시각 순으로 봅니다. 미입금 또는 입금일 미확인은 순번을 부여하지 않으며 변경 사유와 이력을 남깁니다.
+            </p>
+          </div>
+        )}
+
         {/* 편집 모드 안내 */}
         {editMode && (
           <div className="guide-no-print px-6 py-2.5 bg-amber-50 border-b border-amber-100 text-xs text-amber-700 font-medium">
@@ -341,6 +369,14 @@ export default function ProcessGuideModal({ onClose }: { onClose: () => void }) 
                                   <li key={ck.key} className="flex items-center gap-2 text-xs text-slate-600">
                                     <CheckCircle2 size={12} className="text-slate-300 shrink-0" />
                                     <span className="flex-1">{ck.label}</span>
+                                    {ck.role && (
+                                      <span
+                                        title={ROLE_GUIDE[ck.role].description}
+                                        className={`text-[9px] font-bold rounded px-1.5 py-0.5 shrink-0 ${ROLE_GUIDE[ck.role].className}`}
+                                      >
+                                        {ROLE_GUIDE[ck.role].label}
+                                      </span>
+                                    )}
                                     {ck.field && (
                                       <span
                                         title="이 항목은 리드 상세 화면의 데이터 입력과 연동됩니다 (여기서는 클릭할 수 없어요)"

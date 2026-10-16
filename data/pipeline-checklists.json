@@ -1,25 +1,29 @@
 {
   "1-1": [
-    { "key": "1-1-0", "label": "배송업 의향 확인 (\"이 분은 계속 배송일은 하시겠네\")" }
+    { "key": "1-1-call", "label": "전화통화 완료 (실제 통화된 경우만 완료)", "role": "required" },
+    { "key": "1-1-0", "label": "배송업 의향 확인 (\"이 분은 계속 배송일은 하시겠네\")", "role": "reference" }
   ],
   "1-2": [
-    { "key": "1-2-0", "label": "차량정보 확보", "field": "vehicle" },
-    { "key": "1-2-1", "label": "화주정보 확보", "field": "shipper" },
-    { "key": "1-2-3", "label": "연락 가능 (\"이 분과 친구가 되었음\")" },
-    { "key": "1-2-2", "label": "구매의향 확인" },
-    { "key": "1-2-4", "label": "1차 견적서 발송" }
+    { "key": "1-2-0", "label": "차량정보 확보", "role": "reference", "field": "vehicle" },
+    { "key": "1-2-1", "label": "화주정보 확보", "role": "reference", "field": "shipper" },
+    { "key": "1-2-3", "label": "연락 가능 (\"이 분과 친구가 되었음\")", "role": "reference" },
+    { "key": "1-2-2", "label": "구매의사 확인", "role": "required" },
+    { "key": "1-2-4", "label": "1차 견적서 발송 완료", "role": "required" }
   ],
   "1-3": [
-    { "key": "1-3-0", "label": "구매예상시점 확정" },
-    { "key": "1-3-4", "label": "자금조달방법 확인" },
-    { "key": "1-3-5", "label": "신용평가 필요서류 확보" },
-    { "key": "1-3-6", "label": "사전 신용조회 (캐피탈업체)" },
-    { "key": "1-3-1", "label": "차량 / 특장 옵션 확정" },
-    { "key": "1-3-2", "label": "최종 견적서 발송" },
-    { "key": "2-1-0", "label": "특장계약서 작성" }
+    { "key": "1-3-confirmed", "label": "최종 견적서 확정 (모델·주요 사양·최종 금액 고객 확인)", "role": "required" },
+    { "key": "1-3-0", "label": "구매예상시점 확정", "role": "reference" },
+    { "key": "1-3-4", "label": "자금조달방법 확인", "role": "reference" },
+    { "key": "1-3-4b", "label": "차량 시승", "role": "reference" },
+    { "key": "1-3-5", "label": "신용평가 필요서류 확보", "role": "transaction" },
+    { "key": "1-3-6", "label": "사전 신용조회 (캐피탈업체)", "role": "transaction" },
+    { "key": "1-3-7", "label": "판매방법 확정", "role": "reference" },
+    { "key": "1-3-1", "label": "차량 / 특장 옵션 확정", "role": "confirmation" },
+    { "key": "1-3-2", "label": "최종 견적서 발송", "role": "history" },
+    { "key": "2-1-0", "label": "특장계약서 작성", "role": "transaction" }
   ],
   "2-1": [
-    { "key": "2-1-1", "label": "EV& 계약금 납입" },
+    { "key": "2-1-1", "label": "B2C 10만원 계약금 입금·실제 입금일 확인", "role": "firstTask" },
     { "key": "2-1-2", "label": "KIA 대리점 판매신청" },
     { "key": "2-1-3", "label": "KIA 계약금 납입" },
     { "key": "2-1-4", "label": "전기차보조금 신청확인" }

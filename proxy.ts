@@ -42,6 +42,11 @@ export default auth((req) => {
       destination.pathname = `/m${pathname}`
       return NextResponse.redirect(destination)
     }
+    if (pathname === '/funnel' || pathname.startsWith('/funnel/')) {
+      const destination = new URL(req.url)
+      destination.pathname = pathname.replace('/funnel', '/m/pipeline')
+      return NextResponse.redirect(destination)
+    }
     return NextResponse.redirect(new URL('/m', req.url))
   }
   // 사외 계정 접근 제한

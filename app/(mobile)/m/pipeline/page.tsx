@@ -1,3 +1,4 @@
+import Link from 'next/link'
 import { auth } from '@/auth'
 import { prisma } from '@/lib/db'
 import { redirect } from 'next/navigation'
@@ -30,11 +31,14 @@ export default async function MobilePipelinePage() {
     : []
 
   return (
+    <>
+    <Link href="/m/pipeline/deposit-queue" className="block mx-4 mt-4 rounded-xl border border-blue-200 bg-white p-3 text-sm text-blue-700">계약금·출고 대기 순번 →</Link>
     <MobilePipelineClient
       deals={deals}
       assignees={assignees}
       isAdmin={isAdmin}
       myName={myName}
     />
+    </>
   )
 }

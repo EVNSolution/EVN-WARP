@@ -5,7 +5,6 @@ import { safeKeyEqual } from '@/lib/external-lookup/config'
 import { digitsOnly } from '@/lib/external-lookup/match'
 import { customerWrite, resolveCustomerId, type CustomerDb } from '@/lib/customer-alias'
 import { normalizeCustomerMobile } from '@/lib/customer-mobile'
-import pipelineChecklists from '@/data/pipeline-checklists.json'
 
 export const MARKETING_LEAD_POLICY = 'customer-lead-v1'
 const REGISTRATION_MARKER = `marketing:${MARKETING_LEAD_POLICY}`
@@ -283,7 +282,7 @@ async function appendInquiry(prisma: PrismaClient, payload: MarketingInquiry, oc
     if (payload.registrationPolicy) {
       const products = await transaction.product.findMany({ where: PRODUCT, select: { id: true } })
       const assignees = await transaction.user.findMany({ where: { name: ASSIGNEE }, select: { id: true } })
-      if (products.length !== 1 || assignees.length !== 1 || !pipelineChecklists['1-1'].length) throw new LeadMappingError()
+      if (products.length !== 1 || assignees.length !== 1) throw new LeadMappingError()
       productId = products[0].id
     }
     // Created only in the successful writer transaction; retries read this retained time.
@@ -319,13 +318,10 @@ async function appendInquiry(prisma: PrismaClient, payload: MarketingInquiry, oc
         customerSegment: 'B2C', source: '온라인', assignee: ASSIGNEE,
         collectedAt: occurredAt, memo: marketingRegistrationMemo(registeredAt),
         stage: '리드', stageCode: '1-1', salesStatus: '진행중', createdAt: registeredAt,
-        checklistJson: JSON.stringify(Object.fromEntries(pipelineChecklists['1-1'].map(item => [item.key, true]))),
       } })
       // The existing UI uses productId for the selected model and stageCode for the pipeline.
-      // Keep both stage transitions in the same transaction; logging failure must roll back everything.
+      // Marketing intake records registration only; a salesperson confirms the call before advancing.
       await transaction.stageHistory.create({ data: { dealId: leadId, fromStageCode: null, toStageCode: '1-1', changedBy: 'EV&Marketing', changedAt: registeredAt } })
-      await transaction.salesDeal.update({ where: { id: leadId }, data: { stageCode: '1-2', stageChangedAt: registeredAt } })
-      await transaction.stageHistory.create({ data: { dealId: leadId, fromStageCode: '1-1', toStageCode: '1-2', changedBy: 'EV&Marketing', changedAt: registeredAt } })
       return { ok: true, customerId, activityId, created: true, duplicate: false,
         registration: { policy: MARKETING_LEAD_POLICY, state: 'complete', leadId, registeredAt: registeredAt.toISOString() } }
     }
