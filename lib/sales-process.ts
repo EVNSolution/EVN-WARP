@@ -4,7 +4,7 @@ export type InquiryStatus = '상담 대기' | '부재중 대기' | '첫 상담 �
 export interface SalesProcessData {
   inquiryStatus: '신규 문의' | InquiryStatus
   callbackAt: string
-  finalQuote: { date: string; model: string; spec: string; amountWon: number | null; documentId: string }
+  finalQuote: { date: string; model: string; spec: string; amountWon: number | null; grossAmountWon?: number | null; documentId: string }
   deposit: {
     status: 'unpaid' | 'paid' | 'refunded' | 'cancelled'
     amountWon: number | null; date: string; time: string; model: string; spec: string

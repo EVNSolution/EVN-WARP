@@ -619,3 +619,24 @@ test('history deletion binds the record to its lead and rejects foreign origins 
   assert.equal(await db.salesProcessAuditDeletion.count(), 0)
   assert.equal((await deleteProcessAuditRequest(deletionRequest(), db, user.id, 'deal', audit.id, deletionEnv)).status, 200)
 })
+
+test('BuildUP import preserves two distinct amounts and source audit without confirming or advancing', async () => {
+  const previous = emptySalesProcess()
+  previous.deposit.model = '기존 입금 모델'
+  await createDeal({stageCode:'1-3',process:previous})
+  await createDocument('deal','buildup-quote','final_quotation')
+  const process={...previous,finalQuote:{date:'',model:'PV5',spec:'냉동 저상',amountWon:43000000,grossAmountWon:56000000,documentId:'buildup-quote'}}
+  assert.throws(()=>parseProcessInput({...process,finalQuote:{...process.finalQuote,grossAmountWon:-1}}),/총액/)
+  const source={quoteId:7,quoteNo:'26-1234',version:'a'.repeat(64),pdfSha256:'b'.repeat(64),updatedAt:'2026-10-16T00:00:00Z',frozen:false}
+  await customerWrite(db,async tx=>{
+    const prepared=await prepareSalesProcessWrite(tx,'deal',{salesProcess:process,salesProcessRevision:0,checklistJson:'{"1-3-confirmed":false}'},owner,false,source)
+    await tx.salesDeal.update({where:{id:'deal'},data:{...prepared.data,checklistJson:'{"1-3-confirmed":false}'}})
+  })
+  const saved=await db.salesDeal.findUniqueOrThrow({where:{id:'deal'}})
+  assert.deepEqual(readSalesProcess(saved.salesProcessJson),process)
+  assert.equal(saved.stageCode,'1-3')
+  assert.equal(saved.salesProcessRevision,1)
+  const audit=await db.salesProcessAudit.findFirstOrThrow()
+  assert.deepEqual(JSON.parse(audit.afterJson).buildupQuote,source)
+  await rejectsStatus(writeProcess({stageCode:'2-1',salesProcessRevision:1}),400,/최종 견적서 확정/)
+})
