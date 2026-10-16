@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation'
 import { auth } from '@/auth'
 import { canViewAllLeads } from '@/lib/permissions'
 import { readDepositQueue, auditSummary } from '@/lib/sales-process-read'
+import { processAuditAdmin } from '@/lib/sales-process-audit'
 import { PIPELINE, getStageCode } from '@/lib/pipeline'
 import LeadDetailClient, { type CustomerSnap } from './LeadDetailClient'
 
@@ -50,9 +51,10 @@ export default async function LeadDetailPage({
   const salesStatus  = a.salesStatus ?? (d.stage === '이탈' ? '이탈' : d.stage === '출고 완료' ? '완료' : '진행중')
   const checklistJson = a.checklistJson ?? null
 
-  const [queueData, processAudit] = await Promise.all([
+  const [queueData, processAudit, auditAdmin] = await Promise.all([
     readDepositQueue(),
-    prisma.salesProcessAudit.findMany({where:{dealId:id},orderBy:{createdAt:'desc'},take:30}),
+    prisma.salesProcessAudit.findMany({where:{dealId:id,deletion:null},orderBy:[{createdAt:'desc'},{id:'desc'}],take:30}),
+    processAuditAdmin(prisma, me?.id),
   ])
   const customerSnap: CustomerSnap | null = customer ? {
     id:               customer.id,
@@ -109,6 +111,7 @@ export default async function LeadDetailPage({
 
   return (
     <LeadDetailClient
+      canDeleteProcessAudit={!!auditAdmin}
       products={products}
       customer={customerSnap}
       fromStage={fromStage}

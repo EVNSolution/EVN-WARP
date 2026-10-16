@@ -1061,6 +1061,7 @@ model CompanyScheduleRule {
 
 // Append-only evidence; not cascaded when a lead is removed.
 model SalesProcessAudit {
+  deletion SalesProcessAuditDeletion?
   id String @id
   dealId String
   actorId String
@@ -1070,4 +1071,13 @@ model SalesProcessAudit {
   afterJson String
   createdAt DateTime @default(now())
   @@index([dealId, createdAt])
+}
+
+// Display deletion only; the original audit and deletion actor remain immutable.
+model SalesProcessAuditDeletion {
+  auditId String @id
+  audit SalesProcessAudit @relation(fields: [auditId], references: [id], onDelete: Restrict)
+  actorId String
+  actorName String
+  createdAt DateTime @default(now())
 }

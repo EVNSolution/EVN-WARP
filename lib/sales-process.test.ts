@@ -24,6 +24,7 @@ import {
   type SalesProcessData,
 } from './sales-process'
 import { parseChecks, parseProcessInput, prepareSalesProcessWrite } from './sales-process-write'
+import { deleteProcessAuditRequest, processAuditAdmin } from './sales-process-audit'
 
 function validProcess(): SalesProcessData {
   return {
@@ -479,4 +480,64 @@ test('B2B writes retain their legacy process boundary without audits or revision
   assert.equal(stored.salesProcessRevision, 0)
   assert.equal(await db.salesProcessAudit.count(), 0)
   await rejectsStatus(writeProcess({ salesProcess: emptySalesProcess(), salesProcessRevision: 0 }), 400, /B2B는 기존 절차/)
+})
+
+function deletionRequest(origin = 'https://warp.test') {
+  return new Request('http://internal:3000/api/deals/deal/process-audit/audit', {
+    method: 'DELETE', headers: { origin },
+  })
+}
+const deletionEnv = { AUTH_URL: 'https://warp.test' }
+
+test('history deletion requires a current admin role, not login, ownership or executive-team viewing access', async () => {
+  await createDeal()
+  await writeProcess({ checklistJson: '{"1-1-call":true}', salesProcessRevision: 0 })
+  const audit = await db.salesProcessAudit.findFirstOrThrow()
+  const user = await db.user.create({ data: { id: owner.id, name: owner.name, email: 'user@example.invalid', password: 'unused', role: 'user', team: { create: { name: '경영진' } } } })
+  for (const [actorId, status] of [[undefined, 401], [user.id, 403], ['missing-user', 403]] as const) {
+    const response = await deleteProcessAuditRequest(deletionRequest(), db, actorId, 'deal', audit.id, deletionEnv)
+    assert.equal(response.status, status)
+  }
+  assert.equal(await processAuditAdmin(db, user.id), null)
+  assert.equal(await db.salesProcessAuditDeletion.count(), 0)
+  await db.user.update({ where: { id: user.id }, data: { role: 'admin' } })
+  assert.ok(await processAuditAdmin(db, user.id))
+  await db.user.update({ where: { id: user.id }, data: { role: 'user' } })
+  assert.equal((await deleteProcessAuditRequest(deletionRequest(), db, user.id, 'deal', audit.id, deletionEnv)).status, 403)
+})
+
+test('admin display deletion preserves source history, lead state and revision; retries are idempotent', async () => {
+  await createDeal()
+  await writeProcess({ checklistJson: '{"1-1-call":true}', salesProcessRevision: 0 })
+  const audit = await db.salesProcessAudit.findFirstOrThrow()
+  const before = await db.salesDeal.findUniqueOrThrow({ where: { id: 'deal' } })
+  const user = await db.user.create({ data: { name: '관리자', email: 'admin@example.invalid', password: 'unused', role: 'admin' } })
+  for (let i = 0; i < 2; i++) {
+    const response = await deleteProcessAuditRequest(deletionRequest(), db, user.id, 'deal', audit.id, deletionEnv)
+    assert.equal(response.status, 200)
+    assert.deepEqual(await response.json(), { ok: true })
+  }
+  assert.equal(await db.salesProcessAuditDeletion.count(), 1)
+  assert.deepEqual(await db.salesProcessAudit.findUniqueOrThrow({ where: { id: audit.id } }), audit)
+  assert.deepEqual(await db.salesDeal.findUniqueOrThrow({ where: { id: 'deal' } }), before)
+  assert.equal(await db.salesProcessAudit.count({ where: { dealId: 'deal', deletion: null } }), 0)
+  const deleted = await db.salesProcessAuditDeletion.findFirstOrThrow()
+  assert.equal(deleted.actorId, user.id)
+  assert.equal(deleted.actorName, user.name)
+  assert.ok(deleted.createdAt instanceof Date)
+})
+
+test('history deletion binds the record to its lead and rejects foreign origins before writes', async () => {
+  await createDeal()
+  await createDeal({ id: 'other' })
+  await writeProcess({ checklistJson: '{"1-1-call":true}', salesProcessRevision: 0 })
+  const audit = await db.salesProcessAudit.findFirstOrThrow()
+  const user = await db.user.create({ data: { name: '대표', email: 'ceo@example.invalid', password: 'unused', role: 'ceo' } })
+  for (const origin of ['https://evil.test', '']) {
+    assert.equal((await deleteProcessAuditRequest(deletionRequest(origin), db, user.id, 'deal', audit.id, deletionEnv)).status, 403)
+  }
+  assert.equal((await deleteProcessAuditRequest(deletionRequest(), db, user.id, 'other', audit.id, deletionEnv)).status, 404)
+  assert.equal((await deleteProcessAuditRequest(deletionRequest(), db, user.id, 'deal', 'missing', deletionEnv)).status, 404)
+  assert.equal(await db.salesProcessAuditDeletion.count(), 0)
+  assert.equal((await deleteProcessAuditRequest(deletionRequest(), db, user.id, 'deal', audit.id, deletionEnv)).status, 200)
 })

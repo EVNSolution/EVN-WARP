@@ -3,15 +3,9 @@
 import { useId } from 'react'
 import type { SalesProcessData } from '@/lib/sales-process'
 import { InquiryStatusBadge } from './InquiryStatus'
+import SalesProcessHistory, { type AuditEntry } from './SalesProcessHistory'
 
 type DocumentOption = { id: string; docKey: string; fileName: string }
-type AuditEntry = {
-  id: string
-  createdAt: string
-  actorName: string
-  reason: string
-  summary: string
-}
 
 interface Props {
   stageCode: string
@@ -22,6 +16,8 @@ interface Props {
   onReasonChange: (reason: string) => void
   queue?: { position: number | null; message: string }
   audit?: AuditEntry[]
+  auditDealId?: string
+  canDeleteAudit?: boolean
 }
 
 const INPUT_CLASS = 'mt-1.5 w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-base text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100 sm:text-sm'
@@ -44,20 +40,6 @@ function parseAmount(raw: string) {
   return Number.isFinite(amount) ? amount : null
 }
 
-function formatAuditDate(createdAt: string) {
-  const date = new Date(createdAt)
-  if (Number.isNaN(date.getTime())) return createdAt
-
-  return new Intl.DateTimeFormat('ko-KR', {
-    timeZone: 'Asia/Seoul',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: false,
-  }).format(date)
-}
 
 export default function SalesProcessFields({
   stageCode,
@@ -68,6 +50,8 @@ export default function SalesProcessFields({
   onReasonChange,
   queue,
   audit,
+  auditDealId,
+  canDeleteAudit,
 }: Props) {
   const id = useId()
   const quoteDocuments = documents.filter(document => ['quotation','initial_quotation','final_quotation'].includes(document.docKey))
@@ -374,23 +358,8 @@ export default function SalesProcessFields({
         <p className="mt-1 text-xs text-slate-500">이미 저장한 견적·입금 정보를 고칠 때는 정정 사유를 입력해 주세요.</p>
       </div>}
 
-      {audit && audit.length > 0 && (
-        <div className="border-t border-slate-200 pt-4">
-          <h3 className="text-sm font-semibold text-slate-800">최근 변경 기록</h3>
-          <ul className="mt-2 divide-y divide-slate-100 rounded-xl border border-slate-200 bg-white px-3">
-            {audit.map(entry => (
-              <li key={entry.id} className="py-2.5 text-xs leading-5 text-slate-600">
-                <div className="flex flex-wrap items-center gap-x-2">
-                  <span className="font-semibold text-slate-800">{entry.actorName}</span>
-                  <time dateTime={entry.createdAt}>{formatAuditDate(entry.createdAt)} KST</time>
-                </div>
-                <p>{entry.summary}</p>
-                {entry.reason && <p className="text-slate-500">사유: {entry.reason}</p>}
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
+      {audit && <SalesProcessHistory audit={audit} dealId={auditDealId} canDelete={canDeleteAudit} />}
+
     </section>
   )
 }
