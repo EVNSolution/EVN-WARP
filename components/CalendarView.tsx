@@ -285,19 +285,13 @@ export default function CalendarView({ weeks, activities, reservations, schedule
           onClick={() => setShowCardUsage(true)}
           className={`${fieldFilter === 'activity' ? '' : 'ml-auto '}flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-semibold text-amber-700 bg-white border border-amber-200 rounded-lg hover:bg-amber-50 transition-colors`}>
           <CreditCard size={11} />
-          법인카드사용
-        </button>
-        <button
-          onClick={() => setShowVehStatus(true)}
-          className="flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-semibold text-lime-700 bg-white border border-lime-200 rounded-lg hover:bg-lime-50 transition-colors">
-          <MapPin size={11} />
-          차량현황
+          법인카드 사용증빙
         </button>
         <button
           onClick={() => openNewResv(todayStr)}
           className="flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-semibold text-lime-700 bg-white border border-lime-200 rounded-lg hover:bg-lime-50 transition-colors">
           <Car size={11} />
-          차량 신청
+          차량 사용신청
         </button>
       </div>
 
@@ -1052,24 +1046,25 @@ export default function CalendarView({ weeks, activities, reservations, schedule
         )
       })()}
 
-      {/* ─── 차량현황 모달 ─── */}
-      {showVehStatus && (
-        <VehicleStatusModal onClose={() => setShowVehStatus(false)} />
-      )}
-
       {/* ─── 법인카드사용 모달 ─── */}
       {showCardUsage && (
         <CardUsageModal todayStr={todayStr} myUserId={myUserId} canViewAll={canViewAllCardUsage}
           onClose={() => setShowCardUsage(false)} />
       )}
 
-      {/* ─── 차량 신청 모달 ─── */}
+      {/* ─── 차량 사용신청 모달 (차량현황은 모달 안 버튼으로) ─── */}
       {showNewResv && (
         <VehicleReservationModal
           initialDate={newResvDate}
           onClose={() => setShowNewResv(false)}
           onSaved={handleResvSaved}
+          onOpenStatus={() => setShowVehStatus(true)}
         />
+      )}
+
+      {/* ─── 차량현황 모달 — 신청 모달 위에 떠야 하므로 뒤에 렌더 ─── */}
+      {showVehStatus && (
+        <VehicleStatusModal onClose={() => setShowVehStatus(false)} />
       )}
 
       {/* ─── 차량 예약 수정 모달 ─── */}

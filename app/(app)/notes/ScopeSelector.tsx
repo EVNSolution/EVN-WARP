@@ -44,7 +44,9 @@ export default function ScopeSelector({ monthId, activeTab, myName, myUserId, te
   const hasExplicitScope = !!(userParam || uidParam || teamParam)
   const personalActive = !teamParam && (uidParam ? uidParam === myUserId : userParam === myName) && !!(uidParam || userParam)
   const teamActive = !!teamParam
-  const allActive = hasExplicitScope && !personalActive && !teamActive
+  // 「전체」는 URL 파라미터가 없는 상태라 명시적 선택인지 저장값으로 판별한다 (하이라이트 누락 버그 수정)
+  const [impliedAll, setImpliedAll] = useState(false)
+  const allActive = (hasExplicitScope && !personalActive && !teamActive) || (!hasExplicitScope && impliedAll)
 
   const visibleTeams = teams
     .filter(t => !HIDDEN_TEAMS.includes(t.name))
@@ -72,7 +74,7 @@ export default function ScopeSelector({ monthId, activeTab, myName, myUserId, te
     if (hasExplicitScope || !myName) return
     let saved: string | null = null
     try { saved = localStorage.getItem(STORAGE_KEY) } catch {}
-    if (saved === 'all') return
+    if (saved === 'all') { setImpliedAll(true); return }
     if (saved?.startsWith('team:')) {
       const t = saved.slice(5)
       if (teams.some(x => x.name === t)) { router.replace(buildHref({ team: t })); return }
@@ -115,7 +117,7 @@ export default function ScopeSelector({ monthId, activeTab, myName, myUserId, te
         <ChevronDown size={11} className={`transition-transform ${open ? 'rotate-180' : ''}`} />
       </button>
       <button type="button"
-        onClick={() => { remember('all'); setOpen(false); router.push(buildHref({})) }}
+        onClick={() => { remember('all'); setImpliedAll(true); setOpen(false); router.push(buildHref({})) }}
         className={`${segBase} rounded-r-lg ${allActive ? '' : idle}`}
         style={allActive ? active : {}}>
         전체
