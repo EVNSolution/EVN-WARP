@@ -4,6 +4,8 @@ import { useState } from 'react'
 import Link from 'next/link'
 import { ChevronRight, Phone, Search, X, Check, ChevronDown } from 'lucide-react'
 import { PIPELINE, getStageCode } from '@/lib/pipeline'
+import { InquiryStatusBadge, InquiryStatusFilter } from '@/components/InquiryStatus'
+import type { InquiryStatus } from '@/lib/sales-process'
 
 /* ── 스테이지 메타 ── */
 const STAGE_NAME: Record<string, string> = {}
@@ -42,6 +44,7 @@ type Deal = {
   stage: string | null
   salesStatus: string | null
   customerType: string | null
+  inquiryStatus: InquiryStatus | null
   customer: { phone: string | null } | null
 }
 
@@ -233,11 +236,13 @@ export default function MobilePipelineClient({ deals, assignees, isAdmin, myName
   const [selCt,    setSelCt]    = useState<Set<string>>(new Set())   // B2B/B2C 멀티
   const [selSa,    setSelSa]    = useState<Set<string>>(new Set())   // 담당자 멀티
   const [selStage, setSelStage] = useState('all')                    // 단계 단일
+  const [inquiryFilter, setInquiryFilter] = useState<InquiryStatus | ''>('')
 
   /* 필터 적용 */
   const isCtAll    = selCt.size === 0
   const isSaAll    = selSa.size === 0
   const isStageAll = selStage === 'all'
+  const showInquiryFilter = selStage === '1-1' && !(selCt.size === 1 && selCt.has('B2B'))
 
   const filtered = deals.filter(d => {
     const code   = d.stageCode ?? getStageCode(d.stage ?? '')
@@ -259,7 +264,8 @@ export default function MobilePipelineClient({ deals, assignees, isAdmin, myName
 
     const saOk = isSaAll ? true : selSa.has(d.assignee ?? '')
 
-    return stageOk && qOk && ctOk && saOk
+    const inquiryOk = !showInquiryFilter || !inquiryFilter || d.inquiryStatus === inquiryFilter
+    return stageOk && qOk && ctOk && saOk && inquiryOk
   })
 
   /* 단계 버튼 레이블 */
@@ -311,6 +317,10 @@ export default function MobilePipelineClient({ deals, assignees, isAdmin, myName
         />
       </div>
 
+      {showInquiryFilter && <div className="px-4 pb-3">
+        <InquiryStatusFilter value={inquiryFilter} onChange={setInquiryFilter} />
+      </div>}
+
       {/* 건수 + 활성 필터 요약 */}
       <div className="px-4 pb-2 flex flex-wrap items-center gap-1.5 text-xs text-gray-400">
         <span className="font-semibold text-gray-600">{filtered.length}건</span>
@@ -358,6 +368,7 @@ export default function MobilePipelineClient({ deals, assignees, isAdmin, myName
                     </span>
                   )}
                 </div>
+                {code === '1-1' && d.inquiryStatus && <div className="mt-1"><InquiryStatusBadge status={d.inquiryStatus} /></div>}
               </div>
               <div className="flex items-center gap-2 flex-shrink-0 relative z-10">
                 {phone && (

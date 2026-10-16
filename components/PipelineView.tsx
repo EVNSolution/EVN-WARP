@@ -5,6 +5,8 @@ import { createPortal } from 'react-dom'
 import Link from 'next/link'
 import { PIPELINE, getStatusColor } from '@/lib/pipeline'
 import NewDealModal from './NewDealModal'
+import { InquiryStatusBadge, InquiryStatusFilter } from './InquiryStatus'
+import type { InquiryStatus } from '@/lib/sales-process'
 
 export interface PipelineDeal {
   id: string
@@ -17,6 +19,7 @@ export interface PipelineDeal {
   assignee: string | null
   memo: string | null
   checklistJson: string | null
+  inquiryStatus?: InquiryStatus | null
   customerSegment?: string | null
   email?: string | null
   gender?: string | null
@@ -395,6 +398,7 @@ export default function PipelineView({ deals, salesTarget, initialStage, initial
   const [activeTab,    setActiveTab]    = useState<Tab>((initialSeg as Tab | null) ?? 'all')
   const [searchQuery,  setSearchQuery]  = useState('')
   const [assigneeFilter, setAssigneeFilter] = useState('')
+  const [inquiryFilter, setInquiryFilter] = useState<InquiryStatus | ''>('')
   const [quickMtgDeal, setQuickMtgDeal] = useState<PipelineDeal | null>(null)
 
   /* 컬럼 설정 — SSR 안전하게 useEffect에서 로드 */
@@ -480,7 +484,9 @@ export default function PipelineView({ deals, salesTarget, initialStage, initial
       ? pool.filter(d => d.stageCode === selectedCode)
       : pool
     const byAssignee = assigneeFilter ? byStage.filter(d => d.assignee === assigneeFilter) : byStage
-    const searched = !searchQuery.trim() ? byAssignee : byAssignee.filter(d => {
+    const byInquiry = selectedCode === '1-1' && activeTab !== 'b2b' && inquiryFilter
+      ? byAssignee.filter(d => d.inquiryStatus === inquiryFilter) : byAssignee
+    const searched = !searchQuery.trim() ? byInquiry : byInquiry.filter(d => {
       const q = searchQuery.trim().toLowerCase().replace(/\D/g, '') || searchQuery.trim().toLowerCase()
       const nameMatch  = d.name.toLowerCase().includes(searchQuery.trim().toLowerCase())
       const phoneDigits = (d.phone ?? '').replace(/\D/g, '')
@@ -547,6 +553,7 @@ export default function PipelineView({ deals, salesTarget, initialStage, initial
                 : <span className="shrink-0 px-1.5 py-0.5 rounded text-[9px] font-bold bg-sky-50 text-sky-600">개인</span>
               }
             </div>
+            {d.stageCode === '1-1' && d.inquiryStatus && <div className="mt-1"><InquiryStatusBadge status={d.inquiryStatus} /></div>}
           </td>
         )
       case 'phone':
@@ -1064,6 +1071,12 @@ export default function PipelineView({ deals, salesTarget, initialStage, initial
             </Link>
           </div>
         </div>
+
+        {!crmView && selectedCode === '1-1' && activeTab !== 'b2b' && (
+          <div className="border-b border-slate-200 bg-white px-5 py-3 shrink-0">
+            <InquiryStatusFilter value={inquiryFilter} onChange={setInquiryFilter} />
+          </div>
+        )}
 
         {/* 확인사항 힌트 바 */}
         {selectedProcess && (

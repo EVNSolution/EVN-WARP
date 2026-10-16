@@ -17,6 +17,7 @@ import {
   koreaToday,
   quoteError,
   readSalesProcess,
+  readInquiryStatus,
   transitionError,
   validDate,
   type QueueDeal,
@@ -74,6 +75,18 @@ test('inquiry defaults and old screens use consultation waiting without losing p
   assert.deepEqual(parseProcessInput(legacy), expected)
   assert.equal(readSalesProcess(JSON.stringify({ ...legacy, inquiryStatus: '부재중 대기' })).inquiryStatus, '부재중 대기')
   assert.throws(() => parseProcessInput({ ...legacy, inquiryStatus: '알 수 없음' }), /상담 대기 상태/)
+})
+
+test('list inquiry status requires the actual call checkpoint, including legacy and malformed records', () => {
+  const json = JSON.stringify({ ...emptySalesProcess(), inquiryStatus: '부재중 대기' })
+  assert.equal(readInquiryStatus(json, '{}'), '부재중 대기')
+  for (const complete of [true, '2020-01-02T03:04:05.006Z']) {
+    assert.equal(readInquiryStatus(json, JSON.stringify({ '1-1-call': complete })), '첫 상담 완료')
+  }
+  assert.equal(readInquiryStatus(null, '{"1-1-0":true}'), '상담 대기')
+  assert.equal(readInquiryStatus(json, '{"1-1-call":"false"}'), '부재중 대기')
+  assert.equal(readInquiryStatus(json, 'malformed'), '부재중 대기')
+  assert.equal(readInquiryStatus(JSON.stringify({ inquiryStatus: '첫 상담 완료' }), '{}'), '상담 대기')
 })
 
 test('all three B2C gates are required and legacy supporting checks do not satisfy them', () => {
@@ -341,6 +354,32 @@ test('inquiry state can change without a correction reason while retaining a hid
   assert.equal(saved.salesProcessRevision, 1)
   assert.deepEqual(readSalesProcess(saved.salesProcessJson), process)
   assert.equal((await db.salesProcessAudit.findFirstOrThrow()).reason, '영업 절차 확인')
+})
+
+test('call check and inquiry status persist in one audited revision and unchecking resets consultation waiting', async () => {
+  await createDeal({ process: { ...emptySalesProcess(), inquiryStatus: '부재중 대기' } })
+  const saved = await writeProcess({ checklistJson: JSON.stringify({ '1-1-call': true }), salesProcessRevision: 0 })
+  assert.equal(readSalesProcess(saved.salesProcessJson).inquiryStatus, '첫 상담 완료')
+  assert.equal(saved.stageCode, '1-1')
+  assert.equal(saved.salesProcessRevision, 1)
+  const audit = await db.salesProcessAudit.findFirstOrThrow()
+  assert.equal(JSON.parse(audit.afterJson).process.inquiryStatus, '첫 상담 완료')
+  assert.equal(JSON.parse(audit.afterJson).checks['1-1-call'], true)
+  const reset = await writeProcess({ checklistJson: '{}', salesProcessRevision: 1 })
+  assert.equal(readSalesProcess(reset.salesProcessJson).inquiryStatus, '상담 대기')
+  assert.equal(reset.salesProcessRevision, 2)
+  assert.equal(await db.salesProcessAudit.count(), 2)
+})
+
+test('a submitted completion label cannot replace the call checkpoint or override its checked state', async () => {
+  await createDeal()
+  const spoofed = { ...emptySalesProcess(), inquiryStatus: '첫 상담 완료' as const }
+  const unchanged = await writeProcess({ salesProcess: spoofed, salesProcessRevision: 0 })
+  assert.equal(readSalesProcess(unchanged.salesProcessJson).inquiryStatus, '상담 대기')
+  const checked = await writeProcess({ salesProcess: emptySalesProcess(), checklistJson: '{"1-1-call":true}', salesProcessRevision: unchanged.salesProcessRevision })
+  assert.equal(readSalesProcess(checked.salesProcessJson).inquiryStatus, '첫 상담 완료')
+  await rejectsStatus(writeProcess({ checklistJson: '{}', salesProcessRevision: 0 }), 409, /새로고침/)
+  assert.equal(readSalesProcess((await db.salesDeal.findUniqueOrThrow({where:{id:'deal'}})).salesProcessJson).inquiryStatus, '첫 상담 완료')
 })
 
 test('foreign or wrong-family documents are rejected without audit writes', async () => {

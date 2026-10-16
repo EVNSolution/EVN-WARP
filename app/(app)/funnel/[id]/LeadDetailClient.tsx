@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { useRouter, usePathname } from 'next/navigation'
 import { PIPELINE, SALE_HOLD_CHECK_KEY, SALE_HOLD_TRIGGER_OPTS } from '@/lib/pipeline'
 import SalesProcessFields from '@/components/SalesProcessFields'
-import { readSalesProcess, transitionError, PROCESS_GATES, GATE_LABELS } from '@/lib/sales-process'
+import { readSalesProcess, transitionError, PROCESS_GATES, GATE_LABELS, getInquiryStatus, isGateComplete } from '@/lib/sales-process'
 import { FIELD_CLS } from '@/lib/ui'
 import { SectionHeader } from '@/components/SectionCard'
 import AgentPicker from '@/components/AgentPicker'
@@ -508,8 +508,11 @@ export default function LeadDetailClient({ deal, customer = null, products = [],
 
   /* ── 체크리스트 토글 ── */
   const toggleCheck = (key: string) => {
+    if (isB2C && key === '1-1-call') {
+      setProcessData(prev => ({ ...prev, inquiryStatus: isGateComplete(checks[key]) ? '상담 대기' : '첫 상담 완료' }))
+    }
     setChecks(prev => {
-      if (prev[key]) {
+      if (key === '1-1-call' ? isGateComplete(prev[key]) : prev[key]) {
         const next = { ...prev }
         delete next[key]
         return next
@@ -1025,7 +1028,7 @@ export default function LeadDetailClient({ deal, customer = null, products = [],
           </div>
         )}
 
-        {isB2C && ['1-1','1-3','2-1'].includes(proc.code) && <SalesProcessFields stageCode={proc.code} value={processData} onChange={value => {
+        {isB2C && ['1-1','1-3','2-1'].includes(proc.code) && <SalesProcessFields stageCode={proc.code} value={{ ...processData, inquiryStatus: getInquiryStatus(processData, checks) }} onChange={value => {
           if (JSON.stringify(value.finalQuote) !== JSON.stringify(processData.finalQuote)) setChecks(previous => ({...previous, '1-3-confirmed':false}))
           setProcessData(value); setSaved(false)
         }} documents={dealDocs} reason={processReason} onReasonChange={value => {setProcessReason(value);setSaved(false)}} queue={saved ? deal.queue : {position:null,message:'저장 후 순번을 다시 계산합니다.'}} audit={deal.processAudit} />}

@@ -1,12 +1,12 @@
 import { CustomerMergeError, type CustomerDb } from './customer-alias'
 import { getStageCode } from './pipeline'
-import { emptySalesProcess, readSalesProcess, transitionError, quoteError, validDate, koreaToday, type SalesProcessData, isGateComplete } from './sales-process'
+import { emptySalesProcess, readSalesProcess, transitionError, quoteError, validDate, koreaToday, type SalesProcessData, isGateComplete, getInquiryStatus } from './sales-process'
 
 function fail(message: string): never { throw new CustomerMergeError(400, message) }
 export function parseProcessInput(input: unknown): SalesProcessData {
   if (!input || typeof input !== 'object' || Array.isArray(input)) fail('영업 절차 입력을 확인해 주세요.')
   const p = input as SalesProcessData, blank = emptySalesProcess()
-  if (!['신규 문의','상담 대기','부재중 대기'].includes(p.inquiryStatus)) fail('상담 대기 상태를 확인해 주세요.')
+  if (!['신규 문의','상담 대기','부재중 대기','첫 상담 완료'].includes(p.inquiryStatus)) fail('상담 대기 상태를 확인해 주세요.')
   for (const field of ['finalQuote','deposit'] as const) {
     const part = p[field]
     if (!part || typeof part !== 'object' || Array.isArray(part)) fail('견적·입금 기록을 확인해 주세요.')
@@ -21,7 +21,7 @@ export function parseProcessInput(input: unknown): SalesProcessData {
   if (!['unpaid','paid','refunded','cancelled'].includes(p.deposit.status) || typeof p.deposit.reviewPending !== 'boolean') fail('계약금 상태를 확인해 주세요.')
   if (p.deposit.time && !/^([01]\d|2[0-3]):[0-5]\d(:[0-5]\d)?$/.test(p.deposit.time)) fail('입금시각을 확인해 주세요.')
   // Whitelist fields: clients cannot append actor, history, or arbitrary payloads.
-  // Accept an older open screen's status, but save the current two-choice value.
+  // Accept an older open screen's status; call completion is reconciled with its checklist below.
   return { inquiryStatus: p.inquiryStatus === '신규 문의' ? '상담 대기' : p.inquiryStatus, callbackAt: p.callbackAt,
     finalQuote: { date:p.finalQuote.date, model:p.finalQuote.model.trim(), spec:p.finalQuote.spec.trim(), amountWon:p.finalQuote.amountWon, documentId:p.finalQuote.documentId },
     deposit: { status:p.deposit.status, date:p.deposit.date, time:p.deposit.time, model:p.deposit.model.trim(), spec:p.deposit.spec.trim(), amountWon:p.deposit.amountWon, documentId:p.deposit.documentId, reviewPending:p.deposit.reviewPending } }
@@ -44,12 +44,14 @@ export async function prepareSalesProcessWrite(tx: CustomerDb, id: string, b: Re
   if (b.stageCode !== undefined && (typeof b.stageCode !== 'string' || !b.stageCode)) fail('유효한 영업 단계를 선택해 주세요.')
   const to = typeof b.stageCode === 'string' ? b.stageCode : from
   const previous = readSalesProcess(current.salesProcessJson)
-  const process = b.salesProcess === undefined ? previous : parseProcessInput(b.salesProcess)
+  const submitted = b.salesProcess === undefined ? previous : parseProcessInput(b.salesProcess)
   const checks = parseChecks(b.checklistJson === undefined ? current.checklistJson : b.checklistJson)
   if (segment === 'B2B') {
     if (b.salesProcess !== undefined) fail('B2B는 기존 절차를 사용합니다.')
     return { current, data: {} }
   }
+  const process = b.salesProcess !== undefined || b.checklistJson !== undefined
+    ? { ...submitted, inquiryStatus: getInquiryStatus(submitted, checks) } : submitted
   if (b.stage !== undefined && b.stage !== current.stage && b.stageCode === undefined) fail('단계 코드를 함께 확인해 주세요.')
   if (b.customerSegment === 'B2B' && to !== from) fail('고객 유형과 단계는 동시에 변경할 수 없습니다.')
   const changed = JSON.stringify(process) !== JSON.stringify(previous)
