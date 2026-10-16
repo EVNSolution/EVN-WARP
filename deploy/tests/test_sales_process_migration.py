@@ -21,3 +21,23 @@ class SalesProcessMigrationTest(unittest.TestCase):
             db.execute('DELETE FROM SalesProcessAudit')
         self.assertEqual(db.execute('SELECT COUNT(*) FROM SalesProcessAudit').fetchone()[0], 1)
         db.close()
+
+    def test_display_deletion_preserves_immutable_audit_and_records_admin(self):
+        db = sqlite3.connect(':memory:')
+        db.execute('PRAGMA foreign_keys=ON')
+        db.execute('CREATE TABLE SalesDeal (id TEXT PRIMARY KEY)')
+        root = pathlib.Path(__file__).parents[1] / 'schema-migrations'
+        db.executescript((root / '2026101601_add_sales_process.sql').read_text())
+        db.execute("INSERT INTO SalesProcessAudit VALUES('audit','deal','author','Author','Reason','{}','{}',CURRENT_TIMESTAMP)")
+        original = db.execute('SELECT * FROM SalesProcessAudit').fetchone()
+        db.executescript((root / '2026101602_add_sales_process_audit_deletion.sql').read_text())
+        self.assertEqual(db.execute('SELECT * FROM SalesProcessAudit').fetchone(), original)
+        db.execute("INSERT INTO SalesProcessAuditDeletion(auditId,actorId,actorName) VALUES('audit','admin','Admin')")
+        self.assertEqual(db.execute('SELECT * FROM SalesProcessAudit').fetchone(), original)
+        self.assertEqual(db.execute('SELECT COUNT(*) FROM SalesProcessAudit a WHERE NOT EXISTS (SELECT 1 FROM SalesProcessAuditDeletion d WHERE d.auditId=a.id)').fetchone()[0], 0)
+        for statement in ["DELETE FROM SalesProcessAudit", "UPDATE SalesProcessAudit SET reason='changed'", "DELETE FROM SalesProcessAuditDeletion", "UPDATE SalesProcessAuditDeletion SET actorId='changed'"]:
+            with self.assertRaises(sqlite3.IntegrityError):
+                db.execute(statement)
+        with self.assertRaises(sqlite3.IntegrityError):
+            db.execute("INSERT INTO SalesProcessAuditDeletion(auditId,actorId,actorName) VALUES('missing','admin','Admin')")
+        db.close()

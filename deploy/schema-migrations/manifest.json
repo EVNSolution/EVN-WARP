@@ -1,5 +1,5 @@
 {
-  "prismaSchemaSha256": "f1c274fb46c414f3ec488a38a311f9128229854a5ac88e1be0255923a4d0aa22",
+  "prismaSchemaSha256": "26d2f5113f533fa6126d17215955dd8dca6e27f1d2d216459afae20c1515cbd8",
   "requiredTables": [
     "Announcement",
     "BuildupEvent",
@@ -12,7 +12,8 @@
     "McpLog",
     "ActivityComment",
     "AiDigestCache",
-    "SalesProcessAudit"
+    "SalesProcessAudit",
+    "SalesProcessAuditDeletion"
   ],
   "requiredColumnAdditions": {
     "WorkActivity": [
@@ -149,6 +150,12 @@
       "reason",
       "beforeJson",
       "afterJson",
+      "createdAt"
+    ],
+    "SalesProcessAuditDeletion": [
+      "auditId",
+      "actorId",
+      "actorName",
       "createdAt"
     ]
   },

@@ -203,7 +203,7 @@ function toDatetimeLocal(isoStr: string) {
   return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16)
 }
 
-export default function LeadDetailClient({ deal, customer = null, products = [], fromStage, fromSeg, teams = [], shares: initialShares = [] }: { deal: Deal; customer?: CustomerSnap | null; products?: ProductOption[]; fromStage?: string | null; fromSeg?: string | null; teams?: { id: string; name: string }[]; shares?: ShareRecord[] }) {
+export default function LeadDetailClient({ canDeleteProcessAudit = false, deal, customer = null, products = [], fromStage, fromSeg, teams = [], shares: initialShares = [] }: { canDeleteProcessAudit?: boolean; deal: Deal; customer?: CustomerSnap | null; products?: ProductOption[]; fromStage?: string | null; fromSeg?: string | null; teams?: { id: string; name: string }[]; shares?: ShareRecord[] }) {
   const [shares, setShares] = useState<ShareRecord[]>(initialShares)
   const router = useRouter()
   const isMobile = usePathname().startsWith('/m/')
@@ -1031,7 +1031,7 @@ export default function LeadDetailClient({ deal, customer = null, products = [],
         {isB2C && ['1-1','1-3','2-1'].includes(proc.code) && <SalesProcessFields stageCode={proc.code} value={{ ...processData, inquiryStatus: getInquiryStatus(processData, checks) }} onChange={value => {
           if (JSON.stringify(value.finalQuote) !== JSON.stringify(processData.finalQuote)) setChecks(previous => ({...previous, '1-3-confirmed':false}))
           setProcessData(value); setSaved(false)
-        }} documents={dealDocs} reason={processReason} onReasonChange={value => {setProcessReason(value);setSaved(false)}} queue={saved ? deal.queue : {position:null,message:'저장 후 순번을 다시 계산합니다.'}} audit={deal.processAudit} />}
+        }} documents={dealDocs} reason={processReason} onReasonChange={value => {setProcessReason(value);setSaved(false)}} queue={saved ? deal.queue : {position:null,message:'저장 후 순번을 다시 계산합니다.'}} audit={deal.processAudit} auditDealId={deal.id} canDeleteAudit={canDeleteProcessAudit} />}
         {isB2C && PROCESS_GATES[proc.code] && <p className="px-4 py-3 text-xs text-blue-800 bg-blue-50">다음 단계 필수: {PROCESS_GATES[proc.code].map(k => GATE_LABELS[k]).join(' + ')}. 나머지 항목은 참고 정보·거래별 업무로 기록을 유지합니다.</p>}
         {/* 체크리스트 */}
         {stageChecks.length > 0 && (
