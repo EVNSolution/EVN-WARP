@@ -6,11 +6,12 @@ import Link from 'next/link'
 import { PIPELINE, getStatusColor } from '@/lib/pipeline'
 import NewDealModal from './NewDealModal'
 import { InquiryStatusBadge, InquiryStatusFilter } from './InquiryStatus'
-import type { InquiryStatus } from '@/lib/sales-process'
+import { readInquiryStatus, type InquiryStatus } from '@/lib/sales-process'
 
 export interface PipelineDeal {
   id: string
   stageCode: string
+  salesProcessRevision: number
   salesStatus: string
   name: string
   phone: string | null
@@ -400,6 +401,9 @@ export default function PipelineView({ deals, salesTarget, initialStage, initial
   const [assigneeFilter, setAssigneeFilter] = useState('')
   const [inquiryFilter, setInquiryFilter] = useState<InquiryStatus | ''>('')
   const [quickMtgDeal, setQuickMtgDeal] = useState<PipelineDeal | null>(null)
+  const [savingStages, setSavingStages] = useState<string[]>([])
+  const pendingStages = useRef(new Set<string>())
+  const [stageNotice, setStageNotice] = useState<{ error: boolean; message: string } | null>(null)
 
   /* 컬럼 설정 — SSR 안전하게 useEffect에서 로드 */
   const [leadCols, setLeadCols] = useState<ColCfg[]>(() => mkCfg(LEAD_DEFS))
@@ -425,14 +429,32 @@ export default function PipelineView({ deals, salesTarget, initialStage, initial
 
   /* 단계 변경 */
   const handleStageChange = async (id: string, newCode: string) => {
-    setLocalDeals(prev => prev.map(d => d.id === id ? { ...d, stageCode: newCode } : d))
+    const current = localDeals.find(d => d.id === id)
+    if (!current || current.stageCode === newCode || pendingStages.current.has(id)) return
+    pendingStages.current.add(id)
+    setSavingStages(prev => [...prev, id])
+    setStageNotice(null)
     try {
-      await fetch(`/api/deals/${id}`, {
+      const res = await fetch(`/api/deals/${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ stageCode: newCode }),
+        body: JSON.stringify({ stageCode: newCode, salesProcessRevision: current.salesProcessRevision }),
       })
-    } catch { setLocalDeals(deals) }
+      const saved = await res.json()
+      if (!res.ok) throw new Error(saved.error || '단계를 저장하지 못했습니다.')
+      setLocalDeals(prev => prev.map(d => d.id === id ? {
+        ...d, stageCode: saved.stageCode, salesProcessRevision: saved.salesProcessRevision,
+        inquiryStatus: saved.stageCode === '1-1' && d.customerSegment !== 'B2B'
+          ? readInquiryStatus(saved.salesProcessJson, saved.checklistJson) : null,
+      } : d))
+      const stageName = ALL_PROCESS_OPTIONS.find(opt => opt.code === saved.stageCode)?.name ?? saved.stageCode
+      setStageNotice({ error: false, message: `${current.name}: ${stageName} 단계로 저장했습니다. 기존 상담·체크·견적 기록은 유지됩니다.` })
+    } catch (error) {
+      setStageNotice({ error: true, message: `${current.name}: ${error instanceof Error ? error.message : '네트워크 오류로 저장하지 못했습니다.'}` })
+    } finally {
+      pendingStages.current.delete(id)
+      setSavingStages(prev => prev.filter(value => value !== id))
+    }
   }
 
   /* 담당 영업사원 변경 — 표에서 바로 재배정 */
@@ -562,16 +584,19 @@ export default function PipelineView({ deals, salesTarget, initialStage, initial
         return (
           <td key={c.key} style={{ width: W_PX[c.width] }} className="px-3 py-2.5">
             <select
+              aria-label={`${d.name} 단계 변경`}
               value={d.stageCode}
+              disabled={savingStages.includes(d.id)}
               onChange={e => handleStageChange(d.id, e.target.value)}
               onClick={e => e.stopPropagation()}
-              className={`w-40 text-[11px] font-semibold border rounded-md px-1.5 py-1 focus:outline-none focus:ring-1 focus:ring-slate-300 cursor-pointer
+              className={`w-40 min-h-11 md:min-h-0 text-[11px] font-semibold border rounded-md px-1.5 py-1 focus:outline-none focus:ring-1 focus:ring-slate-300 cursor-pointer disabled:opacity-50
                 ${ph ? `${PHASE_LIGHT[ph.phase]} ${PHASE_ACCENT[ph.phase]}` : 'bg-white border-slate-200 text-slate-500'}`}
             >
               {ALL_PROCESS_OPTIONS.map(opt => (
                 <option key={opt.code} value={opt.code}>{opt.code} {opt.name}</option>
               ))}
             </select>
+            {savingStages.includes(d.id) && <span role="status" className="block text-xs text-slate-500 mt-1">저장 중…</span>}
           </td>
         )
       case 'purchaseTiming': {
@@ -832,10 +857,21 @@ export default function PipelineView({ deals, salesTarget, initialStage, initial
         ))}
       </div>
 
+    <div className="md:hidden px-4 py-2 bg-white border-b border-slate-200">
+      <label className="text-xs font-semibold text-slate-600">조회 단계
+        <select value={selectedCode ?? ''} onChange={e => { setSelectedCode(e.target.value || null); setShowLost(false) }}
+          className="mt-1 w-full min-h-11 border border-slate-200 rounded-lg px-3 bg-white">
+          <option value="">전체 보기 · 진행중 {activeDeals.length}건</option>
+          {ALL_PROCESS_OPTIONS.map(opt => <option key={opt.code} value={opt.code}>{opt.name} · {countByCode[opt.code] ?? 0}건</option>)}
+          {['판매성공', '판매보류', '이탈', '완료'].map(status => <option key={status} value={status}>{status}</option>)}
+        </select>
+      </label>
+    </div>
+
     <div className="flex gap-0 flex-1 min-h-0">
 
       {/* ── 좌측: 파이프라인 플로우 ── */}
-      <div className="w-72 shrink-0 overflow-y-auto border-r border-slate-200 bg-slate-50 py-[9px] px-2.5 flex flex-col gap-[5px]">
+      <div className="w-72 shrink-0 overflow-y-auto border-r border-slate-200 bg-slate-50 py-[9px] px-2.5 hidden md:flex flex-col gap-[5px]">
         <button
           onClick={() => { setSelectedCode(null); setShowLost(false) }}
           className={`h-8 w-full flex items-center text-left px-3 rounded-lg text-xs font-semibold transition mb-0.5
@@ -978,10 +1014,14 @@ export default function PipelineView({ deals, salesTarget, initialStage, initial
       </div>
 
       {/* ── 우측: 리드/CRM 테이블 ── */}
-      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+      <div className="flex-1 flex flex-col min-w-0 min-h-0 overflow-hidden">
+
+        {stageNotice && <p role={stageNotice.error ? 'alert' : 'status'} className={`px-4 py-3 text-sm shrink-0 break-words ${stageNotice.error ? 'bg-red-50 text-red-700' : 'bg-emerald-50 text-emerald-800'}`}>
+          {stageNotice.message}
+        </p>}
 
         {/* 패널 헤더 */}
-        <div className={`px-5 py-3 border-b border-slate-200 flex items-center justify-between shrink-0
+        <div className={`px-5 py-3 border-b border-slate-200 flex flex-wrap gap-2 items-center justify-between shrink-0
           ${crmView ? 'bg-slate-800' : selectedPhase ? PHASE_LIGHT[selectedPhase.phase] : 'bg-white'}`}>
           <div className="flex items-center gap-2">
             {crmView
@@ -1005,7 +1045,7 @@ export default function PipelineView({ deals, salesTarget, initialStage, initial
             )}
           </div>
 
-          <div className="flex gap-2 items-center relative">
+          <div className="flex flex-wrap gap-2 items-center relative">
             {/* 영업담당 필터 */}
             {!crmView && assigneeOptions.length > 0 && (
               <select
@@ -1080,7 +1120,7 @@ export default function PipelineView({ deals, salesTarget, initialStage, initial
 
         {/* 확인사항 힌트 바 */}
         {selectedProcess && (
-          <div className="px-5 py-2 bg-slate-50 border-b border-slate-100 flex flex-col gap-1 shrink-0">
+          <div className="px-5 py-2 bg-slate-50 border-b border-slate-100 flex flex-col gap-1 shrink-0 max-h-24 overflow-y-auto">
             {checkRows.map((r, ri) => (
               <div key={ri} className="flex flex-wrap items-center gap-x-4 gap-y-0.5">
                 {r.label && (

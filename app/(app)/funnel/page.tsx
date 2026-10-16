@@ -94,6 +94,7 @@ export default async function FunnelPage({ searchParams }: { searchParams: Promi
     return {
       id:               d.id,
       stageCode,
+      salesProcessRevision: d.salesProcessRevision,
       salesStatus,
       name:             d.name,
       phone:            d.phone,
@@ -150,7 +151,7 @@ export default async function FunnelPage({ searchParams }: { searchParams: Promi
   return (
     <div className="flex flex-col h-[calc(100vh-64px)] overflow-hidden">
       {/* ── 상단 헤더 (공통 스타일: 검은 배경 + 둥근 모서리) ── */}
-      <div className="flex items-center justify-between px-6 py-3 shrink-0 mx-6 mt-6 mb-4 rounded-xl" style={{ background: '#111111' }}>
+      <div className="flex flex-wrap gap-3 items-center justify-between px-4 md:px-6 py-3 shrink-0 mx-3 md:mx-6 mt-3 md:mt-6 mb-4 rounded-xl" style={{ background: '#111111' }}>
         <div>
           <h1 className="text-lg font-bold text-white leading-tight">영업 파이프라인</h1>
           <p className="text-[11px] mt-0.5" style={{ color: '#C5D42A' }}>
@@ -168,7 +169,7 @@ export default async function FunnelPage({ searchParams }: { searchParams: Promi
       <BuildupEventNotice />
 
       {/* ── 색상 범례 ── */}
-      <div className="flex items-center gap-5 px-6 py-1.5 bg-white border-b border-slate-100 text-[11px] text-slate-500 shrink-0">
+      <div className="hidden md:flex items-center gap-5 px-6 py-1.5 bg-white border-b border-slate-100 text-[11px] text-slate-500 shrink-0">
         <span className="font-semibold text-slate-600">단계 상태:</span>
         <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-green-500 inline-block"/>정상 (목표 달성)</span>
         <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-yellow-400 inline-block"/>주의 (목표 50%↑)</span>

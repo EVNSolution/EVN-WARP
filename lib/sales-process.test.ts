@@ -319,6 +319,47 @@ test('legacy same-stage saves do not backfill process JSON, increment revision, 
   assert.deepEqual(readSalesProcess(after.salesProcessJson), emptySalesProcess())
 })
 
+test('list stage rollback needs a revision and persists without clearing existing lead evidence', async () => {
+  const process = validProcess()
+  const checks = { '1-1-0': true, '1-2-4': '2020-01-02T03:04:05.006Z', '1-2-note': '기존 상담 기록' }
+  await createDeal({ stageCode: '1-2', process, checklist: checks, revision: 7 })
+  await createDocument('deal', 'quote-document', 'quotation')
+  await createDocument('deal', 'deposit-document', 'evn_deposit_slip')
+  const before = await db.salesDeal.findUniqueOrThrow({ where: { id: 'deal' } })
+
+  // Reproduce the old list payload: the server correctly refuses a missing revision.
+  await rejectsStatus(writeProcess({ stageCode: '1-1' }), 409, /새로고침/)
+  assert.equal((await db.salesDeal.findUniqueOrThrow({ where: { id: 'deal' } })).stageCode, '1-2')
+  assert.equal(await db.salesProcessAudit.count(), 0)
+
+  await writeProcess({ stageCode: '1-1', salesProcessRevision: before.salesProcessRevision })
+  const reloaded = await db.salesDeal.findUniqueOrThrow({ where: { id: 'deal' } })
+  assert.equal(reloaded.stageCode, '1-1')
+  assert.equal(reloaded.salesProcessRevision, 8)
+  assert.equal(reloaded.salesProcessJson, before.salesProcessJson)
+  assert.equal(reloaded.checklistJson, before.checklistJson)
+  assert.equal(await db.dealDocument.count(), 2)
+  const audit = await db.salesProcessAudit.findFirstOrThrow()
+  assert.equal(JSON.parse(audit.beforeJson).stage, '1-2')
+  assert.equal(JSON.parse(audit.afterJson).stage, '1-1')
+  await rejectsStatus(writeProcess({ stageCode: '1-2', salesProcessRevision: 7 }), 409, /새로고침/)
+  await rejectsStatus(writeProcess({ stageCode: '1-2', salesProcessRevision: 8 }), 400, /전화통화 완료/)
+  assert.equal((await db.salesDeal.findUniqueOrThrow({ where: { id: 'deal' } })).stageCode, '1-1')
+})
+
+test('repeated list changes use each saved revision and keep completed call evidence', async () => {
+  await createDeal({ stageCode: '1-2', checklist: { '1-1-call': true } })
+  const backward = await writeProcess({ stageCode: '1-1', salesProcessRevision: 0 })
+  assert.equal(readInquiryStatus(backward.salesProcessJson, backward.checklistJson), '첫 상담 완료')
+  const forward = await writeProcess({ stageCode: '1-2', salesProcessRevision: backward.salesProcessRevision })
+  await writeProcess({ stageCode: '1-1', salesProcessRevision: forward.salesProcessRevision })
+  const reloaded = await db.salesDeal.findUniqueOrThrow({ where: { id: 'deal' } })
+  assert.equal(reloaded.stageCode, '1-1')
+  assert.equal(reloaded.salesProcessRevision, 3)
+  assert.equal(await db.salesProcessAudit.count(), 3)
+  assert.deepEqual(parseChecks(reloaded.checklistJson), { '1-1-call': true })
+})
+
 test('transaction commits the process, revision, and immutable audit evidence together', async () => {
   await createDeal()
   const process = { ...emptySalesProcess(), inquiryStatus: '상담 대기' as const, callbackAt: '2026-01-05T10:30' }
