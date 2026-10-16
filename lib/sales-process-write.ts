@@ -17,13 +17,14 @@ export function parseProcessInput(input: unknown): SalesProcessData {
     if (part.amountWon !== null && (!Number.isSafeInteger(part.amountWon) || part.amountWon < 0)) fail('금액은 원 단위의 0 이상 정수로 입력해 주세요.')
     if (part.date && (!validDate(part.date) || part.date > koreaToday())) fail('실제 확인 날짜를 입력해 주세요. 미래 날짜는 사용할 수 없습니다.')
   }
+  if (p.finalQuote.grossAmountWon != null && (!Number.isSafeInteger(p.finalQuote.grossAmountWon) || p.finalQuote.grossAmountWon < 0)) fail('차량·특장 총액은 원 단위의 0 이상 정수로 입력해 주세요.')
   if (typeof p.callbackAt !== 'string' || p.callbackAt.length > 30 || (p.callbackAt && !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(p.callbackAt))) fail('재연락 일시를 확인해 주세요.')
   if (!['unpaid','paid','refunded','cancelled'].includes(p.deposit.status) || typeof p.deposit.reviewPending !== 'boolean') fail('계약금 상태를 확인해 주세요.')
   if (p.deposit.time && !/^([01]\d|2[0-3]):[0-5]\d(:[0-5]\d)?$/.test(p.deposit.time)) fail('입금시각을 확인해 주세요.')
   // Whitelist fields: clients cannot append actor, history, or arbitrary payloads.
   // Accept an older open screen's status; call completion is reconciled with its checklist below.
   return { inquiryStatus: p.inquiryStatus === '신규 문의' ? '상담 대기' : p.inquiryStatus, callbackAt: p.callbackAt,
-    finalQuote: { date:p.finalQuote.date, model:p.finalQuote.model.trim(), spec:p.finalQuote.spec.trim(), amountWon:p.finalQuote.amountWon, documentId:p.finalQuote.documentId },
+    finalQuote: { date:p.finalQuote.date, model:p.finalQuote.model.trim(), spec:p.finalQuote.spec.trim(), amountWon:p.finalQuote.amountWon, documentId:p.finalQuote.documentId, ...(p.finalQuote.grossAmountWon !== undefined ? {grossAmountWon:p.finalQuote.grossAmountWon} : {}) },
     deposit: { status:p.deposit.status, date:p.deposit.date, time:p.deposit.time, model:p.deposit.model.trim(), spec:p.deposit.spec.trim(), amountWon:p.deposit.amountWon, documentId:p.deposit.documentId, reviewPending:p.deposit.reviewPending } }
 }
 export function parseChecks(value: unknown): Record<string, boolean | string> {
@@ -35,7 +36,7 @@ export function parseChecks(value: unknown): Record<string, boolean | string> {
   } catch { return fail('체크 기록 형식을 확인해 주세요.') }
 }
 
-export async function prepareSalesProcessWrite(tx: CustomerDb, id: string, b: Record<string, unknown>, actor: {id:string;name:string}, isAdmin:boolean) {
+export async function prepareSalesProcessWrite(tx: CustomerDb, id: string, b: Record<string, unknown>, actor: {id:string;name:string}, isAdmin:boolean, quoteSource?: {quoteId:number;quoteNo:string|null;version:string;pdfSha256:string;updatedAt:string;frozen:boolean}) {
   const current = await tx.salesDeal.findUnique({ where:{id}, include:{ customer:{select:{customerSegment:true}} } })
   if (!current) throw new CustomerMergeError(404, '리드를 찾을 수 없습니다.')
   if (!isAdmin && current.assignee !== actor.name) throw new CustomerMergeError(403, '담당 리드만 수정할 수 있습니다.')
@@ -44,7 +45,7 @@ export async function prepareSalesProcessWrite(tx: CustomerDb, id: string, b: Re
   if (b.stageCode !== undefined && (typeof b.stageCode !== 'string' || !b.stageCode)) fail('유효한 영업 단계를 선택해 주세요.')
   const to = typeof b.stageCode === 'string' ? b.stageCode : from
   const previous = readSalesProcess(current.salesProcessJson)
-  const submitted = b.salesProcess === undefined ? previous : parseProcessInput(b.salesProcess)
+  const submitted = b.salesProcess === undefined ? previous : readSalesProcess(JSON.stringify(parseProcessInput(b.salesProcess)))
   const checks = parseChecks(b.checklistJson === undefined ? current.checklistJson : b.checklistJson)
   if (segment === 'B2B') {
     if (b.salesProcess !== undefined) fail('B2B는 기존 절차를 사용합니다.')
@@ -89,7 +90,7 @@ export async function prepareSalesProcessWrite(tx: CustomerDb, id: string, b: Re
   await tx.salesProcessAudit.create({data:{id:crypto.randomUUID(),dealId:id,actorId:actor.id,actorName:actor.name,
     reason: reason || '영업 절차 확인',
     beforeJson:JSON.stringify({stage:from,process:previous,checks:priorChecks}),
-    afterJson:JSON.stringify({stage:to,process,checks,initialQuotationIds:documents.map(doc => doc.id)}),
+    afterJson:JSON.stringify({stage:to,process,checks,initialQuotationIds:documents.map(doc => doc.id), ...(quoteSource ? {buildupQuote:quoteSource} : {})}),
   }})
   return {current,data:{salesProcessJson:JSON.stringify(process),salesProcessRevision:{increment:1}}}
 }

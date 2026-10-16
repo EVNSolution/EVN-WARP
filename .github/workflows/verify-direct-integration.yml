@@ -31,6 +31,7 @@ on:
       - app/api/deals/**
       - app/api/import/execute/**
       - components/SalesProcessFields.tsx
+      - components/BuildupQuotePicker.tsx
       - app/(app)/funnel/**
       - app/(mobile)/m/pipeline/**
       - docs/integrations/**

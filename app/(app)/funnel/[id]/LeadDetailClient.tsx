@@ -1043,7 +1043,10 @@ export default function LeadDetailClient({ canDeleteProcessAudit = false, deal, 
           </div>
         )}
 
-        {isB2C && ['1-1','1-3','2-1'].includes(proc.code) && <SalesProcessFields stageCode={proc.code} value={{ ...processData, inquiryStatus: getInquiryStatus(processData, checks) }} onChange={value => {
+        {isB2C && ['1-1','1-3','2-1'].includes(proc.code) && <SalesProcessFields quoteImport={proc.code === '1-3' && stageCode === '1-3' ? {dealId:deal.id,revision:processRevision,saved,onImported:result=>{
+          setProcessData(result.salesProcess);setProcessRevision(result.revision);setChecks(result.checks);setProcessReason('');
+          setDealDocs(previous=>[...previous,result.document]);setSaved(true);router.refresh()
+        }} : undefined} stageCode={proc.code} value={{ ...processData, inquiryStatus: getInquiryStatus(processData, checks) }} onChange={value => {
           if (JSON.stringify(value.finalQuote) !== JSON.stringify(processData.finalQuote)) setChecks(previous => ({...previous, '1-3-confirmed':false}))
           setProcessData(value); setSaved(false)
         }} documents={dealDocs} reason={processReason} onReasonChange={value => {setProcessReason(value);setSaved(false)}} queue={saved ? deal.queue : {position:null,message:'저장 후 순번을 다시 계산합니다.'}} audit={deal.processAudit} auditDealId={deal.id} canDeleteAudit={canDeleteProcessAudit} />}

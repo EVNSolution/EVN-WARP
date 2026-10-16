@@ -1,6 +1,7 @@
 'use client'
 
 import { useId } from 'react'
+import BuildupQuotePicker, { type QuoteImportResult } from './BuildupQuotePicker'
 import type { SalesProcessData } from '@/lib/sales-process'
 import { InquiryStatusBadge } from './InquiryStatus'
 import SalesProcessHistory, { type AuditEntry } from './SalesProcessHistory'
@@ -9,6 +10,7 @@ type DocumentOption = { id: string; docKey: string; fileName: string }
 
 interface Props {
   stageCode: string
+  quoteImport?: {dealId:string;revision:number;saved:boolean;onImported:(result:QuoteImportResult)=>void}
   value: SalesProcessData
   onChange: (value: SalesProcessData) => void
   documents: DocumentOption[]
@@ -52,6 +54,7 @@ export default function SalesProcessFields({
   audit,
   auditDealId,
   canDeleteAudit,
+  quoteImport,
 }: Props) {
   const id = useId()
   const quoteDocuments = documents.filter(document => ['quotation','initial_quotation','final_quotation'].includes(document.docKey))
@@ -98,6 +101,8 @@ export default function SalesProcessFields({
         </fieldset>
       )}
 
+      {stageCode === '1-3' && quoteImport && <BuildupQuotePicker {...quoteImport} hasQuote={Object.values(value.finalQuote).some(v => v !== '' && v != null)} />}
+
       {stageCode === '1-3' && (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div>
@@ -112,7 +117,7 @@ export default function SalesProcessFields({
               onChange={event => setFinalQuote({ date: event.target.value })}
               className={INPUT_CLASS}
             />
-            <p className="mt-1 text-xs text-slate-500">KST 기준 · YYYY-MM-DD</p>
+            <p className="mt-1 text-xs text-slate-500">KST 기준 · 고객과 최종 합의한 날짜를 입력하세요.</p>
           </div>
 
           <div>
@@ -145,7 +150,7 @@ export default function SalesProcessFields({
 
           <div>
             <label htmlFor={`${id}-quote-amount`} className="text-sm font-semibold text-slate-700">
-              최종 견적 금액
+              {value.finalQuote.grossAmountWon == null ? '최종 견적 금액' : '실구매가(기타 포함)'}
               <RequiredCheck missing={value.finalQuote.amountWon == null} />
             </label>
             <div className="relative">
@@ -161,6 +166,14 @@ export default function SalesProcessFields({
               />
               <span className="pointer-events-none absolute bottom-2.5 right-3 text-sm text-slate-500">원</span>
             </div>
+          </div>
+
+          <div>
+            <label htmlFor={`${id}-quote-gross`} className="text-sm font-semibold text-slate-700">차량·특장 총액</label>
+            <div className="relative"><input id={`${id}-quote-gross`} type="number" min="0" step="1" inputMode="numeric"
+              value={value.finalQuote.grossAmountWon ?? ''} onChange={event => setFinalQuote({grossAmountWon:parseAmount(event.target.value)})}
+              className={`${INPUT_CLASS} pr-10`} /><span className="absolute bottom-2.5 right-3 text-sm text-slate-500">원</span></div>
+            <p className="mt-1 text-xs text-slate-500">BuildUP EV의 차량·특장 가격 합계(VAT 포함, 탁송료 제외). 기존 기록에서 확인되지 않는 금액은 비워 둡니다.</p>
           </div>
 
           <div>
