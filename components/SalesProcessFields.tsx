@@ -24,7 +24,7 @@ interface Props {
 }
 
 const INPUT_CLASS = 'mt-1.5 w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-base text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100 sm:text-sm'
-const INQUIRY_STATUSES: SalesProcessData['inquiryStatus'][] = ['신규 문의', '상담 대기', '부재중 대기']
+const INQUIRY_STATUSES: SalesProcessData['inquiryStatus'][] = ['상담 대기', '부재중 대기']
 const DEPOSIT_STATUSES: { value: SalesProcessData['deposit']['status']; label: string }[] = [
   { value: 'unpaid', label: '미입금' },
   { value: 'paid', label: '입금 완료' },
@@ -90,40 +90,26 @@ export default function SalesProcessFields({
   return (
     <section className="space-y-4 px-4 py-4 bg-white" aria-label="B2C 영업 진행 정보">
       {stageCode === '1-1' && (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <div>
-            <label htmlFor={`${id}-inquiry-status`} className="text-sm font-semibold text-slate-700">
-              문의 상태
-              <RequiredCheck missing={!value.inquiryStatus} />
-            </label>
-            <select
-              id={`${id}-inquiry-status`}
-              value={value.inquiryStatus ?? ''}
-              onChange={event => onChange({
-                ...value,
-                inquiryStatus: event.target.value as SalesProcessData['inquiryStatus'],
-              })}
-              className={INPUT_CLASS}
-            >
-              {!value.inquiryStatus && <option value="">상태를 확인하세요</option>}
-              {INQUIRY_STATUSES.map(status => <option key={status} value={status}>{status}</option>)}
-            </select>
+        <fieldset>
+          <legend className="text-sm font-semibold text-slate-700">문의 상태</legend>
+          <div className="mt-2 grid grid-cols-2 gap-2 sm:max-w-md">
+            {INQUIRY_STATUSES.map(status => (
+              <label key={status} className="cursor-pointer">
+                <input
+                  type="radio"
+                  name={`${id}-inquiry-status`}
+                  value={status}
+                  checked={(value.inquiryStatus === '부재중 대기' ? '부재중 대기' : '상담 대기') === status}
+                  onChange={() => onChange({ ...value, inquiryStatus: status })}
+                  className="peer sr-only"
+                />
+                <span className="flex min-h-11 items-center justify-center rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm font-semibold text-slate-600 transition peer-checked:border-blue-600 peer-checked:bg-blue-50 peer-checked:text-blue-700 peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-blue-600">
+                  {status}
+                </span>
+              </label>
+            ))}
           </div>
-
-          <div>
-            <label htmlFor={`${id}-callback-at`} className="text-sm font-semibold text-slate-700">
-              다시 연락할 일시 <span className="font-normal text-slate-400">(선택)</span>
-            </label>
-            <input
-              id={`${id}-callback-at`}
-              type="datetime-local"
-              value={value.callbackAt ?? ''}
-              onChange={event => onChange({ ...value, callbackAt: event.target.value })}
-              className={INPUT_CLASS}
-            />
-            <p className="mt-1 text-xs text-slate-500">대한민국 표준시(KST) 기준 · YYYY-MM-DD HH:mm</p>
-          </div>
-        </div>
+        </fieldset>
       )}
 
       {stageCode === '1-3' && (
@@ -374,7 +360,7 @@ export default function SalesProcessFields({
         </div>
       )}
 
-      <div className="border-t border-slate-200 pt-4">
+      {stageCode !== '1-1' && <div className="border-t border-slate-200 pt-4">
         <label htmlFor={`${id}-reason`} className="text-sm font-semibold text-slate-700">정정 사유</label>
         <textarea
           id={`${id}-reason`}
@@ -384,7 +370,7 @@ export default function SalesProcessFields({
           placeholder="기존 저장값을 고치는 이유를 입력하세요"
         />
         <p className="mt-1 text-xs text-slate-500">이미 저장한 견적·입금 정보를 고칠 때는 정정 사유를 입력해 주세요.</p>
-      </div>
+      </div>}
 
       {audit && audit.length > 0 && (
         <div className="border-t border-slate-200 pt-4">
